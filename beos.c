@@ -45,7 +45,7 @@ int be_socket(int af, int sock, int prot)
 	return h + SHS;
 }
 
-int be_connect(int s, struct sockaddr *sa, int sal)
+int  be_connect(int s, struct sockaddr *sa, int sal)
 {
 	return connect(s - SHS, sa, sal);
 }

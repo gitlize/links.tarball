@@ -8,10 +8,6 @@
 
 #define format format_
 
-#ifdef DEBUG
-#undef DEBUG
-#endif
-
 /*#define DEBUG*/
 
 #define RECT_BOUND_BITS	10	/* --- bound at 1024 pixels */

@@ -71,7 +71,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	struct c_server *cs;
 	unsigned char *p, *q, *s, *server, *date, *document;
 	if (accept_cookies == ACCEPT_NONE) return 0;
-	for (p = str; *p != ';' && *p; p++) /*if (WHITECHAR(*p)) return 0*/;
+	for (p = str; *p != ';' && *p; p++) if (WHITECHAR(*p)) return 0;
 	for (q = str; *q != '='; q++) if (!*q || q >= p) return 0;
 	if (str == q || q + 1 == p) return 0;
 	if (!(cookie = mem_alloc(sizeof(struct cookie)))) return 0;
@@ -83,8 +83,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	date = parse_header_param(str, "expires");
 	if (date) {
 		cookie->expires = parse_http_date(date);
-		/* kdo tohle napsal a proc ?? */
-		/*if (! cookie->expires) cookie->expires++;*/ /* no harm and we can use zero then */
+		if (! cookie->expires) cookie->expires++; /* no harm and we can use zero then */
 		mem_free(date);
 	} else
 		cookie->expires = 0;

@@ -1907,13 +1907,10 @@ int create_list_window(
 		return 1;
 	}
 	
-	if (!ld->current_pos)
-	{
-		ld->current_pos=list;
-		ld->win_offset=list;
-		ld->win_pos=0;
-		ld->dlg=NULL;
-	}
+	ld->current_pos=list;
+	ld->win_offset=list;
+	ld->win_pos=0;
+	ld->dlg=NULL;
 
 	a=7;
 	if (ld->button_fn)a++;

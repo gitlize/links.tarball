@@ -503,7 +503,7 @@ void get_searched(struct f_data_c *scr, struct point **pt, int *pl)
 				co = get_char(t, x, y);
 				co = ((co >> 3) & 0x0700) | ((co << 3) & 0x3800);
 				set_color(t, x, y, co);*/
-				if (!(len & (ALLOC_GR - 1))) {
+				if (!(len & ALLOC_GR)) {
 					struct point *npt;
 					if (!(npt = mem_realloc(points, sizeof(struct point) * (len + ALLOC_GR)))) continue;
 					points = npt;
@@ -623,7 +623,7 @@ struct form_state *find_form_state(struct f_data_c *f, struct form_control *form
 		vs->form_info_len = n + 1;
 		fs = &vs->form_info[n];
 	}
-	if (/*fs->form_num == form->form_num && fs->ctrl_num == form->ctrl_num && fs->g_ctrl_num == form->g_ctrl_num &&*/ /*fs->position == form->position &&*/ fs->type == form->type) return fs;
+	if (fs->form_num == form->form_num && fs->ctrl_num == form->ctrl_num && fs->g_ctrl_num == form->g_ctrl_num && /*fs->position == form->position &&*/ fs->type == form->type) return fs;
 	if (fs->value) mem_free(fs->value);
 	memset(fs, 0, sizeof(struct form_state));
 	fs->form_num = form->form_num;
@@ -758,21 +758,6 @@ void draw_forms(struct terminal *t, struct f_data_c *f)
 	} while (l1++ < l2);
 }
 
-/* 0 -> 1 <- 2 v 3 ^ */
-
-unsigned char fr_trans[2][4] = {{0xb3, 0xc3, 0xb4, 0xc5}, {0xc4, 0xc2, 0xc1, 0xc5}};
-
-void set_xchar(struct terminal *t, int x, int y, unsigned dir)
-{
-	unsigned c;
-	if (x < 0 || x >= t->x || y < 0 || y >= t->y) return;
-	c = get_char(t, x, y);
-	if (!(c & ATTR_FRAME)) return;
-	c &= 0xff;
-	if (c == fr_trans[dir / 2][0]) set_only_char(t, x, y, fr_trans[dir / 2][1 + (dir & 1)] | ATTR_FRAME);
-	else if (c == fr_trans[dir / 2][2 - (dir & 1)]) set_only_char(t, x, y, fr_trans[dir / 2][3] | ATTR_FRAME);
-}
-
 void draw_frame_lines(struct terminal *t, struct frameset_desc *fsd, int xp, int yp)
 {
 	int i, j;
@@ -784,14 +769,8 @@ void draw_frame_lines(struct terminal *t, struct frameset_desc *fsd, int xp, int
 		x = xp - 1;
 		for (i = 0; i < fsd->x; i++) {
 			int wwx = fsd->f[i].xw;
-			if (i) {
-				fill_area(t, x, y + 1, 1, wwy, 179 | ATTR_FRAME);
-				if (j == fsd->y - 1) set_xchar(t, x, y + wwy + 1, 3);
-			} else if (j) set_xchar(t, x, y, 0);
-			if (j) {
-				fill_area(t, x + 1, y, wwx, 1, 196 | ATTR_FRAME);
-				if (i == fsd->x - 1) set_xchar(t, x + wwx + 1, y, 1);
-			} else if (i) set_xchar(t, x, y, 2);
+			if (i) fill_area(t, x, y + 1, 1, wwy, 179 | ATTR_FRAME);
+			if (j) fill_area(t, x + 1, y, wwx, 1, 196 | ATTR_FRAME);
 			if (i && j) set_char(t, x, y, 197 | ATTR_FRAME);
 			/*if (fsd->f[j * fsd->x + i].subframe) {
 				draw_frame_lines(t, fsd->f[j * fsd->x + i].subframe, x + 1, y + 1);
@@ -1094,6 +1073,8 @@ void page_up(struct session *ses, struct f_data_c *f, int a)
 	if (f->vs->view_pos < 0) f->vs->view_pos = 0/*, find_link(f, 1, a)*/;
 }
 
+void set_textarea(struct session *, struct f_data_c *, int);
+
 void down(struct session *ses, struct f_data_c *f, int a)
 {
 	int l = f->vs->current_link;
@@ -1148,7 +1129,7 @@ int has_form_submit(struct f_data *f, struct form_control *form)
 {
 	struct form_control *i;
 	int q = 0;
-	/*if (F) return 0;*/
+	if (F) return 0;
 	foreach (i, f->forms) if (i->form_num == form->form_num) {
 		if ((i->type == FC_SUBMIT || i->type == FC_IMAGE)) return 1;
 		q = 1;
@@ -1373,7 +1354,6 @@ void encode_multipart(struct session *ses, struct list_head *l, unsigned char **
 			if (*sv->value) {
 				if (anonymous) goto error;
 				if ((fh = open(sv->value, O_RDONLY)) == -1) goto error;
-				set_bin(fh);
 				do {
 					if ((rd = read(fh, buffer, F_BUFLEN)) == -1) goto error;
 					if (rd) add_bytes_to_str(data, len, buffer, rd);
@@ -1557,8 +1537,6 @@ void set_frame(struct session *ses, struct f_data_c *f, int a)
 	goto_url_not_from_dialog(ses, f->loc->url);
 }
 
-int g_next_link(struct f_data_c *fd, int dir); /* jsem prase, ale nechce se mi to cely prekompilovavat po zasahu do links.h */
-
 /* pokud je a==1, tak se nebude submitovat formular, kdyz kliknu na input field a formular nema submit */
 int enter(struct session *ses, struct f_data_c *f, int a)
 {
@@ -1592,7 +1570,7 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 #else
 				0
 #endif
-				,0,0
+				,0
 			);
 			mem_free(u);
 			return 2;
@@ -1646,15 +1624,12 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 		}
 #endif
 #ifdef G
-		if (F && a) {
+		if (F) {
 			ses->locked_link = 1;
 			return 2;
 		}
 #endif
-		if (!F) down(ses, f, 0);
-#ifdef G
-		else g_next_link(f, 1);
-#endif
+		down(ses, f, 0);
 		return 1;
 	}
 	internal("bad link type %d", link->type);
@@ -1807,7 +1782,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 					rep1:
 					for (y = 0; ln[y].st; y++) if (fs->value + fs->state >= ln[y].st && fs->value + fs->state < ln[y].en + (ln[y+1].st != ln[y].en)) {
 						if (!y) {
-							/*if (F) goto xx;*/
+							if (F) goto xx;
 							mem_free(ln);
 							goto b;
 						}
@@ -1832,7 +1807,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 					rep2:
 					for (y = 0; ln[y].st; y++) if (fs->value + fs->state >= ln[y].st && fs->value + fs->state < ln[y].en + (ln[y+1].st != ln[y].en)) {
 						if (!ln[y+1].st) {
-							/*if (F) goto yy;*/
+							if (F) goto yy;
 							mem_free(ln);
 							goto b;
 						}
@@ -1894,9 +1869,9 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 				}
 			}
 		} else if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'Z' && ev->y == KBD_CTRL)) {
-			set_clipboard_text(ses->term, fs->value);
+			set_clipboard_text(fs->value);
 		} else if ((ev->x == KBD_DEL && ev->y == KBD_SHIFT) || (upcase(ev->x) == 'X' && ev->y == KBD_CTRL)) {
-			set_clipboard_text(ses->term, fs->value);
+			set_clipboard_text(fs->value);
 			if (!form->ro) fs->value[0] = 0;
 			fs->state = 0;
 #ifdef JS
@@ -2191,9 +2166,9 @@ int frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 		else if (ev->x == KBD_UP) rep_ev(ses, fd, up, 0);
 		/* Copy current link to clipboard */
 		else if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'C' && ev->y == KBD_CTRL)) {
-			unsigned char *current_link = print_current_link(ses);
+			char *current_link = print_current_link(ses);
 			if (current_link) {
-				set_clipboard_text(ses->term, current_link);
+				set_clipboard_text( current_link );
 				mem_free(current_link);
 			}
 		}
@@ -2471,7 +2446,7 @@ void send_event(struct session *ses, struct event *ev)
 			next_frame(ses, ev->y ? -1 : 1);
 			draw_formatted(ses);
 		}
-		if (ev->x == KBD_LEFT) {
+		if (!F && ev->x == KBD_LEFT) {
 			back(ses, NULL, 0);
 			goto x;
 		}
@@ -2485,10 +2460,6 @@ void send_event(struct session *ses, struct event *ev)
 		}
 		if (upcase(ev->x) == 'R' && ev->y == KBD_CTRL) {
 			reload(ses, -1);
-			goto x;
-		}
-		if (upcase(ev->x) == 'S' && ev->y == KBD_CTRL) {
-			abort_all_connections();
 			goto x;
 		}
 		if (ev->x == 'g' && !ev->y) {
@@ -2531,10 +2502,6 @@ void send_event(struct session *ses, struct event *ev)
 		}
 		if (ev->x == '=') {
 			state_msg(ses);
-			goto x;
-		}
-		if (ev->x == '|') {
-			head_msg(ses);
 			goto x;
 		}
 		if (ev->x == '\\') {
@@ -2629,56 +2596,6 @@ void send_download(struct terminal *term, void *xxx, struct session *ses)
 	if (ses->dn_url) mem_free(ses->dn_url);
 	if ((ses->dn_url = get_link_url(ses, fd, &fd->f_data->links[fd->vs->current_link], NULL)))
 		query_file(ses, ses->dn_url, start_download, NULL);
-}
-
-void send_submit(struct terminal *term, void *xxx, struct session *ses)
-{
-	int has_onsubmit;
-	struct form_control *form; 
-	struct f_data_c *fd = current_frame(ses);
-	unsigned char *u;
-
-	if (!fd) return;
-	if (fd->vs->current_link == -1) return;
-	if (!(form=(fd->f_data->links[fd->vs->current_link]).form)) return;
-	u=get_form_url(ses,fd,form,&has_onsubmit);
-	goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0,0);
-	mem_free(u);
-	draw_fd(fd);
-}
-
-void send_reset(struct terminal *term, void *xxx, struct session *ses)
-{
-	struct form_control *form; 
-	struct f_data_c *fd = current_frame(ses);
-
-	if (!fd) return;
-	if (fd->vs->current_link == -1) return;
-	if (!(form=(fd->f_data->links[fd->vs->current_link]).form)) return;
-	reset_form(fd,form->form_num);
-	draw_fd(fd);
-}
-
-void copy_link_location(struct terminal *term, void *xxx, struct session *ses)
-{
-	unsigned char *current_link = print_current_link(ses);
-
-	if (current_link) {
-		set_clipboard_text( term, current_link );
-		mem_free(current_link);
-	}
-
-}
-
-void copy_url_location(struct terminal *term, void *xxx, struct session *ses)
-{
-      unsigned char * url;
-	struct location * current_location;
-	
-	if (list_empty(ses->history)) return;
-
-	if ((current_location = cur_loc(ses))&& current_location && (url=current_location->url))
-	        set_clipboard_text(term, url);
 }
 
 /* open a link in a new xterm */
@@ -2808,20 +2725,9 @@ void link_menu(struct terminal *term, void *xxx, struct session *ses)
 			if (!F) add_to_menu(&mi, TEXT(T_FOLLOW_LINK), "", TEXT(T_HK_FOLLOW_LINK), MENU_FUNC send_enter, NULL, 0);
 			if (c) add_to_menu(&mi, TEXT(T_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT(T_HK_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1);
 			if (!anonymous) add_to_menu(&mi, TEXT(T_DOWNLOAD_LINK), "d", TEXT(T_HK_DOWNLOAD_LINK), MENU_FUNC send_download, NULL, 0);
-#ifdef G
-			if(F && term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) 
-				add_to_menu(&mi, TEXT(T_COPY_LINK_LOCATION), "c", TEXT(T_HK_COPY_LINK_LOCATION), MENU_FUNC copy_link_location, NULL, 0);
-#endif
 			/*add_to_menu(&mi, TEXT(T_ADD_BOOKMARK), "A", TEXT(T_HK_ADD_BOOKMARK), MENU_FUNC menu_bookmark_manager, NULL, 0);*/
 
 		}
-	}
-	if ((link->type == L_CHECKBOX || link->type == L_SELECT || link->type == L_FIELD || link->type == L_AREA) && link->form){
-		int c = can_open_in_new(term);
-		add_to_menu(&mi, TEXT(T_SUBMIT_FORM), "", TEXT(T_HK_SUBMIT_FORM), MENU_FUNC send_submit, NULL, 0);
-		if (c && link->form->method == FM_GET) add_to_menu(&mi, TEXT(T_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT(T_HK_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1);
-		if (!anonymous) add_to_menu(&mi, TEXT(T_SUBMIT_FORM_AND_DOWNLOAD), "d", TEXT(T_HK_SUBMIT_FORM_AND_DOWNLOAD), MENU_FUNC send_download, NULL, 0);
-		add_to_menu(&mi, TEXT(T_RESET_FORM), "", TEXT(T_HK_RESET_FORM), MENU_FUNC send_reset, NULL, 0);
 	}
 	if (link->type == L_BUTTON && link->form) {
 		if (link->form->type == FC_RESET) add_to_menu(&mi, TEXT(T_RESET_FORM), "", TEXT(T_HK_RESET_FORM), MENU_FUNC send_enter, NULL, 0);
@@ -2889,10 +2795,7 @@ unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *term)
 			if (l->img_alt)
 			{
 				unsigned char *txt;
-				struct conv_table* ct;
-
-				ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-				txt = convert_string(ct, l->img_alt, strlen(l->img_alt), &fd->f_data->opt);
+				txt = convert_string(convert_table, l->img_alt, strlen(l->img_alt), &fd->f_data->opt);
 				add_to_str(&m, &ll, txt);
 				mem_free(txt);
 			}
@@ -3081,23 +2984,3 @@ void state_msg(struct session *ses)
 	else loc_msg(ses->term, cur_loc(ses), ses->screen);
 }
 
-void head_msg(struct session *ses)
-{
-	struct cache_entry *ce;
-	unsigned char *s, *ss;
-	int len;
-	if (list_empty(ses->history)) {
-		msg_box(ses->term, NULL, TEXT(T_HEADER_INFO), AL_LEFT, TEXT(T_YOU_ARE_NOWHERE), NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
-		return;
-	}
-	if (!find_in_cache(cur_loc(ses)->url, &ce)) {
-		if (ce->head) ss = s = stracpy(ce->head);
-		else s = ss = stracpy("");
-		len = strlen(s) - 1;
-		if (len > 0) {
-			while ((ss = strstr(s, "\r\n"))) memmove(ss, ss + 1, strlen(ss));
-			while (*s && s[strlen(s) - 1] == '\n') s[strlen(s) - 1] = 0;
-		}
-		msg_box(ses->term, getml(s, NULL), TEXT(T_HEADER_INFO), AL_LEFT, s, NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
-	}
-}

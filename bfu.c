@@ -1211,13 +1211,13 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 				}
 				/* Copy to clipboard */
 				if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'Z' && ev->y == KBD_CTRL)) {
-					set_clipboard_text(term, di->cdata);
+					set_clipboard_text(di->cdata);
 					break;	/* We don't need to redraw */
 				}
 				/* FIXME -- why keyboard shortcuts with shift don't works??? */
 				/* Cut to clipboard */
 				if ((ev->x == KBD_DEL && ev->y == KBD_SHIFT) || (upcase(ev->x) == 'X' && ev->y == KBD_CTRL)) {
-					set_clipboard_text(term, di->cdata);
+					set_clipboard_text(di->cdata);
 					di->cdata[0] = 0;
 					di->cpos = 0;
 					goto dsp_f;

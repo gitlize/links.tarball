@@ -39,7 +39,7 @@
  * oblasti a 2. scroll bude mit jinou clipovaci oblast, ktera bude tu postizenou oblast
  * zasahovat z casti. Tak to se bude jako ta postizena oblast stipat na casti a ty casti
  * se posunou podle toho, jestli jsou zasazene tim 2. scrollem? Tim jsem ho utrel, jak
- * zpoceny celo. 
+ * spoceny celo. 
  * 
  * Takze se to nakonec udela tak, ze ze scrollu vratim hromadu rectanglu, ktere se maji
  * prekreslit, a Mikulas si s tim udela, co bude chtit. Podobne jako ve svgalib, kde se
@@ -84,7 +84,6 @@
 #include <X11/X.h>
 #include <X11/Xutil.h>
 #include <X11/Xlocale.h>
-#include <X11/Xatom.h>
 
 
 #ifndef XK_MISCELLANY
@@ -159,9 +158,6 @@ struct
 	struct graphics_device **pointer;
 }
 x_hash_table[X_HASH_TABLE_SIZE];
-
-static unsigned char * x_my_clipboard=NULL;
-
 
 /*----------------------------------------------------------------------*/
 
@@ -659,7 +655,6 @@ static void x_process_events(void *data)
 					break;
 
 					case 2:
-					if (event.xbutton.state & ShiftMask) return; /* paste */
 					a=B_MIDDLE;
 					break;
 
@@ -702,17 +697,17 @@ static void x_process_events(void *data)
 					a=B_MIDDLE;
 					if (event.xbutton.state & ShiftMask) /* paste */
 					{
-						Atom pty;
-						if ((pty = XInternAtom(x_display, "XCLIP_OUT", False)))
+						int num=0;
+						unsigned char *buffer,*p;
+						
+						buffer=XFetchBytes(x_display,&num);
+						for (p=buffer;num>0;num--,p++)
 						{
-							XConvertSelection(
-								x_display,
-								XA_PRIMARY,
-								XA_STRING,
-								pty,
-								event.xbutton.window,
-								CurrentTime);
+							if (*p==10)gd->keyboard_handler(gd,KBD_ENTER,0);
+							else
+								if (*p>=32)gd->keyboard_handler(gd,*p,0);
 						}
+						if (buffer)XFree(buffer);
 						return;
 					}
 					break;
@@ -759,117 +754,6 @@ static void x_process_events(void *data)
 			}
 			break;
 
-			case SelectionNotify:
-			if(event.xselection.property)
-			{
-				unsigned char *buffer, *p;
-				unsigned long pty_size = 0, pty_items = 0;
-				int           pty_format = 8, ret, table;
-				Atom          pty_type = None;
-
-				/* Get size and type of property */
-				ret = XGetWindowProperty(
-					x_display,
-					event.xselection.requestor,
-					event.xselection.property,
-					0,
-					0,
-					False,
-					AnyPropertyType,
-					&pty_type,
-					&pty_format,
-					&pty_items,
-					&pty_size,
-					&buffer);
-				if(ret != Success) break;
-				XFree(buffer);
-
-				ret = XGetWindowProperty(
-					x_display,
-					event.xselection.requestor,
-					event.xselection.property,
-					0,
-					(long)pty_size,
-					True,
-					AnyPropertyType,
-					&pty_type,
-					&pty_format,
-					&pty_items,
-					&pty_size,
-					&buffer
-				);
-				if(ret != Success) break;
-
-				pty_size = (pty_format>>3) * pty_items;
-				gd = x_find_gd(&(event.xselection.requestor));
-				table = x_input_encoding < 0 ? drv->codepage : x_input_encoding;
-				if(gd)
-				{
-					for (p = buffer; pty_size > 0; pty_size--, p++)
-					{
-						if (*p == 10) gd->keyboard_handler(gd,KBD_ENTER,0);
-						else if (*p >= 32) gd->keyboard_handler(gd,trans_key(p,table),0);
-					}
-				}
-				XFree(buffer);
-			}
-			break;
-
-/* This long code must be here in order to implement copying of stuff into the clipboard */
-                        case SelectionRequest:
-                        {
-                            XSelectionRequestEvent *req;
-                            XEvent respond;
-
-                            req=&(event.xselectionrequest);
-#ifdef X_DEBUG
-                            {
-                                unsigned char txt[256];
-                                sprintf (txt,"xselectionrequest from %i to %i\n",(int)e.xselection.requestor, (int)w);
-                                MESSAGE(txt);
-                                sprintf (txt,"property:%i target:%i selection:%i\n", req->property,req->target, req->selection);
-                                MESSAGE(txt);
-                            }
-#endif
-                            if (req->target == XA_STRING)
-                            {
-				XChangeProperty (x_display,
-                                                 req->requestor,
-                                                 req->property,
-                                                 XA_STRING,
-                                                 8,
-                                                 PropModeReplace,
-                                                 x_my_clipboard,
-                                                 x_my_clipboard?strlen(x_my_clipboard):0
-				);
-				respond.xselection.property=req->property;
-                            }
-                            else
-                            {
-#ifdef X_DEBUG
-                                {
-                                    unsigned char txt[256];
-                                    sprintf (txt,"Non-String wanted: %i\n",(int)req->target);
-                                    MESSAGE(txt);
-                                }
-#endif
-				respond.xselection.property= None;
-                            }
-                            respond.xselection.type= SelectionNotify;
-                            respond.xselection.display= req->display;
-                            respond.xselection.requestor= req->requestor;
-                            respond.xselection.selection=req->selection;
-                            respond.xselection.target= req->target;
-                            respond.xselection.time = req->time;
-                            XSendEvent (x_display, req->requestor,0,0,&respond);
-                            XFlush (x_display);                    
-                        }
-                        break;
-               		
-			case MapNotify:
-			XFlush (x_display);
-			break;
-  
 			default:
 #ifdef X_DEBUG
 			{
@@ -1084,11 +968,6 @@ bytes_per_pixel_found:
 						case 15:
 						case 16:
 						if (x_bitmap_bpp!=2)break;
-						if (x_bitmap_bit_order==MSBFirst&&vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
-						{
-							misordered=256;
-							goto visual_found;
-						}
 						if (x_bitmap_bit_order==MSBFirst)break;
 						if (vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
 						{
@@ -1104,14 +983,14 @@ bytes_per_pixel_found:
 							misordered=256;
 							goto visual_found;
 						}
-						if (x_bitmap_bit_order==MSBFirst&&vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
-						{
-							misordered=512;
-							goto visual_found;
-						}
 						if (vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
 						{
 							misordered=0;
+							goto visual_found;
+						}
+						if (x_bitmap_bit_order==MSBFirst&&vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
+						{
+							misordered=512;
 							goto visual_found;
 						}
 						break;
@@ -1140,7 +1019,6 @@ visual_found:;
 		case 451:
 		case 195:
 		case 196:
-		case 386:
 		case 452:
 		case 708:
 /* 			printf("depth=%d visualid=%x\n",x_driver.depth, vinfo.visualid); */
@@ -1232,16 +1110,6 @@ visual_found:;
 }
 
 
-void x_clear_clipboard()
-{
-    if(x_my_clipboard)
-    {
-        mem_free(x_my_clipboard);
-        x_my_clipboard=NULL;
-    }
-}
-
-
 /* close connection with the X server */
 static void x_shutdown_driver(void)
 {
@@ -1256,7 +1124,6 @@ static void x_shutdown_driver(void)
 	XCloseDisplay(x_display);
 	x_free_hash_table();
 	if (x_driver_param)mem_free(x_driver_param);
-	x_clear_clipboard();
 }
 
 
@@ -1319,11 +1186,10 @@ static struct graphics_device* x_init_device(void)
 nic_nebude_bobankove:;
 	}
 	
-	wm_hints.flags=InputHint;
-	wm_hints.input=True;
+	wm_hints.flags=0;
 	if (x_icon)
 	{	
-		wm_hints.flags=InputHint|IconPixmapHint;
+		wm_hints.flags=IconPixmapHint;
 		wm_hints.icon_pixmap=x_icon;
 	}
 
@@ -1976,17 +1842,6 @@ void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 	XSetWMIconName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSync(x_display,False);
 	mem_free(t);
-}
-
-void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text)
-{
-	x_clear_clipboard();
-	if(text && strlen(text))
-	{
-		x_my_clipboard = stracpy(text);
-		XSetSelectionOwner (x_display, XA_PRIMARY, *(Window*)(gd->driver_data), CurrentTime);
-		XFlush (x_display);
-	}
 }
 
 struct graphics_driver x_driver={

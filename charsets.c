@@ -298,7 +298,7 @@ struct conv_table *get_translation_table(int from, int to)
 	new_translation_table(table);
 	if (codepages[from].table == table_utf_8) {
 		int j;
-		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? "\001" : codepages[to].table[j].u == 0xad ? "" : strings[codepages[to].table[j].c]);
+		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, strings[codepages[to].table[j].c]);
 		for (i = 0; unicode_7b[i].x != -1; i++) if (unicode_7b[i].x >= 0x80) add_utf_8(table, unicode_7b[i].x, unicode_7b[i].s);
 	} else for (i = 128; i < 256; i++) {
 		int j;

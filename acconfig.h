@@ -77,9 +77,6 @@
 #undef GRDRV_FB
 
 /* */
-#undef GRDRV_DIRECTFB
-
-/* */
 #undef GRDRV_PMSHELL
 
 /* */

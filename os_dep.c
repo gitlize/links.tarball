@@ -348,21 +348,15 @@ int exe(char *path)
 
 #endif
 
-/* clipboard -> links */
-unsigned char *get_clipboard_text(void)	/* !!! FIXME */
+char *get_clipboard_text(void)	/* !!! FIXME */
 {
 	char *ret = 0;
 	if ((ret = mem_alloc(1))) ret[0] = 0;
 	return ret;
 }
 
-/* links -> clipboard */
-void set_clipboard_text(struct terminal * term, unsigned char *data)
+void set_clipboard_text(char *data)
 {
-#ifdef GRDRV_X
-	if(term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x"))
-		x_set_clipboard_text(term->dev, data);
-#endif
 	/* !!! FIXME */
 }
 
@@ -434,7 +428,7 @@ int exe(char *path)
 	return ret;
 }
 
-unsigned char *get_clipboard_text(void)
+char *get_clipboard_text(void)
 {
 	PTIB tib;
 	PPIB pib;
@@ -480,7 +474,7 @@ unsigned char *get_clipboard_text(void)
 	return ret;
 }
 
-void set_clipboard_text(struct terminal * term, unsigned char *data)
+void set_clipboard_text(char *data)
 {
 	PTIB tib;
 	PPIB pib;
@@ -1182,7 +1176,7 @@ int start_thread(void (*fn)(void *, int), void *ptr, int l)
 		fn(ptr, p[1]);
 		write(p[1], "x", 1);
 		close(p[1]);
-		_exit(0);
+		exit(0);
 	}
 	if (f == -1) {
 		close(p[0]);

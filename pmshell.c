@@ -197,15 +197,15 @@ void pm_redraw(struct pm_window *win, RECTL *r)
 #define N_VK	0x42
 
 struct os2_key pm_vk_table[N_VK] = {
-	{0, 0}, {0, 0}, {0, 0}, {0, 0}, {KBD_CTRL_C, 0}, {KBD_BS, 0}, {KBD_TAB, 0}, {KBD_TAB, KBD_SHIFT},
-	{KBD_ENTER, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {KBD_ESC, 0},
-	{' ', 0}, {KBD_PAGE_UP, 0}, {KBD_PAGE_DOWN, 0}, {KBD_END, 0}, {KBD_HOME, 0}, {KBD_LEFT, 0}, {KBD_UP, 0}, {KBD_RIGHT, 0},
-	{KBD_DOWN, 0}, {0, 0}, {KBD_INS, 0}, {KBD_DEL, 0}, {0, 0}, {0, 0}, {KBD_ENTER, 0}, {0, 0},
-	{KBD_F1, 0}, {KBD_F2, 0}, {KBD_F3, 0}, {KBD_F4, 0}, {KBD_F5, 0}, {KBD_F6, 0}, {KBD_F7, 0}, {KBD_F8, 0},
-	{KBD_F9, 0}, {KBD_F10, 0}, {KBD_F11, 0}, {KBD_F12, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-	{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-	{0, 0}, {KBD_DEL, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-	{0, 0}, {0, 0}
+	0, 0, 0, 0, 0, 0, 0, 0, KBD_CTRL_C, 0, KBD_BS, 0, KBD_TAB, 0, KBD_TAB, KBD_SHIFT,
+	KBD_ENTER, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, KBD_ESC, 0,
+	' ', 0, KBD_PAGE_UP, 0, KBD_PAGE_DOWN, 0, KBD_END, 0, KBD_HOME, 0, KBD_LEFT, 0, KBD_UP, 0, KBD_RIGHT, 0, 
+	KBD_DOWN, 0, 0, 0, KBD_INS, 0, KBD_DEL, 0, 0, 0, 0, 0, KBD_ENTER, 0, 0, 0,
+	KBD_F1, 0, KBD_F2, 0, KBD_F3, 0, KBD_F4, 0, KBD_F5, 0, KBD_F6, 0, KBD_F7, 0, KBD_F8, 0,
+	KBD_F9, 0, KBD_F10, 0, KBD_F11, 0, KBD_F12, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+	0, 0, KBD_DEL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0,
 };
 
 MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)

@@ -414,7 +414,7 @@ void run_connection(struct connection *c)
 void retry_connection(struct connection *c)
 {
 	interrupt_connection(c);
-	if (c->unrestartable >= 2 || (++c->tries >= (max_tries ? max_tries : 1000))) {
+	if (c->unrestartable >= 2 || ++c->tries >= max_tries) {
 		/*send_connection_info(c);*/
 		del_connection(c);
 #ifdef DEBUG
@@ -565,9 +565,6 @@ int load_url(unsigned char *url, unsigned char * prev_url, struct status *stat, 
 #endif
 	if (stat) stat->state = S_OUT_OF_MEM, stat->prev_error = 0;
 	if (no_cache <= NC_CACHE && !find_in_cache(url, &e) && !e->incomplete) {
-		if (!http_bugs.aggressive_cache) {
-			if (e->expire_time && e->expire_time < time(NULL)) goto skip_cache;
-		}
 		if (stat) {
 			stat->ce = e;
 			stat->state = S_OK;
@@ -575,7 +572,6 @@ int load_url(unsigned char *url, unsigned char * prev_url, struct status *stat, 
 		}
 		return 0;
 	}
-	skip_cache:
 	if (!(u = get_proxy(url))) {
 		if (stat) stat->end(stat, stat->data);
 		return -1;

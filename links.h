@@ -1,5 +1,5 @@
 /* links.h
- * (c) 2002 Mikulas Patocka, Karel 'Clock' Kulhavy, Petr 'Brain' Kulhavy,
+ * (c) 2002 Mikulas Patocka, Karel 'Clock' Kulhavy, Petr 'Clock' Kulhavy,
  *          Martin 'PerM' Pergel
  * This file is a part of the Links program, released under GPL.
  */
@@ -736,8 +736,8 @@ void *handle_mouse(int, void (*)(void *, unsigned char *, int), void *);
 void unhandle_mouse(void *);
 int check_file_name(unsigned char *);
 int start_thread(void (*)(void *, int), void *, int);
-unsigned char *get_clipboard_text(void);
-void set_clipboard_text(struct terminal *, unsigned char *);
+char *get_clipboard_text(void);
+void set_clipboard_text(char *);
 void set_window_title(unsigned char *);
 unsigned char *get_window_title(void);
 int is_safe_in_shell(unsigned char);
@@ -823,7 +823,6 @@ struct cache_entry {
 	int incomplete;
 	int tgc;
 	unsigned char *last_modified;
-	time_t expire_time;	/* 0 never, 1 always */
 	int data_size;
 	struct list_head frag;	/* struct fragment */
 	tcount count;
@@ -1586,11 +1585,6 @@ void get_links_icon(unsigned char **data, int *width, int* height, int depth);
 
 #endif
 
-/* x.c */
-#if defined(G) && defined (GRDRV_X)
-void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text);
-#endif
-
 /* links_icon.c */
 
 #ifdef G
@@ -1760,7 +1754,6 @@ static inline void exclude_from_set(struct rect_set **s, int x1, int y1, int x2,
 	r.x1 = x1, r.x2 = x2, r.y1 = y1, r.y2 = y2;
 	exclude_rect_from_set(s, &r);
 }
-void t_redraw(struct graphics_device *, struct rect *);
 
 #endif
 
@@ -2039,10 +2032,6 @@ struct link {
 	struct point *pos;
 	struct js_event_spec *js_event;
 	int obj_order;
-#ifdef G
-	struct rect r;
-	struct g_object *obj;
-#endif
 };
 
 #define L_LINK		0
@@ -2073,7 +2062,6 @@ struct document_setup {
 	int tables, frames, images;
 	int margin;
 	int num_links, table_order;
-	int auto_refresh;
 	int font_size;
 	int display_images;
 	int image_scale;
@@ -2093,7 +2081,6 @@ struct document_options {
 	int js_enable;
 	int plain;
 	int num_links, table_order;
-	int auto_refresh;
 	struct rgb default_fg;
 	struct rgb default_bg;
 	struct rgb default_link;
@@ -2116,7 +2103,6 @@ static inline void ds2do(struct document_setup *ds, struct document_options *doo
 	doo->margin = ds->margin;
 	doo->num_links = ds->num_links;
 	doo->table_order = ds->table_order;
-	doo->auto_refresh = ds->auto_refresh;
 	doo->font_size = ds->font_size;
 	doo->display_images = ds->display_images;
 	doo->image_scale = ds->image_scale;
@@ -2481,9 +2467,6 @@ struct f_data {
 	int are_there_scripts;
 	unsigned char *script_href_base;
 
-	unsigned char *refresh;
-	int refresh_seconds;
-
 	struct js_document_description *js_doc;
 	int uncacheable;	/* cannot be cached - either created from source modified by document.write or modified by javascript */
 
@@ -2522,9 +2505,6 @@ struct view_state {
 	int form_info_len;
 	/*struct f_data_c *f;*/
 	/*unsigned char url[1];*/
-#ifdef G
-	int g_display_link;
-#endif
 };
 
 struct f_data_c {
@@ -2562,9 +2542,6 @@ struct f_data_c {
 	struct js_state *js;
 
 	int image_timer;
-
-	int refresh_timer;
-
 #ifdef JS
 	unsigned char *onload_frameset_code;
 #endif
@@ -2628,7 +2605,6 @@ struct session {
 	void (*wtd)(struct session *);
 	unsigned char *wtd_target;
 	struct f_data_c *wtd_target_base;
-	int wtd_refresh;
 	unsigned char *goto_position;
 	struct document_setup ds;
 	struct kbdprefix kbdprefix;
@@ -2674,7 +2650,7 @@ void fd_loaded(struct object_request *, struct f_data_c *);
 
 extern struct list_head sessions;
 
-time_t parse_http_date(char *);
+time_t parse_http_date(const char *);
 unsigned char *encode_url(unsigned char *);
 unsigned char *decode_url(unsigned char *);
 unsigned char *subst_file(unsigned char *, unsigned char *);
@@ -2690,7 +2666,7 @@ void display_download(struct terminal *, struct download *, struct session *);
 int create_download_file(struct terminal *, unsigned char *, int);
 void *create_session_info(int, unsigned char *, int *);
 void win_func(struct window *, struct event *, int);
-void goto_url_f(struct session *, void (*)(struct session *), unsigned char *, unsigned char *, struct f_data_c *, int, int, int, int);
+void goto_url_f(struct session *, void (*)(struct session *), unsigned char *, unsigned char *, struct f_data_c *, int, int, int);
 void goto_url(struct session *, unsigned char *);
 void goto_url_not_from_dialog(struct session *, unsigned char *);
 void goto_imgmap(struct session *ses, unsigned char *url, unsigned char *href, unsigned char *target);
@@ -2741,7 +2717,6 @@ void js_execute_code(struct javascript_context *, unsigned char *, int, void (*)
 
 
 extern struct history js_get_string_history;
-extern int js_manual_confirmation;
 
 struct js_state {
 	struct javascript_context *ctx;	/* kontext beziciho javascriptu??? */
@@ -3130,7 +3105,6 @@ void search_dlg(struct session *, struct f_data_c *, int);
 void search_back_dlg(struct session *, struct f_data_c *, int);
 void exit_prog(struct terminal *, void *, struct session *);
 void really_exit_prog(struct session *ses);
-void query_exit(struct session *ses);
 
 #ifdef G
 
@@ -3212,7 +3186,6 @@ void link_menu(struct terminal *, void *, struct session *);
 void save_as(struct terminal *, void *, struct session *);
 void save_url(struct session *, unsigned char *);
 void menu_save_formatted(struct terminal *, void *, struct session *);
-void copy_url_location(struct terminal *, void *, struct session *);
 void selected_item(struct terminal *, void *, struct session *);
 void toggle(struct session *, struct f_data_c *, int);
 void do_for_frame(struct session *, void (*)(struct session *, struct f_data_c *, int), int);
@@ -3221,7 +3194,6 @@ unsigned char *print_current_link(struct session *);
 unsigned char *print_current_title(struct session *);
 void loc_msg(struct terminal *, struct location *, struct f_data_c *);
 void state_msg(struct session *);
-void head_msg(struct session *);
 void search_for(struct session *, unsigned char *);
 void search_for_back(struct session *, unsigned char *);
 void find_next(struct session *, struct f_data_c *, int);
@@ -3229,7 +3201,6 @@ void find_next_back(struct session *, struct f_data_c *, int);
 void set_frame(struct session *, struct f_data_c *, int);
 struct f_data_c *current_frame(struct session *);
 void reset_form(struct f_data_c *f, int form_num);
-void set_textarea(struct session *, struct f_data_c *, int);
 
 void copy_js_event_spec(struct js_event_spec **, struct js_event_spec *);
 void free_js_event_spec(struct js_event_spec *);
@@ -3603,7 +3574,6 @@ int decode_color(unsigned char *, struct rgb *);
 #define SP_SCRIPT	6
 #define SP_IMAGE	7
 #define SP_NOWRAP	8
-#define SP_REFRESH	9
 
 struct frameset_param {
 	struct frameset_desc *parent;
@@ -3617,11 +3587,6 @@ struct frame_param {
 	unsigned char *url;
 	int marginwidth;
 	int marginheight;
-};
-
-struct refresh_param {
-	unsigned char *url;
-	int time;
 };
 
 void free_menu(struct menu_item *);
@@ -3693,8 +3658,7 @@ void xset_hchar(struct part *, int, int, unsigned);
 void xset_hchars(struct part *, int, int, int, unsigned);
 void align_line(struct part *, int);
 void html_tag(struct f_data *, unsigned char *, int, int);
-void process_script(struct f_data *, unsigned char *);
-void html_process_refresh(struct f_data *, unsigned char *, int );
+void process_script(struct f_data *f, unsigned char *t);
 
 void free_table_cache(void);
 
@@ -3837,8 +3801,6 @@ struct http_bugs {
 	int allow_blacklist;
 	int bug_302_redirect;
 	int bug_post_no_keepalive;
-	int no_accept_charset;
-	int aggressive_cache;
 };
 
 extern struct http_bugs http_bugs;

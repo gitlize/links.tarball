@@ -136,7 +136,6 @@ void clear_formatted(struct f_data *scr)
 	if (scr->last_search) mem_free(scr->last_search);
 	if (scr->search_positions) mem_free(scr->search_positions);
 #endif
-	if (scr->refresh) mem_free(scr->refresh);
 	jsint_destroy_document_description(scr);
 	if (scr->script_href_base) mem_free(scr->script_href_base);
 }
@@ -539,10 +538,6 @@ struct link *new_link(struct f_data *f)
 		f->links = l;
 	}
 	memset(&f->links[f->nlinks], 0, sizeof(struct link));
-#ifdef G
-	f->links[f->nlinks].r.x1 = MAXINT;
-	f->links[f->nlinks].r.y1 = MAXINT;
-#endif
 	return &f->links[f->nlinks++];
 }
 
@@ -887,15 +882,6 @@ void process_script(struct f_data *f, unsigned char *t)
 	f->are_there_scripts = 1;
 }
 
-void html_process_refresh(struct f_data *f, unsigned char *url, int time)
-{
-	if (!f) return;
-	if (f->refresh) return;
-	if (!url) f->refresh = stracpy(f->rq->url);
-	else f->refresh = join_urls(f->rq->url, url);
-	f->refresh_seconds = time;
-}
-
 void *html_special(struct part *p, int c, ...)
 {
 	va_list l;
@@ -903,7 +889,6 @@ void *html_special(struct part *p, int c, ...)
 	struct form_control *fc;
 	struct frameset_param *fsp;
 	struct frame_param *fp;
-	struct refresh_param *rp;
 	va_start(l, c);
 	switch (c) {
 		case SP_TAG:
@@ -938,11 +923,6 @@ void *html_special(struct part *p, int c, ...)
 			va_end(l);
 			if (p->data) process_script(p->data, t);
 			break;
-		case SP_REFRESH:
-			rp = va_arg(l, struct refresh_param *);
-			va_end(l);
-			html_process_refresh(p->data, rp->url, rp->time);
-			break;
 		default:
 			va_end(l);
 			internal("html_special: unknown code %d", c);
@@ -963,7 +943,6 @@ int margin;
 struct table_cache_entry {
 	struct table_cache_entry *next;
 	struct table_cache_entry *prev;
-	struct table_cache_entry *hash_next;
 	unsigned char *start;
 	unsigned char *end;
 	int align;
@@ -976,17 +955,8 @@ struct table_cache_entry {
 
 struct list_head table_cache = { &table_cache, &table_cache };
 
-#define TC_HASH_SIZE	4096
-
-struct table_cache_entry *table_cache_hash[TC_HASH_SIZE];
-
 void free_table_cache()
 {
-	struct table_cache_entry *tce;
-	foreach(tce, table_cache) {
-		int hash = ((int)(unsigned long)tce->start + tce->xs) & (TC_HASH_SIZE - 1);
-		table_cache_hash[hash] = NULL;
-	}
 	free_list(table_cache);
 }
 
@@ -1001,16 +971,12 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	int ef = empty_format;
 	struct form_control *fc;
 	struct table_cache_entry *tce;
-	if (!data) {
-		tce = table_cache_hash[((int)(unsigned long)start + xs) & (TC_HASH_SIZE - 1)];
-		while (tce) {
-			if (tce->start == start && tce->end == end && tce->align == align && tce->m == m && tce->width == width && tce->xs == xs && tce->link_num == link_num) {
-				if ((p = mem_alloc(sizeof(struct part)))) {
-					memcpy(p, &tce->p, sizeof(struct part));
-					return p;
-				}
+	if (!data) foreach(tce, table_cache) {
+		if (tce->start == start && tce->end == end && tce->align == align && tce->m == m && tce->width == width && tce->xs == xs && tce->link_num == link_num) {
+			if ((p = mem_alloc(sizeof(struct part)))) {
+				memcpy(p, &tce->p, sizeof(struct part));
+				return p;
 			}
-			tce = tce->hash_next;
 		}
 	}
 	if (ys < 0) {
@@ -1098,7 +1064,6 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	last_js_event = NULL;
 
 	if (table_level > 1 && !data && ((tce = mem_alloc(sizeof(struct table_cache_entry))))) {
-		int hash;
 		tce->start = start;
 		tce->end = end;
 		tce->align = align;
@@ -1108,9 +1073,6 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 		tce->link_num = link_num;
 		memcpy(&tce->p, p, sizeof(struct part));
 		add_to_list(table_cache, tce);
-		hash = ((int)(unsigned long)start + xs) & (TC_HASH_SIZE - 1);
-		tce->hash_next = table_cache_hash[hash];
-		table_cache_hash[hash] = tce;
 	}
 	return p;
 }
@@ -1199,7 +1161,6 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 	int i;
 	unsigned char *bg = NULL, *bgcolor = NULL;
 	current_f_data = screen;
-	memset(table_cache_hash, 0, sizeof(table_cache_hash));
 	d_opt = &screen->opt;
 	screen->use_tag = ce->count;
 	startf = start;
@@ -1319,6 +1280,8 @@ void copy_opt(struct document_options *o1, struct document_options *o2)
 	memcpy(o1, o2, sizeof(struct document_options));
 	o1->framename = stracpy(o2->framename);
 }
+
+#define SRCH_ALLOC_GR	0x10000
 
 void add_srch_chr(struct f_data *f, unsigned char c, int x, int y, int nn)
 {

@@ -1,5 +1,4 @@
 /* html_gr.c
- * HTML parser in graphics mode
  * (c) 2002 Mikulas Patocka
  * This file is a part of the Links program, released under GPL.
  */
@@ -119,8 +118,6 @@ int gray (int r, int g, int b)
 	return r*3+g*6+b;
 }
 
-/* Tells if two colors are too near to be legible one on another */
-/* 1=too near 0=not too near */
 int too_near(int r1, int g1, int b1, int r2, int g2, int b2)
 {
 	int gray1,gray2;
@@ -128,12 +125,11 @@ int too_near(int r1, int g1, int b1, int r2, int g2, int b2)
 	gray1=gray(r1, g1, b1);
 	gray2=gray(r2, g2, b2);
 	if (gray1<=gray2)
-		return gray2-gray1<=400;
+		return gray2-gray1<=800;
 	else
-		return gray1-gray2<=400;
+		return gray1-gray2<=800;
 }
 
-/* Fixes foreground based on background */
 void separate_fg_bg(int *fgr, int *fgg, int *fgb
 	, int bgr, int bgg, int bgb)
 {
@@ -532,15 +528,11 @@ void do_image(struct g_part *p, struct image_description *im)
 					while (*p && (*p < '0' || *p > '9')) p++;
 					if (!*p) goto noc;
 					while (*p >= '0' && *p <= '9' && num < 10000000) num = num * 10 + *p - '0', p++;
-					if (*p == '.') {
-						p++;
-						while (*p >= '0' && *p <= '9') p++;
-					}
 					if (*p == '%' && num < 1000) {
 						int m = io->xw < io->yw ? io->xw : io->yw;
 						num = num * m / 100;
 						p++;
-					} else num = num * d_opt->image_scale / 100;
+					}
 					if (!(nco = mem_realloc(a->coords, (a->ncoords + 1) * sizeof(int)))) goto noc;
 					(a->coords = nco)[a->ncoords++] = num;
 					goto next_coord;
@@ -589,7 +581,6 @@ void *g_html_special(struct g_part *p, int c, ...)
 	struct frame_param *fp;
 	struct image_description *im;
 	struct g_object_tag *tag;
-	struct refresh_param *rp;
 	va_start(l, c);
 	switch (c) {
 		case SP_TAG:
@@ -637,11 +628,6 @@ void *g_html_special(struct g_part *p, int c, ...)
 			break;
 		case SP_NOWRAP:
 			va_end(l);
-			break;
-		case SP_REFRESH:
-			rp = va_arg(l, struct refresh_param *);
-			va_end(l);
-			html_process_refresh(p->data, rp->url, rp->time);
 			break;
 		default:
 			va_end(l);

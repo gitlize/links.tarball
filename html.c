@@ -26,69 +26,42 @@ static inline int atchr(unsigned char c)
 /*	    0 success */
 int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, int *namelen, unsigned char **attr, unsigned char **end)
 {
-	if (eof - e < 3 || *(e++) != '<') return -1;
+	if (e >= eof || *(e++) != '<') return -1;
 	if (name) *name = e;
-	if (*e == '/') e++;
-	if (!isA(*e)) return -1;
-	goto x1;
-	while (isA(*e)) {
-		x1:
-		e++;
-		if (e >= eof) return -1;
-	}
-	if ((!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;
+	if (e < eof && *e == '/') e++;
+	if (e >= eof || !isA(*e)) return -1;
+	while (e < eof && isA(*e)) e++;
+	if (e >= eof || (!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;
 	if (name && namelen) *namelen = e - *name;
-	while ((WHITECHAR(*e) || *e == '/' || *e == ':')) {
-		e++;
-		if (e >= eof) return -1;
-	}
-	if ((!atchr(*e) && *e != '>' && *e != '<')) return -1;
+	while (e < eof && (WHITECHAR(*e) || *e == '/' || *e == ':')) e++;
+	if (e >= eof || (!atchr(*e) && *e != '>' && *e != '<')) return -1;
 	if (attr) *attr = e;
 	nextattr:
-	while (WHITECHAR(*e)) {
-		e++;
-		if (e >= eof) return -1;
-	}
-	if ((!atchr(*e) && *e != '>' && *e != '<')) return -1;
+	while (e < eof && WHITECHAR(*e)) e++;
+	if (e >= eof || (!atchr(*e) && *e != '>' && *e != '<')) return -1;
 	if (*e == '>' || *e == '<') goto en;
-	while (atchr(*e)) {
-		e++;
-		if (e >= eof) return -1;
-	}
-	while (WHITECHAR(*e)) {
-		e++;
-		if (e >= eof) return -1;
-	}
+	while (e < eof && atchr(*e)) e++;
+	while (e < eof && WHITECHAR(*e)) e++;
+	if (e >= eof) return -1;
 	if (*e != '=') goto endattr;
-	goto x2;
-	while (WHITECHAR(*e)) {
-		x2:
-		e++;
-		if (e >= eof) return -1;
-	}
+	e++;
+	while (e < eof && WHITECHAR(*e)) e++;
+	if (e >= eof) return -1;
 	if (U(*e)) {
 		unsigned char uu = *e;
 		u:
-		goto x3;
-		while (e < eof && *e != uu && *e /*(WHITECHAR(*e) || *e > ' ')*/) {
-			x3:
-			e++;
-			if (e >= eof) return -1;
-		}
-		if (*e < ' ') return -1;
+		e++;
+		while (e < eof && *e != uu && *e /*(WHITECHAR(*e) || *e > ' ')*/) e++;
+		if (e >= eof || *e < ' ') return -1;
 		e++;
 		if (e >= eof /*|| (!WHITECHAR(*e) && *e != uu && *e != '>' && *e != '<')*/) return -1;
 		if (*e == uu) goto u;
 	} else {
-		while (!WHITECHAR(*e) && *e != '>' && *e != '<') {
-			e++;
-			if (e >= eof) return -1;
-		}
-	}
-	while (WHITECHAR(*e)) {
-		e++;
+		while (e < eof && !WHITECHAR(*e) && *e != '>' && *e != '<') e++;
 		if (e >= eof) return -1;
 	}
+	while (e < eof && WHITECHAR(*e)) e++;
+	if (e >= eof) return -1;
 	endattr:
 	if (*e != '>' && *e != '<') goto nextattr;
 	en:
@@ -2299,19 +2272,10 @@ unsigned char *skip_comment(unsigned char *html, unsigned char *eof)
 void process_head(unsigned char *head)
 {
 	unsigned char *r, *p;
-	struct refresh_param rp;
 	if ((r = parse_http_header(head, "Refresh", NULL))) {
-		if (!d_opt->auto_refresh) {
-			if ((p = parse_header_param(r, "URL"))) {
-				put_link_line("Refresh: ", p, p, d_opt->framename);
-				mem_free(p);
-			}
-		} else {
-			rp.url = parse_header_param(r, "URL");
-			rp.time = atoi(r);
-			if (rp.time < 1) rp.time = 1;
-			special_f(ff, SP_REFRESH, &rp);
-			if (rp.url) mem_free(rp.url);
+		if ((p = parse_header_param(r, "URL"))) {
+			put_link_line("Refresh: ", p, p, d_opt->framename);
+			mem_free(p);
 		}
 		mem_free(r);
 	}

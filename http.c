@@ -85,7 +85,7 @@ static int get_http_code(unsigned char *head, int *code, int *version)
 	return 0;
 }
 
-unsigned char *buggy_servers[] = { "mod_czech/3.1.0", "Purveyor", "Netscape-Enterprise", "Apache Coyote", NULL };
+unsigned char *buggy_servers[] = { "mod_czech/3.1.0", "Purveyor", "Netscape-Enterprise", NULL };
 
 int check_http_server_bugs(unsigned char *url, struct http_connection_info *info, unsigned char *head)
 {
@@ -153,14 +153,10 @@ void http_send_header(struct connection *c)
 	int http10 = http_bugs.http10;
 	struct cache_entry *e = NULL;
 	unsigned char *hdr;
-	unsigned char *h, *u, *uu, *sp;
+	unsigned char *h, *u, *uu;
 	int l = 0;
 	unsigned char *post;
-	unsigned char *host;
-
-	find_in_cache(c->url, &c->cache);
-
-	host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
+	unsigned char *host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
 	set_timeout(c);
 	if (!(info = mem_alloc(sizeof(struct http_connection_info)))) {
 		setcstate(c, S_OUT_OF_MEM);
@@ -195,17 +191,17 @@ void http_send_header(struct connection *c)
 	}
 	if (!post) uu = stracpy(u);
 	else uu = memacpy(u, post - u - 1);
-	a:
-	for (sp = uu; *sp; sp++) if (*sp <= ' ') {
+	while (strchr(uu, ' ')) {
+		unsigned char *sp = strchr(uu, ' ');
 		unsigned char *nu = mem_alloc(strlen(uu) + 3);
 		if (!nu) break;
 		memcpy(nu, uu, sp - uu);
-		sprintf(nu + (sp - uu), "%%%02X", (int)*sp);
+		nu[sp - uu] = 0;
+		strcat(nu, "%20");
 		strcat(nu, sp + 1);
 		mem_free(uu);
 		uu = nu;
-		goto a;
-	} else if (*sp == '\\') *sp = '/';
+	}
 	add_to_str(&hdr, &l, uu);
 	mem_free(uu);
 	if (!http10) add_to_str(&hdr, &l, " HTTP/1.1\r\n");
@@ -289,7 +285,7 @@ void http_send_header(struct connection *c)
 		else accept_charset = "";
 		mem_free(ac);
 	}
-	if (!(info->bl_flags & BL_NO_CHARSET) && !http_bugs.no_accept_charset) add_to_str(&hdr, &l, accept_charset);
+	if (!(info->bl_flags & BL_NO_CHARSET)) add_to_str(&hdr, &l, accept_charset);
 	if (!http10) {
 		if (upcase(c->url[0]) != 'P') add_to_str(&hdr, &l, "Connection: ");
 		else add_to_str(&hdr, &l, "Proxy-Connection: ");
@@ -297,18 +293,12 @@ void http_send_header(struct connection *c)
 		else add_to_str(&hdr, &l, "close\r\n");
 	}
 	if ((e = c->cache)) {
-		if (!e->incomplete && e->head && c->no_cache <= NC_IF_MOD) {
-			unsigned char *m;
-			if (e->last_modified) m = stracpy(e->last_modified);
-			else if ((m = parse_http_header(e->head, "Date", NULL))) ;
-			else if ((m = parse_http_header(e->head, "Expires", NULL))) ;
-			else goto skip;
+		if (!e->incomplete && e->head && c->no_cache <= NC_IF_MOD &&
+		    e->last_modified) {
 			add_to_str(&hdr, &l, "If-Modified-Since: ");
-			add_to_str(&hdr, &l, m);
+			add_to_str(&hdr, &l, e->last_modified);
 			add_to_str(&hdr, &l, "\r\n");
-			mem_free(m);
 		}
-		skip:;
 	}
 	if (c->no_cache >= NC_PR_NO_CACHE) add_to_str(&hdr, &l, "Pragma: no-cache\r\nCache-Control: no-cache\r\n");
 	if (c->from) {
@@ -341,7 +331,7 @@ void http_send_header(struct connection *c)
 			post += 2;
 		}
 	}
-	write_to_socket(c, c->sock1, hdr, l, http_get_header);
+	write_to_socket(c, c->sock1, hdr, strlen(hdr), http_get_header);
 	mem_free(hdr);
 	setcstate(c, S_SENT);
 }
@@ -550,22 +540,6 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if (e->head) mem_free(e->head);
 	e->head = head;
-	if ((d = parse_http_header(head, "Expires", NULL))) {
-		time_t t = parse_http_date(d);
-		if (t && e->expire_time != 1) e->expire_time = t;
-		mem_free(d);
-	}
-	if ((d = parse_http_header(head, "Pragma", NULL))) {
-		if (!casecmp(d, "no-cache", 8)) e->expire_time = 1;
-		mem_free(d);
-	}
-	if ((d = parse_http_header(head, "Cache-Control", NULL))) {
-		if (!casecmp(d, "no-cache", 8)) e->expire_time = 1;
-		if (!casecmp(d, "max-age=", 8)) {
-			if (e->expire_time != 1) e->expire_time = time(NULL) + atoi(d + 8);
-		}
-		mem_free(d);
-	}
 #ifdef HAVE_SSL
 	if (c->ssl) {
 		int l = 0;
