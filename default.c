@@ -5,7 +5,7 @@
 
 #include "links.h"
 
-void get_system_name()
+void get_system_name(void)
 {
 	FILE *f;
 	unsigned char *p;
@@ -79,6 +79,10 @@ unsigned char *_parse_options(int argc, unsigned char *argv[], struct option **o
 					goto found;
 				}
 			uu:
+#ifdef GRDRV_DIRECTFB
+                        if (!strncmp(argv[-1], "--dfb:", 6))
+                                goto found;
+#endif
 			fprintf(stderr, "Unknown option %s\n", argv[-1]);
 			return NULL;
 		} else if (!u) u = argv[-1];
@@ -295,7 +299,7 @@ unsigned char *get_home(int *n)
 	return home_links;
 }
 
-void init_home()
+void init_home(void)
 {
 	get_system_name();
 	links_home = get_home(&first_use);
@@ -327,7 +331,7 @@ void load_config_file(unsigned char *prefix, unsigned char *name)
 	mem_free(config_file);
 }
 
-void load_config()
+void load_config(void)
 {
 	load_config_file("/etc/", "links.cfg");
 	load_config_file(links_home, "links.cfg");
@@ -413,13 +417,18 @@ void num_wr(struct option *o, unsigned char **s, int *l)
 	add_knum_to_str(s, l, *(int *)o->ptr);
 }
 
+#define DBL_PRECISION 10000
+
+
 unsigned char *dbl_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *tok = get_token(&c);
 	char *end;
 	double d;
+	
 	if (!tok) return "Missing argument";
 	d = strtod(tok, &end);
+
 	if (*end) {
 		mem_free(tok);
 		return "Number expected";
@@ -435,10 +444,13 @@ unsigned char *dbl_rd(struct option *o, unsigned char *c)
 
 void dbl_wr(struct option *o, unsigned char **s, int *l)
 {
-	unsigned char txt[16];
+	long y=*(double*)o->ptr;
+	long x=((*(double*)o->ptr)-y)*DBL_PRECISION;
+
 	add_nm(o, s, l);
-	snprintf(txt,16,"%f",*(double *)o->ptr);
-	add_to_str(s,l,txt);
+	add_knum_to_str(s, l, y);
+	add_chr_to_str(s, l, '.');
+	add_knum_to_str(s, l, x);
 }
 
 unsigned char *str_rd(struct option *o, unsigned char *c)
@@ -810,6 +822,12 @@ unsigned char *set_cmd(struct option *o, unsigned char ***argv, int *argc)
 	return NULL;
 }
 
+unsigned char *unset_cmd(struct option *o, unsigned char ***argv, int *argc)
+{
+	*(int *)o->ptr = 0;
+	return NULL;
+}
+
 unsigned char *setstr_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	if (!*argc) return "Parameter expected";
@@ -847,8 +865,12 @@ Options are:\n\
  -g\n\
   Run in graphics mode.\n\
 \n\
+ -no-g\n\
+  Run in text mode (overrides previous -g).\n\
+\n\
  -driver <driver name>\n\
-  Graphics driver to use. Drivers are: x, svgalib, fb, pmshell, atheos.\n\
+  Graphics driver to use. Drivers are: x, svgalib, fb, directfb, pmshell,
+  atheos.\n\
   Available drivers depend on your operating system and available libraries.\n\
 \n\
  -mode <graphics mode>\n\
@@ -882,9 +904,13 @@ Options are:\n\
   Number of formatted document pages cached.\n\
   (default: 5)\n\
 \n\
- -memory-cache-size <Kbytes>\n\
-  Cache memory in Kilobytes.\n\
-  (default: 1024)\n\
+ -memory-cache-size <bytes>\n\
+  Cache memory in bytes.\n\
+  (default: 1048576)\n\
+\n\
+ -image-cache-size <bytes>\n\
+  Cache memory in bytes.\n\
+  (default: 1048576)\n\
 \n"),
 (" -http-proxy <host:port>\n\
   Host and port number of the HTTP proxy, or blank.\n\
@@ -951,7 +977,7 @@ Options are:\n\
 	return "";
 }
 
-void end_config()
+void end_config(void)
 {
 	struct driver_param *dp;
 	foreach(dp,driver_params)
@@ -1018,6 +1044,7 @@ int js_verbose_errors=0;   /* 1=create dialog on every javascript error, 0=be qu
 int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=be quiet and continue */
 int js_all_conversions=1;
 int js_global_resolve=1;	/* resolvovani v globalnim adresnim prostoru, kdyz BFU vomitne document */
+int js_manual_confirmation=1; /* !0==annoying dialog on every goto url etc. */
 
 int display_optimize=0;	/*0=CRT, 1=LCD RGB, 2=LCD BGR */
 double bfu_aspect=1; /* 0.1 to 10.0, 1.0 default. >1 makes circle wider */
@@ -1028,7 +1055,7 @@ unsigned char download_dir[MAX_STR_LEN] = "";
 unsigned char default_anon_pass[MAX_STR_LEN] = "somebody@host.domain";
 
 /* These are workarounds for some CGI script bugs */
-struct http_bugs http_bugs = { 0, 1, 1, 0 };
+struct http_bugs http_bugs = { 0, 1, 1, 0, 0 };
 /*int bug_302_redirect = 0;*/
 	/* When got 301 or 302 from POST request, change it to GET
 	   - this violates RFC2068, but some buggy message board scripts rely on it */
@@ -1046,6 +1073,7 @@ struct option links_options[] = {
 	{1, set_cmd, NULL, NULL, 0, 0, &no_connect, NULL, "no-connect"},
 	{1, set_cmd, NULL, NULL, 0, 0, &anonymous, NULL, "anonymous"},
 	{1, set_cmd, NULL, NULL, 0, 0, &ggr, NULL, "g"},
+	{1, unset_cmd, NULL, NULL, 0, 0, &ggr, NULL, "no-g"},
 	{1, setstr_cmd, NULL, NULL, 0, MAX_STR_LEN, &ggr_drv, NULL, "driver"},
 	{1, setstr_cmd, NULL, NULL, 0, MAX_STR_LEN, &ggr_mode, NULL, "mode"},
 	{1, setstr_cmd, NULL, NULL, 0, MAX_STR_LEN, &ggr_display, NULL, "display"},
@@ -1057,9 +1085,9 @@ struct option links_options[] = {
 	{1, dump_cmd, NULL, NULL, D_SOURCE, 0, NULL, NULL, "source"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &async_lookup, "async_dns", "async-dns"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &download_utime, "download_utime", "download-utime"},
-	{1, gen_cmd, num_rd, num_wr, 1, 16, &max_connections, "max_connections", "max-connections"},
-	{1, gen_cmd, num_rd, num_wr, 1, 8, &max_connections_to_host, "max_connections_to_host", "max-connections-to-host"},
-	{1, gen_cmd, num_rd, num_wr, 1, 16, &max_tries, "retries", "retries"},
+	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections, "max_connections", "max-connections"},
+	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections_to_host, "max_connections_to_host", "max-connections-to-host"},
+	{1, gen_cmd, num_rd, num_wr, 0, 16, &max_tries, "retries", "retries"},
 	{1, gen_cmd, num_rd, num_wr, 1, 1800, &receive_timeout, "receive_timeout", "receive-timeout"},
 	{1, gen_cmd, num_rd, num_wr, 1, 1800, &unrestartable_receive_timeout, "unrestartable_receive_timeout", "unrestartable-receive-timeout"},
 	{1, gen_cmd, num_rd, num_wr, 0, 256, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
@@ -1072,7 +1100,8 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.http10, "http_bugs.http10", "http-bugs.http10"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.allow_blacklist, "http_bugs.allow_blacklist", "http-bugs.allow-blacklist"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_post_no_keepalive, "http_bugs.bug_post_no_keepalive", "http-bugs.bug_post-no-keepalive"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_post_no_keepalive, "http_bugs.bug_post_no_keepalive", "http-bugs.bug-post-no-keepalive"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
 	{1, gen_cmd, num_rd, num_wr, 0, 3, &referer, "http_referer", "http-referer"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, fake_useragent, "fake_useragent", "fake-user-agent"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, fake_referer, "fake_referer", "fake-referer"},
@@ -1096,6 +1125,7 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_verbose_warnings, "verbose_javascript_warnings", "verbose-javascript-warnings"}, 
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_all_conversions, "enable_all_conversions", "enable-all-conversions"}, 
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_global_resolve, "enable_global_resolution", "enable-global-resolution"}, 
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_manual_confirmation, "javascript_manual_confirmation", "javascript-manual-confirmation"}, 
 	{1, gen_cmd, num_rd, num_wr, 0, 999999, &js_fun_depth, "js_recursion_depth", "js-recursion-depth"}, 
 	{1, gen_cmd, num_rd, num_wr, 1024, 30*1024, &js_memory_limit, "js_memory_limit", "js-memory-limit"}, 
 	{1, gen_cmd, cp_rd, cp_wr, 0, 0, &bookmarks_codepage, "bookmarks_codepage", "bookmarks-codepage"},
@@ -1130,7 +1160,7 @@ struct option html_options[] = {
 
 extern struct history goto_url_history ;
 
-int load_url_history()
+int load_url_history(void)
 {
 	unsigned char *history_file ;
 	FILE *fp ;
@@ -1151,7 +1181,8 @@ int load_url_history()
 	}
 	while (fgets (url, MAX_INPUT_URL_LEN, fp))
 	{
-		url[strlen(url)-1] = 0 ;
+		url[MAX_INPUT_URL_LEN - 1] = 0;
+		if (*url) url[strlen(url)-1] = 0 ;
 		add_to_history(&goto_url_history, url) ;
 	}
 	fclose (fp) ;
@@ -1159,7 +1190,7 @@ int load_url_history()
 	return 0 ;
 }
 
-int save_url_history()
+int save_url_history(void)
 {
 	struct history_item* hi ;
 	unsigned char *history_file ;

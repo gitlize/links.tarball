@@ -37,6 +37,7 @@ if cmp -s ../language.h language.h; then
 else
 	mv language.h ..
 fi
+echo
 echo Done.
 fi
 echo

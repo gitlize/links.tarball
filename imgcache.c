@@ -128,7 +128,7 @@ int imgcache_info(int type)
 	return n;
 }
 
-void init_imgcache()
+void init_imgcache(void)
 {
 	register_cache_upcall(shrink_image_cache, "imgcache");
 }

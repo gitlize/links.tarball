@@ -514,11 +514,11 @@ buffer_to_bitmap_incremental");
 	       tmpbmp.data=(unsigned char *)cimg->bmp.data+cimg->bmp.skip*yoff;
 	       add1=cimg->bmp.skip*max_height;
 	}
-	tmpbmp.skip=cimg->bmp.skip;
 	add2=cimg->buffer_bytes_per_pixel*cimg->width*max_height;
 not_enough:
 	tmpbmp.y=height<max_height?height:max_height;
 	if (use_strip) tmpbmp.data=drv->prepare_strip(&(cimg->bmp),yoff,tmpbmp.y);
+	tmpbmp.skip=cimg->bmp.skip;
 	buffer_to_16(tmp, cimg, buffer, tmpbmp.y);
 	if (dregs){
 	       	dither_restart(tmp, &tmpbmp, dregs);
@@ -936,7 +936,7 @@ void draw_frame_mark (struct graphics_driver *drv, struct
 #ifdef DEBUG
 	if (xw<1||yw<1) internal("zero dimension in draw_frame_mark");
 #endif /* #ifdef DEBUG */
-	if (broken){
+	if (broken == 1){
 		/* Draw between ( 0 and 1/4 ) and ( 3/4 and 1 ) of each
 		 * side (0-1)
 		 */
@@ -968,7 +968,7 @@ void draw_frame_mark (struct graphics_driver *drv, struct
 			drv->draw_hline(dev,x+xl,y+yw-1,x+xh,bg);
 			drv->draw_hline(dev,x+xh,y+yw-1,x+xw,fg);
 		}
-	}else{
+	}else {
 		/* Draw full sides and the box inside */
 		drv->draw_hline(dev,x,y,x+xw,fg);
 		if (yw>=1){
@@ -976,7 +976,7 @@ void draw_frame_mark (struct graphics_driver *drv, struct
 				drv->draw_vline(dev,x,y+1,y+yw-1,fg);
 				if (xw>=1){
 					if (xw>=2){
-						drv->fill_area(dev,
+						if (broken < 2) drv->fill_area(dev,
 							x+1,y+1,x+xw-1,y+yw-1,
 							bg);
 					}
@@ -985,6 +985,9 @@ void draw_frame_mark (struct graphics_driver *drv, struct
 				}
 			}
 			drv->draw_hline(dev,x,y+yw-1,x+xw,fg);
+		}
+		if (broken == 2 && xw > 2 && yw > 2) {
+			draw_frame_mark(drv, dev, x + 1, y + 1, xw - 2, yw - 2, bg, fg, 3);
 		}
 	}
 }
@@ -1058,8 +1061,8 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 							* draw. */
 	/* Now we will only draw... */
 	color_bg=dip_get_color_sRGB(cimg->background_color);
+	color_fg=dip_get_color_sRGB(get_foreground(cimg->background_color));
 	if (cimg->state<12){
-		color_fg=dip_get_color_sRGB(get_foreground(cimg->background_color));
 		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
 			goi->yw,color_bg,color_fg,cimg->state&1);
 	}else
@@ -1075,6 +1078,10 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 	else{
 		fprintf(stderr,"cimg->state\%d\n",cimg->state);
 		internal("Invalid state in img_draw_image");
+	}
+	if (fdatac->vs->g_display_link && fdatac->active && fdatac->vs->current_link != -1 && fdatac->vs->current_link == goi->link_num) {
+		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
+			goi->yw,color_bg,color_fg,2);
 	}
 #endif /* #ifdef DEBUG */
 }

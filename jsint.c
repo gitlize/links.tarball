@@ -540,7 +540,7 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 				if (fc->g_ctrl_num==obj_id){a=1;break;}
 			if (!a){mem_free(hopla);return NULL;}
 
-			hopla->fs=document->vs->form_info+obj_id;
+			if (!(hopla->fs=find_form_state(document, fc))){mem_free(hopla);return NULL;}
 			hopla->fc=fc;
 			return hopla;
 		}
@@ -645,6 +645,24 @@ long *__add_id(long *field,int *len,long id)
 	return p;
 }
 
+long *__add_fd_id(long *field,int *len,long fd,long id, unsigned char *name)
+{
+	long *p;
+	int a;
+	for (a=0;a<(*len);a+=3)	/* this object is already on the list */
+		if (field[a]==fd&&field[a+1]==id)return field;
+	
+	
+	(*len)+=3;
+	p=mem_realloc(field,(*len)*sizeof(long));
+	if (!p){mem_free(field);return NULL;}
+
+	p[(*len)-3]=fd;
+	p[(*len)-2]=id;
+	p[(*len)-1]=(name&&(*name))?(long)stracpy(name):(long)NULL;
+	return p;
+}
+
 static long js_upcall_get_frame_id(void *data);
 
 /* finds all objects with name takhle_tomu_u_nas_nadavame
@@ -703,7 +721,8 @@ static long *__find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, l
 				case FC_RESET:		tak_mu_to_ukaz|=JS_OBJ_T_RESET ; break;
 				case FC_HIDDEN:		tak_mu_to_ukaz|=JS_OBJ_T_HIDDEN ; break;
 				case FC_BUTTON:		tak_mu_to_ukaz|=JS_OBJ_T_BUTTON ; break;
-				default:internal("Invalid form element type.\n");
+				default: /* internal("Invalid form element type.\n"); */
+				tak_mu_to_ukaz=0;break;
 			}
 			if (tak_mu_to_ukaz&&!(pole_vole=__add_id(pole_vole,n_items,tak_mu_to_ukaz)))return NULL;
 		}
@@ -774,7 +793,8 @@ long *jsint_resolve(void *context, long obj_id, char *takhle_tomu_u_nas_nadavame
 							case FC_RESET:		tak_mu_to_ukaz|=JS_OBJ_T_RESET ; break;
 							case FC_HIDDEN:		tak_mu_to_ukaz|=JS_OBJ_T_HIDDEN ; break;
 							case FC_BUTTON:		tak_mu_to_ukaz|=JS_OBJ_T_BUTTON ; break;
-							default:internal("Invalid form element type.\n");
+							default: tak_mu_to_ukaz=0;break;
+							/* internal("Invalid form element type.\n"); */
 						}
 						if ((tak_mu_to_ukaz&JS_OBJ_MASK)&&!(pole_vole=__add_id(pole_vole,n_items,tak_mu_to_ukaz)))return NULL;
 					}
@@ -1285,7 +1305,6 @@ static void __js_upcall_close_window_yes_pressed(void *data)
 void js_upcall_close_window(void *data)
 {
 	struct fax_me_tender_nothing *s=(struct fax_me_tender_nothing*)data;
-	struct gimme_js_id* jsid;
 	struct f_data_c *fd;
 	struct terminal *term;
 
@@ -1293,32 +1312,44 @@ void js_upcall_close_window(void *data)
 
 	/* context must be a valid pointer ! */
 	fd=(struct f_data_c*)(s->ident);
+	if (!fd->js) return;
 	term=fd->ses->term;
 
-	if (!fd->js) return;
-	jsid=mem_alloc(sizeof(struct gimme_js_id));
-	if (!jsid)internal("Cannot allocate memory in js_upcall_close_window\n");
-	
 	/* kill timer, that called me */
 	js_spec_vykill_timer(fd->js->ctx,0);
 
-	/* fill in jsid */
-	jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
-	jsid->js_id=fd->js->ctx->js_id;
-	
-	msg_box(
-		term,   /* terminal */
-		getml(jsid,NULL),   /* memory blocks to free */
-		TEXT(T_EXIT_LINKS),   /* title */
-		AL_CENTER,   /* alignment */
-		TEXT(T_SCRIPT_TRYING_TO_CLOSE_WINDOW),   /* message */
-		jsid,   /* data for button functions */
-		2,   /* # of buttons */
-		TEXT(T_YES),__js_upcall_close_window_yes_pressed,NULL,
-		TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL
-	);
+	if (js_manual_confirmation)
+	{
+		struct gimme_js_id* jsid;
 
-	js_mem_free(s);
+		jsid=mem_alloc(sizeof(struct gimme_js_id));
+		if (!jsid)internal("Cannot allocate memory in js_upcall_close_window\n");
+	
+		/* fill in jsid */
+		jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
+		jsid->js_id=fd->js->ctx->js_id;
+		
+		msg_box(
+			term,   /* terminal */
+			getml(jsid,NULL),   /* memory blocks to free */
+			TEXT(T_EXIT_LINKS),   /* title */
+			AL_CENTER,   /* alignment */
+			TEXT(T_SCRIPT_TRYING_TO_CLOSE_WINDOW),   /* message */
+			jsid,   /* data for button functions */
+			2,   /* # of buttons */
+			TEXT(T_YES),__js_upcall_close_window_yes_pressed,NULL,
+			TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL
+		);
+		js_mem_free(s);
+	}
+	else
+	{
+		js_mem_free(s);
+		if (term->next == term->prev && are_there_downloads())
+			query_exit(fd->ses);
+		else 
+			really_exit_prog(fd->ses);
+	}
 }
 
 
@@ -1414,9 +1445,12 @@ void js_upcall_get_string(void *data)
 void js_upcall_clear_window(void *data)
 {
 	/* context must be a valid pointer ! */
-	struct f_data_c *fd=(struct f_data_c*)data;
+	/*struct f_data_c *fd=(struct f_data_c*)data;*/
 	/* no jsint_destroy context or so here, it's called automatically from reinit_f_data_c */
+	/*
+	zatim jsem to zrusil ... tahle funkce musi byt volana pres timer, takhle je to uplne blbe a spadne to pri kazdem volani -- Mikulas
 	reinit_f_data_c(fd);
+	*/
 }
 
 
@@ -1828,32 +1862,33 @@ long *js_upcall_get_form_elements(void *data, long document_id, long form_id, in
 {
 	struct f_data_c *js_ctx=(struct f_data_c *)data;
 	struct f_data_c *fd;
-	struct form_control *fc;
+	struct form_control *fc, *fc2;
 	long *pole_Premysla_Zavorace;
-	int a,b;
+	int b;
 
 	if (!js_ctx)internal("js_upcall_get_form_elements called with NULL context pointer\n");
 	if ((form_id&JS_OBJ_MASK)!=JS_OBJ_T_FORM)return NULL;   /* this isn't form */
 	fd=jsint_find_document(document_id);
-	if (!fd||!fd->vs||!jsint_can_access(js_ctx,fd))return NULL;
+	if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd))return NULL;
 
 	fc=jsint_find_object(fd,form_id);
 	if (!fc)return NULL;
 
 	*len=0;
 	
-	for (a=0;a<(fd->vs->form_info_len);a++)
-		if ((fd->vs->form_info)[a].form_num==fc->form_num)(*len)++;
+	foreach (fc2, fd->f_data->forms)
+		if (fc2->form_num==fc->form_num)(*len)++;
 
 	if (!(*len))return NULL;
 	
 	pole_Premysla_Zavorace=mem_alloc((*len)*sizeof(long));
 	if (!pole_Premysla_Zavorace)internal("Cannot allocate memory in js_upcall_get_form_elements.");
 	
-	for (a=0,b=0;a<(fd->vs->form_info_len);a++)
-		if ((fd->vs->form_info)[a].form_num==fc->form_num)
+	b=0;
+	foreach (fc2, fd->f_data->forms)
+		if (fc2->form_num==fc->form_num)
 		{
-			switch ((fd->vs->form_info)[a].type)
+			switch (fc2->type)
 			{
 				case FC_TEXT:		pole_Premysla_Zavorace[b]=JS_OBJ_T_TEXT; break;
 				case FC_PASSWORD:	pole_Premysla_Zavorace[b]=JS_OBJ_T_PASSWORD; break;
@@ -1866,9 +1901,11 @@ long *js_upcall_get_form_elements(void *data, long document_id, long form_id, in
 				case FC_RESET:		pole_Premysla_Zavorace[b]=JS_OBJ_T_RESET ; break;
 				case FC_HIDDEN:		pole_Premysla_Zavorace[b]=JS_OBJ_T_HIDDEN ; break;
 				case FC_BUTTON:		pole_Premysla_Zavorace[b]=JS_OBJ_T_BUTTON ; break;
-				default:internal("Invalid form element type.\n");
+				default: /* internal("Invalid form element type.\n"); */
+				(*len)--;
+				continue;
 			}
-			pole_Premysla_Zavorace[b]|=(a<<JS_OBJ_MASK_SIZE);
+			pole_Premysla_Zavorace[b]|=((fc2->g_ctrl_num)<<JS_OBJ_MASK_SIZE);
 			b++;
 		}
 	return pole_Premysla_Zavorace;
@@ -2253,6 +2290,12 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 	
 	mem_free(hopla->fs->value);
 	hopla->fs->value=stracpy(name);
+	if (hopla->fs->state > strlen(hopla->fs->value))
+		hopla->fs->state = strlen(hopla->fs->value);
+	if ((ksunt_id&JS_OBJ_MASK) != JS_OBJ_T_TEXTAREA) {
+		if (hopla->fs->vpos > strlen(hopla->fs->value))
+			hopla->fs->vpos = strlen(hopla->fs->value);
+	}
 	mem_free(hopla);
 	if (name)mem_free(name);
 	redraw_document(fd);
@@ -2645,9 +2688,10 @@ static void __js_upcall_goto_url_cancel_pressed(void *data)
 void js_upcall_goto_url(void * data)
 {
 	struct fax_me_tender_int_string *s=(struct fax_me_tender_int_string*)data;
-	struct gimme_js_id_string* jsid;
 	struct f_data_c *fd;
 	struct terminal *term;
+	unsigned char *dest_url;
+	int in_new_win;
 
 	fd=(struct f_data_c*)(s->ident);
 	term=fd->ses->term;
@@ -2660,42 +2704,70 @@ void js_upcall_goto_url(void * data)
 	if (!s)internal("js_upcall_goto_url called with NULL pointer\n");
 
 	if (!s->string){js_mem_free(data);goto goto_url_failed;}
-	jsid=mem_alloc(sizeof(struct gimme_js_id_string));
-	if (!jsid)internal("Cannot allocate memory in js_upcall_goto_url.\n");
-	
-	/* context must be a valid pointer ! */
-	/* fill in jsid */
-	jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
-	jsid->js_id=fd->js->ctx->js_id;
-	if (fd->loc&&fd->loc->url) jsid->string=join_urls(fd->loc->url,s->string);
-	else jsid->string=stracpy(s->string);
-	if (!(jsid->string)){mem_free(jsid);js_mem_free(s->string);js_mem_free(data);goto goto_url_failed;}
-	/* goto the same url */
-	{
-		unsigned char txt[MAX_STR_LEN];
-		void *p;
-
-		p=get_current_url(fd->ses,txt,MAX_STR_LEN);
-		if (p&&fd->loc&&fd->loc->url&&!strcmp(txt,jsid->string)){mem_free(jsid->string);mem_free(jsid);js_mem_free(s->string);js_mem_free(data);goto goto_url_failed;}
-	}
+	if (fd->loc&&fd->loc->url) dest_url=join_urls(fd->loc->url,s->string);
+	else dest_url=stracpy(s->string);
+	if (!(dest_url)){js_mem_free(s->string);js_mem_free(data);goto goto_url_failed;}
 	js_mem_free(s->string);
-	jsid->n=s->num;
-	
-	msg_box(
-		term,   /* terminal */
-		getml(jsid->string,jsid,NULL),   /* memory blocks to free */
-		TEXT(T_GOTO_URL),   /* title */
-		AL_CENTER|AL_EXTD_TEXT,   /* alignment */
-		jsid->n?TEXT(T_JS_IS_ATTEMPTING_TO_OPEN_NEW_WINDOW_WITH_URL):TEXT(T_JS_IS_ATTEMPTING_TO_GO_TO_URL), " \"",jsid->string,"\".",NULL,   /* message */
-		jsid,   /* data for button functions */
-		3,   /* # of buttons */
-		TEXT(T_ALLOW),__js_upcall_goto_url_ok_pressed,B_ENTER,
-		TEXT(T_REJECT),__js_upcall_goto_url_cancel_pressed,B_ESC,
-		TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
-	);
+	in_new_win=s->num;
 
-	js_mem_free(s);
+	if (js_manual_confirmation)
+	{
+		struct gimme_js_id_string* jsid;
+
+		/* goto the same url */
+		{
+			unsigned char txt[MAX_STR_LEN];
+			void *p;
+	
+			p=get_current_url(fd->ses,txt,MAX_STR_LEN);
+			if (p&&fd->loc&&fd->loc->url&&!strcmp(txt,dest_url))
+			{
+				mem_free(dest_url);
+				js_mem_free(data);
+				goto goto_url_failed;
+			}
+		}
+	
+		jsid=mem_alloc(sizeof(struct gimme_js_id_string));
+		if (!jsid)internal("Cannot allocate memory in js_upcall_goto_url.\n");
+		
+		/* context must be a valid pointer ! */
+		/* fill in jsid */
+		jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
+		jsid->js_id=fd->js->ctx->js_id;
+		jsid->string=dest_url;
+		jsid->n=s->num;
+		
+		msg_box(
+			term,   /* terminal */
+			getml(jsid->string,jsid,NULL),   /* memory blocks to free */
+			TEXT(T_GOTO_URL),   /* title */
+			AL_CENTER|AL_EXTD_TEXT,   /* alignment */
+			jsid->n?TEXT(T_JS_IS_ATTEMPTING_TO_OPEN_NEW_WINDOW_WITH_URL):TEXT(T_JS_IS_ATTEMPTING_TO_GO_TO_URL), " \"",jsid->string,"\".",NULL,   /* message */
+			jsid,   /* data for button functions */
+			3,   /* # of buttons */
+			TEXT(T_ALLOW),__js_upcall_goto_url_ok_pressed,B_ENTER,
+			TEXT(T_REJECT),__js_upcall_goto_url_cancel_pressed,B_ESC,
+			TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
+		);
+		js_mem_free(s);
+	}
+	else
+	{
+		js_mem_free(s);
+		if (in_new_win&&can_open_in_new(fd->ses->term)) /* open in new window */
+		{
+			if (fd->ses->dn_url) mem_free(fd->ses->dn_url);
+			fd->ses->dn_url=stracpy(dest_url);
+			open_in_new_window(fd->ses->term, send_vodevri_v_novym_vokne, fd->ses);
+		}
+		else 
+			goto_url(fd->ses,dest_url);
+		js_downcall_vezmi_null(fd->js->ctx);   /* call downcall */
+		mem_free(dest_url);
+	}
 	return;
+
 goto_url_failed:
 	js_downcall_vezmi_null(fd->js->ctx);   /* call downcall */
 	return;
@@ -2758,11 +2830,11 @@ static void __js_upcall_goto_history_ok_pressed(void *data)
 void js_upcall_goto_history(void * data)
 {
 	struct fax_me_tender_int_string *s=(struct fax_me_tender_int_string*)data;
-	struct gimme_js_id_string* jsid;
 	struct f_data_c *fd;
 	struct terminal *term;
 	unsigned char *url=NULL;
 	unsigned char txt[16];
+	int history_num;
 
 	/* context must be a valid pointer ! */
 	fd=(struct f_data_c*)(s->ident);
@@ -2773,21 +2845,18 @@ void js_upcall_goto_history(void * data)
 	js_spec_vykill_timer(fd->js->ctx,0);
 
 	if (!s)internal("Hele, tyhle prasarny si zkousej na nekoho jinyho, jo?!\n");
-
 	if (!(s->num)&&!(s->string))internal("Tak tohle na mne nezkousej, bidaku!\n");
 	if ((s->num)&&(s->string))internal("Ta sedla!\n");
-	jsid=mem_alloc(sizeof(struct gimme_js_id_string));
-	if (!jsid)internal("Can't allocate memory in js_upcall_goto_history\n");
-	
+
 	/* find the history item */
 	if (s->num)	/* goto n-th item */
 	{
 		struct location *loc;
 		int a=0;
 
-		if ((s->num)>0){if (s->string)js_mem_free(s->string);mem_free(jsid);js_mem_free(data);goto goto_history_failed;} /* forward not supported */
+		if ((s->num)>0){if (s->string)js_mem_free(s->string);js_mem_free(data);goto goto_history_failed;} /* forward not supported */
 		s->num=-s->num;
-		jsid->n=s->num;
+		history_num=s->num;
 
 		foreach(loc,fd->ses->history)
 		{
@@ -2802,36 +2871,50 @@ void js_upcall_goto_history(void * data)
 
 		foreach(loc,fd->ses->history)
 		{
-			if (!strcmp(s->string,loc->url)){url=stracpy(s->string);jsid->n=a;break;}
+			if (!strcmp(s->string,loc->url)){url=stracpy(s->string);history_num=a;break;}
 			a++;
 		}
 	}
 
 	if (s->string)js_mem_free(s->string);
-	if (!url){js_mem_free(data);mem_free(jsid);goto goto_history_failed;}
+	if (!url){js_mem_free(data);goto goto_history_failed;}
 
 	term=fd->ses->term;
 
-	/* fill in jsid */
-	jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
-	jsid->js_id=fd->js->ctx->js_id;
-	jsid->string=url;
-	
-	snprintf(txt,16," (-%d) ",jsid->n);
-	msg_box(
-		term,   /* terminal */
-		getml(url,jsid,NULL),   /* memory blocks to free */
-		TEXT(T_GOTO_HISTORY),   /* title */
-		AL_CENTER|AL_EXTD_TEXT,   /* alignment */
-		TEXT(T_JS_IS_ATTEMPTING_TO_GO_INTO_HISTORY), txt, TEXT(T_TO_URL), " \"",url,"\".",NULL,   /* message */
-		jsid,   /* data for button functions */
-		3,   /* # of buttons */
-		TEXT(T_ALLOW),__js_upcall_goto_history_ok_pressed,B_ENTER,
-		TEXT(T_REJECT),__js_upcall_goto_url_cancel_pressed,B_ESC,
-		TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
-	);
+	if (js_manual_confirmation)
+	{
+		struct gimme_js_id_string* jsid;
 
-	js_mem_free(s);
+		jsid=mem_alloc(sizeof(struct gimme_js_id_string));
+		if (!jsid)internal("Can't allocate memory in js_upcall_goto_history\n");
+	
+		/* fill in jsid */
+		jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
+		jsid->js_id=fd->js->ctx->js_id;
+		jsid->string=url;
+		jsid->n=history_num;
+	
+		snprintf(txt,16," (-%d) ",jsid->n);
+		msg_box(
+			term,   /* terminal */
+			getml(url,jsid,NULL),   /* memory blocks to free */
+			TEXT(T_GOTO_HISTORY),   /* title */
+			AL_CENTER|AL_EXTD_TEXT,   /* alignment */
+			TEXT(T_JS_IS_ATTEMPTING_TO_GO_INTO_HISTORY), txt, TEXT(T_TO_URL), " \"",url,"\".",NULL,   /* message */
+			jsid,   /* data for button functions */
+			3,   /* # of buttons */
+			TEXT(T_ALLOW),__js_upcall_goto_history_ok_pressed,B_ENTER,
+			TEXT(T_REJECT),__js_upcall_goto_url_cancel_pressed,B_ESC,
+			TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
+		);
+		js_mem_free(s);
+	}
+	else
+	{
+		js_mem_free(s);
+		mem_free(url);
+		go_backwards(term,(void*)(history_num),fd->ses);
+	}
 	return;
 goto_history_failed:
 	js_downcall_vezmi_null(fd->js->ctx);
@@ -3043,7 +3126,7 @@ void __add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, stru
        	/* add all accessible frames */
        	foreach(ff,fd->subframes)
        		if (jsint_can_access(js_ctx,ff))
-       			if (!((*field)=__add_id(*field,len,js_upcall_get_frame_id(ff))))return;
+       			if (!((*field)=__add_fd_id(*field,len,js_upcall_get_frame_id(fd),js_upcall_get_frame_id(ff),ff->f_data?ff->f_data->opt.framename:NULL)))return;
 
 	if (!(fd->f_data))goto tady_uz_nic_peknyho_nebude;
 
@@ -3056,12 +3139,12 @@ void __add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, stru
 			struct g_object_image goi;
 	
 			gi = (struct g_object_image *)((char *)fi + ((char *)(&goi) - (char *)(&(goi.image_list))));
-			if (!((*field)=__add_id(*field,len,JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE))))return;
+			if (!((*field)=__add_fd_id(*field,len,js_upcall_get_frame_id(fd),JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE),gi->name)))return;
 		}
 #endif
 	/* add all forms */
 	foreachback(fc,fd->f_data->forms)
-		if (!((*field)=__add_id(*field,len,((fc->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM)))return;
+		if (!((*field)=__add_fd_id(*field,len,js_upcall_get_frame_id(fd),((fc->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM,fc->form_name)))return;
 
 	/* add all form elements */
 	foreachback(fc,fd->f_data->forms)
@@ -3081,9 +3164,10 @@ void __add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, stru
 				case FC_RESET:		tak_mu_to_ukaz|=JS_OBJ_T_RESET ; break;
 				case FC_HIDDEN:		tak_mu_to_ukaz|=JS_OBJ_T_HIDDEN ; break;
 				case FC_BUTTON:		tak_mu_to_ukaz|=JS_OBJ_T_BUTTON ; break;
-				default:internal("Invalid form element type.\n");
+				default:/* internal("Invalid form element type.\n"); */
+				tak_mu_to_ukaz=0;break;
 			}
-			if (tak_mu_to_ukaz&&!((*field)=__add_id(*field,len,tak_mu_to_ukaz)))return;
+			if (tak_mu_to_ukaz&&!((*field)=__add_fd_id(*field,len,js_upcall_get_frame_id(fd),tak_mu_to_ukaz,fc->name)))return;
 		}
 	
 tady_uz_nic_peknyho_nebude:
@@ -3094,6 +3178,11 @@ tady_uz_nic_peknyho_nebude:
 
 /* returns allocated field of all objects in the document (document.all)
  * size of the field will be stored in len
+ * the field has 3x more items than the number of objects
+ * field[x+0]==id of frame
+ * field[x+1]==id of the object
+ * field[x+2]==allocated unsigned char* with name of the object or NULL (when there's no name)
+ *
  * when an error occurs, returns NULL
  */
 long * js_upcall_get_all(void *chuligane, long document_id, int *len)
@@ -3190,7 +3279,7 @@ int js_upcall_get_image_width(void *chuligane, long document_id, long image_id)
 	
 		if (!gi)return -1;
 		
-		return gi->cimg->width;
+		return gi->xw;
 	}else
 #endif
 	{
@@ -3220,7 +3309,7 @@ int js_upcall_get_image_height(void *chuligane, long document_id, long image_id)
 	
 		if (!gi)return -1;
 		
-		return gi->cimg->height;
+		return gi->yw;
 	}else
 #endif
 	{
@@ -3517,13 +3606,13 @@ void js_upcall_set_image_src(void *chuligane)
 		if (!js_ctx)internal("js_upcall_set_image_src called with NULL context pointer\n");
 		image_id=fax->obj_id;
 		document_id=fax->doc_id;
-		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE){js_mem_free(fax->string);fax->string=NULL;goto abych_tu_nepovecerel;}
+		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)goto abych_tu_nepovecerel;
 		fd=jsint_find_document(document_id);
-		if (!fd||!jsint_can_access(js_ctx,fd)){js_mem_free(fax->string);fax->string=NULL;goto abych_tu_nepovecerel;}
+		if (!fd||!jsint_can_access(js_ctx,fd))goto abych_tu_nepovecerel;
 	
 		gi=jsint_find_object(fd,image_id);
 	
-		if (!gi||!fd->f_data){js_mem_free(fax->string);fax->string=NULL;goto abych_tu_nepovecerel;}
+		if (!gi||!fd->f_data)goto abych_tu_nepovecerel;
 	
 		/* string joinnem s url */
 		if (fd->loc&&fd->loc->url) vecirek=join_urls(fd->loc->url,fax->string);
@@ -3660,7 +3749,9 @@ void js_downcall_game_over(void *context)
 {
 	struct f_data_c *fd=(struct f_data_c*)(((js_context*)(context))->ptr);
 	
-	js_error(_(TEXT(T_SCRIPT_KILLED_BY_USER),fd->ses->term),context);
+	/* js_error(_(TEXT(T_SCRIPT_KILLED_BY_USER),fd->ses->term),context);
+	 * Tato hlaska me srala. Na to bych neprisel, ze jsem prave zabil
+	 * rucne javascript. */
 	if (fd->ses->default_status)mem_free(fd->ses->default_status),fd->ses->default_status=NULL; /* pekne uklidime bordylek, ktery nam BFU nacintalo do status lajny */
 	js_durchfall=0;
 	if(((js_context*)context)->running)

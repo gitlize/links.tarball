@@ -61,7 +61,28 @@ static int js_temp_var_for_vartest=0;
 		{	js_temp_var_for_vartest=0; \
 			js_error(B,context); \
 			return; \
-		} 
+		}
+
+#define VARTEST2(A,B)	if(!js_all_conversions)	{VARTEST(A,B)} \
+			else \
+		VARTEST1(A); \
+		if(js_temp_var_for_vartest) \
+		{	sezvykan=1; \
+			js_temp_var_for_vartest=0; \
+			context->current->in=0; \
+			context->current=pullp(context); \
+			return; \
+		}
+
+#define VARTEST3(A,B)	if(!js_all_conversions){VARTEST(A,B)}\
+			else \
+		if(A->typ!=VARIABLE) \
+		{	pusha(A,context); \
+			sezvykan=1; \
+			context->current->in=0; \
+			context->current=pullp(context); \
+			return; \
+		}
 #undef debug
 /* #define JS_DEBUG_2 1 */
 #define debug(a) \
@@ -75,7 +96,7 @@ extern long js_lengthid;
 
 extern long MIN1KEY;
 extern long CStoString,CSvalueOf,CSMIN_VALUE,CSMAX_VALUE,CSNaN,CSlength,
-	CSindexOf,CSlastIndexOf,CSsubstring,CScharAt,CStoLowerCase,
+	CSindexOf,CSlastIndexOf,CSsubstring,CScharAt,CStoLowerCase,CSsubstr,
 	CStoUpperCase,CSsplit,CSparse,CSUTC;
 
 static int sezvykan;
@@ -1004,7 +1025,7 @@ void andassign(js_context*context)
 		case 1:	debug("ctu 1. arg... ");
 			sezvykan=0;
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 			pna1=vartoint(pna,context);/*Norma chce vyhodnocovat zleva doprava, tak nech sa paci...*/
@@ -1121,7 +1142,7 @@ void divassign(js_context*context)
 		case 1:	debug("ctu 1. arg... ");
 			sezvykan=0;
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 			pna1=vartofloat(pna,context);/*Norma chce vyhodnocovat zleva doprava, tak nech sa paci...*/
@@ -1197,7 +1218,7 @@ void assign(js_context*context)/*Mel 'sem to pojmenovat Assasin*/
 			RESOLV(rightside);
 			kam=pulla(context);
 			pusha(rightside,context);
-			VARTEST(kam,"You can assign only to variable!\n");
+			VARTEST2(kam,"You can assign only to variable!\n")
 			vysl=(lns*)kam->argument;
 			if(vysl->type==INTVAR)
 				set_var_value(vysl,rightside->typ,rightside->argument,context);
@@ -1288,15 +1309,28 @@ void localassign(js_context*context)
 			RESOLV(rightside);
 			kam=pulla(context);
 			pusha(rightside,context);
-			VARTEST(kam,"You can assign only to variable!\n");
+			VARTEST2(kam,"You can assign only to variable!\n")
 			vysl=(lns*)kam->argument;
 
-			vysl=create(vysl->identifier,context->lnamespace,context);
+/* Zasah PerMovy ideove komise ve stavu ocekavani privalu alkoholu. B-) */
+			vysl=loklookup(vysl->identifier,context->lnamespace,context);
 			if(vysl->type==INTVAR)
 				set_var_value(vysl,rightside->typ,rightside->argument,context);
 			else
 			{
 /*				clearvar(vysl,context); */
+
+
+				if(rightside->typ==ADDRSPACE||rightside->typ==ADDRSPACEP||rightside->typ==ARRAY)
+				{	pom=lookup(MIN1KEY,(plns*)rightside->argument,context);
+					if(pom->type!=PARLIST)
+						my_internal("Parentlist corrupted!\n",context);
+					add_to_parlist(&fotr_je_lotr,pom);
+					clearvar(vysl,context);
+					delete_from_parlist(&fotr_je_lotr,pom);
+				}else	clearvar(vysl,context);
+
+				
 				switch(vysl->type=rightside->typ)
 				{	case UNDEFINED:
 					case NULLOVY:
@@ -1523,7 +1557,7 @@ void unassign(js_context*context)
 		case 1:	sezvykan=0;
 			debug("ctu prvni arg; ");
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 
@@ -1781,7 +1815,7 @@ void modassign(js_context*context)
 		case 1:	sezvykan=0;
 			debug("ctu prvni arg; ");
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 
@@ -1941,7 +1975,7 @@ void orassign(js_context*context)
 		case 1:	debug("ctu 1. arg... ");
 			sezvykan=0;
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 			pna1=vartoint(pna,context);/*Norma chce vyhodnocovat zleva doprava, tak nech sa paci...*/
@@ -2109,7 +2143,7 @@ void plusassign(js_context*context)
 		case 1:	sezvykan=0;
 			debug("ctu prvni arg; ");
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable\n");
+			VARTEST3(par1,"You can assign only to variable\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 
@@ -2414,7 +2448,7 @@ void shlshleq(js_context*context) /*2*/
 		case 1:	debug("ctu 1. arg... ");
 			sezvykan=0;
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 			pna1=vartoint(pna,context);/*Norma chce vyhodnocovat zleva doprava, tak nech sa paci...*/
@@ -2610,7 +2644,7 @@ void shrshreq(js_context*context) /*2*/
 		case 1:	debug("ctu 1. arg... ");
 			sezvykan=0;
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 			pna1=vartoint(pna,context);/*Norma chce vyhodnocovat zleva doprava, tak nech sa paci...*/
@@ -2725,7 +2759,7 @@ void threerighteq(js_context*context) /*2*/
 		case 1:	debug("ctu 1. arg... ");
 			sezvykan=0;
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable\n");
+			VARTEST3(par1,"You can assign only to variable\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 			pna1=vartoint(pna,context);/*Norma chce vyhodnocovat zleva doprava, tak nech sa paci...*/
@@ -2781,7 +2815,7 @@ void mulassign(js_context*context)
 		case 1:	debug("ctu 1. arg... ");
 			sezvykan=0;
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 			pna1=vartofloat(pna,context);/*Norma chce vyhodnocovat zleva doprava, tak nech sa paci...*/
@@ -3017,7 +3051,7 @@ void xorassign(js_context*context)
 		case 1:	debug("ctu 1. arg... ");
 			sezvykan=0;
 			par1=pulla(context);
-			VARTEST(par1,"You can assign only to variable!\n");
+			VARTEST3(par1,"You can assign only to variable!\n");
 			pusha(par1,context);
 			pna=(lns*)par1->argument;
 			pna1=vartoint(pna,context);/*Norma chce vyhodnocovat zleva doprava, tak nech sa paci...*/
@@ -3166,7 +3200,14 @@ void for3(js_context*context)
 			pombuf=pulla(context);
 			RESOLV(pombuf);
 			if(pombuf->typ!=ADDRSPACE && pombuf->typ!=ADDRSPACEP)
-				js_error("for ... in allowed only for objects!",context);
+			{	js_error("for ... in allowed only for objects!",context);
+				retval=js_mem_alloc(sizeof(abuf));
+				retval->typ=UNDEFINED;
+				retval->argument=0;
+				pusha(retval,context);
+				delarg(pombuf,context);
+				return;
+			}
 			fakevar=js_mem_alloc(sizeof(lns));
 			context->current->arg[3]=fakevar;
 			fakevar->type=ADDRSPACEP;
@@ -3514,6 +3555,14 @@ void program(js_context*context)
 		case 1:
 			debug("fce program pass 2\n");
 			context->current->in=0;
+			if(context->current->arg[1])
+			{	pending_argument=pulla(context);
+				delarg(pending_argument,context);
+				context->current=(vrchol*)context->current->arg[1];
+			}
+			else {	context->current=pullp(context);
+				sezvykan=1;
+			}
 			if(!context->depth1)
 			{	while((svinec=context->mrtve_promenne))
 				{	context->mrtve_promenne=context->mrtve_promenne->next;
@@ -3529,14 +3578,6 @@ void program(js_context*context)
 					debug("Vrazdim sirotka!\n");
 				}
 				context->last_ns=&context->first_ns;
-			}
-			if(context->current->arg[1])
-			{	pending_argument=pulla(context);
-				delarg(pending_argument,context);
-				context->current=(vrchol*)context->current->arg[1];
-			}
-			else {	context->current=pullp(context);
-				sezvykan=1;
 			}
 		break;
 		default:
@@ -3568,13 +3609,24 @@ void funkce(js_context*context)/*function f(){}*/
 		case 1:	debug("Definuji funkci\n");
 			arg=pulla(context);
 			if(arg->typ!=VARIABLE)
-			{	js_error("Defining function nowhere ",context);
-				delarg(arg,context);
+			{	delarg(arg,context);
+				if(!js_all_conversions)
+					js_error("Defining function nowhere ",context);
+				else {	arg=js_mem_alloc(sizeof(abuf));
+					arg->typ=UNDEFINED;
+					arg->argument=0;
+					pusha(arg,context);
+					sezvykan=1;
+					context->current->in=0;
+					context->current=pullp(context);
+				}
 				return;
 			}
 			funk=create(((lns*)arg->argument)->identifier,context->lnamespace,context);
 			funk->type=FUNKCE;
 			funk->value=(long)context->current;/*pointer na nas nas zavola*/
+			delarg(arg,context);
+			arg=js_mem_alloc(sizeof(abuf));
 			arg->typ=UNDEFINED;
 			arg->argument=0;
 			pusha(arg,context);/*Nesmyslny vysledek - vracime prazdny*/
@@ -3625,13 +3677,20 @@ sto_jenda:		sezvykan=0;
 
 			arg=pulla(context);
 			RESOLV(arg);
+			pom=lookup(MIN1KEY,nnspc,context);
+			if(pom->type!=PARLIST) my_internal("Parentlist je podplacen!\n",context);
+			delete_from_parlist(&fotr_je_lotr,pom);
 			if((arg->typ==ADDRSPACE)||(arg->typ==ADDRSPACEP)||(arg->typ==ARRAY))
 			{	pom=lookup(MIN1KEY,(plns*)arg->argument,context);
 				if(pom->type!=PARLIST)	my_internal("Parentlist podplacen!\n",context);
 				add_to_parlist(&fotr_je_lotr,pom);
 			} else 	pom=0;
 
-			deletenamespace(nnspc,context);
+			a1=js_mem_alloc(sizeof(abuf));
+			a1->typ=ADDRSPACE;
+			a1->argument=(long)nnspc;
+			
+			delarg(a1,context);
 
 			if(pom)	delete_from_parlist(&fotr_je_lotr,pom);
 			pusha(arg,context);
@@ -4004,7 +4063,7 @@ void member(js_context*context)/*a.b*/
 				}
 				pusha(nans,context);
 				pomv=(long)pomvrch->arg[0];
-				if(pomv!=CStoString && pomv!=CSvalueOf && pomv!= CSMIN_VALUE && pomv!=CSMAX_VALUE &&pomv!=CSNaN && pomv!=CSlength && pomv!=CSindexOf && pomv!=CSlastIndexOf && pomv!=CSsubstring && pomv!=CScharAt &&pomv!=CStoLowerCase && pomv!= CStoUpperCase && pomv!= CSsplit && pomv!= CSparse && pomv!= CSUTC) {
+				if(pomv!=CStoString && pomv!=CSvalueOf && pomv!= CSMIN_VALUE && pomv!=CSMAX_VALUE &&pomv!=CSNaN && pomv!=CSlength && pomv!=CSindexOf && pomv!=CSlastIndexOf && pomv!=CSsubstring && pomv!=CSsubstr && pomv!=CScharAt &&pomv!=CStoLowerCase && pomv!= CStoUpperCase && pomv!= CSsplit && pomv!= CSparse && pomv!= CSUTC) {
 					if(!js_all_conversions)
 						js_error("Calling strange method/property of non-object typed variable!\n",context);
 					nans=pulla(context);
@@ -4027,6 +4086,7 @@ void member(js_context*context)/*a.b*/
 				pomvar->identifier=pomv;
 				pomvar->value=CIntMETFUN;
 				pomvar->handler=(long)pulla(context);
+/*				printf("Odpal! "); */
 				pusha(nans,context);
 				context->current->in=0;
 				sezvykan=1;
@@ -4505,7 +4565,22 @@ void functioncall(js_context*context)
 		case 2:	debug("functioncall - volam funkci\n");
 			arg=pulla(context);	
 			context->current->in=0;
-			VARTEST(arg,"You're trying to call not a function!\n");
+			VARTEST1(arg);
+			if(js_temp_var_for_vartest)
+			{	if(!js_all_conversions)
+				{	js_error("You're trying to call not a function!\n",context);
+					return;
+				} else	{	delarg(pulla(context),context);
+						arg=js_mem_alloc(sizeof(abuf));
+						arg->typ=UNDEFINED;
+						arg->argument=0;
+						pusha(arg,context);
+						sezvykan=1;
+						context->current=pullp(context);
+						js_temp_var_for_vartest=0;
+						return;
+					}
+			}
 			if(((lns*)arg->argument)->type==FUNKCE)
 			{	context->current=(vrchol*)((lns*)arg->argument)->value; /* Ja se dekuju! Ted to bouchne! */
 				/* dalsi operace pobezi uz nad definici fce */

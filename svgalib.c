@@ -792,7 +792,7 @@ static void draw_hline_paged(struct graphics_device *dev, int left, int y, int r
 	END_MOUSE
 }
 
-/* Works only for pixel lengths power of two */
+/* Works only for pixel length = 1 */
 static void draw_vline_paged_1(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
 	int dest,n, page,paga,remains;

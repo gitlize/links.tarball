@@ -172,7 +172,7 @@ void add_utf_8(struct conv_table *ct, int u, unsigned char *str)
 struct conv_table utf_table[256];
 int utf_table_init = 1;
 
-void free_utf_table()
+void free_utf_table(void)
 {
 	int i;
 	for (i = 128; i < 256; i++) mem_free(utf_table[i].u.str);
@@ -279,7 +279,7 @@ int get_utf_8(unsigned char **s)
 struct conv_table table[256];
 int table_init = 1;
 
-void free_conv_table()
+void free_conv_table(void)
 {
 	if (!utf_table_init) free_utf_table();
 	if (!table_init) new_translation_table(table);
@@ -298,7 +298,7 @@ struct conv_table *get_translation_table(int from, int to)
 	new_translation_table(table);
 	if (codepages[from].table == table_utf_8) {
 		int j;
-		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, strings[codepages[to].table[j].c]);
+		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? "\001" : codepages[to].table[j].u == 0xad ? "" : strings[codepages[to].table[j].c]);
 		for (i = 0; unicode_7b[i].x != -1; i++) if (unicode_7b[i].x >= 0x80) add_utf_8(table, unicode_7b[i].x, unicode_7b[i].s);
 	} else for (i = 128; i < 256; i++) {
 		int j;

@@ -62,16 +62,30 @@ int get_e(char *env)
 
 #endif
 
+#if defined(O_SIZE) && defined(__EMX__)
+
+int open_prealloc(char *name, int flags, int mode, int siz)
+{
+	return open(name, flags | O_SIZE, mode, (unsigned long)siz);
+}
+
+void prealloc_truncate(int h, int siz)
+{
+	ftruncate(h, siz);
+}
+
+#endif
+
 /* Terminal size */
 
 #if defined(UNIX) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(WIN32)
 
 void sigwinch(void *s)
 {
-	((void (*)())s)();
+	((void (*)(void))s)();
 }
 
-void handle_terminal_resize(int fd, void (*fn)())
+void handle_terminal_resize(int fd, void (*fn)(void))
 {
 	install_signal_handler(SIGWINCH, sigwinch, fn, 0);
 }
@@ -141,10 +155,10 @@ void winch(void *s)
 {
 	char c;
 	while (can_read(winch_pipe[0]) && read(winch_pipe[0], &c, 1) == 1);
-	((void (*)())s)();
+	((void (*)(void))s)();
 }
 
-void handle_terminal_resize(int fd, void (*fn)())
+void handle_terminal_resize(int fd, void (*fn)(void))
 {
 	if (!is_xterm()) return;
 	if (!winch_thread_running) {
@@ -249,7 +263,7 @@ int check_file_name(unsigned char *file)
 
 /* Exec */
 
-int can_twterm() /* Check if it make sense to call a twterm. */
+int can_twterm(void) /* Check if it make sense to call a twterm. */
 {
 	static int xt = -1;
 	if (xt == -1) xt = !!getenv("TWDISPLAY");
@@ -259,7 +273,7 @@ int can_twterm() /* Check if it make sense to call a twterm. */
 
 #if defined(UNIX) || defined(WIN32)
 
-int is_xterm()
+int is_xterm(void)
 {
 	static int xt = -1;
 	if (xt == -1) xt = getenv("DISPLAY") && *getenv("DISPLAY");
@@ -268,14 +282,14 @@ int is_xterm()
 
 #elif defined(BEOS) || defined(ATHEOS)
 
-int is_xterm()
+int is_xterm(void)
 {
 	return 0;
 }
 
 #elif defined(RISCOS)
 
-int is_xterm()
+int is_xterm(void)
 {
        return 1;
 }
@@ -334,15 +348,21 @@ int exe(char *path)
 
 #endif
 
-char *get_clipboard_text()	/* !!! FIXME */
+/* clipboard -> links */
+unsigned char *get_clipboard_text(void)	/* !!! FIXME */
 {
 	char *ret = 0;
 	if ((ret = mem_alloc(1))) ret[0] = 0;
 	return ret;
 }
 
-void set_clipboard_text(char *data)
+/* links -> clipboard */
+void set_clipboard_text(struct terminal * term, unsigned char *data)
 {
+#ifdef GRDRV_X
+	if(term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x"))
+		x_set_clipboard_text(term->dev, data);
+#endif
 	/* !!! FIXME */
 }
 
@@ -351,7 +371,7 @@ void set_window_title(unsigned char *url)
 	/* !!! FIXME */
 }
 
-unsigned char *get_window_title()
+unsigned char *get_window_title(void)
 {
 	/* !!! FIXME */
 	return NULL;
@@ -414,7 +434,7 @@ int exe(char *path)
 	return ret;
 }
 
-char *get_clipboard_text()
+unsigned char *get_clipboard_text(void)
 {
 	PTIB tib;
 	PPIB pib;
@@ -460,7 +480,7 @@ char *get_clipboard_text()
 	return ret;
 }
 
-void set_clipboard_text(char *data)
+void set_clipboard_text(struct terminal * term, unsigned char *data)
 {
 	PTIB tib;
 	PPIB pib;
@@ -492,7 +512,7 @@ void set_clipboard_text(char *data)
 	pib->pib_ultype = oldType;
 }
 
-unsigned char *get_window_title()
+unsigned char *get_window_title(void)
 {
 #ifndef OS2_DEBUG
 	/*char *org_switch_title;*/
@@ -720,14 +740,14 @@ uint32 abgt(void *t)
 
 #if defined(UNIX) || defined(OS2) || defined(RISCOS) || defined(ATHEOS)
 
-void terminate_osdep() {}
+void terminate_osdep(void) {}
 
 #endif
 
 #ifndef BEOS
 
-void block_stdin() {}
-void unblock_stdin() {}
+void block_stdin(void) {}
+void unblock_stdin(void) {}
 
 #endif
 
@@ -782,7 +802,7 @@ int start_thr(void (*fn)(void *), void *data, unsigned char *name)
 	return tid;
 }
 
-void terminate_osdep()
+void terminate_osdep(void)
 {
 	struct list_head *p;
 	struct active_thread *thrd;
@@ -1000,7 +1020,7 @@ void unhandle_mouse(void *om)
 	done_draw();
 }
 
-void want_draw()
+void want_draw(void)
 {
 	A_DECL(NOPTRRECT, pa);
 #ifdef HAVE_SYS_FMUTEX_H
@@ -1018,7 +1038,7 @@ void want_draw()
 	}
 }
 
-void done_draw()
+void done_draw(void)
 {
 #ifdef HAVE_SYS_FMUTEX_H
 	if (mouse_mutex_init) _fmutex_release(&mouse_mutex);
@@ -1156,11 +1176,13 @@ int start_thread(void (*fn)(void *, int), void *ptr, int l)
 	fcntl(p[0], F_SETFL, O_NONBLOCK);
 	fcntl(p[1], F_SETFL, O_NONBLOCK);
 	if (!(f = fork())) {
+		struct terminal *t;
+		foreach (t, terminals) if (t->fdin > 0) close(t->fdin);
 		close(p[0]);
 		fn(ptr, p[1]);
 		write(p[1], "x", 1);
 		close(p[1]);
-		exit(0);
+		_exit(0);
 	}
 	if (f == -1) {
 		close(p[0]);
@@ -1174,26 +1196,26 @@ int start_thread(void (*fn)(void *, int), void *ptr, int l)
 #endif
 
 #ifndef USING_OS2_MOUSE
-void want_draw() {}
-void done_draw() {}
+void want_draw(void) {}
+void done_draw(void) {}
 #endif
 
-int get_output_handle() { return 1; }
+int get_output_handle(void) { return 1; }
 
 #if defined(OS2)
 
-int get_ctl_handle() { return get_input_handle(); }
+int get_ctl_handle(void) { return get_input_handle(); }
 
 #else
 
-int get_ctl_handle() { return 0; }
+int get_ctl_handle(void) { return 0; }
 
 #endif
 
 #if defined(BEOS)
 
 #elif defined(HAVE_BEGINTHREAD) && defined(HAVE_READ_KBD)
-int get_input_handle()
+int get_input_handle(void)
 {
 	int fd[2];
 	if (ti != -1) return ti;
@@ -1212,10 +1234,32 @@ int get_input_handle()
 
 #elif defined(WIN32)
 
+#if defined(HAVE_PTHREADS)
+
+void input_function_p (int *pfd);
+
+int get_input_handle(void)
+{
+	int	fd[2] ;
+	static int ti = -1, tp = -1;
+	pthread_t pthrInput;
+
+	if (ti != -1) return ti;
+	if (c_pipe (fd) < 0) return 0;
+	ti = fd[0] ;
+	tp = fd[1] ;
+
+	pthread_create(&pthrInput, NULL, (void *) &input_function_p, &tp);
+
+	return ti ;
+}
+
+#else /* !HAVE_PTHREADS */
+
 void input_function (int fd);
 void set_proc_id (int id);
 
-int get_input_handle()
+int get_input_handle(void)
 {
 	int	fd[2] ;
 	static int ti = -1, tp = -1;
@@ -1225,18 +1269,22 @@ int get_input_handle()
 	if (c_pipe (fd) < 0) return 0;
 	ti = fd[0] ;
 	tp = fd[1] ;
+
 	if (!(pid = fork()))
 	{
 		input_function (tp) ;
 	}
 	else
 		set_proc_id (pid) ;
+
 	return ti ;
 }
 
+#endif /* defined(HAVE_PTHREADS) */
+
 #else
 
-int get_input_handle()
+int get_input_handle(void)
 {
 	return 0;
 }
@@ -1322,7 +1370,7 @@ void unhandle_mouse(void *data) { }
 
 #if defined(OS2)
 
-int get_system_env()
+int get_system_env(void)
 {
 	if (is_xterm()) return 0;
 	return ENV_OS2VIO;		/* !!! FIXME: telnet */
@@ -1330,7 +1378,7 @@ int get_system_env()
 
 #elif defined(BEOS)
 
-int get_system_env()
+int get_system_env(void)
 {
 	unsigned char *term = getenv("TERM");
 	if (!term || (upcase(term[0]) == 'B' && upcase(term[1]) == 'E')) return ENV_BE;
@@ -1339,14 +1387,14 @@ int get_system_env()
 
 #elif defined(WIN32)
 
-int get_system_env()
+int get_system_env(void)
 {
 	return ENV_WIN32;
 }
 
 #else
 
-int get_system_env()
+int get_system_env(void)
 {
 	return 0;
 }
@@ -1485,11 +1533,11 @@ int can_open_os_shell(int environment)
 }
 
 #ifndef OS2
-void set_highpri()
+void set_highpri(void)
 {
 }
 #else
-void set_highpri()
+void set_highpri(void)
 {
 	DosSetPriority(PRTYS_PROCESS, PRTYC_FOREGROUNDSERVER, 0, 0);
 }

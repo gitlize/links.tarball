@@ -327,7 +327,7 @@ void process_letters(FILE *output)
  *  * renews font description structures
  *  * scans the images
  *  * builds a binary search array
- *  * writes the font structure into the font_include.c
+ *  * writes the font structure into the ../font_include.c
  *  * releases font description structures
  *  Also prints the font_data byte table.
  */
@@ -465,7 +465,7 @@ int main(int argc, char **argv)
 	FILE *output;
 	int retval;
 
-	while(!(output=fopen("font_include.c","w"))
+	while(!(output=fopen("../font_include.c","w"))
 		&&(errno==EAGAIN||errno==EINTR));
 	if (!output){
 		fprintf(stderr,PROGNAME ": ");

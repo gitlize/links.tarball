@@ -59,14 +59,20 @@ void cfmakeraw(struct termios *t);
 #define errno 1
 #endif
 
-#ifdef GRDRV_SVGALIB
-#define select vga_select
+#if defined(O_SIZE) && defined(__EMX__)
+#define HAVE_OPEN_PREALLOC
+#endif
+
+
+
+#if defined(GRDRV_SVGALIB)
+#define loop_select vga_select
 int vga_select(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 		              struct timeval *timeout);
-#endif /* #ifdef GRDRV_SVGALIB */
-
-#ifdef GRDRV_ATHEOS
-#define select ath_select
+#elif defined(GRDRV_ATHEOS)
+#define loop_select ath_select
 int ath_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);
+#else
+#define loop_select select
 #endif
 

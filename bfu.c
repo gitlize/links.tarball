@@ -97,7 +97,7 @@ long bfu_fg_color, bfu_bg_color;
 
 int G_DIALOG_FIELD_WIDTH;
 
-void init_bfu()
+void init_bfu(void)
 {
 	if (!F) return;
 	bfu_bg_color = dip_get_color_sRGB(G_BFU_BG_COLOR);
@@ -112,7 +112,7 @@ void init_bfu()
 	G_DIALOG_FIELD_WIDTH = g_char_width(bfu_style_wb_mono, ' ');
 }
 
-void shutdown_bfu()
+void shutdown_bfu(void)
 {
 	if (!F) return;
 	g_free_style(bfu_style_wb);
@@ -126,12 +126,12 @@ void shutdown_bfu()
 
 #else
 
-void init_bfu() {}
-void shutdown_bfu() {}
+void init_bfu(void) {}
+void shutdown_bfu(void) {}
 
 #endif
 
-void iinit_bfu()
+void iinit_bfu(void)
 {
 	G_BFU_FG_COLOR=G_DEFAULT_BFU_FG_COLOR;
 	G_BFU_BG_COLOR=G_DEFAULT_BFU_BG_COLOR;
@@ -1211,13 +1211,13 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 				}
 				/* Copy to clipboard */
 				if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'Z' && ev->y == KBD_CTRL)) {
-					set_clipboard_text(di->cdata);
+					set_clipboard_text(term, di->cdata);
 					break;	/* We don't need to redraw */
 				}
 				/* FIXME -- why keyboard shortcuts with shift don't works??? */
 				/* Cut to clipboard */
 				if ((ev->x == KBD_DEL && ev->y == KBD_SHIFT) || (upcase(ev->x) == 'X' && ev->y == KBD_CTRL)) {
-					set_clipboard_text(di->cdata);
+					set_clipboard_text(term, di->cdata);
 					di->cdata[0] = 0;
 					di->cpos = 0;
 					goto dsp_f;

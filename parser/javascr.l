@@ -6,6 +6,7 @@
  */
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
 
 #include "cfg.h"
 
@@ -92,9 +93,20 @@ int myungetc(int c, FILE *stream)
 	return i;
 }
 
+static int decode_hex_char(const char *s) {
+	const char *hex = "0123456789ABCDEF", *p;
+	int a;
+	if (!s[0] || !s[1]) return -1;
+	if (!(p=strchr(hex,toupper(s[0])))) return -1;
+	a=(p-hex)<<4;
+	if (!(p=strchr(hex,toupper(s[1])))) return -1;
+	a|=(p-hex);
+	return a;
+}
+
 long civilize(char* string)
 {	char* result=js_mem_alloc(strlen(string)+1);
-	int i=0,j=0;
+	int i=0,j=0,k;
 	while(string[i])
 	{	while(string[i]&&string[i]!='\\') { result[j++]=string[i++];}
 		if(string[i])
@@ -105,6 +117,16 @@ long civilize(char* string)
 				break;
 				case 't':
 					result[j++]='\t';
+				break;
+				case 'x':
+					/* Should be a byte coded in hex. */
+					k = decode_hex_char(string + i + 1);
+					if (k != -1)
+					{
+						result[j++]=k;
+						i+=2;
+					}
+					else result[j++]=string[i];
 				break;
 				default:
 					result[j++]=string[i];

@@ -47,7 +47,7 @@ static inline void force_dump()
 	raise(SIGSEGV);
 }
 
-void check_memory_leaks()
+void check_memory_leaks(void)
 {
 #if defined(NO_IE)
 	return;
@@ -337,7 +337,7 @@ void fault(void *dummy)
 	longjmp(p->buf, 1);
 }
 
-sigjmp_buf *new_stack_frame()
+sigjmp_buf *new_stack_frame(void)
 {
 	struct prot *new;
 	if (!handled) {

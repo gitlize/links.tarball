@@ -23,7 +23,7 @@ unsigned char **translation_array[N_LANGUAGES][N_CODEPAGES];
 int current_language;
 int current_lang_charset;
 
-void init_trans()
+void init_trans(void)
 {
 	int i, j;
 	for (i = 0; i < N_LANGUAGES; i++)
@@ -33,7 +33,7 @@ void init_trans()
 	current_lang_charset = 0;
 }
 
-void shutdown_trans()
+void shutdown_trans(void)
 {
 	int i, j, k;
 	for (i = 0; i < N_LANGUAGES; i++)
@@ -92,7 +92,7 @@ unsigned char *get_english_translation(unsigned char *text)
 	return translation_english[text - dummyarray].name;
 }
 
-int n_languages()
+int n_languages(void)
 {
 	return N_LANGUAGES;
 }

@@ -224,7 +224,7 @@ int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, l
 
 			case BFU_ELEMENT_CLOSED:
 			set_char(term,x,y,c+'[');
-			set_char(term,x+1,y,c+'-');
+			set_char(term,x+1,y,c+'+');
 			set_char(term,x+2,y,c+']');
 			c|=ATTR_FRAME;
 			set_char(term,x+3,y,c+horizontal);
@@ -233,7 +233,7 @@ int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, l
 
 			case BFU_ELEMENT_OPEN:
 			set_char(term,x,y,c+'[');
-			set_char(term,x+1,y,c+'+');
+			set_char(term,x+1,y,c+'-');
 			set_char(term,x+2,y,c+']');
 			c|=ATTR_FRAME;
 			set_char(term,x+3,y,c+horizontal);
@@ -276,7 +276,7 @@ int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, l
 			drv->fill_area(dev,x+1+3.5*BFU_GRX_WIDTH,y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
 			break;
 
-			case BFU_ELEMENT_OPEN:
+			case BFU_ELEMENT_CLOSED:
 			/* vertical line of the + */
 			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,y-1+.75*BFU_GRX_HEIGHT,f);
 			drv->draw_vline(dev,x+1+1*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,y-1+.75*BFU_GRX_HEIGHT,f);
@@ -291,7 +291,7 @@ int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, l
 			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
 			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
 
-			case BFU_ELEMENT_CLOSED:
+			case BFU_ELEMENT_OPEN:
 			/* box */
 			drv->draw_vline(dev,x+2,y+1,y-1+BFU_GRX_HEIGHT,f);
 			drv->draw_vline(dev,x+3,y+1,y-1+BFU_GRX_HEIGHT,f);
@@ -327,7 +327,7 @@ int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, l
 			drv->fill_area(dev,x+1.5*BFU_GRX_WIDTH,y+3,x-2+2*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
 			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+3,x+1.5*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,b);
 			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y-1+.75*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
-			if (type==BFU_ELEMENT_CLOSED)
+			if (type==BFU_ELEMENT_OPEN)
 			{
 				drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+3,x+1.5*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,b);
 				drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
@@ -1907,10 +1907,13 @@ int create_list_window(
 		return 1;
 	}
 	
-	ld->current_pos=list;
-	ld->win_offset=list;
-	ld->win_pos=0;
-	ld->dlg=NULL;
+	if (!ld->current_pos)
+	{
+		ld->current_pos=list;
+		ld->win_offset=list;
+		ld->win_pos=0;
+		ld->dlg=NULL;
+	}
 
 	a=7;
 	if (ld->button_fn)a++;

@@ -39,7 +39,7 @@
  * oblasti a 2. scroll bude mit jinou clipovaci oblast, ktera bude tu postizenou oblast
  * zasahovat z casti. Tak to se bude jako ta postizena oblast stipat na casti a ty casti
  * se posunou podle toho, jestli jsou zasazene tim 2. scrollem? Tim jsem ho utrel, jak
- * spoceny celo. 
+ * zpoceny celo. 
  * 
  * Takze se to nakonec udela tak, ze ze scrollu vratim hromadu rectanglu, ktere se maji
  * prekreslit, a Mikulas si s tim udela, co bude chtit. Podobne jako ve svgalib, kde se
@@ -84,6 +84,7 @@
 #include <X11/X.h>
 #include <X11/Xutil.h>
 #include <X11/Xlocale.h>
+#include <X11/Xatom.h>
 
 
 #ifndef XK_MISCELLANY
@@ -136,7 +137,6 @@ extern struct graphics_driver x_driver;
 
 static unsigned char *x_driver_param=NULL;
 static int n_wins;	/* number of windows */
-static int shift_pressed; /* is any shift pressed ? */
 
 
 #define X_TYPE_PIXMAP 1
@@ -159,6 +159,9 @@ struct
 	struct graphics_device **pointer;
 }
 x_hash_table[X_HASH_TABLE_SIZE];
+
+static unsigned char * x_my_clipboard=NULL;
+
 
 /*----------------------------------------------------------------------*/
 
@@ -287,31 +290,32 @@ static inline int trans_key(unsigned char * str, int table)
 
 
 /* translates X keys to links representation */
-static void x_translate_key(XKeyEvent *e,int *key,int *flag)
+/* return value: 1=valid key, 0=nothing */
+static int x_translate_key(XKeyEvent *e,int *key,int *flag)
 {
 	KeySym ks;
 	static char str[16];
 	int table=x_input_encoding<0?drv->codepage:x_input_encoding;
+	int len;
 
-	XLookupString(e,str,15,&ks,NULL);
-	str[16]=0;
+	len=XLookupString(e,str,15,&ks,NULL);
+	str[len>15?15:len]=0;
 	*flag=0;
 	*key=0;
 
 	/* alt, control, shift ... */
-	shift_pressed=0;
 	if (e->state&ControlMask)*flag|=KBD_CTRL;
 	if (e->state&Mod1Mask)*flag|=KBD_ALT;
-	if (e->state&ShiftMask)*flag|=KBD_SHIFT;
 
 	/* alt-f4 */
-	if (((*flag)&KBD_ALT)&&(ks==XK_F4)){*key=KBD_CTRL_C;*flag=0;return;}
+	if (((*flag)&KBD_ALT)&&(ks==XK_F4)){*key=KBD_CTRL_C;*flag=0;return 1;}
 
 	/* ctrl-c */
-	if (((*flag)&KBD_CTRL)&&(ks==XK_c||ks==XK_C)){*key=KBD_CTRL_C;*flag=0;return;}
+	if (((*flag)&KBD_CTRL)&&(ks==XK_c||ks==XK_C)){*key=KBD_CTRL_C;*flag=0;return 1;}
 	
 	switch (ks)
 	{
+		case NoSymbol:		return 0;
 		case XK_Return:		*key=KBD_ENTER;break;
 		case XK_BackSpace:	*key=KBD_BS;break;
 		case XK_KP_Tab:
@@ -372,14 +376,15 @@ static void x_translate_key(XKeyEvent *e,int *key,int *flag)
 		case XK_KP_8:		*key='8';break;
 		case XK_KP_9:		*key='9';break;
 
-		
-
-		case XK_Shift_L:		
-		case XK_Shift_R:		
-		shift_pressed=1;
-
+		default:		
+					if (ks&0x8000)return 0;
+					*key=((*flag)&KBD_CTRL)?ks&255:trans_key(str,table);
+					break;
+					/*
 		default:		*key=((*flag)&KBD_CTRL)?ks&255:trans_key(str,table);(*flag)&=~KBD_SHIFT;break;
+		*/
 	}
+	return 1;
 }
 
 static void x_hash_table_init(void)
@@ -605,8 +610,8 @@ static void x_process_events(void *data)
 #endif
 				gd=x_find_gd(&(event.xkey.window));
 				if (!gd)break;
-				x_translate_key((XKeyEvent*)(&event),&k,&f);
-				gd->keyboard_handler(gd,k,f);
+				if (x_translate_key((XKeyEvent*)(&event),&k,&f))
+					gd->keyboard_handler(gd,k,f);
 			}
 			break;
 	
@@ -654,6 +659,7 @@ static void x_process_events(void *data)
 					break;
 
 					case 2:
+					if (event.xbutton.state & ShiftMask) return; /* paste */
 					a=B_MIDDLE;
 					break;
 
@@ -694,19 +700,19 @@ static void x_process_events(void *data)
 
 					case 2:
 					a=B_MIDDLE;
-					if (shift_pressed) /* paste */
+					if (event.xbutton.state & ShiftMask) /* paste */
 					{
-						int num=0;
-						unsigned char *buffer,*p;
-						
-						buffer=XFetchBytes(x_display,&num);
-						for (p=buffer;num>0;num--,p++)
+						Atom pty;
+						if ((pty = XInternAtom(x_display, "XCLIP_OUT", False)))
 						{
-							if (*p==10)gd->keyboard_handler(gd,KBD_ENTER,0);
-							else
-								if (*p>=32)gd->keyboard_handler(gd,*p,0);
+							XConvertSelection(
+								x_display,
+								XA_PRIMARY,
+								XA_STRING,
+								pty,
+								event.xbutton.window,
+								CurrentTime);
 						}
-						if (buffer)XFree(buffer);
 						return;
 					}
 					break;
@@ -753,6 +759,117 @@ static void x_process_events(void *data)
 			}
 			break;
 
+			case SelectionNotify:
+			if(event.xselection.property)
+			{
+				unsigned char *buffer, *p;
+				unsigned long pty_size = 0, pty_items = 0;
+				int           pty_format = 8, ret, table;
+				Atom          pty_type = None;
+
+				/* Get size and type of property */
+				ret = XGetWindowProperty(
+					x_display,
+					event.xselection.requestor,
+					event.xselection.property,
+					0,
+					0,
+					False,
+					AnyPropertyType,
+					&pty_type,
+					&pty_format,
+					&pty_items,
+					&pty_size,
+					&buffer);
+				if(ret != Success) break;
+				XFree(buffer);
+
+				ret = XGetWindowProperty(
+					x_display,
+					event.xselection.requestor,
+					event.xselection.property,
+					0,
+					(long)pty_size,
+					True,
+					AnyPropertyType,
+					&pty_type,
+					&pty_format,
+					&pty_items,
+					&pty_size,
+					&buffer
+				);
+				if(ret != Success) break;
+
+				pty_size = (pty_format>>3) * pty_items;
+				gd = x_find_gd(&(event.xselection.requestor));
+				table = x_input_encoding < 0 ? drv->codepage : x_input_encoding;
+				if(gd)
+				{
+					for (p = buffer; pty_size > 0; pty_size--, p++)
+					{
+						if (*p == 10) gd->keyboard_handler(gd,KBD_ENTER,0);
+						else if (*p >= 32) gd->keyboard_handler(gd,trans_key(p,table),0);
+					}
+				}
+				XFree(buffer);
+			}
+			break;
+
+/* This long code must be here in order to implement copying of stuff into the clipboard */
+                        case SelectionRequest:
+                        {
+                            XSelectionRequestEvent *req;
+                            XEvent respond;
+
+                            req=&(event.xselectionrequest);
+#ifdef X_DEBUG
+                            {
+                                unsigned char txt[256];
+                                sprintf (txt,"xselectionrequest from %i to %i\n",(int)e.xselection.requestor, (int)w);
+                                MESSAGE(txt);
+                                sprintf (txt,"property:%i target:%i selection:%i\n", req->property,req->target, req->selection);
+                                MESSAGE(txt);
+                            }
+#endif
+                            if (req->target == XA_STRING)
+                            {
+				XChangeProperty (x_display,
+                                                 req->requestor,
+                                                 req->property,
+                                                 XA_STRING,
+                                                 8,
+                                                 PropModeReplace,
+                                                 x_my_clipboard,
+                                                 x_my_clipboard?strlen(x_my_clipboard):0
+				);
+				respond.xselection.property=req->property;
+                            }
+                            else
+                            {
+#ifdef X_DEBUG
+                                {
+                                    unsigned char txt[256];
+                                    sprintf (txt,"Non-String wanted: %i\n",(int)req->target);
+                                    MESSAGE(txt);
+                                }
+#endif
+				respond.xselection.property= None;
+                            }
+                            respond.xselection.type= SelectionNotify;
+                            respond.xselection.display= req->display;
+                            respond.xselection.requestor= req->requestor;
+                            respond.xselection.selection=req->selection;
+                            respond.xselection.target= req->target;
+                            respond.xselection.time = req->time;
+                            XSendEvent (x_display, req->requestor,0,0,&respond);
+                            XFlush (x_display);                    
+                        }
+                        break;
+               		
+			case MapNotify:
+			XFlush (x_display);
+			break;
+  
 			default:
 #ifdef X_DEBUG
 			{
@@ -957,7 +1074,7 @@ bytes_per_pixel_found:
 						case 4:
 						case 8:
 						if (x_bitmap_bpp!=1)break;
-						if (vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
+						if (vinfo.red_mask>=vinfo.green_mask&&vinfo.green_mask>=vinfo.blue_mask)
 						{
 							misordered=0;
 							goto visual_found;
@@ -998,7 +1115,7 @@ bytes_per_pixel_found:
 			}
 			
 		x_free_hash_table();
-		mem_free(x_driver_param);
+		if (x_driver_param) mem_free(x_driver_param);
 		return stracpy("No supported color depth found.\n");
 visual_found:;
 	}
@@ -1030,7 +1147,7 @@ visual_found:;
 			snprintf(nevidim_te_ani_te_neslysim_ale_smrdis_jako_lejno,MAX_STR_LEN,
 			"Unsupported graphics mode: x_depth=%d, bits_per_pixel=%d, bytes_per_pixel=%d\n",x_driver.depth, x_depth, x_bitmap_bpp);
 			x_free_hash_table();
-			mem_free(x_driver_param);
+			if (x_driver_param) mem_free(x_driver_param);
 			return stracpy(nevidim_te_ani_te_neslysim_ale_smrdis_jako_lejno);
 		}
 		
@@ -1053,7 +1170,7 @@ visual_found:;
 		unsigned char *t;
 
 		x_have_palette=1;
-		if((t=x_set_palette())){x_free_hash_table(); mem_free(x_driver_param); return t;}
+		if((t=x_set_palette())){x_free_hash_table(); if (x_driver_param) mem_free(x_driver_param); return t;}
 	}
 
 	x_black_pixel=BlackPixel(x_display,x_screen);
@@ -1090,22 +1207,32 @@ visual_found:;
 	);
 
 	x_normal_gc=XCreateGC(x_display,fake_window,GCFillStyle|GCBackground,&gcv);
-	if (!x_normal_gc) {x_free_hash_table(); mem_free(x_driver_param); return stracpy("Cannot create graphic context.\n");}
+	if (!x_normal_gc) {x_free_hash_table(); if (x_driver_param) mem_free(x_driver_param); return stracpy("Cannot create graphic context.\n");}
 	
 	x_copy_gc=XCreateGC(x_display,fake_window,GCFunction,&gcv);
-	if (!x_copy_gc) {x_free_hash_table(); mem_free(x_driver_param); return stracpy("Cannot create graphic context.\n");}
+	if (!x_copy_gc) {x_free_hash_table(); if (x_driver_param) mem_free(x_driver_param); return stracpy("Cannot create graphic context.\n");}
 	
 	x_drawbitmap_gc=XCreateGC(x_display,fake_window,GCFunction,&gcv);
-	if (!x_drawbitmap_gc) {x_free_hash_table(); mem_free(x_driver_param); return stracpy("Cannot create graphic context.\n");}
+	if (!x_drawbitmap_gc) {x_free_hash_table(); if (x_driver_param) mem_free(x_driver_param); return stracpy("Cannot create graphic context.\n");}
 	
 	x_scroll_gc=XCreateGC(x_display,fake_window,GCGraphicsExposures|GCBackground,&gcv);
-	if (!x_scroll_gc) {x_free_hash_table(); mem_free(x_driver_param); return stracpy("Cannot create graphic context.\n");}
+	if (!x_scroll_gc) {x_free_hash_table(); if (x_driver_param) mem_free(x_driver_param); return stracpy("Cannot create graphic context.\n");}
 
 	XSetLineAttributes(x_display,x_normal_gc,1,LineSolid,CapRound,JoinRound);
 
 
 	XSync(x_display,False);
 	return NULL;
+}
+
+
+void x_clear_clipboard()
+{
+    if(x_my_clipboard)
+    {
+        mem_free(x_my_clipboard);
+        x_my_clipboard=NULL;
+    }
 }
 
 
@@ -1123,6 +1250,7 @@ static void x_shutdown_driver(void)
 	XCloseDisplay(x_display);
 	x_free_hash_table();
 	if (x_driver_param)mem_free(x_driver_param);
+	x_clear_clipboard();
 }
 
 
@@ -1185,10 +1313,11 @@ static struct graphics_device* x_init_device(void)
 nic_nebude_bobankove:;
 	}
 	
-	wm_hints.flags=0;
+	wm_hints.flags=InputHint;
+	wm_hints.input=True;
 	if (x_icon)
 	{	
-		wm_hints.flags=IconPixmapHint;
+		wm_hints.flags=InputHint|IconPixmapHint;
 		wm_hints.icon_pixmap=x_icon;
 	}
 
@@ -1199,6 +1328,7 @@ nic_nebude_bobankove:;
 	XStringListToTextProperty(&links_name, 1, &windowName);
 	XSetWMName(x_display, *win, &windowName);
 	XStoreName(x_display,*win,links_name);
+	XSetWMIconName(x_display, *win, &windowName);
 
 	XSetWindowBackgroundPixmap(x_display, *win, None);
 	if (x_have_palette) XSetWindowColormap(x_display,*win,x_colormap);
@@ -1825,12 +1955,32 @@ void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 {
 	struct conv_table *ct = get_translation_table(x_utf8_table,x_input_encoding >= 0?x_input_encoding:0);
 	unsigned char *t;
+	XClassHint class_hints;
+	XTextProperty windowName;
 
 	if (!gd)internal("x_set_window_title called with NULL graphics_device pointer.\n");
 	t = convert_string(ct, title, strlen(title), NULL);
 	XStoreName(x_display,*(Window*)(gd->driver_data),t);
+
+	class_hints.res_name = t;
+	class_hints.res_class = t;
+	XSetClassHint(x_display, *(Window*)(gd->driver_data), &class_hints);
+	XStringListToTextProperty((char**)(&t), 1, &windowName);
+	XSetWMName(x_display, *(Window*)(gd->driver_data), &windowName);
+	XSetWMIconName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSync(x_display,False);
 	mem_free(t);
+}
+
+void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text)
+{
+	x_clear_clipboard();
+	if(text && strlen(text))
+	{
+		x_my_clipboard = stracpy(text);
+		XSetSelectionOwner (x_display, XA_PRIMARY, *(Window*)(gd->driver_data), CurrentTime);
+		XFlush (x_display);
+	}
 }
 
 struct graphics_driver x_driver={

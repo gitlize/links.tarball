@@ -39,12 +39,12 @@ void in_sock(struct itrm *);
 
 struct itrm *ditrm = NULL;
 
-int is_blocked()
+int is_blocked(void)
 {
 	return ditrm && ditrm->blocked;
 }
 
-void free_all_itrms()
+void free_all_itrms(void)
 {
 	if (ditrm) ditrm->free_trm(ditrm);
 }
@@ -84,7 +84,7 @@ void queue_event(struct itrm *itrm, unsigned char *data, int len)
 	}
 }
 
-void kbd_ctrl_c()
+void kbd_ctrl_c(void)
 {
 	struct event ev = { EV_KBD, KBD_CTRL_C, 0, 0 };
 	if (ditrm) ditrm->queue_event(ditrm, (unsigned char *)&ev, sizeof(struct event));
@@ -124,7 +124,7 @@ void send_term_sequence(int h,int flags)
 	}
 }
 
-void resize_terminal()
+void resize_terminal(void)
 {
 	struct event ev = { EV_RESIZE, 0, 0, 0 };
 	int x, y;

@@ -7,7 +7,7 @@
 
 struct list_head downloads = {&downloads, &downloads};
 
-int are_there_downloads()
+int are_there_downloads(void)
 {
 	int d = 0;
 	struct download *down;
@@ -25,7 +25,7 @@ struct strerror_val {
 
 struct list_head strerror_buf = { &strerror_buf, &strerror_buf };
 
-void free_strerror_buf()
+void free_strerror_buf(void)
 {
 	free_list(strerror_buf);
 }
@@ -162,6 +162,7 @@ void print_error_dialog(struct session *ses, struct status *stat, unsigned char 
 {
 	unsigned char *t = get_err_msg(stat->state);
 	unsigned char *u = stracpy(title);
+	if (strchr(u, POST_CHAR)) *strchr(u, POST_CHAR) = 0;
 	if (!t) return;
 	msg_box(ses->term, getml(u, NULL), TEXT(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_ERROR_LOADING), " ", u, ":\n\n", t, NULL, ses, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC/*, _("Retry"), NULL, 0 !!! FIXME: retry */);
 }
@@ -215,11 +216,26 @@ void abort_download(struct download *down)
 	if (down->ask) delete_window(down->ask);
 	if (down->stat.state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
 	mem_free(down->url);
-	if (down->handle != -1) close(down->handle);
+	if (down->handle != -1) prealloc_truncate(down->handle, down->last_pos), close(down->handle);
 	if (down->prog) {
 		unlink(down->file);
 		mem_free(down->prog);
 	}
+	mem_free(down->file);
+	del_from_list(down);
+	mem_free(down);
+}
+
+void abort_and_delete_download(struct download *down)
+{
+	if (down->win) delete_window(down->win);
+	if (down->ask) delete_window(down->ask);
+	if (down->stat.state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
+	mem_free(down->url);
+	if (down->handle != -1) prealloc_truncate(down->handle, down->last_pos), close(down->handle);
+	unlink(down->file);
+	if (down->prog)
+		mem_free(down->prog);
 	mem_free(down->file);
 	del_from_list(down);
 	mem_free(down);
@@ -239,6 +255,12 @@ void undisplay_download(struct download *down)
 int dlg_abort_download(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	register_bottom_half((void (*)(void *))abort_download, dlg->dlg->udata);
+	return 0;
+}
+
+int dlg_abort_and_delete_download(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	register_bottom_half((void (*)(void *))abort_and_delete_download, dlg->dlg->udata);
 	return 0;
 }
 
@@ -375,8 +397,8 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	foreach(dd, downloads) if (dd == down) goto found;
 	return;
 	found:
-	if (!(dlg = mem_alloc(sizeof(struct dialog) + 3 * sizeof(struct dialog_item)))) return;
-	memset(dlg, 0, sizeof(struct dialog) + 3 * sizeof(struct dialog_item));
+	if (!(dlg = mem_alloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item)))) return;
+	memset(dlg, 0, sizeof(struct dialog) + 4 * sizeof(struct dialog_item));
 	undisplay_download(down);
 	down->ses = ses;
 	dlg->title = TEXT(T_DOWNLOAD);
@@ -392,7 +414,15 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	dlg->items[1].gid = 0;
 	dlg->items[1].fn = dlg_abort_download;
 	dlg->items[1].text = TEXT(T_ABORT);
-	dlg->items[2].type = D_END;
+	if (!down->prog) {
+		dlg->items[2].type = D_BUTTON;
+		dlg->items[2].gid = 0;
+		dlg->items[2].fn = dlg_abort_and_delete_download;
+		dlg->items[2].text = TEXT(T_ABORT_AND_DELETE_FILE);
+		dlg->items[3].type = D_END;
+	} else {
+		dlg->items[2].type = D_END;
+	}
 	do_dialog(term, dlg, getml(dlg, NULL));
 }
 
@@ -436,7 +466,8 @@ void download_data(struct status *stat, struct download *down)
 	if (ce->redirect && down->redirect_cnt++ < MAX_REDIRECTS) {
 		unsigned char *u, *p;
 		if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
-		u = stracpy(ce->redirect);
+		u = join_urls(down->url, ce->redirect);
+		if (!u) goto x;
 		if (!http_bugs.bug_302_redirect) if (!ce->redirect_get && (p = strchr(down->url, POST_CHAR))) add_to_strn(&u, p);
 		mem_free(down->url);
 		down->url = u;
@@ -457,9 +488,22 @@ void download_data(struct status *stat, struct download *down)
 			msg_box(get_download_ses(down)->term, getml(msg, NULL), TEXT(T_WARNING), AL_CENTER | AL_EXTD_TEXT, TEXT(T_DO_YOU_WANT_TO_FOLLOW_REDIRECT_AND_POST_FORM_DATA_TO_URL), "", msg, "?", NULL, down, 3, TEXT(T_YES), down_post_yes, B_ENTER, TEXT(T_NO), down_post_no, 0, TEXT(T_CANCEL), down_post_cancel, B_ESC);
 		}*/
 	}
+	x:
 	foreach(frag, ce->frag) if (frag->offset <= down->last_pos && frag->offset + frag->length > down->last_pos) {
-		int w = write(down->handle, frag->data + down->last_pos - frag->offset, frag->length - (down->last_pos - frag->offset));
+		int w;
+#ifdef HAVE_OPEN_PREALLOC
+		if (!down->last_pos && (!down->stat.prg || down->stat.prg->size > 0)) {
+			close(down->handle);
+			down->handle = open_prealloc(down->file, O_CREAT|O_WRONLY|O_TRUNC, 0666, down->stat.prg ? down->stat.prg->size : ce->length);
+			if (down->handle == -1) goto error;
+			set_bin(down->handle);
+		}
+#endif
+		w = write(down->handle, frag->data + down->last_pos - frag->offset, frag->length - (down->last_pos - frag->offset));
 		if (w == -1) {
+#ifdef HAVE_OPEN_PREALLOC
+			error:
+#endif
 			detach_connection(stat, down->last_pos);
 			if (!list_empty(sessions)) {
 				unsigned char *msg = stracpy(down->file);
@@ -483,6 +527,7 @@ void download_data(struct status *stat, struct download *down)
 			}
 		} else {
 			if (down->prog) {
+				prealloc_truncate(down->handle, down->last_pos);
 				close(down->handle), down->handle = -1;
 				exec_on_terminal(get_download_ses(down)->term, down->prog, down->file, !!down->prog_flags);
 				mem_free(down->prog), down->prog = NULL;
@@ -528,6 +573,16 @@ int create_download_file(struct terminal *term, unsigned char *fi, int safe)
 	}
 	h = open(file, O_CREAT|O_WRONLY|O_TRUNC|(sf?O_EXCL:0), sf ? 0600 : 0666);
 	if (wd) set_cwd(wd), mem_free(wd);
+	/* FIXME */
+	#if 0
+	if (h == -1&&errno==EEXIST) {
+		unsigned char *msg = stracpy(file);
+		unsigned char *msge = stracpy(strerror(errno));
+		msg_box(term, getml(msg, msge, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_CREATE_FILE), " ", msg, ": ", msge, NULL, NULL, 2,  TEXT(T_YES), NULL, B_ENTER, TEXT(T_NO), NULL, B_ESC);
+		if (file != fi) mem_free(file);
+		return -1;
+	}
+	#endif
 	if (h == -1) {
 		unsigned char *msg = stracpy(file);
 		unsigned char *msge = stracpy(strerror(errno));
@@ -620,7 +675,7 @@ void start_download(struct session *ses, unsigned char *file)
 	display_download(ses->term, down, ses);
 }
 
-void abort_all_downloads()
+void abort_all_downloads(void)
 {
 	while (!list_empty(downloads)) abort_download(downloads.next);
 }
@@ -788,7 +843,7 @@ int shrink_format_cache(int u)
 	return r | (!c) * ST_CACHE_EMPTY;
 }
 
-void init_fcache()
+void init_fcache(void)
 {
 	register_cache_upcall(shrink_format_cache, "format");
 }
@@ -829,7 +884,7 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 
 struct f_data_c *create_f_data_c(struct session *, struct f_data_c *);
 void reinit_f_data_c(struct f_data_c *);
-struct location *new_location();
+struct location *new_location(void);
 
 void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, struct document_options *o)
 {
@@ -1231,7 +1286,7 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 	if (rq && (rq->state == O_FAILED || rq->state == O_INCOMPLETE) && (fd->rq == rq || fd->ses->rq == rq)) print_error_dialog(fd->ses, &rq->stat, rq->url);
 }
 
-struct location *new_location()
+struct location *new_location(void)
 {
 	struct location *loc;
 	if (!(loc = mem_calloc(sizeof(struct location)))) return NULL;
@@ -1517,7 +1572,7 @@ int prog_sel_open(struct dialog_data *dlg, struct dialog_item_data* idata)
 void vysad_dvere(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
-	struct session *ses=(struct session *)(dlg->dlg->udata2);
+	/*struct session *ses=(struct session *)(dlg->dlg->udata2);*/
 	unsigned char *ct=(unsigned char *)(dlg->dlg->udata);
 	int max = 0, min = 0;
 	int w, rw;
@@ -1527,9 +1582,12 @@ void vysad_dvere(struct dialog_data *dlg)
 
 	txt=init_str();
 	
+	/* brainovi to tady pada !!!
 	add_to_str(&txt,&l,ses->tq->url);
 	add_to_str(&txt,&l," ");
 	add_to_str(&txt,&l,_(TEXT(T_HAS_TYPE),term));
+	*/
+	add_to_str(&txt,&l,_(TEXT(T_CONTEN_TYPE_IS),term));
 	add_to_str(&txt,&l," ");
 	add_to_str(&txt,&l,ct);
 	add_to_str(&txt,&l,".\n");
@@ -1548,7 +1606,7 @@ void vysad_dvere(struct dialog_data *dlg)
 	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
 	if (w < 5) w = 5;
 	rw = 0;
-	dlg_format_text(dlg, NULL, txt, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text(dlg, NULL, txt, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_CENTER);
 	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items , dlg->n, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -1557,14 +1615,14 @@ void vysad_dvere(struct dialog_data *dlg)
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB + gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, txt, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text(dlg, term, txt, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_CENTER);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, dlg->items , dlg->n, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
 	mem_free(txt);
 }
 
 
-void vysad_okno(struct session *ses, unsigned char *ct, struct assoc **a, int n)
+void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 {
 	int i;
 	struct dialog *d;
@@ -1582,11 +1640,11 @@ void vysad_okno(struct session *ses, unsigned char *ct, struct assoc **a, int n)
 	{
 		unsigned char *bla=stracpy(_(TEXT(T_OPEN_WITH),ses->term));
 		add_to_strn(&bla," ");
-		add_to_strn(&bla,_(a[i]->label,ses->term));
+		add_to_strn(&bla,_(a[i].label,ses->term));
 		
 		d->items[i].type = D_BUTTON;
 		d->items[i].fn = prog_sel_open;
-		d->items[i].udata = a[i];
+		d->items[i].udata = a+i;
 		d->items[i].text = bla;
 		add_to_ml(&ml,bla,NULL);
 	}
@@ -1611,8 +1669,8 @@ void vysad_okno(struct session *ses, unsigned char *ct, struct assoc **a, int n)
 
 
 
-/* odalokovava a */
-void type_query(struct session *ses, unsigned char *ct, struct assoc **a, int n)
+/* deallocates a */
+void type_query(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 {
 	unsigned char *m1;
 	unsigned char *m2;
@@ -1620,19 +1678,19 @@ void type_query(struct session *ses, unsigned char *ct, struct assoc **a, int n)
 
 	if (n>1){vysad_okno(ses,ct,a,n);return;}
 	
-	if (a&&a[0]) ses->tq_prog = stracpy(a[0]->prog), ses->tq_prog_flags = a[0]->block;
-	if (a&&a[0] && !a[0]->ask) {
+	if (a) ses->tq_prog = stracpy(a[0].prog), ses->tq_prog_flags = a[0].block;
+	if (a && !a[0].ask) {
 		tp_open(ses);
 		if (n)mem_free(a);
 		if (ct)mem_free(ct);
 		return;
 	}
 	m1 = stracpy(ct);
-	if (!a||!a[0]) {
+	if (!a) {
 		if (!anonymous) msg_box(ses->term, getml(m1, NULL), TEXT(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 3, TEXT(T_SAVE), tp_save, B_ENTER, TEXT(T_DISPLAY), tp_display, 0, TEXT(T_CANCEL), tp_cancel, B_ESC);
 		else msg_box(ses->term, getml(m1, NULL), TEXT(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 2, TEXT(T_DISPLAY), tp_display, B_ENTER, TEXT(T_CANCEL), tp_cancel, B_ESC);
 	} else {
-		m2 = stracpy(a[0]->label ? a[0]->label : (unsigned char *)"");
+		m2 = stracpy(a[0].label ? a[0].label : (unsigned char *)"");
 		if (!anonymous) msg_box(ses->term, getml(m1, m2, NULL), TEXT(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 4, TEXT(T_OPEN), tp_open, B_ENTER, TEXT(T_SAVE), tp_save, 0, TEXT(T_DISPLAY), tp_display, 0, TEXT(T_CANCEL), tp_cancel, B_ESC);
 		else msg_box(ses->term, getml(m1, m2, NULL), TEXT(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 3, TEXT(T_OPEN), tp_open, B_ENTER, TEXT(T_DISPLAY), tp_display, 0, TEXT(T_CANCEL), tp_cancel, B_ESC);
 	}
@@ -1642,7 +1700,7 @@ void type_query(struct session *ses, unsigned char *ct, struct assoc **a, int n)
 
 void ses_go_to_2nd_state(struct session *ses)
 {
-	struct assoc **a;
+	struct assoc *a;
 	int n;
 	unsigned char *ct = NULL;
 	int r = plain_type(ses, ses->rq, &ct);
@@ -1978,11 +2036,12 @@ void win_func(struct window *win, struct event *ev, int fw)
 		case EV_REDRAW:
 			draw_formatted(ses);
 			break;
-		case EV_KBD:
 		case EV_MOUSE:
 #ifdef G
 			if (F) set_window_ptr(win, ev->x, ev->y);
 #endif
+			/* fall through ... */
+		case EV_KBD:
 			send_event(ses, ev);
 			break;
 		default:

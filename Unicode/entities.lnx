@@ -130,6 +130,7 @@ static CONST UC_entity_info unicode_entities[] = {
   {"Epsilon",	0x0395},  /* GREEK CAPITAL LETTER EPSILON		   */
   {"Eta",	0x0397},  /* GREEK CAPITAL LETTER ETA			   */
   {"Euml",	0x00CB},  /* LATIN CAPITAL LETTER E WITH DIAERESIS	   */
+  {"Euro",	0x20AC},  /* EURO SYMBOL                                   */
   {"Fcy",	0x0424},  /* CYRILLIC CAPITAL LETTER EF 		   */
   {"GJcy",	0x0403},  /* CYRILLIC CAPITAL LETTER GJE		   */
   {"Gamma",	0x0393},  /* GREEK CAPITAL LETTER GAMMA 		   */
@@ -537,6 +538,7 @@ static CONST UC_entity_info unicode_entities[] = {
   {"eta",	0x03B7},  /* GREEK SMALL LETTER ETA			   */
   {"eth",	0x00F0},  /* LATIN SMALL LETTER ETH			   */
   {"euml",	0x00EB},  /* LATIN SMALL LETTER E WITH DIAERESIS	   */
+  {"euro",	0x20AC},  /* EURO SYMBOL                                   */
   {"excl",	0x0021},  /* EXCLAMATION MARK				   */
   {"exist",	0x2203},  /* THERE EXISTS				   */
   {"fcy",	0x0444},  /* CYRILLIC SMALL LETTER EF			   */

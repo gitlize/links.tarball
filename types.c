@@ -349,6 +349,11 @@ void update_assoc(struct assoc *new)
 {
 	struct assoc *repl;
 	if (!new->label[0] || !new->ct[0] || !new->prog[0]) return;
+	foreach(repl, assoc) if (!strcmp(repl->label, new->label) && !strcmp(repl->ct, new->ct) && !strcmp(repl->prog, new->prog) && repl->block == new->block && repl->cons == new->cons && repl->xwin == new->xwin && repl->ask == new->ask && repl->system == new->system) {
+		del_from_list(repl);
+		add_to_list(assoc, repl);
+		return;
+	}
 	if (!(repl = mem_alloc(sizeof(struct assoc)))) return;
 	add_to_list(assoc, repl);
 	repl->label = stracpy(new->label);
@@ -360,7 +365,7 @@ void update_assoc(struct assoc *new)
 	repl->ask = new->ask;
 	repl->system = new->system;
 	repl->type=0;
-	new->system = new->system;
+	/*new->system = new->system; co to je? */
 }
 
 /*------------------------ EXTENSIONS -----------------------*/
@@ -615,6 +620,11 @@ void update_ext(struct extension *new)
 {
 	struct extension *repl;
 	if (!new->ext[0] || !new->ct[0]) return;
+	foreach(repl, extensions) if (!strcmp(repl->ext, new->ext) && !strcmp(repl->ct, new->ct)) {
+		del_from_list(repl);
+		add_to_list(extensions, repl);
+		return;
+	}
 	if (!(repl = mem_alloc(sizeof(struct extension)))) return;
 	add_to_list(extensions, repl);
 	repl->ext = stracpy(new->ext);
@@ -640,7 +650,7 @@ void create_initial_extensions(void)
 	ext.ext="fli",ext.ct="video/fli",update_ext(&ext);
 	ext.ext="gif",ext.ct="image/gif",update_ext(&ext);
 	ext.ext="gl",ext.ct="video/gl",update_ext(&ext);
-	ext.ext="jpg,jpeg,jpe",ext.ct="image/jpg",update_ext(&ext);
+	ext.ext="jpg,jpeg,jpe",ext.ct="image/jpeg",update_ext(&ext);
 	ext.ext="mid,midi",ext.ct="audio/midi",update_ext(&ext);
 	ext.ext="mpeg,mpg,mpe",ext.ct="video/mpeg",update_ext(&ext);
 	ext.ext="pbm",ext.ct="image/x-portable-bitmap",update_ext(&ext);
@@ -726,9 +736,10 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 	return !force_html ? stracpy("text/plain") : stracpy("text/html");
 }
 
-struct assoc **get_type_assoc(struct terminal *term, unsigned char *type, int *n)
+/* returns field with associations */
+struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 {
-	struct assoc **vecirek;
+	struct assoc *vecirek;
 	struct assoc *a;
 	int count=0;
 	foreach(a, assoc) 
@@ -736,16 +747,16 @@ struct assoc **get_type_assoc(struct terminal *term, unsigned char *type, int *n
 			count ++;
 	*n=count;
 	if (!count)return NULL;
-	vecirek=mem_alloc(count*sizeof(struct assoc *));
+	vecirek=mem_alloc(count*sizeof(struct assoc));
 	if (!vecirek)internal("Cannot allocate memory.\n");
 	count=0;
 	foreach(a, assoc) 
 		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, strlen(type))) 
-			vecirek[count++]=a;
+			vecirek[count++]=*a;
 	return vecirek;
 }
 
-void free_types()
+void free_types(void)
 {
 	struct assoc *a;
 	struct extension *e;

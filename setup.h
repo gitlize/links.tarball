@@ -15,7 +15,7 @@
  *		 2=leaky, ruda zona, alloc, realloc a free patterny
  *		-1=tajny level ;-)
  */
-#define DEBUGLEVEL			1
+#define DEBUGLEVEL			2
 
 #if DEBUGLEVEL >= 1
 #define DEBUG
@@ -111,7 +111,7 @@
 #define G_DIALOG_HLINE_SPACE		3
 #define G_DIALOG_VLINE_SPACE		4
 #define G_DIALOG_LEFT_INNER_BORDER	16
-#define G_DIALOG_TOP_INNER_BORDER	8
+#define G_DIALOG_TOP_INNER_BORDER	(G_BFU_FONT_SIZE < 24 ? 8 : G_BFU_FONT_SIZE - 16)
 
 #define G_DIALOG_BUTTON_SPACE		16
 #define G_DIALOG_CHECKBOX_SPACE		8
@@ -142,7 +142,7 @@
 
 #define G_HTML_MARGIN			8
 
-#define G_IMG_REFRESH			100
+#define G_IMG_REFRESH			1	/* Karle, nedavej sem 0 */
 
 #define ESC_TIMEOUT			200
 

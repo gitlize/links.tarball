@@ -392,9 +392,9 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 			for (e = ch + 1; *(f = e + strcspn(e, ".:/")) == '.'; e = f + 1) ;
 			for (i = 0; i < f - e; i++) if (e[i] >= '0' && e[i] <= '9') goto http;
 			if (f - e == 2) http: prefix = "http://", sl = 1;
-			else if (f - e == 3) {
-				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", NULL };
-				for (i = 0; tld[i]; i++) if (!casecmp(tld[i], e, 3)) goto http;
+			else {
+				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", "arpa", "aero", "biz", "coop", "info", "museum", "name", "pro", NULL };
+				for (i = 0; tld[i]; i++) if (f - e == strlen(tld[i]) && !casecmp(tld[i], e, f - e)) goto http;
 			}
 		}
 		if (*ch == '@' || *ch == ':' || !cmpbeg(url, "ftp.")) prefix = "ftp://", sl = 1;

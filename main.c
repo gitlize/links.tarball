@@ -249,10 +249,10 @@ unsigned char *path_to_exe;
 
 int init_b = 0;
 
-void initialize_all_subsystems();
-void initialize_all_subsystems_2();
+void initialize_all_subsystems(void);
+void initialize_all_subsystems_2(void);
 
-void init()
+void init(void)
 {
 	int uh;
 	void *info;
@@ -343,7 +343,7 @@ void init()
 }
 
 /* Is called before gaphics driver init */
-void initialize_all_subsystems()
+void initialize_all_subsystems(void)
 {
 	init_trans();
 	set_sigcld();
@@ -354,7 +354,7 @@ void initialize_all_subsystems()
 }
 
 /* Is called sometimes after and sometimes before graphics driver init */
-void initialize_all_subsystems_2()
+void initialize_all_subsystems_2(void)
 {
 	GF(init_dip());
 	init_bfu();
@@ -363,7 +363,7 @@ void initialize_all_subsystems_2()
 	GF(init_grview());
 }
 
-void terminate_all_subsystems()
+void terminate_all_subsystems(void)
 {
 	if (!F) af_unix_close();
 	check_bottom_halves();
@@ -482,7 +482,7 @@ void key(struct graphics_device *dev, int x, int y)
 	rdr(dev, &dev->size);
 }
 
-int test()
+int test(void)
 {
 	struct graphics_device *dev, *dev2;
 	unsigned char *msg;

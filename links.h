@@ -1,5 +1,5 @@
 /* links.h
- * (c) 2002 Mikulas Patocka, Karel 'Clock' Kulhavy, Petr 'Clock' Kulhavy,
+ * (c) 2002 Mikulas Patocka, Karel 'Clock' Kulhavy, Petr 'Brain' Kulhavy,
  *          Martin 'PerM' Pergel
  * This file is a part of the Links program, released under GPL.
  */
@@ -118,6 +118,7 @@ x #endif*/
 
 #ifdef HAVE_SSL
 #include <openssl/ssl.h>
+#include <openssl/rand.h>
 #endif
 
 #if defined(G) 
@@ -218,7 +219,7 @@ extern int F;
 /* error.c */
 
 void do_not_optimize_here(void *p);
-void check_memory_leaks();
+void check_memory_leaks(void);
 void error(unsigned char *, ...);
 void debug_msg(unsigned char *, ...);
 void int_error(unsigned char *, ...);
@@ -413,13 +414,13 @@ static inline unsigned char *debug_stracpy(unsigned char *f, int l, unsigned cha
 
 #ifndef OOPS
 #define pr(code) if (1) {code;} else
-static inline void nopr() {}
-static inline void xpr() {}
+static inline void nopr(void) {}
+static inline void xpr(void) {}
 #else
-sigjmp_buf *new_stack_frame();
-void xpr();
+sigjmp_buf *new_stack_frame(void);
+void xpr(void);
 #define pr(code) if (!sigsetjmp(*new_stack_frame(), 1)) {do {code;} while (0); xpr();} else
-void nopr();
+void nopr(void);
 #endif
 
 static inline int snprint(unsigned char *s, int n, unsigned num)
@@ -717,38 +718,44 @@ struct open_in_new {
 	void (*fn)(struct terminal *term, unsigned char *, unsigned char *);
 };
 
-int get_system_env();
-int is_xterm();
-int can_twterm();
+int get_system_env(void);
+int is_xterm(void);
+int can_twterm(void);
 int get_terminal_size(int, int *, int *);
-void handle_terminal_resize(int, void (*)());
+void handle_terminal_resize(int, void (*)(void));
 void unhandle_terminal_resize(int);
 void set_bin(int);
 int c_pipe(int *);
-int get_input_handle();
-int get_output_handle();
-int get_ctl_handle();
-void want_draw();
-void done_draw();
-void terminate_osdep();
+int get_input_handle(void);
+int get_output_handle(void);
+int get_ctl_handle(void);
+void want_draw(void);
+void done_draw(void);
+void terminate_osdep(void);
 void *handle_mouse(int, void (*)(void *, unsigned char *, int), void *);
 void unhandle_mouse(void *);
 int check_file_name(unsigned char *);
 int start_thread(void (*)(void *, int), void *, int);
-char *get_clipboard_text();
-void set_clipboard_text(char *);
+unsigned char *get_clipboard_text(void);
+void set_clipboard_text(struct terminal *, unsigned char *);
 void set_window_title(unsigned char *);
-unsigned char *get_window_title();
+unsigned char *get_window_title(void);
 int is_safe_in_shell(unsigned char);
 void check_shell_security(unsigned char **);
-void block_stdin();
-void unblock_stdin();
+void block_stdin(void);
+void unblock_stdin(void);
 int exe(char *);
 int resize_window(int, int);
 int can_resize_window(int);
 int can_open_os_shell(int);
 struct open_in_new *get_open_in_new(int);
-void set_highpri();
+void set_highpri(void);
+#ifdef HAVE_OPEN_PREALLOC
+int open_prealloc(char *, int, int, int);
+void prealloc_truncate(int, int);
+#else
+static inline void prealloc_truncate(int x, int y) {}
+#endif
 
 /* memory.c */
 
@@ -761,7 +768,7 @@ void set_highpri();
 
 int shrink_memory(int);
 void register_cache_upcall(int (*)(int), unsigned char *);
-void free_all_caches();
+void free_all_caches(void);
 
 /* select.c */
 
@@ -775,13 +782,13 @@ typedef unsigned tcount;
 extern int terminate_loop;
 
 long select_info(int);
-void select_loop(void (*)());
+void select_loop(void (*)(void));
 int register_bottom_half(void (*)(void *), void *);
 void unregister_bottom_half(void (*)(void *), void *);
-void check_bottom_halves();
+void check_bottom_halves(void);
 int install_timer(ttime, void (*)(void *), void *);
 void kill_timer(int);
-ttime get_time();
+ttime get_time(void);
 
 #define H_READ	0
 #define H_WRITE	1
@@ -791,7 +798,7 @@ ttime get_time();
 void *get_handler(int, int);
 void set_handlers(int, void (*)(void *), void (*)(void *), void (*)(void *), void *);
 void install_signal_handler(int, void (*)(void *), void *, int);
-void set_sigcld();
+void set_sigcld(void);
 
 /* dns.c */
 
@@ -801,7 +808,7 @@ int do_real_lookup(unsigned char *, ip__address *);
 int find_host(unsigned char *, ip__address *, void **, void (*)(void *, int), void *);
 int find_host_no_cache(unsigned char *, ip__address *, void **, void (*)(void *, int), void *);
 void kill_dns_request(void **);
-void init_dns();
+void init_dns(void);
 
 /* cache.c */
 
@@ -835,7 +842,7 @@ struct fragment {
 	unsigned char data[1];
 };
 
-void init_cache();
+void init_cache(void);
 long cache_info(int);
 int find_in_cache(unsigned char *, struct cache_entry **);
 int get_cache_entry(unsigned char *, struct cache_entry **);
@@ -903,7 +910,7 @@ struct connection {
 #endif
 };
 
-void no_owner();
+void no_owner(void);
 
 static inline int getpri(struct connection *c)
 {
@@ -943,6 +950,7 @@ static inline int getpri(struct connection *c)
 #define S_TIMEOUT		-1010
 #define S_RESTART		-1011
 #define S_STATE			-1012
+#define S_CYCLIC_REDIRECT	-1013
 
 #define S_HTTP_ERROR		-1100
 #define S_HTTP_100		-1101
@@ -979,7 +987,7 @@ struct status {
 	struct remaining_info *prg;
 };
 
-void check_queue();
+void check_queue(void);
 long connect_info(int);
 void send_connection_info(struct connection *c);
 void setcstate(struct connection *c, int);
@@ -992,15 +1000,15 @@ void end_connection(struct connection *c);
 int load_url(unsigned char *, unsigned char *, struct status *, int, int);
 void change_connection(struct status *, struct status *, int);
 void detach_connection(struct status *, int);
-void abort_all_connections();
-void abort_background_connections();
+void abort_all_connections(void);
+void abort_background_connections(void);
 int is_entry_used(struct cache_entry *);
 void connection_timeout(struct connection *);
 void set_timeout(struct connection *);
 void add_blacklist_entry(unsigned char *, int);
 void del_blacklist_entry(unsigned char *, int);
 int get_blacklist_flags(unsigned char *);
-void free_blacklist();
+void free_blacklist(void);
 
 #define BL_HTTP10	1
 #define BL_NO_CHARSET	2
@@ -1075,8 +1083,8 @@ extern struct list_head c_domains;
 
 int set_cookie(struct terminal *, unsigned char *, unsigned char *);
 void send_cookies(unsigned char **, int *, unsigned char *);
-void init_cookies();
-void cleanup_cookies();
+void init_cookies(void);
+void cleanup_cookies(void);
 int is_in_domain(unsigned char *d, unsigned char *s);
 int is_path_prefix(unsigned char *d, unsigned char *s);
 int cookie_expired(struct cookie *c);
@@ -1173,11 +1181,11 @@ void tn3270_func(struct session *, unsigned char *);
 #define KBD_ALT		4
 
 void handle_trm(int, int, int, int, int, void *, int);
-void free_all_itrms();
-void resize_terminal();
+void free_all_itrms(void);
+void resize_terminal(void);
 void dispatch_special(unsigned char *);
-int is_blocked();
-void kbd_ctrl_c();
+int is_blocked(void);
+void kbd_ctrl_c(void);
 
 struct os2_key {
 	int x, y;
@@ -1386,10 +1394,10 @@ extern int n_virtual_devices;
 extern struct graphics_device *current_virtual_device;
 
 int init_virtual_devices(struct graphics_driver *, int);
-struct graphics_device *init_virtual_device();
+struct graphics_device *init_virtual_device(void);
 void switch_virtual_device(int);
 void shutdown_virtual_device(struct graphics_device *dev);
-void shutdown_virtual_devices();
+void shutdown_virtual_devices(void);
 
 /* dip.c */
 
@@ -1493,7 +1501,7 @@ struct cached_image;
 void g_print_text(struct graphics_driver *, struct graphics_device *device, int x, int y, struct style *style, unsigned char *text, int *width);
 int g_text_width(struct style *style, unsigned char *text);
 int g_char_width(struct style *style, int ch);
-void destroy_font_cache();
+void destroy_font_cache(void);
 unsigned char apply_gamma_single_8_to_8(unsigned char input, float gamma);
 unsigned short apply_gamma_single_8_to_16(unsigned char input, float gamma);
 unsigned char apply_gamma_single_16_to_8(unsigned short input, float gamma);
@@ -1571,10 +1579,15 @@ extern void apply_gamma_exponent_8_to_16(unsigned short *dest, unsigned char *sr
 					float blue_gamma);
 
 
-void init_dip();
-void shutdown_dip();
+void init_dip(void);
+void shutdown_dip(void);
 void get_links_icon(unsigned char **data, int *width, int* height, int depth);
 
+#endif
+
+/* x.c */
+#if defined(G) && defined (GRDRV_X)
+void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text);
 #endif
 
 /* links_icon.c */
@@ -1702,21 +1715,21 @@ extern struct list_head terminals;
 
 int hard_write(int, unsigned char *, int);
 int hard_read(int, unsigned char *, int);
-unsigned char *get_cwd();
+unsigned char *get_cwd(void);
 void set_cwd(unsigned char *);
 struct terminal *init_term(int, int, void (*)(struct window *, struct event *, int));
 #ifdef G
 struct terminal *init_gfx_term(void (*)(struct window *, struct event *, int), void *, int);
 int restrict_clip_area(struct graphics_device *, struct rect *, int, int, int, int);
 #endif
-void sync_term_specs();
+void sync_term_specs(void);
 struct term_spec *new_term_spec(unsigned char *);
-void free_term_specs();
+void free_term_specs(void);
 void destroy_terminal(struct terminal *);
 void redraw_terminal(struct terminal *);
 void redraw_terminal_all(struct terminal *);
 void redraw_terminal_cls(struct terminal *);
-void cls_redraw_all_terminals();
+void cls_redraw_all_terminals(void);
 void redraw_below_window(struct window *);
 void add_window(struct terminal *, void (*)(struct window *, struct event *, int), void *);
 void add_window_at_pos(struct terminal *, void (*)(struct window *, struct event *, int), void *, struct window *);
@@ -1727,7 +1740,7 @@ void get_parent_ptr(struct window *, int *, int *);
 void add_empty_window(struct terminal *, void (*)(void *), void *);
 void draw_to_window(struct window *, void (*)(struct terminal *, void *), void *);
 void redraw_screen(struct terminal *);
-void redraw_all_terminals();
+void redraw_all_terminals(void);
 
 #ifdef G
 
@@ -1737,7 +1750,7 @@ void intersect_rect(struct rect *, struct rect *, struct rect *);
 void unite_rect(struct rect *, struct rect *, struct rect *);
 int is_rect_valid(struct rect *);
 
-struct rect_set *init_rect_set();
+struct rect_set *init_rect_set(void);
 void add_to_rect_set(struct rect_set **, struct rect *);
 void exclude_rect_from_set(struct rect_set **, struct rect *);
 static inline void exclude_from_set(struct rect_set **s, int x1, int y1, int x2, int y2)
@@ -1746,6 +1759,7 @@ static inline void exclude_from_set(struct rect_set **s, int x1, int y1, int x2,
 	r.x1 = x1, r.x2 = x2, r.y1 = y1, r.y2 = y2;
 	exclude_rect_from_set(s, &r);
 }
+void t_redraw(struct graphics_device *, struct rect *);
 
 #endif
 
@@ -1761,7 +1775,7 @@ void draw_frame(struct terminal *, int, int, int, int, unsigned, int);
 void print_text(struct terminal *, int, int, int, unsigned char *, unsigned);
 void set_cursor(struct terminal *, int, int, int, int);
 
-void destroy_all_terminals();
+void destroy_all_terminals(void);
 void block_itrm(int);
 int unblock_itrm(int);
 void exec_thread(unsigned char *, int);
@@ -1782,12 +1796,12 @@ extern unsigned char dummyarray[];
 
 extern int current_language;
 
-void init_trans();
-void shutdown_trans();
+void init_trans(void);
+void shutdown_trans(void);
 unsigned char *get_text_translation(unsigned char *, struct terminal *term);
 unsigned char *get_english_translation(unsigned char *);
 void set_language(int);
-int n_languages();
+int n_languages(void);
 unsigned char *language_name(int);
 int language_index(unsigned char *);
 
@@ -1796,8 +1810,8 @@ int language_index(unsigned char *);
 
 /* af_unix.c */
 
-int bind_to_af_unix();
-void af_unix_close();
+int bind_to_af_unix(void);
+void af_unix_close(void);
 
 /* main.c */
 
@@ -1822,7 +1836,7 @@ int attach_terminal(int, int, int, void *, int);
 #ifdef G
 int attach_g_terminal(void *, int);
 #endif
-void program_exit();
+void program_exit(void);
 
 /* types.c */
 
@@ -1869,13 +1883,13 @@ extern struct list_head telnet_prog;
 extern struct list_head tn3270_prog;
 
 unsigned char *get_content_type(unsigned char *, unsigned char *);
-struct assoc **get_type_assoc(struct terminal *term, unsigned char *, int *);
+struct assoc *get_type_assoc(struct terminal *term, unsigned char *, int *);
 void update_assoc(struct assoc *);
 void update_ext(struct extension *);
 void create_initial_extensions(void);
 void update_prog(struct list_head *, unsigned char *, int);
 unsigned char *get_prog(struct list_head *);
-void free_types();
+void free_types(void);
 
 extern void menu_assoc_manager(struct terminal *,void *,struct session *);
 extern void menu_ext_manager(struct terminal *,void *,struct session *);
@@ -2024,6 +2038,10 @@ struct link {
 	struct point *pos;
 	struct js_event_spec *js_event;
 	int obj_order;
+#ifdef G
+	struct rect r;
+	struct g_object *obj;
+#endif
 };
 
 #define L_LINK		0
@@ -2497,6 +2515,9 @@ struct view_state {
 	int form_info_len;
 	/*struct f_data_c *f;*/
 	/*unsigned char url[1];*/
+#ifdef G
+	int g_display_link;
+#endif
 };
 
 struct f_data_c {
@@ -2635,7 +2656,7 @@ int get_file(struct object_request *o, unsigned char **start, unsigned char **en
 int f_is_finished(struct f_data *f);
 void reinit_f_data_c(struct f_data_c *);
 long formatted_info(int);
-void init_fcache();
+void init_fcache(void);
 void html_interpret(struct f_data_c *);
 void html_interpret_recursive(struct f_data_c *);
 void fd_loaded(struct object_request *, struct f_data_c *);
@@ -2646,14 +2667,14 @@ time_t parse_http_date(const char *);
 unsigned char *encode_url(unsigned char *);
 unsigned char *decode_url(unsigned char *);
 unsigned char *subst_file(unsigned char *, unsigned char *);
-int are_there_downloads();
-void free_strerror_buf();
+int are_there_downloads(void);
+void free_strerror_buf(void);
 unsigned char *get_err_msg(int);
 void print_screen_status(struct session *);
 void change_screen_status(struct session *);
 void print_error_dialog(struct session *, struct status *, unsigned char *);
 void start_download(struct session *, unsigned char *);
-void abort_all_downloads();
+void abort_all_downloads(void);
 void display_download(struct terminal *, struct download *, struct session *);
 int create_download_file(struct terminal *, unsigned char *, int);
 void *create_session_info(int, unsigned char *, int *);
@@ -2709,6 +2730,7 @@ void js_execute_code(struct javascript_context *, unsigned char *, int, void (*)
 
 
 extern struct history js_get_string_history;
+extern int js_manual_confirmation;
 
 struct js_state {
 	struct javascript_context *ctx;	/* kontext beziciho javascriptu??? */
@@ -2886,9 +2908,9 @@ struct memory_list *getml(void *, ...);
 void add_to_ml(struct memory_list **, ...);
 void freeml(struct memory_list *);
 
-void iinit_bfu();
-void init_bfu();
-void shutdown_bfu();
+void iinit_bfu(void);
+void init_bfu(void);
+void shutdown_bfu(void);
 
 #define DIALOG_LB	gf_val(DIALOG_LEFT_BORDER + DIALOG_LEFT_INNER_BORDER + 1, G_DIALOG_LEFT_BORDER + G_DIALOG_VLINE_SPACE + 1 + G_DIALOG_LEFT_INNER_BORDER)
 #define DIALOG_TB	gf_val(DIALOG_TOP_BORDER + DIALOG_TOP_INNER_BORDER + 1, G_DIALOG_TOP_BORDER + G_DIALOG_HLINE_SPACE + 1 + G_DIALOG_TOP_INNER_BORDER)
@@ -3091,7 +3113,7 @@ void dialog_func(struct window *, struct event *, int);
 void activate_bfu_technology(struct session *, int);
 void dialog_goto_url(struct session *ses, char *url);
 void dialog_save_url(struct session *ses);
-void free_history_lists();
+void free_history_lists(void);
 void query_file(struct session *, unsigned char *, void (*)(struct session *, unsigned char *), void (*)(struct session *));
 void search_dlg(struct session *, struct f_data_c *, int);
 void search_back_dlg(struct session *, struct f_data_c *, int);
@@ -3124,7 +3146,7 @@ int get_cp_index(unsigned char *);
 unsigned char *get_cp_name(int);
 unsigned char *get_cp_mime_name(int);
 int is_cp_special(int);
-void free_conv_table();
+void free_conv_table(void);
 unsigned char *encode_utf_8(int);
 int cp2u(unsigned char, int);
 
@@ -3167,7 +3189,7 @@ void open_in_new_window(struct terminal *, void (*)(struct terminal *, void (*)(
 void send_open_new_xterm(struct terminal *, void (*)(struct terminal *, unsigned char *, unsigned char *), struct session *);
 void destroy_fc(struct form_control *);
 void sort_links(struct f_data *);
-struct view_state *create_vs();
+struct view_state *create_vs(void);
 void destroy_vs(struct view_state *);
 int dump_to_file(struct f_data *, int);
 void draw_doc(struct terminal *t, struct f_data_c *scr);
@@ -3178,6 +3200,7 @@ void link_menu(struct terminal *, void *, struct session *);
 void save_as(struct terminal *, void *, struct session *);
 void save_url(struct session *, unsigned char *);
 void menu_save_formatted(struct terminal *, void *, struct session *);
+void copy_url_location(struct terminal *, void *, struct session *);
 void selected_item(struct terminal *, void *, struct session *);
 void toggle(struct session *, struct f_data_c *, int);
 void do_for_frame(struct session *, void (*)(struct session *, struct f_data_c *, int), int);
@@ -3193,6 +3216,7 @@ void find_next_back(struct session *, struct f_data_c *, int);
 void set_frame(struct session *, struct f_data_c *, int);
 struct f_data_c *current_frame(struct session *);
 void reset_form(struct f_data_c *f, int form_num);
+void set_textarea(struct session *, struct f_data_c *, int);
 
 void copy_js_event_spec(struct js_event_spec **, struct js_event_spec *);
 void free_js_event_spec(struct js_event_spec *);
@@ -3369,7 +3393,7 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length);
 
 #ifdef G
 
-void init_imgcache();
+void init_imgcache(void);
 int imgcache_info(int type);
 struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
 		yw, int scale, int aspect);
@@ -3417,7 +3441,7 @@ void draw_graphical_doc(struct terminal *t, struct f_data_c *scr, int active);
 int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev);
 void g_find_next(struct f_data_c *f, int);
 
-void init_grview();
+void init_grview(void);
 
 #endif
 
@@ -3548,7 +3572,7 @@ int get_num(unsigned char *, unsigned char *);
 int get_width(unsigned char *, unsigned char *, int);
 int get_color(unsigned char *, unsigned char *, struct rgb *);
 int get_bgcolor(unsigned char *, struct rgb *);
-void html_stack_dup();
+void html_stack_dup(void);
 void kill_html_stack_item(struct html_element *);
 unsigned char *skip_comment(unsigned char *, unsigned char *);
 void parse_html(unsigned char *, unsigned char *, void (*)(void *, unsigned char *, int), void (*)(void *), void *(*)(void *, int, ...), void *, unsigned char *);
@@ -3652,7 +3676,7 @@ void align_line(struct part *, int);
 void html_tag(struct f_data *, unsigned char *, int, int);
 void process_script(struct f_data *f, unsigned char *t);
 
-void free_table_cache();
+void free_table_cache(void);
 
 int compare_opt(struct document_options *, struct document_options *);
 void copy_opt(struct document_options *, struct document_options *);
@@ -3660,8 +3684,8 @@ void copy_opt(struct document_options *, struct document_options *);
 struct link *new_link(struct f_data *);
 struct conv_table *get_convert_table(unsigned char *, int, int, int *, int *, int);
 extern int format_cache_entries;
-void count_format_cache();
-void delete_unused_format_cache_entries();
+void count_format_cache(void);
+void delete_unused_format_cache_entries(void);
 void format_cache_reactivate(struct f_data *);
 struct part *format_html_part(unsigned char *, unsigned char *, int, int, int, struct f_data *, int, int, unsigned char *, int);
 void really_format_html(struct cache_entry *, unsigned char *, unsigned char *, struct f_data *, int frame);
@@ -3674,7 +3698,7 @@ void create_frame(struct frame_param *fp);
 
 #ifdef G
 
-void g_free_table_cache();
+void g_free_table_cache(void);
 
 void release_image_map(struct image_map *map);
 int is_in_area(struct map_area *a, int x, int y);
@@ -3707,14 +3731,14 @@ extern unsigned char ggr_mode[MAX_STR_LEN];
 extern unsigned char ggr_display[MAX_STR_LEN];
 
 unsigned char *parse_options(int, unsigned char *[]);
-void init_home();
-void load_config();
+void init_home(void);
+void load_config(void);
 void write_config(struct terminal *);
 void write_html_config(struct terminal *);
-void end_config();
+void end_config(void);
 
-int load_url_history();
-int save_url_history();
+int load_url_history(void);
+int save_url_history(void);
 
 struct driver_param {
 	struct driver_param *next;
@@ -3793,6 +3817,7 @@ struct http_bugs {
 	int allow_blacklist;
 	int bug_302_redirect;
 	int bug_post_no_keepalive;
+	int no_accept_charset;
 };
 
 extern struct http_bugs http_bugs;

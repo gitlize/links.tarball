@@ -352,7 +352,7 @@ int shrink_file_cache(int u)
 	return r | list_empty(cache) * ST_CACHE_EMPTY;
 }
 
-void init_cache()
+void init_cache(void)
 {
 	register_cache_upcall(shrink_file_cache, "file");
 }

@@ -32,7 +32,7 @@ void register_cache_upcall(int (*upcall)(int), unsigned char *name)
 	}
 }
 
-void free_all_caches()
+void free_all_caches(void)
 {
 	struct cache_upcall *c;
 	int a;

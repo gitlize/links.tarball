@@ -42,7 +42,7 @@ struct timer {
 
 struct list_head timers = {&timers, &timers};
 
-ttime get_time()
+ttime get_time(void)
 {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
@@ -98,7 +98,7 @@ void unregister_bottom_half(void (*fn)(void *), void *data)
 	}
 }
 
-void check_bottom_halves()
+void check_bottom_halves(void)
 {
 	struct bottom_half *bh;
 	void (*fn)(void *);
@@ -346,14 +346,14 @@ void sigchld(void *p)
 #endif
 }
 
-void set_sigcld()
+void set_sigcld(void)
 {
 	install_signal_handler(SIGCHLD, sigchld, NULL, 1);
 }
 
 int terminate_loop = 0;
 
-void select_loop(void (*init)())
+void select_loop(void (*init)(void))
 {
 	memset(signal_mask, 0, sizeof signal_mask);
 	memset(signal_handlers, 0, sizeof signal_handlers);
@@ -409,7 +409,7 @@ void select_loop(void (*init)())
 #ifdef DEBUG_CALLS
 		fprintf(stderr, "select\n");
 #endif
-		if ((n = select(w_max, &x_read, &x_write, &x_error, tm)) < 0) {
+		if ((n = loop_select(w_max, &x_read, &x_write, &x_error, tm)) < 0) {
 #ifdef DEBUG_CALLS
 			fprintf(stderr, "select intr\n");
 #endif

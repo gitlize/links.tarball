@@ -22,6 +22,9 @@ extern struct graphics_driver svga_driver;
 #ifdef GRDRV_FB
 extern struct graphics_driver fb_driver;
 #endif
+#ifdef GRDRV_DIRECTFB
+extern struct graphics_driver directfb_driver;
+#endif
 #ifdef GRDRV_PMSHELL
 extern struct graphics_driver pmshell_driver;
 #endif
@@ -38,6 +41,9 @@ struct graphics_driver *graphics_drivers[] = {
 #endif
 #ifdef GRDRV_X
 	&x_driver,
+#endif
+#ifdef GRDRV_DIRECTFB
+	&directfb_driver,
 #endif
 #ifdef GRDRV_SVGALIB
 	&svga_driver,
@@ -217,7 +223,7 @@ void shutdown_virtual_device(struct graphics_device *dev)
 	/*internal("shutdown_virtual_device: device not initialized");*/
 }
 
-void shutdown_virtual_devices()
+void shutdown_virtual_devices(void)
 {
 	int i;
 	if (!n_virtual_devices) {

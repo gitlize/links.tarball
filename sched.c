@@ -34,7 +34,7 @@ struct k_conn {
 
 struct list_head keepalive_connections = {&keepalive_connections, &keepalive_connections};
 
-void no_owner()
+void no_owner(void)
 {
 	internal("connection has no owner");
 }
@@ -171,9 +171,9 @@ int get_keepalive_socket(struct connection *c)
 	return 0;
 }
 
-void check_keepalive_connections();
+void check_keepalive_connections(void);
 
-void abort_all_keepalive_connections()
+void abort_all_keepalive_connections(void)
 {
 	struct k_conn *k;
 	foreach(k, keepalive_connections) mem_free(k->host), close(k->conn);
@@ -239,7 +239,7 @@ void del_connection(struct connection *c)
 }
 
 #ifdef DEBUG
-void check_queue_bugs();
+void check_queue_bugs(void);
 #endif
 
 void add_keepalive_socket(struct connection *c, ttime timeout)
@@ -285,7 +285,7 @@ void del_keepalive_socket(struct k_conn *kc)
 
 int keepalive_timeout = -1;
 
-void check_keepalive_connections();
+void check_keepalive_connections(void);
 
 void keepalive_timer(void *x)
 {
@@ -293,7 +293,7 @@ void keepalive_timer(void *x)
 	check_keepalive_connections();
 }
 
-void check_keepalive_connections()
+void check_keepalive_connections(void)
 {
 	struct k_conn *kc;
 	ttime ct = get_time();
@@ -318,7 +318,7 @@ void add_to_queue(struct connection *c)
 	add_at_pos(cc->prev, c);
 }
 
-void sort_queue()
+void sort_queue(void)
 {
 	struct connection *c, *n;
 	int swp;
@@ -414,7 +414,7 @@ void run_connection(struct connection *c)
 void retry_connection(struct connection *c)
 {
 	interrupt_connection(c);
-	if (c->unrestartable >= 2 || ++c->tries >= max_tries) {
+	if (c->unrestartable >= 2 || (++c->tries >= (max_tries ? max_tries : 1000))) {
 		/*send_connection_info(c);*/
 		del_connection(c);
 #ifdef DEBUG
@@ -456,7 +456,7 @@ int try_connection(struct connection *c)
 }
 
 #ifdef DEBUG
-void check_queue_bugs()
+void check_queue_bugs(void)
 {
 	struct connection *d;
 	int p = 0, ps = 0;
@@ -488,7 +488,7 @@ void check_queue_bugs()
 }
 #endif
 
-void check_queue()
+void check_queue(void)
 {
 	struct connection *c;
 	again:
@@ -733,7 +733,7 @@ void reset_timeout(struct connection *c)
 	if (c->timer != -1) kill_timer(c->timer), c->timer = -1;
 }
 
-void abort_all_connections()
+void abort_all_connections(void)
 {
 	while(queue.next != &queue) {
 		setcstate(queue.next, S_INTERRUPTED);
@@ -742,7 +742,7 @@ void abort_all_connections()
 	abort_all_keepalive_connections();
 }
 
-void abort_background_connections()
+void abort_background_connections(void)
 {
 	int i = 0;
 	while (1) {
@@ -805,7 +805,7 @@ int get_blacklist_flags(unsigned char *host)
 	return 0;
 }
 
-void free_blacklist()
+void free_blacklist(void)
 {
 	free_list(blacklist);
 }
@@ -835,6 +835,7 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_TIMEOUT,		TEXT(T_RECEIVE_TIMEOUT)},
 	{S_RESTART,		TEXT(T_REQUEST_MUST_BE_RESTARTED)},
 	{S_STATE,		TEXT(T_CANT_GET_SOCKET_STATE)},
+	{S_CYCLIC_REDIRECT,	TEXT(T_CYCLIC_REDIRECT)},
 
 	{S_HTTP_ERROR,		TEXT(T_BAD_HTTP_RESPONSE)},
 	{S_HTTP_100,		TEXT(T_HTTP_100)},

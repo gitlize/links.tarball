@@ -36,11 +36,13 @@ struct list_head dns_cache = {&dns_cache, &dns_cache};
 
 int do_real_lookup(unsigned char *name, ip__address *host)
 {
+	char *n;
 	struct hostent *hst;
+	for (n = name; *n; n++) if (*n != '.' && (*n < '0' || *n > '9')) goto nogethostbyaddr;
 #ifdef HAVE_GETHOSTBYADDR
 	if (!(hst = gethostbyaddr (name, strlen(name), AF_INET)))
 #endif
-		if (!(hst = gethostbyname(name)))
+		nogethostbyaddr: if (!(hst = gethostbyname(name)))
 			return -1;
 	memcpy(host, hst->h_addr_list[0], sizeof(ip__address));
 	return 0;
@@ -226,7 +228,7 @@ int shrink_dns_cache(int u)
 	return f | list_empty(dns_cache) * ST_CACHE_EMPTY;
 }
 
-void init_dns()
+void init_dns(void)
 {
 	register_cache_upcall(shrink_dns_cache, "dns");
 }

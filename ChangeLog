@@ -1,3 +1,327 @@
+=== Release 2.1pre10
+
+Sun May 18 12:20:48 MET DST 2003 Brain:
+
+	HTML entities in bookmark file
+
+Sat May 17 21:58:32 MET DST 2003 Brain:
+
+	Manual/automatic javascript action confirmation
+
+Sat May 10 23:15:24 cet 2003 Daniel Berlin <dan@cgsoftware.com>:
+
+	Cookies can contain whitespace (fixes bugzilla)
+
+Sat May 10 19:39:09 cet 2003 mikulas:
+
+	Fixed cookie not used when parsing of expiration date fails
+
+Wed May  7 21:31:38 MET DST 2003 Sergey Karpov <karpov@sai.msu.su>:
+
+	Fixed image alt displayed in incorrect codepage
+
+Mon May  5 19:22:17 MET DST 2003 Tamas Gervai <crown@tolna.net>:
+
+	Links icons
+
+Fri May  2 08:27:01 MET DST 2003 Brain:
+	
+	Submit/clean form in link menu of form elements
+
+=== Release 2.1pre9
+
+Wed Feb 26 19:43:00 CET 2003 mikulas:
+	Fixed unability to move out of textarea
+
+Mon Apr 21 19:08:08 cet 2003 mikulas:
+
+	99 max connections
+
+Mon Apr 14 23:41:14 MET DST 2003 mikulas:
+
+	Connected frame lines
+
+Mon Apr 14 22:25:15 MET DST 2003 Guido Schimmels <guido.schimmels@freenet.de>:
+
+	Updated German translation
+
+Fri Apr 11 22:07:07 MET DST 2003 Karvinen Ilkka <ik@cs.tut.fi>:
+
+	Updated Finnish translation
+
+Fri Apr 11 22:01:29 MET DST 2003 "Anton 'Keeper' Kopyov" <keeper@dfipm.vpti.vladimir.ru>:
+
+	Updated Russian translation
+
+Fri Apr 11 21:52:42 MET DST 2003 mikulas:
+
+	Convert '\' to '/' in HTTP requests (Windowz ruleeeeez)
+
+Wed Apr  9 21:12:51 cet 2003 mikulas:
+
+	Allow relative redirects in downloads
+
+Thu Mar 27 17:15:12 MET 2003 Mátyás János <jani@mail.xubion.hu>:
+
+	Updated Hungarian translation
+
+Thu Mar 20 19:31:54 MET 2003 Sven Neumann <sven@convergence.de>:
+
+	DirectFB graphics driver
+
+Wed Mar 19 22:49:21 MET 2003 Andre Valente <a.valente@netcabo.pt>:
+
+	Portuguese translation
+
+Wed Mar 19 20:58:12 MET 2003 mikulas:
+
+	Do not allow more same associations or extensions
+
+Sat Mar 15 14:32:23 MET 2003 mikulas:
+
+	Option to not send Accept-Charset
+
+Thu Mar 13 14:05:12 MET 2003 Miroslav Tichy <tichm9am@ss1000.ms.mff.cuni.cz>:
+
+	Added several Greek letter pictures.
+
+Thu Feb 27 18:26:15 MET 2003 mikulas:
+
+	Coords in usemap can contain decimal point
+
+Thu Feb 27 18:14:11 MET 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+
+	Updated Russian localization
+
+>>>>>>> 1.95
+=== Release 2.1pre8
+
+Wed Feb 19 21:56:32 cet 2003 mikulas:
+
+	Use arrow keys to select links in graphics mode
+
+Tue Feb 18 23:50:00 cet 2003 mikulas:
+
+	Upload files in BINARY mode on OS/2
+
+Sun Feb  9 22:12:19 MET 2003 mikulas:
+
+	Max tries 0 means unlimited retries
+
+Mon Feb  8 03:25:39 MET DST 2001 Serge Winitzki <serge@cosmos.phy.tutfs.edu>:
+
+        Updated russian translation
+
+Wed Feb  5 12:13:35 MET 2003 mikulas:
+
+	parse_element rewritten to be faster because it is most used function
+
+Wed Feb  5 11:53:37 MET 2003 mikulas:
+
+	Use hash for cache of table cell sizes -- improves performance
+
+Wed Feb  5 11:15:57 MET 2003 mikulas:
+
+	Do not display '0xa0' on terminal
+
+Wed Feb  5 10:55:58 MET 2003 mikulas:
+
+	Do not put characters <= 0x20 to HTTP request
+
+Fri Jan 10 12:12:08 CET 2003 Stanson <stanson@btv.ru>
+
+	Clipboard pasting into links (works from all applications).
+
+Thu Jan  9 16:05:11 CET 2003 Mikulas
+
+	Fixed file uploading bug.
+	
+Fri Jan  3 15:33:36 CET 2003 mikulas
+
+	Fixed usemap & image scaling
+
+Wed Dec 18 18:38:38 CET 2002 Brain
+
+	Fixed bug in XBM parser.
+
+Tue Dec  3 18:55:05 CET 2002 Brain
+
+	"Kill all connections" function.
+
+Fri Nov 29 15:02:44 CET 2002 Brain
+	
+	"Abort and delete file" button in download window.
+
+Wed Nov 27 23:32:37 CET 2002 Brain
+
+	Save bookmarks in File menu
+
+Wed Nov 20 12:22:42 CET 2002 Ludvik Tesar <tesar@mee.tcd.ie>, Brain
+
+	URL to clipboard copying in X.
+	
+Mon Nov 18 13:29:56 CET 2002 mikulas
+
+	Fixed an overflow in search
+
+Tue Nov 12 23:51:36 CET 2002 Brain
+
+	Bookmark saving on "Save options"
+
+Mon Nov 11 16:30:27 CET 2002 mikulas
+
+	Apage Coyote added to list of buggy http/1.1 servers
+	(http://abclinuxu.cz)
+
+=== Release 2.1pre7
+
+Fri Nov  8 15:31:06 CET 2002 Clock
+
+	Regenerated font_include.c to comply with the
+	fonts.
+
+=== Release 2.1pre6
+
+Sun Nov  3 11:04:26 CET 2002 Clock
+	
+	Fixed invalid Unicode/cp1252.cp which caused 2.1pre5 to
+	be uncompilable
+
+=== Release 2.1pre5
+	
+Wed Oct 30 17:22:26 CET 2002 Koblinger Egmont <egmont@cs.bme.hu>
+
+	Updated Hungarian translation
+
+Sun Oct 27 18:02:49 CEST 2002 Brain
+
+	Fixed terrible keyboard bug in X.
+
+Tue Oct 22 18:21:36 CEST 2002 mikulas
+
+	Fixed a crash on svgalib in check_keepalive_connections
+
+Mon Oct 14 17:10:52 CEST 2002 Alexander Udalov <aludal@softhome.net>
+
+	Better Cyrillic characters.
+
+Mon Oct 14 11:00:17 CEST 2002 Yevgeny Gromov <yevgeny@tut.by>
+
+	Belarusian translation updated and new charset koi8_ru
+
+=== Release 2.1pre4
+	
+Mon Sep 30 13:22:34 cet 2002 Wojciech Bojdol <wojbol@htc.net.pl>
+
+	Polish translation update.
+
+Mon Sep 30 11:37:05 cet 2002 William Yodlowsky <wyodlows@andromeda.rutgers.edu>
+
+	SSL patch for Solaris and other systems without /dev/random 
+
+Mon Sep 30 10:05:39 cet 2002 Josef Schugt <jupp@gmx.de>, Brain
+
+	Links-now button.
+
+Tue Sep 24 19:18:22 CEST 2002 Yevgeny Gromov <yevgeny@tut.by>
+
+	Belarusian translation
+
+Fri Sep 20 13:58:10 cet 2002 Brain, PerM
+
+	document.all
+
+Wed Sep 18 19:09:52 cet 2002 Brain
+
+	Swaped open and closed folder symbol in bookmarks.
+
+Wed Sep 18 9:30:15 cet 2002 Brain:
+
+	Fixed Solaris keyboard translation bug.
+
+=== RELEASE 2.1pre3
+
+Wed Sep 11 13:29:25 cet 2002 PerM:
+
+	2 bugfixes in Javascript - first segfault in for(a in b), second
+	caused segfault by return this; construction.
+
+Mon Aug 26 23:39:07 cet 2002 Brain
+
+	Icon name is set in X
+
+Tue Aug 20 10:54:32 cet 2002 Brain:
+
+	Fixed associations bug
+
+Mon Jul 22 09:00:23 cet 2002 Jordan DeLong <fracture@allusion.net>:
+	
+	Fixed occasional paste bug
+
+Sun Jul 21 22:37:21 cet 2002 Brain:
+
+	Euro entity
+
+Mon Jul 16 11:45:17 cet 2002 Chris Lightfoot:
+
+	\xab parsing as hex-number in Javascript
+
+=== RELEASE 2.1pre2
+	
+Sat Jun 29 02:41:50 cet 2002 mikulas:
+
+	Use filesystem prealloc on OS/2 - it prevents fragmentation of
+	downloaded files
+
+Sat Jun 29 02:41:29 cet 2002 mikulas:
+
+	Fixed shoting to memory with javascript and input fields
+
+Tue Jun 25 20:18:00 MET DST 2002 mikulas:
+
+	Do not call gethostbyaddr when name is not ip address (it should avoid
+	some useless nameserver queries)
+
+Sun Jun 23 13:35:56 MET DST 2002 mikulas:
+
+	-I/usr/local/include was removed (it was needed for some misconfigured
+	OpenBSD, but it doesn't work with gcc 3.1).
+
+Sun Jun 23 13:13:03 MET DST 2002 mikulas:
+
+	Fixed a delay on quit until async lookup terminates
+
+Wed Jun 19 10:41:51 MET DST 2002 brain:
+
+	Floating point numbers in configure file are stored with '.' even on
+	systems with ',' in locales.
+
+Wed Jun 19 10:13:52 MET DST 2002 brain:
+
+	Line length fix on framebuffer.
+
+Mon Jun 17 17:44:21 MET DST 2002 Richard Pecl <pecl@unicontrols.cz>:
+
+	Use threads on windows
+
+Mon Jun 17 15:28:35 MET DST 2002 mikulas:
+
+	New domain names
+
+Mon Jun 17 15:00:38 MET DST 2002 Denis Lackovic <delacko@fly.srk.fer.hr>:
+
+	Croatian translation
+
+Mon Jun 17 10:20:03 MET DST 2002 brain:
+	
+	Small change in x.c to work on some 8-bit displays.
+	
+=== RELEASE 2.1pre1
+
+Tue Jun 11 14:23:52 MET DST 2002 brain:
+
+	Fixed mem_free(NULL) in x.c:1001
+
 === RELEASE 2.0
 
 Mon Jun 10 01:15:33 MET DST 2002 mikulas:

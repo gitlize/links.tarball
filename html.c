@@ -26,42 +26,69 @@ static inline int atchr(unsigned char c)
 /*	    0 success */
 int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, int *namelen, unsigned char **attr, unsigned char **end)
 {
-	if (e >= eof || *(e++) != '<') return -1;
+	if (eof - e < 3 || *(e++) != '<') return -1;
 	if (name) *name = e;
-	if (e < eof && *e == '/') e++;
-	if (e >= eof || !isA(*e)) return -1;
-	while (e < eof && isA(*e)) e++;
-	if (e >= eof || (!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;
+	if (*e == '/') e++;
+	if (!isA(*e)) return -1;
+	goto x1;
+	while (isA(*e)) {
+		x1:
+		e++;
+		if (e >= eof) return -1;
+	}
+	if ((!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;
 	if (name && namelen) *namelen = e - *name;
-	while (e < eof && (WHITECHAR(*e) || *e == '/' || *e == ':')) e++;
-	if (e >= eof || (!atchr(*e) && *e != '>' && *e != '<')) return -1;
+	while ((WHITECHAR(*e) || *e == '/' || *e == ':')) {
+		e++;
+		if (e >= eof) return -1;
+	}
+	if ((!atchr(*e) && *e != '>' && *e != '<')) return -1;
 	if (attr) *attr = e;
 	nextattr:
-	while (e < eof && WHITECHAR(*e)) e++;
-	if (e >= eof || (!atchr(*e) && *e != '>' && *e != '<')) return -1;
+	while (WHITECHAR(*e)) {
+		e++;
+		if (e >= eof) return -1;
+	}
+	if ((!atchr(*e) && *e != '>' && *e != '<')) return -1;
 	if (*e == '>' || *e == '<') goto en;
-	while (e < eof && atchr(*e)) e++;
-	while (e < eof && WHITECHAR(*e)) e++;
-	if (e >= eof) return -1;
+	while (atchr(*e)) {
+		e++;
+		if (e >= eof) return -1;
+	}
+	while (WHITECHAR(*e)) {
+		e++;
+		if (e >= eof) return -1;
+	}
 	if (*e != '=') goto endattr;
-	e++;
-	while (e < eof && WHITECHAR(*e)) e++;
-	if (e >= eof) return -1;
+	goto x2;
+	while (WHITECHAR(*e)) {
+		x2:
+		e++;
+		if (e >= eof) return -1;
+	}
 	if (U(*e)) {
 		unsigned char uu = *e;
 		u:
-		e++;
-		while (e < eof && *e != uu && *e /*(WHITECHAR(*e) || *e > ' ')*/) e++;
-		if (e >= eof || *e < ' ') return -1;
+		goto x3;
+		while (e < eof && *e != uu && *e /*(WHITECHAR(*e) || *e > ' ')*/) {
+			x3:
+			e++;
+			if (e >= eof) return -1;
+		}
+		if (*e < ' ') return -1;
 		e++;
 		if (e >= eof /*|| (!WHITECHAR(*e) && *e != uu && *e != '>' && *e != '<')*/) return -1;
 		if (*e == uu) goto u;
 	} else {
-		while (e < eof && !WHITECHAR(*e) && *e != '>' && *e != '<') e++;
+		while (!WHITECHAR(*e) && *e != '>' && *e != '<') {
+			e++;
+			if (e >= eof) return -1;
+		}
+	}
+	while (WHITECHAR(*e)) {
+		e++;
 		if (e >= eof) return -1;
 	}
-	while (e < eof && WHITECHAR(*e)) e++;
-	if (e >= eof) return -1;
 	endattr:
 	if (*e != '>' && *e != '<') goto nextattr;
 	en:
@@ -465,7 +492,7 @@ static inline void kill_elem(char *e)
 }
 
 #ifdef DEBUG
-void debug_stack()
+void debug_stack(void)
 {
 	struct html_element *e;
 	printf("HTML stack debug: \n");
@@ -481,7 +508,7 @@ void debug_stack()
 }
 #endif
 
-void html_stack_dup()
+void html_stack_dup(void)
 {
 	struct html_element *e;
 	struct html_element *ep;
@@ -1327,11 +1354,11 @@ void find_form_for_input(unsigned char *i)
 	if (form.onsubmit) mem_free(form.onsubmit);
 	memset(&form, 0, sizeof(struct form));
 	if (!special_f(ff, SP_USED, NULL)) return;
-	if (last_input_tag && i <= last_input_tag && i > last_form_tag) {
+	if (last_form_tag && last_input_tag && i <= last_input_tag && i > last_form_tag) {
 		get_html_form(last_form_attr, &form);
 		return;
 	}
-	if (last_input_tag && i > last_input_tag) s = last_form_tag;
+	if (last_form_tag && last_input_tag && i > last_input_tag) s = last_form_tag;
 	else s = startf;
 	lf = NULL, la = NULL;
 	se:
@@ -1354,7 +1381,7 @@ void find_form_for_input(unsigned char *i)
 		last_form_attr = la;
 		last_input_tag = i;
 		get_html_form(la, &form);
-	}
+	} else last_form_tag = NULL;
 }
 
 void html_button(unsigned char *a)
@@ -1379,8 +1406,8 @@ void html_button(unsigned char *a)
 	mem_free(al);
 	xxx:
 	get_js_events(a);
-	fc->form_num = last_form_tag - startf;
-	fc->ctrl_num = a - last_form_tag;
+	fc->form_num = last_form_tag ? last_form_tag - startf : 0;
+	fc->ctrl_num = last_form_tag ? a - last_form_tag : a - startf;
 	fc->position = a - startf;
 	fc->method = form.method;
 	fc->action = stracpy(form.action);
@@ -1428,8 +1455,8 @@ void html_input(unsigned char *a)
 	else fc->type = FC_TEXT;
 	mem_free(al);
 	xxx:
-	fc->form_num = last_form_tag - startf;
-	fc->ctrl_num = a - last_form_tag;
+	fc->form_num = last_form_tag ? last_form_tag - startf : 0;
+	fc->ctrl_num = last_form_tag ? a - last_form_tag : a - startf;
 	fc->position = a - startf;
 	fc->method = form.method;
 	fc->action = stracpy(form.action);
@@ -1563,8 +1590,8 @@ void html_option(unsigned char *a)
 		    (namelen == 9 && !casecmp(name, "/OPTGROUP", 9)))) goto rrrr;
 	}
 	x:
-	fc->form_num = last_form_tag - startf;
-	fc->ctrl_num = a - last_form_tag;
+	fc->form_num = last_form_tag ? last_form_tag - startf : 0;
+	fc->ctrl_num = last_form_tag ? a - last_form_tag : a - startf;
 	fc->position = a - startf;
 	fc->method = form.method;
 	fc->action = stracpy(form.action);
@@ -1652,7 +1679,7 @@ void new_menu_item(unsigned char *name, int data, int fullname)
 	if (!name) menu_stack_size--;
 }
 
-void init_menu()
+void init_menu(void)
 {
 	menu_stack_size = 0;
 	menu_stack = DUMMY;
@@ -1669,7 +1696,7 @@ void free_menu(struct menu_item *m) /* Grrr. Recursion */
 	mem_free(m);
 }
 
-struct menu_item *detach_menu()
+struct menu_item *detach_menu(void)
 {
 	struct menu_item *i = NULL;
 	if (menu_stack_size) i = menu_stack[0];
@@ -1677,7 +1704,7 @@ struct menu_item *detach_menu()
 	return i;
 }
 
-void destroy_menu()
+void destroy_menu(void)
 {
 	if (menu_stack && menu_stack != DUMMY) free_menu(menu_stack[0]);
 	detach_menu();
@@ -1835,8 +1862,8 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 		goto abort;
 	}
 	memset(lbls, 0, order * sizeof(char *));
-	fc->form_num = last_form_tag - startf;
-	fc->ctrl_num = attr - last_form_tag;
+	fc->form_num = last_form_tag ? last_form_tag - startf : 0;
+	fc->ctrl_num = last_form_tag ? attr - last_form_tag : attr - startf;
 	fc->position = attr - startf;
 	fc->method = form.method;
 	fc->action = stracpy(form.action);
@@ -1898,8 +1925,8 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	if (t_namelen != 9 || casecmp(t_name, "/TEXTAREA", 9)) goto pp;
 	if (!(fc = mem_alloc(sizeof(struct form_control)))) return;
 	memset(fc, 0, sizeof(struct form_control));
-	fc->form_num = last_form_tag - startf;
-	fc->ctrl_num = attr - last_form_tag;
+	fc->form_num = last_form_tag ? last_form_tag - startf : 0;
+	fc->ctrl_num = last_form_tag ? attr - last_form_tag : attr - startf;
 	fc->position = attr - startf;
 	fc->method = form.method;
 	fc->action = stracpy(form.action);

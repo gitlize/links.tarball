@@ -59,6 +59,11 @@ void menu_save_url_as(struct terminal *term, void *d, struct session *ses)
 	dialog_save_url(ses);
 }
 
+void menu_save_bookmarks(struct terminal *term, void *d, struct session *ses)
+{
+	save_bookmarks();
+}
+
 void menu_go_back(struct terminal *term, void *d, struct session *ses)
 {
 	go_back(ses);
@@ -515,7 +520,7 @@ void terminal_options(struct terminal *term, void *xxx, struct session *ses)
 
 #ifdef JS
 
-unsigned char *jsopt_labels[] = { TEXT(T_KILL_ALL_SCRIPTS), TEXT(T_ENABLE_JAVASCRIPT), TEXT(T_VERBOSE_JS_ERRORS), TEXT(T_VERBOSE_JS_WARNINGS), TEXT(T_ENABLE_ALL_CONVERSIONS), TEXT(T_ENABLE_GLOBAL_NAME_RESOLUTION), TEXT(T_JS_RECURSION_DEPTH), TEXT(T_JS_MEMORY_LIMIT_KB), NULL };
+unsigned char *jsopt_labels[] = { TEXT(T_KILL_ALL_SCRIPTS), TEXT(T_ENABLE_JAVASCRIPT), TEXT(T_VERBOSE_JS_ERRORS), TEXT(T_VERBOSE_JS_WARNINGS), TEXT(T_ENABLE_ALL_CONVERSIONS), TEXT(T_ENABLE_GLOBAL_NAME_RESOLUTION), TEXT(T_MANUAL_JS_CONTROL), TEXT(T_JS_RECURSION_DEPTH), TEXT(T_JS_MEMORY_LIMIT_KB), NULL };
 
 static int __kill_script_opt;
 static unsigned char js_fun_depth_str[7];
@@ -566,8 +571,8 @@ void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 	__kill_script_opt=0;
 	snprintf(js_fun_depth_str,7,"%d",js_fun_depth);
 	snprintf(js_memory_limit_str,7,"%d",js_memory_limit);
-	if (!(d = mem_alloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item)))) return;
-	memset(d, 0, sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
+	if (!(d = mem_alloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item)))) return;
+	memset(d, 0, sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 	d->title = TEXT(T_JAVASCRIPT_OPTIONS);
 	d->fn = group_fn;
 	d->refresh = (void (*)(void *))refresh_javascript;
@@ -597,33 +602,37 @@ void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 	d->items[5].gid = 0;
 	d->items[5].dlen = sizeof(int);
 	d->items[5].data = (void *)&js_global_resolve;
-	d->items[6].type = D_FIELD;
-	d->items[6].dlen = 7;
-	d->items[6].data = js_fun_depth_str;
-	d->items[6].fn = check_number;
-	d->items[6].gid = 1;
-	d->items[6].gnum = 999999;
+	d->items[6].type = D_CHECKBOX;
+	d->items[6].gid = 0;
+	d->items[6].dlen = sizeof(int);
+	d->items[6].data = (void *)&js_manual_confirmation;
 	d->items[7].type = D_FIELD;
 	d->items[7].dlen = 7;
-	d->items[7].data = js_memory_limit_str;
+	d->items[7].data = js_fun_depth_str;
 	d->items[7].fn = check_number;
-	d->items[7].gid = 1024;
-	d->items[7].gnum = 30*1024;
-	d->items[8].type = D_BUTTON;
-	d->items[8].gid = B_ENTER;
-	d->items[8].fn = ok_dialog;
-	d->items[8].text = TEXT(T_OK);
+	d->items[7].gid = 1;
+	d->items[7].gnum = 999999;
+	d->items[8].type = D_FIELD;
+	d->items[8].dlen = 7;
+	d->items[8].data = js_memory_limit_str;
+	d->items[8].fn = check_number;
+	d->items[8].gid = 1024;
+	d->items[8].gnum = 30*1024;
 	d->items[9].type = D_BUTTON;
-	d->items[9].gid = B_ESC;
-	d->items[9].fn = cancel_dialog;
-	d->items[9].text = TEXT(T_CANCEL);
-	d->items[10].type = D_END;
+	d->items[9].gid = B_ENTER;
+	d->items[9].fn = ok_dialog;
+	d->items[9].text = TEXT(T_OK);
+	d->items[10].type = D_BUTTON;
+	d->items[10].gid = B_ESC;
+	d->items[10].fn = cancel_dialog;
+	d->items[10].text = TEXT(T_CANCEL);
+	d->items[11].type = D_END;
  	do_dialog(term, d, getml(d, NULL));
 }
 
 #endif
 
-unsigned char *http_labels[] = { TEXT(T_USE_HTTP_10), TEXT(T_ALLOW_SERVER_BLACKLIST), TEXT(T_BROKEN_302_REDIRECT), TEXT(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT(T_REFERER_NONE), TEXT(T_REFERER_SAME_URL), TEXT(T_REFERER_REAL), TEXT(T_REFERER_FAKE), TEXT(T_FAKE_USERAGENT), TEXT(T_FAKE_REFERER) };
+unsigned char *http_labels[] = { TEXT(T_USE_HTTP_10), TEXT(T_ALLOW_SERVER_BLACKLIST), TEXT(T_BROKEN_302_REDIRECT), TEXT(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT(T_DO_NOT_SEND_ACCEPT_CHARSET), TEXT(T_REFERER_NONE), TEXT(T_REFERER_SAME_URL), TEXT(T_REFERER_REAL), TEXT(T_REFERER_FAKE), TEXT(T_FAKE_USERAGENT), TEXT(T_FAKE_REFERER) };
 
 void httpopt_fn(struct dialog_data *dlg)
 {
@@ -647,9 +656,9 @@ void httpopt_fn(struct dialog_data *dlg)
 	rw = 0;
 	dlg_format_checkboxes(dlg, NULL, dlg->items, dlg->n - 4, 0, &y, w, &rw, dlg->dlg->udata);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, NULL, http_labels[8], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_text(dlg, NULL, http_labels[9], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text(dlg, NULL, http_labels[10], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(2, 2 * G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -660,10 +669,10 @@ void httpopt_fn(struct dialog_data *dlg)
 	y = dlg->y + DIALOG_TB + gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_checkboxes(dlg, term, dlg->items, dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, dlg->dlg->udata);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, http_labels[8], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, dlg->items + 8, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
 	dlg_format_text(dlg, term, http_labels[9], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	dlg_format_field(dlg, term, dlg->items + 9, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text(dlg, term, http_labels[10], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_field(dlg, term, dlg->items + 10, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, dlg->items + dlg->n - 2, 2, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
 }
@@ -673,8 +682,8 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	struct http_bugs *bugs = (struct http_bugs *)di->cdata;
 	struct dialog *d;
-	if (!(d = mem_alloc(sizeof(struct dialog) + 13 * sizeof(struct dialog_item)))) return 0;
-	memset(d, 0, sizeof(struct dialog) + 13 * sizeof(struct dialog_item));
+	if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return 0;
+	memset(d, 0, sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
 	d->title = TEXT(T_HTTP_BUG_WORKAROUNDS);
 	d->fn = httpopt_fn;
 	d->udata = http_labels;
@@ -695,40 +704,44 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[3].dlen = sizeof(int);
 	d->items[3].data = (void *)&bugs->bug_post_no_keepalive;
 	d->items[4].type = D_CHECKBOX;
-	d->items[4].gid = 1;
-	d->items[4].gnum = REFERER_NONE;
+	d->items[4].gid = 0;
 	d->items[4].dlen = sizeof(int);
-	d->items[4].data = (void *)&referer;
+	d->items[4].data = (void *)&bugs->no_accept_charset;
 	d->items[5].type = D_CHECKBOX;
 	d->items[5].gid = 1;
-	d->items[5].gnum = REFERER_SAME_URL;
+	d->items[5].gnum = REFERER_NONE;
 	d->items[5].dlen = sizeof(int);
 	d->items[5].data = (void *)&referer;
 	d->items[6].type = D_CHECKBOX;
 	d->items[6].gid = 1;
-	d->items[6].gnum = REFERER_REAL;
+	d->items[6].gnum = REFERER_SAME_URL;
 	d->items[6].dlen = sizeof(int);
 	d->items[6].data = (void *)&referer;
 	d->items[7].type = D_CHECKBOX;
 	d->items[7].gid = 1;
-	d->items[7].gnum = REFERER_FAKE;
+	d->items[7].gnum = REFERER_REAL;
 	d->items[7].dlen = sizeof(int);
 	d->items[7].data = (void *)&referer;
-	d->items[8].type = D_FIELD;
-	d->items[8].dlen = MAX_STR_LEN;
-	d->items[8].data = fake_useragent;
+	d->items[8].type = D_CHECKBOX;
+	d->items[8].gid = 1;
+	d->items[8].gnum = REFERER_FAKE;
+	d->items[8].dlen = sizeof(int);
+	d->items[8].data = (void *)&referer;
 	d->items[9].type = D_FIELD;
 	d->items[9].dlen = MAX_STR_LEN;
-	d->items[9].data = fake_referer;
-	d->items[10].type = D_BUTTON;
-	d->items[10].gid = B_ENTER;
-	d->items[10].fn = ok_dialog;
-	d->items[10].text = TEXT(T_OK);
+	d->items[9].data = fake_useragent;
+	d->items[10].type = D_FIELD;
+	d->items[10].dlen = MAX_STR_LEN;
+	d->items[10].data = fake_referer;
 	d->items[11].type = D_BUTTON;
-	d->items[11].gid = B_ESC;
-	d->items[11].fn = cancel_dialog;
-	d->items[11].text = TEXT(T_CANCEL);
-	d->items[12].type = D_END;
+	d->items[11].gid = B_ENTER;
+	d->items[11].fn = ok_dialog;
+	d->items[11].text = TEXT(T_OK);
+	d->items[12].type = D_BUTTON;
+	d->items[12].gid = B_ESC;
+	d->items[12].fn = cancel_dialog;
+	d->items[12].text = TEXT(T_CANCEL);
+	d->items[13].type = D_END;
  	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
@@ -968,8 +981,8 @@ void video_options(struct terminal *term, void *xxx, struct session *ses)
 #endif
 
 unsigned char max_c_str[3];
-unsigned char max_cth_str[2];
-unsigned char max_t_str[2];
+unsigned char max_cth_str[3];
+unsigned char max_t_str[3];
 unsigned char time_str[5];
 unsigned char unrtime_str[5];
 
@@ -1046,8 +1059,8 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
 	snprint(max_c_str, 3, max_connections);
-	snprint(max_cth_str, 2, max_connections_to_host);
-	snprint(max_t_str, 2, max_tries);
+	snprint(max_cth_str, 3, max_connections_to_host);
+	snprint(max_t_str, 3, max_tries);
 	snprint(time_str, 5, receive_timeout);
 	snprint(unrtime_str, 5, unrestartable_receive_timeout);
 	if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return;
@@ -1066,18 +1079,18 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	d->items[2].dlen = 3;
 	d->items[2].fn = check_number;
 	d->items[2].gid = 1;
-	d->items[2].gnum = 16;
+	d->items[2].gnum = 99;
 	d->items[3].type = D_FIELD;
 	d->items[3].data = max_cth_str;
-	d->items[3].dlen = 2;
+	d->items[3].dlen = 3;
 	d->items[3].fn = check_number;
 	d->items[3].gid = 1;
-	d->items[3].gnum = 8;
+	d->items[3].gnum = 99;
 	d->items[4].type = D_FIELD;
 	d->items[4].data = max_t_str;
-	d->items[4].dlen = 2;
+	d->items[4].dlen = 3;
 	d->items[4].fn = check_number;
-	d->items[4].gid = 1;
+	d->items[4].gid = 0;
 	d->items[4].gnum = 16;
 	d->items[5].type = D_FIELD;
 	d->items[5].data = time_str;
@@ -1310,6 +1323,11 @@ void menu_shell(struct terminal *term, void *xxx, void *yyy)
 void menu_kill_background_connections(struct terminal *term, void *xxx, void *yyy)
 {
 	abort_background_connections();
+}
+
+void menu_kill_all_connections(struct terminal *term, void *xxx, void *yyy)
+{
+	abort_all_connections();
 }
 
 void menu_save_html_options(struct terminal *term, void *xxx, struct session *ses)
@@ -1818,6 +1836,7 @@ struct menu_item file_menu111[] = {
 
 struct menu_item file_menu12[] = {
 	{ TEXT(T_BOOKMARKS), "s", TEXT(T_HK_BOOKMARKS), MENU_FUNC menu_bookmark_manager, (void *)0, 0, 0 },
+	{ TEXT(T_SAVE_BOOKMARKS), "", TEXT(T_HK_SAVE_BOOKMARKS), MENU_FUNC menu_save_bookmarks, (void *)0, 0, 0 },
 	/*{ TEXT(T_ADD_BOOKMARK), "a", TEXT(T_HK_ADD_BOOKMARK), MENU_FUNC menu_bookmark_manager, (void *)0, 0, 0 },*/
 };
 
@@ -1836,9 +1855,19 @@ struct menu_item file_menu211[] = {
 };
 #endif
 
+#ifdef G
+struct menu_item file_menu211_clipb[] = {
+	{ "", "", M_BAR, NULL, NULL, 0, 0 },
+	{ TEXT(T_SAVE_AS), "", TEXT(T_HK_SAVE_AS), MENU_FUNC save_as, (void *)0, 0, 0 },
+	{ TEXT(T_SAVE_URL_AS), "", TEXT(T_HK_SAVE_URL_AS), MENU_FUNC menu_save_url_as, (void *)0, 0, 0 },
+	{ TEXT(T_COPY_URL_LOCATION), "", TEXT(T_HK_COPY_URL_LOCATION), MENU_FUNC copy_url_location, (void *)0, 0, 0 },
+};
+#endif
+
 struct menu_item file_menu22[] = {
 	{ "", "", M_BAR, NULL, NULL, 0, 0} ,
 	{ TEXT(T_KILL_BACKGROUND_CONNECTIONS), "", TEXT(T_HK_KILL_BACKGROUND_CONNECTIONS), MENU_FUNC menu_kill_background_connections, (void *)0, 0, 0 },
+	{ TEXT(T_KILL_ALL_CONNECTIONS), "", TEXT(T_HK_KILL_ALL_CONNECTIONS), MENU_FUNC menu_kill_all_connections, (void *)0, 0, 0 },
 	{ TEXT(T_FLUSH_ALL_CACHES), "", TEXT(T_HK_FLUSH_ALL_CACHES), MENU_FUNC flush_caches, (void *)0, 0, 0 },
 	{ TEXT(T_RESOURCE_INFO), "", TEXT(T_HK_RESOURCE_INFO), MENU_FUNC cache_inf, (void *)0, 0, 0 },
 #if 0
@@ -1892,8 +1921,16 @@ void do_file_menu(struct terminal *term, void *xxx, struct session *ses)
 			e += sizeof(file_menu21) / sizeof(struct menu_item);
 #ifdef G
 		} else {
-			memcpy(e, file_menu211, sizeof(file_menu211));
-			e += sizeof(file_menu211) / sizeof(struct menu_item);
+			if(F && term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) 
+			{
+				memcpy(e, file_menu211_clipb, sizeof(file_menu211_clipb));
+				e += sizeof(file_menu211_clipb) / sizeof(struct menu_item);
+			}
+			else
+			{
+				memcpy(e, file_menu211, sizeof(file_menu211));
+				e += sizeof(file_menu211) / sizeof(struct menu_item);
+			}
 #endif
 		}
 	}
@@ -2058,6 +2095,7 @@ struct menu_item main_menu[] = {
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
 
+/*
 #ifdef G
 struct menu_item main_menu_g[] = {
 	{ TEXT(T_FILE), "", TEXT(T_HK_FILE), MENU_FUNC do_file_menu, NULL, 1, 1 },
@@ -2068,13 +2106,14 @@ struct menu_item main_menu_g[] = {
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
 #endif
+*/
 
 /* lame technology rulez ! */
 
 void activate_bfu_technology(struct session *ses, int item)
 {
 	struct terminal *term = ses->term;
-	do_mainmenu(term, gf_val(main_menu, main_menu_g), ses, item);
+	do_mainmenu(term, /*gf_val(*/main_menu/*, main_menu_g)*/, ses, item);
 }
 
 struct history goto_url_history = { 0, { &goto_url_history.items, &goto_url_history.items } };
@@ -2117,7 +2156,7 @@ void search_dlg(struct session *ses, struct f_data_c *f, int a)
 	input_field(ses->term, NULL, TEXT(T_SEARCH), TEXT(T_SEARCH_FOR_TEXT), TEXT(T_OK), TEXT(T_CANCEL), ses, &search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) search_for, NULL);
 }
 
-void free_history_lists()
+void free_history_lists(void)
 {
 	free_list(goto_url_history.items);
 	free_list(file_history.items);

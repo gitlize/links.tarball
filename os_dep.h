@@ -91,6 +91,9 @@ static inline int dir_sep(char x) { return x == '/' || x == '\\'; }
 #define NO_FG_EXEC
 #define DOS_FS
 #define NO_FORK_ON_EXIT
+#ifndef HAVE_PTHREADS
+  #define HAVE_PTHREADS
+#endif
 
 #elif defined(BEOS)
 

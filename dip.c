@@ -1788,7 +1788,7 @@ void init_font_cache(int bytes)
  * Also destroys the bitmaps asociated with them. Does not destruct the
  font_cache per se.
  */
-void destroy_font_cache()
+void destroy_font_cache(void)
 {
 	struct font_cache_entry *bottom;
 	
@@ -1869,14 +1869,14 @@ void update_aspect(void)
 	aspect=aspect_on?(aspect_native*bfu_aspect+0.5):65536UL;
 }
 
-void init_dip()
+void init_dip(void)
 {
 	update_aspect();
 	/* Initializes to 2 MByte */
 	init_font_cache(2000000);
 }
 
-void shutdown_dip()
+void shutdown_dip(void)
 {
 	destroy_font_cache();
 }

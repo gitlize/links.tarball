@@ -46,15 +46,19 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 void objreq_end(struct status *stat, struct object_request *rq)
 {
 	if (stat->state < 0) {
-		if (stat->ce && stat->ce->redirect && rq->state == O_WAITING && rq->redirect_cnt++ < MAX_REDIRECTS) {
-			unsigned char *u, *p;
-			change_connection(stat, NULL, PRI_CANCEL);
-			u = join_urls(rq->url, stat->ce->redirect);
-			if (!http_bugs.bug_302_redirect && !stat->ce->redirect_get && (p = strchr(u, POST_CHAR))) add_to_strn(&u, p);
-			mem_free(rq->url);
-			rq->url = u;
-			load_url(u, rq->prev_url, &rq->stat, rq->pri, rq->cache);
-			return;
+		if (stat->ce && stat->ce->redirect && rq->state == O_WAITING) {
+			if (rq->redirect_cnt++ < MAX_REDIRECTS) {
+				unsigned char *u, *p;
+				change_connection(stat, NULL, PRI_CANCEL);
+				u = join_urls(rq->url, stat->ce->redirect);
+				if (!http_bugs.bug_302_redirect && !stat->ce->redirect_get && (p = strchr(u, POST_CHAR))) add_to_strn(&u, p);
+				mem_free(rq->url);
+				rq->url = u;
+				load_url(u, rq->prev_url, &rq->stat, rq->pri, rq->cache);
+				return;
+			} else {
+				rq->stat.state = S_CYCLIC_REDIRECT;
+			}
 		}
 	}
 	if (stat->ce && !stat->ce->redirect) {
@@ -70,8 +74,8 @@ void object_timer(struct object_request *rq)
 	int last = rq->last_bytes;
 	if (rq->ce) rq->last_bytes = rq->ce->length;
 	rq->timer = -1;
-	if (rq->stat.state < 0 && (!rq->stat.ce || !rq->stat.ce->redirect)) {
-		if (rq->stat.ce) {
+	if (rq->stat.state < 0 && (!rq->stat.ce || !rq->stat.ce->redirect || rq->stat.state == S_CYCLIC_REDIRECT)) {
+		if (rq->stat.ce && rq->stat.state != S_CYCLIC_REDIRECT) {
 			rq->state = rq->stat.state != S_OK ? O_INCOMPLETE : O_OK;
 			/*(rq->ce = rq->stat.ce)->refcount++;*/
 		} else rq->state = O_FAILED;

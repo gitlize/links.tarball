@@ -47,7 +47,7 @@ int hard_read(int fd, unsigned char *p, int l)
 	return t;
 }
 
-unsigned char *get_cwd()
+unsigned char *get_cwd(void)
 {
 	int bufsize = 128;
 	unsigned char *buf;
@@ -88,7 +88,7 @@ void alloc_term_screen(struct terminal *term, int x, int y)
 
 void in_term(struct terminal *);
 void destroy_terminal(struct terminal *);
-void check_if_no_terminal();
+void check_if_no_terminal(void);
 
 void clear_terminal(struct terminal *term)
 {
@@ -159,7 +159,7 @@ void redraw_terminal_cls(struct terminal *term)
 	redraw_terminal_all(term);
 }
 
-void cls_redraw_all_terminals()
+void cls_redraw_all_terminals(void)
 {
 	struct terminal *term;
 	foreach(term, terminals) {
@@ -210,7 +210,7 @@ int is_rect_valid(struct rect *r1)
 
 #define R_GR	8
 
-struct rect_set *init_rect_set()
+struct rect_set *init_rect_set(void)
 {
 	struct rect_set *s;
 	if (!(s = mem_calloc(sizeof(struct rect_set) + sizeof(struct rect) * R_GR))) return NULL;
@@ -494,7 +494,7 @@ void add_empty_window(struct terminal *term, void (*fn)(void *), void *data)
 	add_window(term, empty_window_handler, ewd);
 }
 
-void free_term_specs()
+void free_term_specs(void)
 {
 	free_list(term_specs);
 }
@@ -524,7 +524,7 @@ struct term_spec *new_term_spec(unsigned char *term)
 	return t;
 }
 
-void sync_term_specs()
+void sync_term_specs(void)
 {
 	struct terminal *term;
 	foreach(term, terminals) term->spec = get_term_spec(term->term);
@@ -584,6 +584,7 @@ struct terminal *init_gfx_term(void (*root_window)(struct window *, struct event
 		return NULL;
 	}
 	term->count = terminal_count++;
+	term->fdin = -1;
 	if (!(term->dev = dev = drv->init_device())) {
 		mem_free(term);
 		check_if_no_terminal();
@@ -834,7 +835,7 @@ unsigned char frame_restrict[48] = {
 	cx++;										\
 }											\
 
-void redraw_all_terminals()
+void redraw_all_terminals(void)
 {
 	struct terminal *term;
 	foreach(term, terminals) redraw_screen(term);
@@ -932,13 +933,13 @@ void destroy_terminal(struct terminal *term)
 	check_if_no_terminal();
 }
 
-void destroy_all_terminals()
+void destroy_all_terminals(void)
 {
 	struct terminal *term;
 	while ((void *)(term = terminals.next) != &terminals) destroy_terminal(term);
 }
 
-void check_if_no_terminal()
+void check_if_no_terminal(void)
 {
 	if (!list_empty(terminals)) return;
 	terminate_loop = 1;

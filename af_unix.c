@@ -7,12 +7,12 @@
 
 #ifdef DONT_USE_AF_UNIX
 
-int bind_to_af_unix()
+int bind_to_af_unix(void)
 {
 	return -1;
 }
 
-void af_unix_close()
+void af_unix_close(void)
 {
 }
 
@@ -31,7 +31,7 @@ int s_unix_fd = -1;
 
 #ifdef USE_AF_UNIX
 
-int get_address()
+int get_address(void)
 {
 	struct sockaddr_un *su;
 	unsigned char *path;
@@ -56,7 +56,7 @@ int get_address()
 	return AF_UNIX;
 }
 
-void unlink_unix()
+void unlink_unix(void)
 {
 	if (unlink(((struct sockaddr_un *)s_unix)->sun_path)) {
 		/*perror("unlink");
@@ -66,7 +66,7 @@ void unlink_unix()
 
 #else
 
-int get_address()
+int get_address(void)
 {
 	struct sockaddr_in *sin;
 	if (!(sin = mem_alloc(sizeof(struct sockaddr_in)))) return -1;
@@ -83,13 +83,13 @@ int get_address()
 	return AF_INET;
 }
 
-void unlink_unix()
+void unlink_unix(void)
 {
 }
 
 #endif
 
-int bind_to_af_unix()
+int bind_to_af_unix(void)
 {
 	int u = 0;
 	int a1 = 1;
@@ -152,7 +152,7 @@ void af_unix_connection(void *xxx)
 	set_highpri();
 }
 
-void af_unix_close()
+void af_unix_close(void)
 {
 	if (s_unix_fd != -1) close(s_unix_fd);
 	if (s_unix) unlink_unix(), mem_free(s_unix), s_unix = NULL;

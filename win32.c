@@ -5,7 +5,12 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "os_dep.h"
+
 static		int		w32_input_pid ;
+#if defined(HAVE_PTHREADS)
+static    int   b1EndThread = FALSE;
+#endif /* defined(HAVE_PTHREADS) */
 
 static char* keymap[] = {
 	"\E[5~", /* VK_PRIOR */
@@ -100,9 +105,20 @@ void input_function (int fd)
 			break;
 		} /* switch */
 		/* when we receive an esc down key, drop out of do loop */
+#if defined(HAVE_PTHREADS)
+	} while (bSuccess && !b1EndThread) ;
+#else
 	} while (bSuccess) ;
 	exit (0) ;
+#endif /* defined(HAVE_PTHREADS) */
 }
+
+#if defined(HAVE_PTHREADS)
+void input_function_p (int *pfd)
+{
+	input_function(*pfd);
+}
+#endif /* defined(HAVE_PTHREADS) */
 
 /*
 void handle_terminal_resize(int fd, void (*fn)())
@@ -133,7 +149,11 @@ int get_terminal_size(int fd, int *x, int *y)
 
 void terminate_osdep ()
 {
+#if defined(HAVE_PTHREADS)
+	b1EndThread = TRUE;
+#else
 	kill (w32_input_pid, SIGINT) ;
+#endif /* defined(HAVE_PTHREADS) */
 }
 
 void set_proc_id (int id)

@@ -1,7 +1,9 @@
 english
+belarusian
 brazilian_portuguese
 bulgarian
 catalan
+croatian
 czech
 danish
 dutch
@@ -18,6 +20,7 @@ italian
 lithuanian
 norwegian
 polish
+portuguese
 romanian
 russian
 slovak

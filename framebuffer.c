@@ -1071,6 +1071,11 @@ unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 
 	 switch(fb_bits_pp)
 	{
+		case 4:
+		fb_pixelsize=1;
+		fb_palette_colors=16;
+		break;
+		
 		case 8:
 		fb_pixelsize=1;
 		fb_palette_colors=256;
@@ -1122,7 +1127,7 @@ unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 		set_palette(&global_pal);
 	}
 	
-	fb_linesize=fb_xsize*fb_pixelsize;
+	fb_linesize=fi.line_length;
 	fb_mem_size=fi.smem_len;
 
 	vi.xoffset=0;
@@ -1187,7 +1192,6 @@ unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 	mouse_graphics_device=fb_driver.init_device();
 	virtual_devices[0] = NULL;
 	global_mouse_hidden=1;
-	show_mouse();
 	if (handle_fb_mouse()) {
 		fb_driver.shutdown_device(mouse_graphics_device);
 		mem_free(mouse_buffer);
@@ -1204,6 +1208,7 @@ unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 	/* hide cursor */
 	printf("\033[?25l");
 	fflush(stdout);
+	show_mouse();
 	return NULL;
 }
 
