@@ -1,7 +1,221 @@
+=== Release 2.1pre12
+
+Sun Sep 14 20:28:13 MET DST 2003 mikulas:
+
+	Fixed memory leak with Content-Type at http.c:37
+
+Sun Sep 14 19:57:48 MET DST 2003 mikulas:
+
+	Workaround broken cfmakeraw on AIX
+
+Mon Sep  1 20:18:35 MET DST 2003 Brain:
+
+	Users can enter own shell command for executing external programs.
+	
+Mon Sep  1 16:21:28 MET DST 2003 Brain:
+
+	Commands in X are executed in xterm, not on console.
+
+Sun Aug 31 23:51:58 MET DST 2003 mikulas:
+
+	Do not send Range on refresh
+
+Sun Aug 31 21:33:48 MET DST 2003 Brain
+
+	More information on image files in Info menu.
+
+Sat Aug 30 01:04:33 MET DST 2003 Brain
+
+	Allow opening of a link in a new window (target="_blank").
+
+Fri Aug 29 19:30:35 MET DST 2003 Strahinya Radich <mr99164@alas.matf.bg.ac.yu>:
+
+	Serbian translation
+
+Fri Aug 29 11:51:11 MET DST 2003 Brain
+
+	Added "id" attribute to the <img> tag.
+
+Sun Aug 17 02:24:51 MET DST 2003 Strahinya Radich <mr99164@alas.matf.bg.ac.yu>:
+
+	Serbian Cyrillic letters
+
+Thu Jul 17 19:39:30 MET DST 2003 Varga Balazs <vinnui@ent.hu>:
+
+	Updated Hungarian translation
+
+Sat Jul  5 13:54:27 MET DST 2003 zas <zas@norz.org>:
+
+	Table frame and rules when no border attribute present
+
+Thu Jul  3 15:18:20 cet 2003 mikulas:
+
+	Fixed spelling errors found by Francois Gouget's program
+
+Wed Jun 25 17:12:56 MET DST 2003 mikulas:
+
+	Fixed crash in frames introduced in Tue Jun 17 23:15:46 MET DST 2003
+
+Sun Jun 22 01:43:41 cet 2003 mikulas:
+
+	Add slash after URLs like ftp://host:1234
+
+Tue Jun 17 23:15:46 MET DST 2003 mikulas:
+
+	Anchors allowed in frame locations
+
+Mon Jun 16 16:17:06 cet 2003 mikulas:
+
+	No char with code 13 when pasting in OS/2
+
+Thu Jun 12 20:11:01 cet 2003 mikulas:
+
+	Aggressive cache is in cache dialog, not in HTTP bugs dialog
+
+Thu Jun 12 19:58:42 cet 2003 mikulas:
+
+	302 redirects are not cached
+	Fixed redirect left after reloading cached document
+	Do not send "Range" when cache expires
+
+Wed May 28 02:45:06 cet 2003 mikulas:
+
+	Fixed some languages (removed name ELinks)
+
+Wed May 28 02:05:07 cet 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+
+	Updated Russian localization
+
+Tue May 27 22:51:57 cet 2003 mikulas:
+
+	Fixed \001 in bookmarks and window title when title contained 0xa0
+
+Sat May 24 23:24:46 cet 2003 mikulas:
+
+	Fixed bug that can't happen in select_mainmenu
+
+Sat May 24 18:50:35 cet 2003 mikulas:
+
+	Fixed numbers on links not consistent with internal order. Still not
+	perfect but better than it used to be.
+
+=== Release 2.1pre11
+
+Thu May 22 02:58:00 MET DST 2003 mikulas:
+
+	Correct parse_http_date (sponsored by Awite Bioenergie
+	<http://www.awite.com/> )
+
+Thu May 22 02:57:52 MET DST 2003 mikulas:
+
+	Non-aggressive cache (sponsored by Awite Bioenergie
+	<http://www.awite.com/> )
+
+Wed May 21 23:26:08 cet 2003 mikulas:
+
+	Refresh (sponsored by Awite Bioenergie <http://www.awite.com> )
+
+Wed May 21 19:38:29 MET DST 2003 Thomas Klausner <tk@giga.or.at>
+
+	Support for 16-bit 565 RGB big endian
+	Fix for 24-bit RGB big endian
+
+=== Release 2.1pre10
+
+Sun May 18 12:20:48 MET DST 2003 Brain:
+
+	HTML entities in bookmark file
+
+Sat May 17 21:58:32 MET DST 2003 Brain:
+
+	Manual/automatic javascript action confirmation (sponsored by Awite
+	Bioenergie <http://www.awite.com/> )
+
+Sat May 10 23:15:24 cet 2003 Daniel Berlin <dan@cgsoftware.com>:
+
+	Cookies can contain whitespace (fixes bugzilla)
+
+Sat May 10 19:39:09 cet 2003 mikulas:
+
+	Fixed cookie not used when parsing of expiration date fails
+
+Wed May  7 21:31:38 MET DST 2003 Sergey Karpov <karpov@sai.msu.su>:
+
+	Fixed image alt displayed in incorrect codepage
+
+Mon May  5 19:22:17 MET DST 2003 Tamas Gervai <crown@tolna.net>:
+
+	Links icons
+
+Fri May  2 08:27:01 MET DST 2003 Brain:
+	
+	Submit/clean form in link menu of form elements
+
 === Release 2.1pre9
 
 Wed Feb 26 19:43:00 CET 2003 mikulas:
+
 	Fixed unability to move out of textarea
+
+Mon Apr 21 19:08:08 cet 2003 mikulas:
+
+	99 max connections
+
+Mon Apr 14 23:41:14 MET DST 2003 mikulas:
+
+	Connected frame lines
+
+Mon Apr 14 22:25:15 MET DST 2003 Guido Schimmels <guido.schimmels@freenet.de>:
+
+	Updated German translation
+
+Fri Apr 11 22:07:07 MET DST 2003 Karvinen Ilkka <ik@cs.tut.fi>:
+
+	Updated Finnish translation
+
+Fri Apr 11 22:01:29 MET DST 2003 "Anton 'Keeper' Kopyov" <keeper@dfipm.vpti.vladimir.ru>:
+
+	Updated Russian translation
+
+Fri Apr 11 21:52:42 MET DST 2003 mikulas:
+
+	Convert '\' to '/' in HTTP requests (Windowz ruleeeeez)
+
+Wed Apr  9 21:12:51 cet 2003 mikulas:
+
+	Allow relative redirects in downloads
+
+Thu Mar 27 17:15:12 MET 2003 Mátyás János <jani@mail.xubion.hu>:
+
+	Updated Hungarian translation
+
+Thu Mar 20 19:31:54 MET 2003 Sven Neumann <sven@convergence.de>:
+
+	DirectFB graphics driver
+
+Wed Mar 19 22:49:21 MET 2003 Andre Valente <a.valente@netcabo.pt>:
+
+	Portuguese translation
+
+Wed Mar 19 20:58:12 MET 2003 mikulas:
+
+	Do not allow more same associations or extensions
+
+Sat Mar 15 14:32:23 MET 2003 mikulas:
+
+	Option to not send Accept-Charset
+
+Thu Mar 13 14:05:12 MET 2003 Miroslav Tichy <tichm9am@ss1000.ms.mff.cuni.cz>:
+
+	Added several Greek letter pictures.
+
+Thu Feb 27 18:26:15 MET 2003 mikulas:
+
+	Coords in usemap can contain decimal point
+
+Thu Feb 27 18:14:11 MET 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+
+	Updated Russian localization
 
 === Release 2.1pre8
 
@@ -267,6 +481,7 @@ Thu May 30 22:41:43 MET DST 2002 "Varga Balázs" <vinnui@broadband.hu>:
 === RELEASE 2.0pre5
 
 Tue May 28 18:00:43 CEST 2002 clock:
+
 	fixed segfault on big 16-bit png's (when gamma table is
 	used)
 

@@ -532,6 +532,10 @@ void do_image(struct g_part *p, struct image_description *im)
 					while (*p && (*p < '0' || *p > '9')) p++;
 					if (!*p) goto noc;
 					while (*p >= '0' && *p <= '9' && num < 10000000) num = num * 10 + *p - '0', p++;
+					if (*p == '.') {
+						p++;
+						while (*p >= '0' && *p <= '9') p++;
+					}
 					if (*p == '%' && num < 1000) {
 						int m = io->xw < io->yw ? io->xw : io->yw;
 						num = num * m / 100;
@@ -585,6 +589,7 @@ void *g_html_special(struct g_part *p, int c, ...)
 	struct frame_param *fp;
 	struct image_description *im;
 	struct g_object_tag *tag;
+	struct refresh_param *rp;
 	va_start(l, c);
 	switch (c) {
 		case SP_TAG:
@@ -632,6 +637,11 @@ void *g_html_special(struct g_part *p, int c, ...)
 			break;
 		case SP_NOWRAP:
 			va_end(l);
+			break;
+		case SP_REFRESH:
+			rp = va_arg(l, struct refresh_param *);
+			va_end(l);
+			html_process_refresh(p->data, rp->url, rp->time);
 			break;
 		default:
 			va_end(l);

@@ -124,6 +124,7 @@ void *bookmark_default_value(struct session *ses, unsigned char type)
 			
 			ct=get_translation_table(ses->term->spec->charset,bookmark_ld.codepage);
 			zelena->url=convert_string(ct,txt,strlen(txt),NULL);
+			clr_white(zelena->url);
 		}
 		else
 			zelena->url=stracpy(txt);
@@ -134,6 +135,7 @@ void *bookmark_default_value(struct session *ses, unsigned char type)
 		
 		ct=get_translation_table(ses->term->spec->charset,bookmark_ld.codepage);
 		zelena->title=convert_string(ct,txt,strlen(txt),NULL);
+		clr_white(zelena->title);
 	}
 
 	mem_free(txt);
@@ -242,6 +244,7 @@ void bookmark_edit_done(void *data)
 		mem_free(item->title);
 		ct=get_translation_table(s->dlg->win->term->spec->charset,bookmark_ld.codepage);
 		item->title=convert_string(ct,title,strlen(title),NULL);
+		clr_white(item->title);
 	}
 
 	if (item->url)
@@ -251,6 +254,7 @@ void bookmark_edit_done(void *data)
 		mem_free(item->url);
 		ct=get_translation_table(s->dlg->win->term->spec->charset,bookmark_ld.codepage);
 		item->url=convert_string(ct,url,strlen(url),NULL);
+		clr_white(item->url);
 	}
 
 	s->fn(s->dlg,s->data,item,&bookmark_ld);
@@ -301,10 +305,12 @@ void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(struct 
 		
 		ct=get_translation_table(bookmark_ld.codepage,dlg->win->term->spec->charset);
 		txt=convert_string(ct,item->title,strlen(item->title),NULL);
+		clr_white(txt);
 		safe_strncpy(title,txt,MAX_STR_LEN);
 		mem_free(txt);
 
 		txt=convert_string(ct,item->url,strlen(item->url),NULL);
+		clr_white(txt);
 		safe_strncpy(url,txt,MAX_STR_LEN);
 		mem_free(txt);
 	}
@@ -420,6 +426,7 @@ unsigned char *bookmark_type_item(struct terminal *term, void *data, int x)
 
 	table=get_translation_table(bookmark_ld.codepage,term->spec->charset);
 	txt1=convert_string(table,txt,strlen(txt),NULL);
+	clr_white(txt1);
 	mem_free(txt);
 	return txt1;
 }
@@ -468,32 +475,41 @@ struct bookmark_list *previous_on_this_level(struct bookmark_list *item)
 void add_bookmark(unsigned char *title, unsigned char *url, int depth)
 {
 	struct bookmark_list *b,*p;
+	struct document_options *dop;
 
 	if (!title) return;
 	
 	b=mem_alloc(sizeof(struct bookmark_list));
 	if (!b)return;
 	
+	dop=mem_calloc(sizeof(struct document_options));
+	if (!dop){mem_free(b);return;}
+	dop->cp=bookmarks_codepage;
+	
 	{
 		struct conv_table* ct;
 		
 		ct=get_translation_table(bookmarks_codepage,bookmark_ld.codepage);
-		b->title=convert_string(ct,title,strlen(title),NULL);
+		b->title=convert_string(ct,title,strlen(title),dop);
+		clr_white(b->title);
 	}
 	
 	if (url)
 	{
 		struct conv_table* ct;
 		
+		dop->plain=1;
 		ct=get_translation_table(bookmarks_codepage,bookmark_ld.codepage);
-		b->url=convert_string(ct,url,strlen(url),NULL);
+		b->url=convert_string(ct,url,strlen(url),dop);
+		clr_white(b->url);
+		dop->plain=0;
 
 		b->type=0;
 	}
 	else 
 	{
 		b->url=mem_alloc(sizeof(unsigned char));
-		if (!(b->url)){mem_free(b->title);mem_free(b);return;}
+		if (!(b->url)){mem_free(b->title);mem_free(b);mem_free(dop);return;}
 		*(b->url)=0;
 		b->type=1;
 	}
@@ -510,6 +526,7 @@ void add_bookmark(unsigned char *title, unsigned char *url, int depth)
 	p=previous_on_this_level(b);
 	if (p->depth<b->depth)b->fotr=p;   /* directory b belongs into */
 	else b->fotr=p->fotr;
+	mem_free(dop);
 }
 
 /* Created pre-cooked bookmarks */
@@ -660,6 +677,46 @@ void reinit_bookmarks(void)
 	reinit_list_window(&bookmark_ld);
 }
 
+
+/* gets str, converts all < = > & to appropriate entity 
+ * returns allocated string with result
+ */
+static unsigned char *convert_to_entity_string(unsigned char *str)
+{
+	unsigned char *dst, *p, *q;
+	int size;
+	
+	for (size=1,p=str;*p;size+=*p=='&'?5:*p=='<'||*p=='>'||*p=='='?4:1,p++);
+
+	dst=mem_alloc(size*sizeof(unsigned char));
+	if (!dst) internal("Cannot allocate memory.\n");
+	
+	for (p=str,q=dst;*p;p++,q++)
+	{
+		switch(*p)
+		{
+			case '<':
+			case '>':
+			q[0]='&',q[1]=*p=='<'?'l':'g',q[2]='t',q[3]=';',q+=3;
+			break;
+
+			case '=':
+			q[0]='&',q[1]='e',q[2]='q',q[3]=';',q+=3;
+			break;
+
+			case '&':
+			q[0]='&',q[1]='a',q[2]='m',q[3]='p',q[4]=';',q+=4;
+			break;
+
+			default:
+			*q=*p;
+			break;
+		}
+	}
+	*q=0;
+	return dst;
+}
+
 /* writes bookmarks to disk */
 void save_bookmarks(void)
 {
@@ -692,20 +749,27 @@ void save_bookmarks(void)
 	
 		if ((b->type)&1)
 		{
-			unsigned char *txt;
+			unsigned char *txt, *txt1;
 			txt=convert_string(ct,b->title,strlen(b->title),NULL);
-			fprintf(f,"    <DT><H3>%s</H3>\n<DL>\n",txt);
+			clr_white(txt);
+			txt1=convert_to_entity_string(txt);
+			fprintf(f,"    <DT><H3>%s</H3>\n<DL>\n",txt1);
 			mem_free(txt);
+			mem_free(txt1);
 			depth++;
 		}
 		else
 		{
-			unsigned char *txt1, *txt2;
+			unsigned char *txt1, *txt2, *txt11;
 			txt1=convert_string(ct,b->title,strlen(b->title),NULL);
+			clr_white(txt1);
 			txt2=convert_string(ct,b->url,strlen(b->url),NULL);
-			fprintf(f,"    <DT><A HREF=\"%s\">%s</A>\n",txt2,txt1);
+			clr_white(txt2);
+			txt11=convert_to_entity_string(txt1);
+			fprintf(f,"    <DT><A HREF=\"%s\">%s</A>\n",txt2,txt11);
 			mem_free(txt1);
 			mem_free(txt2);
+			mem_free(txt11);
 		}
 	}
 	for (a=0;a<depth;a++)fprintf(f,"</DL>\n");

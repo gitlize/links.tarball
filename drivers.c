@@ -22,6 +22,9 @@ extern struct graphics_driver svga_driver;
 #ifdef GRDRV_FB
 extern struct graphics_driver fb_driver;
 #endif
+#ifdef GRDRV_DIRECTFB
+extern struct graphics_driver directfb_driver;
+#endif
 #ifdef GRDRV_PMSHELL
 extern struct graphics_driver pmshell_driver;
 #endif
@@ -38,6 +41,9 @@ struct graphics_driver *graphics_drivers[] = {
 #endif
 #ifdef GRDRV_X
 	&x_driver,
+#endif
+#ifdef GRDRV_DIRECTFB
+	&directfb_driver,
 #endif
 #ifdef GRDRV_SVGALIB
 	&svga_driver,
@@ -58,7 +64,7 @@ void dummy_unblock(struct graphics_device *dev)
 }
 
 unsigned char *list_graphics_drivers()
-{
+{ 
 	unsigned char *d = init_str();
 	int l = 0;
 	struct graphics_driver **gd;
@@ -76,11 +82,17 @@ unsigned char *list_graphics_drivers()
  */
 unsigned char *init_graphics_driver(struct graphics_driver *gd, unsigned char *param, unsigned char *display)
 {
+	unsigned char *r;
 	unsigned char *p = param;
 	struct driver_param *dp=get_driver_param(gd->name);
 	if (!param || !*param) p = dp->param;
 	gd->codepage=dp->codepage;
-	return gd->init_driver(p,display);
+	if (!(gd->shell=mem_calloc(MAX_STR_LEN)))return NULL;
+	if (dp->shell) strncpy(gd->shell,dp->shell,MAX_STR_LEN);
+	gd->shell[MAX_STR_LEN-1]=0;
+	r = gd->init_driver(p,display);
+	if (r) mem_free(gd->shell);
+	return r;
 }
 
 unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsigned char *display)
@@ -124,6 +136,7 @@ void shutdown_graphics(void)
 {
 	if (drv)
 	{
+		if (drv->shell) mem_free(drv->shell);
 		drv->shutdown_driver();
 	}
 }
@@ -136,6 +149,8 @@ void update_driver_param(void)
 		dp->codepage=drv->codepage;
 		if (dp->param) mem_free(dp->param);
 		dp->param=stracpy(drv->get_driver_param());
+		if (dp->shell) mem_free(dp->shell);
+		dp->shell=stracpy(drv->shell);
 	}
 }
 

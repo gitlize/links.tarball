@@ -34,7 +34,7 @@ struct { int x; unsigned char *s; } unicode_7b [2317] = {
 	{ 0x001e, "RS" },
 	{ 0x001f, "US" },
 	{ 0x007f, "DT" },
-	{ 0x00a0, "\\001" },
+	{ 0x00a0, "\001" },
 	{ 0x00a1, "!" },
 	{ 0x00a2, "-c-" },
 	{ 0x00a3, "-L-" },

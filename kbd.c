@@ -140,7 +140,7 @@ int setraw(int fd, struct termios *p)
 	memset(&t, 0, sizeof(struct termios));
 	if (tcgetattr(fd, &t)) return -1;
 	if (p) memcpy(p, &t, sizeof(struct termios));
-	cfmakeraw(&t);
+	os_cfmakeraw(&t);
 	t.c_lflag |= ISIG;
 #ifdef TOSTOP
 	t.c_lflag |= TOSTOP;

@@ -104,6 +104,7 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 	if (*q == ':') {
 		unsigned char *pp = q + strcspn(q, "/");
 		int cc;
+		if (*pp != '/' && protocols[a].need_slash_after_host) return -1;
 		if (port) *port = q + 1;
 		if (polen) *polen = pp - q - 1;
 		for (cc = 0; cc < pp - q - 1; cc++) if (q[cc+1] < '0' || q[cc+1] > '9') return -1;

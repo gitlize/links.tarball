@@ -156,7 +156,11 @@ void http_send_header(struct connection *c)
 	unsigned char *h, *u, *uu, *sp;
 	int l = 0;
 	unsigned char *post;
-	unsigned char *host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
+	unsigned char *host;
+
+	find_in_cache(c->url, &c->cache);
+
+	host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
 	set_timeout(c);
 	if (!(info = mem_alloc(sizeof(struct http_connection_info)))) {
 		setcstate(c, S_OUT_OF_MEM);
@@ -201,7 +205,7 @@ void http_send_header(struct connection *c)
 		mem_free(uu);
 		uu = nu;
 		goto a;
-	}
+	} else if (*sp == '\\') *sp = '/';
 	add_to_str(&hdr, &l, uu);
 	mem_free(uu);
 	if (!http10) add_to_str(&hdr, &l, " HTTP/1.1\r\n");
@@ -285,7 +289,7 @@ void http_send_header(struct connection *c)
 		else accept_charset = "";
 		mem_free(ac);
 	}
-	if (!(info->bl_flags & BL_NO_CHARSET)) add_to_str(&hdr, &l, accept_charset);
+	if (!(info->bl_flags & BL_NO_CHARSET) && !http_bugs.no_accept_charset) add_to_str(&hdr, &l, accept_charset);
 	if (!http10) {
 		if (upcase(c->url[0]) != 'P') add_to_str(&hdr, &l, "Connection: ");
 		else add_to_str(&hdr, &l, "Proxy-Connection: ");
@@ -293,15 +297,21 @@ void http_send_header(struct connection *c)
 		else add_to_str(&hdr, &l, "close\r\n");
 	}
 	if ((e = c->cache)) {
-		if (!e->incomplete && e->head && c->no_cache <= NC_IF_MOD &&
-		    e->last_modified) {
+		if (!e->incomplete && e->head && c->no_cache <= NC_IF_MOD) {
+			unsigned char *m;
+			if (e->last_modified) m = stracpy(e->last_modified);
+			else if ((m = parse_http_header(e->head, "Date", NULL))) ;
+			else if ((m = parse_http_header(e->head, "Expires", NULL))) ;
+			else goto skip;
 			add_to_str(&hdr, &l, "If-Modified-Since: ");
-			add_to_str(&hdr, &l, e->last_modified);
+			add_to_str(&hdr, &l, m);
 			add_to_str(&hdr, &l, "\r\n");
+			mem_free(m);
 		}
+		skip:;
 	}
 	if (c->no_cache >= NC_PR_NO_CACHE) add_to_str(&hdr, &l, "Pragma: no-cache\r\nCache-Control: no-cache\r\n");
-	if (c->from) {
+	if (c->from && c->no_cache < NC_IF_MOD) {
 		add_to_str(&hdr, &l, "Range: bytes=");
 		add_num_to_str(&hdr, &l, c->from);
 		add_to_str(&hdr, &l, "-\r\n");
@@ -540,6 +550,22 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if (e->head) mem_free(e->head);
 	e->head = head;
+	if ((d = parse_http_header(head, "Expires", NULL))) {
+		time_t t = parse_http_date(d);
+		if (t && e->expire_time != 1) e->expire_time = t;
+		mem_free(d);
+	}
+	if ((d = parse_http_header(head, "Pragma", NULL))) {
+		if (!casecmp(d, "no-cache", 8)) e->expire_time = 1;
+		mem_free(d);
+	}
+	if ((d = parse_http_header(head, "Cache-Control", NULL))) {
+		if (!casecmp(d, "no-cache", 8)) e->expire_time = 1;
+		if (!casecmp(d, "max-age=", 8)) {
+			if (e->expire_time != 1) e->expire_time = time(NULL) + atoi(d + 8);
+		}
+		mem_free(d);
+	}
 #ifdef HAVE_SSL
 	if (c->ssl) {
 		int l = 0;
@@ -557,7 +583,9 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		http_end_request(c);
 		return;
 	}
+	if (e->redirect) mem_free(e->redirect), e->redirect = NULL;
 	if (h == 301 || h == 302 || h == 303) {
+		if (h == 302 && !e->expire_time) e->expire_time = 1;
 		if ((d = parse_http_header(e->head, "Location", NULL))) {
 			if (e->redirect) mem_free(e->redirect);
 			e->redirect = d;

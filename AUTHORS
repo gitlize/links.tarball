@@ -135,8 +135,9 @@ Dmitry Pinchukov <dpinch@mail.ru>
 Taniel Kirikal <taniel@colleduc.ee>
 	Estonian translation
 
-zas@norz.org
+zas <zas@norz.org>
 	Updated French translation
+	Table frame and rules when no border attribute present
 
 Oleg Belousov <strijar@urai.ru>
 	"Ignore charset info sent by server" is saved din config file
@@ -222,11 +223,15 @@ David O'Brien <obrien@FreeBSD.org>
 
 Sergey Karpov <karpov@sai.msu.su>
 	Updated russian translation
+	Fixed image alt displayed in incorrect codepage
 
 Simen Graaten <simeng@slarkware.com>
 	Norwegian translation
 
-Varga Balázs <vinnui@broadband.hu>
+Miroslav Rudisin <miero@atrey.karlin.mff.cuni.cz>:
+	Updated Slovak translation
+
+Varga Balázs <vinnui@broadband.hu>, <vinnui@ent.hu>
 	Updated Hungarian translation
 
 Denis Lackovic <delacko@fly.srk.fer.hr>
@@ -243,3 +248,42 @@ Yevgeny Gromov <yevgeny@tut.by>
 
 Koblinger Egmont <egmont@cs.bme.hu>
 	Updated Hungarian translation
+
+Ludvik Tesar <tesar@mee.tcd.ie>
+	URL to clipboard copying in X.
+
+Stanson <stanson@btv.ru>
+	Clipboard pasting into links (works from all applications)
+
+Andre Valente <a.valente@netcabo.pt>
+	Portuguese translation
+
+Sven Neumann <sven@convergence.de>
+	DirectFB graphics driver
+
+Mátyás János <jani@mail.xubion.hu>
+	Updated Hungarian translation
+
+"Anton 'Keeper' Kopyov" <keeper@dfipm.vpti.vladimir.ru>
+	Updated Russian translation
+
+Karvinen Ilkka <ik@cs.tut.fi>
+	Updated Finnish translation
+
+Guido Schimmels <guido.schimmels@freenet.de>
+	Updated German translation
+
+Tamas Gervai <crown@tolna.net>
+	Links icons
+
+Daniel Berlin <dan@cgsoftware.com>
+	Cookies can contain whitespace (fixes bugzilla)
+
+Thomas Klausner <tk@giga.or.at>
+	Support for 16-bit 565 RGB big endian
+	Fix for 24-bit RGB big endian
+
+Strahinya Radich <mr99164@alas.matf.bg.ac.yu>
+	Serbian translation
+	Serbian Cyrillic letters
+

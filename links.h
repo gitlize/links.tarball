@@ -1,5 +1,5 @@
 /* links.h
- * (c) 2002 Mikulas Patocka, Karel 'Clock' Kulhavy, Petr 'Clock' Kulhavy,
+ * (c) 2002 Mikulas Patocka, Karel 'Clock' Kulhavy, Petr 'Brain' Kulhavy,
  *          Martin 'PerM' Pergel
  * This file is a part of the Links program, released under GPL.
  */
@@ -28,9 +28,9 @@
 #ifndef _LINKS_H
 #define _LINKS_H
 
-#define LINKS_COPYRIGHT "(C) 1999 - 2002 Mikulas Patocka\n(C) 2000 - 2002 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2002 Mikulás Patocka\n(C) 2000 - 2002 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2002 Mikulá¹ Patoèka\n(C) 2000 - 2002 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT "(C) 1999 - 2003 Mikulas Patocka\n(C) 2000 - 2003 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2003 Mikulás Patocka\n(C) 2000 - 2003 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2003 Mikulá¹ Patoèka\n(C) 2000 - 2003 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -744,7 +744,7 @@ int is_safe_in_shell(unsigned char);
 void check_shell_security(unsigned char **);
 void block_stdin(void);
 void unblock_stdin(void);
-int exe(char *);
+int exe(char *, int);
 int resize_window(int, int);
 int can_resize_window(int);
 int can_open_os_shell(int);
@@ -756,6 +756,7 @@ void prealloc_truncate(int, int);
 #else
 static inline void prealloc_truncate(int x, int y) {}
 #endif
+void os_cfmakeraw(struct termios *t);
 
 /* memory.c */
 
@@ -823,6 +824,7 @@ struct cache_entry {
 	int incomplete;
 	int tgc;
 	unsigned char *last_modified;
+	time_t expire_time;	/* 0 never, 1 always */
 	int data_size;
 	struct list_head frag;	/* struct fragment */
 	tcount count;
@@ -1340,6 +1342,15 @@ struct graphics_driver{
 	void (*set_title)(struct graphics_device *dev, unsigned char *title);
 		/* set window title. title is in utf-8 encoding -- you should recode it to device charset */
 		/* if device doesn't support titles (svgalib, framebuffer), this should be NULL, not empty function ! */
+	
+	int (*exec)(unsigned char *command, int flag); 
+		/* -if !NULL executes command on this graphics device, 
+		   -if NULL links uses generic (console) command executing 
+		    functions
+		   -return value is the same as of the 'system' syscall 
+		   -if flag is !0, run command in separate shell
+		    else run command directly
+		 */
 
 	int depth; /* Data layout 
 		    * depth
@@ -1375,6 +1386,14 @@ struct graphics_driver{
 	int x, y;	/* size of screen. only for drivers that use virtual devices */
 	int flags;	/* GD_xxx flags */
 	int codepage;
+	unsigned char *shell;  
+		/* -if exec is NULL string is unused
+	 	   -otherwise this string describes shell to be executed by the 
+		    exec function, the '%' char means string to be executed
+		   -shell cannot be NULL
+		   -if exec is !NULL and shell is empty, exec should use some 
+ 		    default shell (e.g. "xterm -e %")
+		*/
 };
 
 #define GD_DONT_USE_SCROLL	1
@@ -2072,9 +2091,11 @@ struct document_setup {
 	int tables, frames, images;
 	int margin;
 	int num_links, table_order;
+	int auto_refresh;
 	int font_size;
 	int display_images;
 	int image_scale;
+	int target_in_new_window;
 };
 
 
@@ -2091,6 +2112,7 @@ struct document_options {
 	int js_enable;
 	int plain;
 	int num_links, table_order;
+	int auto_refresh;
 	struct rgb default_fg;
 	struct rgb default_bg;
 	struct rgb default_link;
@@ -2113,6 +2135,7 @@ static inline void ds2do(struct document_setup *ds, struct document_options *doo
 	doo->margin = ds->margin;
 	doo->num_links = ds->num_links;
 	doo->table_order = ds->table_order;
+	doo->auto_refresh = ds->auto_refresh;
 	doo->font_size = ds->font_size;
 	doo->display_images = ds->display_images;
 	doo->image_scale = ds->image_scale;
@@ -2477,6 +2500,9 @@ struct f_data {
 	int are_there_scripts;
 	unsigned char *script_href_base;
 
+	unsigned char *refresh;
+	int refresh_seconds;
+
 	struct js_document_description *js_doc;
 	int uncacheable;	/* cannot be cached - either created from source modified by document.write or modified by javascript */
 
@@ -2555,6 +2581,9 @@ struct f_data_c {
 	struct js_state *js;
 
 	int image_timer;
+
+	int refresh_timer;
+
 #ifdef JS
 	unsigned char *onload_frameset_code;
 #endif
@@ -2564,7 +2593,7 @@ struct location {
 	struct location *next;
 	struct location *prev;
 	struct location *parent;
-	unsigned char *name;
+	unsigned char *name;	/* frame name */
 	unsigned char *url;
 	unsigned char *prev_url;   /* allocated string with referrer */
 	struct list_head subframes;	/* struct location */
@@ -2618,6 +2647,8 @@ struct session {
 	void (*wtd)(struct session *);
 	unsigned char *wtd_target;
 	struct f_data_c *wtd_target_base;
+	unsigned char *wanted_framename;
+	int wtd_refresh;
 	unsigned char *goto_position;
 	struct document_setup ds;
 	struct kbdprefix kbdprefix;
@@ -2663,7 +2694,7 @@ void fd_loaded(struct object_request *, struct f_data_c *);
 
 extern struct list_head sessions;
 
-time_t parse_http_date(const char *);
+time_t parse_http_date(char *);
 unsigned char *encode_url(unsigned char *);
 unsigned char *decode_url(unsigned char *);
 unsigned char *subst_file(unsigned char *, unsigned char *);
@@ -2677,9 +2708,9 @@ void start_download(struct session *, unsigned char *);
 void abort_all_downloads(void);
 void display_download(struct terminal *, struct download *, struct session *);
 int create_download_file(struct terminal *, unsigned char *, int);
-void *create_session_info(int, unsigned char *, int *);
+void *create_session_info(int, unsigned char *, unsigned char *, int *);
 void win_func(struct window *, struct event *, int);
-void goto_url_f(struct session *, void (*)(struct session *), unsigned char *, unsigned char *, struct f_data_c *, int, int, int);
+void goto_url_f(struct session *, void (*)(struct session *), unsigned char *, unsigned char *, struct f_data_c *, int, int, int, int);
 void goto_url(struct session *, unsigned char *);
 void goto_url_not_from_dialog(struct session *, unsigned char *);
 void goto_imgmap(struct session *ses, unsigned char *url, unsigned char *href, unsigned char *target);
@@ -2690,6 +2721,8 @@ void reload(struct session *, int);
 void destroy_session(struct session *);
 void destroy_location(struct location *);
 void ses_destroy_defered_jump(struct session *ses);
+struct f_data_c *find_frame(struct session *ses, unsigned char *target, struct f_data_c *base);
+
 
 /* Information about the current document */
 unsigned char *get_current_url(struct session *, unsigned char *, size_t);
@@ -2730,6 +2763,7 @@ void js_execute_code(struct javascript_context *, unsigned char *, int, void (*)
 
 
 extern struct history js_get_string_history;
+extern int js_manual_confirmation;
 
 struct js_state {
 	struct javascript_context *ctx;	/* kontext beziciho javascriptu??? */
@@ -3118,6 +3152,7 @@ void search_dlg(struct session *, struct f_data_c *, int);
 void search_back_dlg(struct session *, struct f_data_c *, int);
 void exit_prog(struct terminal *, void *, struct session *);
 void really_exit_prog(struct session *ses);
+void query_exit(struct session *ses);
 
 #ifdef G
 
@@ -3208,6 +3243,7 @@ unsigned char *print_current_link(struct session *);
 unsigned char *print_current_title(struct session *);
 void loc_msg(struct terminal *, struct location *, struct f_data_c *);
 void state_msg(struct session *);
+void head_msg(struct session *);
 void search_for(struct session *, unsigned char *);
 void search_for_back(struct session *, unsigned char *);
 void find_next(struct session *, struct f_data_c *, int);
@@ -3589,6 +3625,7 @@ int decode_color(unsigned char *, struct rgb *);
 #define SP_SCRIPT	6
 #define SP_IMAGE	7
 #define SP_NOWRAP	8
+#define SP_REFRESH	9
 
 struct frameset_param {
 	struct frameset_desc *parent;
@@ -3604,8 +3641,16 @@ struct frame_param {
 	int marginheight;
 };
 
+struct refresh_param {
+	unsigned char *url;
+	int time;
+};
+
 void free_menu(struct menu_item *);
 void do_select_submenu(struct terminal *, struct menu_item *, struct session *);
+
+void clr_white(unsigned char *name);
+void clr_spaces(unsigned char *name);
 
 /* html_r.c */
 
@@ -3673,7 +3718,8 @@ void xset_hchar(struct part *, int, int, unsigned);
 void xset_hchars(struct part *, int, int, int, unsigned);
 void align_line(struct part *, int);
 void html_tag(struct f_data *, unsigned char *, int, int);
-void process_script(struct f_data *f, unsigned char *t);
+void process_script(struct f_data *, unsigned char *);
+void html_process_refresh(struct f_data *, unsigned char *, int );
 
 void free_table_cache(void);
 
@@ -3729,6 +3775,8 @@ extern unsigned char ggr_drv[MAX_STR_LEN];
 extern unsigned char ggr_mode[MAX_STR_LEN];
 extern unsigned char ggr_display[MAX_STR_LEN];
 
+extern unsigned char default_target[MAX_STR_LEN];
+
 unsigned char *parse_options(int, unsigned char *[]);
 void init_home(void);
 void load_config(void);
@@ -3744,6 +3792,7 @@ struct driver_param {
 	struct driver_param *prev;
 	int codepage;
 	unsigned char *param;
+	unsigned char *shell;
 	unsigned char name[1];
 };
 
@@ -3816,6 +3865,8 @@ struct http_bugs {
 	int allow_blacklist;
 	int bug_302_redirect;
 	int bug_post_no_keepalive;
+	int no_accept_charset;
+	int aggressive_cache;
 };
 
 extern struct http_bugs http_bugs;

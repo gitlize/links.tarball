@@ -136,6 +136,7 @@ void clear_formatted(struct f_data *scr)
 	if (scr->last_search) mem_free(scr->last_search);
 	if (scr->search_positions) mem_free(scr->search_positions);
 #endif
+	if (scr->refresh) mem_free(scr->refresh);
 	jsint_destroy_document_description(scr);
 	if (scr->script_href_base) mem_free(scr->script_href_base);
 }
@@ -886,6 +887,15 @@ void process_script(struct f_data *f, unsigned char *t)
 	f->are_there_scripts = 1;
 }
 
+void html_process_refresh(struct f_data *f, unsigned char *url, int time)
+{
+	if (!f) return;
+	if (f->refresh) return;
+	if (!url) f->refresh = stracpy(f->rq->url);
+	else f->refresh = join_urls(f->rq->url, url);
+	f->refresh_seconds = time;
+}
+
 void *html_special(struct part *p, int c, ...)
 {
 	va_list l;
@@ -893,6 +903,7 @@ void *html_special(struct part *p, int c, ...)
 	struct form_control *fc;
 	struct frameset_param *fsp;
 	struct frame_param *fp;
+	struct refresh_param *rp;
 	va_start(l, c);
 	switch (c) {
 		case SP_TAG:
@@ -926,6 +937,11 @@ void *html_special(struct part *p, int c, ...)
 			t = va_arg(l, unsigned char *);
 			va_end(l);
 			if (p->data) process_script(p->data, t);
+			break;
+		case SP_REFRESH:
+			rp = va_arg(l, struct refresh_param *);
+			va_end(l);
+			html_process_refresh(p->data, rp->url, rp->time);
 			break;
 		default:
 			va_end(l);

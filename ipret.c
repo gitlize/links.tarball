@@ -69,6 +69,7 @@ static int js_temp_var_for_vartest=0;
 		if(js_temp_var_for_vartest) \
 		{	sezvykan=1; \
 			js_temp_var_for_vartest=0; \
+			context->current->in=0; \
 			context->current=pullp(context); \
 			return; \
 		}
@@ -78,6 +79,7 @@ static int js_temp_var_for_vartest=0;
 		if(A->typ!=VARIABLE) \
 		{	pusha(A,context); \
 			sezvykan=1; \
+			context->current->in=0; \
 			context->current=pullp(context); \
 			return; \
 		}
@@ -1746,6 +1748,7 @@ void minus(js_context*context)
 void modulo(js_context*context)
 {	abuf*retval=0;
         abuf*par1,*par2;
+	double pomocny_beran,pomocny_semerad; /* Pocitame beran%semerad, protoze Beran je PhD. B-) */
         debug("Vjizdim do fce modulo ");
         switch(context->current->in)
         {       case 0:
@@ -1773,8 +1776,15 @@ void modulo(js_context*context)
                         par1=pulla(context);
 /*			RESOLV(par1);*/
                         if((par2->typ==INTEGER) && (par1->typ==INTEGER))
-                        {       retval->typ=INTEGER;
-                                retval->argument=((int)par1->argument%(int)par2->argument);
+                        {      if(!par2->argument)
+				{	retval->typ=FLOAT;
+					retval->argument=(long)js_mem_alloc(sizeof(float));
+					*(double*)retval->argument=MY_NAN;
+				}
+				else
+				{	retval->typ=INTEGER;
+					retval->argument=((int)par1->argument%(int)par2->argument);
+				}
 #ifdef RASODEBUG
                                 printf("je to %d.\n",(int)retval->argument);
 #endif
@@ -1784,7 +1794,28 @@ void modulo(js_context*context)
                         else{
                                 retval->typ=FLOAT;
                                 retval->argument=(long)js_mem_alloc(sizeof(float));
-                                *(float*)retval->argument=fmod(tofloat(par1,context),tofloat(par2,context));
+				pomocny_beran=tofloat(par1,context);
+				pomocny_semerad=tofloat(par2,context);
+				if((pomocny_semerad==MY_NAN)||(pomocny_beran==MY_NAN)||(pomocny_beran==MY_INFINITY)||(pomocny_beran==MY_MININFINITY)||(!pomocny_semerad))
+		/*cokoliv je NAN=> NAN; beran nekonecny => NAN, semerad nulovy take */
+					*(float*)retval->argument=MY_NAN;
+				else
+				{	if(pomocny_semerad==MY_INFINITY)
+						*(float*)retval->argument=fabs(pomocny_beran);
+					else
+						if(pomocny_semerad==MY_MININFINITY)
+							*(float*)retval->argument=-fabs(pomocny_beran);
+						else
+			                                *(float*)retval->argument=fmod(pomocny_beran,pomocny_semerad);
+				}
+				if((*(float*)retval->argument!=MY_NAN) && (*(float*)retval->argument!=MY_INFINITY) &&(*(float*)retval->argument>MY_MAXDOUBLE))
+				{	*(float*)retval->argument=MY_MAXDOUBLE;
+					debug("Modulo: Orezavam pretekajici vysledek!\n");
+				}
+				else	if((*(float*)retval->argument!=MY_MININFINITY)&&(*(float*)retval->argument<MY_MINDOUBLE))
+					{	*(float*)retval->argument=MY_MINDOUBLE;
+						debug("Modulo: Orezavam podtekajici vysledek!\n");
+					}
 #ifdef RASODEBUG
                                 printf("je to %g.\n",*(float*)retval->argument);
 #endif
@@ -3607,13 +3638,24 @@ void funkce(js_context*context)/*function f(){}*/
 		case 1:	debug("Definuji funkci\n");
 			arg=pulla(context);
 			if(arg->typ!=VARIABLE)
-			{	js_error("Defining function nowhere ",context);
-				delarg(arg,context);
+			{	delarg(arg,context);
+				if(!js_all_conversions)
+					js_error("Defining function nowhere ",context);
+				else {	arg=js_mem_alloc(sizeof(abuf));
+					arg->typ=UNDEFINED;
+					arg->argument=0;
+					pusha(arg,context);
+					sezvykan=1;
+					context->current->in=0;
+					context->current=pullp(context);
+				}
 				return;
 			}
 			funk=create(((lns*)arg->argument)->identifier,context->lnamespace,context);
 			funk->type=FUNKCE;
 			funk->value=(long)context->current;/*pointer na nas nas zavola*/
+			delarg(arg,context);
+			arg=js_mem_alloc(sizeof(abuf));
 			arg->typ=UNDEFINED;
 			arg->argument=0;
 			pusha(arg,context);/*Nesmyslny vysledek - vracime prazdny*/
@@ -3975,7 +4017,7 @@ void thisccall(js_context*context) /* Tohle bude masite */
 
 void idccall(js_context*context) /*Tohle bude masite *//*3*/
 {	my_internal("Ale h0vn0!!\n",context);
-	js_error("Unsuported constructor call ",context);
+	js_error("Unsupported constructor call ",context);
 }
 
 void functioncall(js_context*);
@@ -4008,7 +4050,7 @@ void eccall(js_context*context) /* Tohle bude masite */
 
 void conscall(js_context*context)/*volani konstruktoru*/ /* 3 */ 
 {	my_internal("Funkce conscall byla preci obsoletizovana!!!\n",context); 
-	js_error("Unsuported constructor call ",context);
+	js_error("Unsupported constructor call ",context);
 }
 
 void member(js_context*context)/*a.b*/
@@ -4073,6 +4115,7 @@ void member(js_context*context)/*a.b*/
 				pomvar->identifier=pomv;
 				pomvar->value=CIntMETFUN;
 				pomvar->handler=(long)pulla(context);
+/*				printf("Odpal! "); */
 				pusha(nans,context);
 				context->current->in=0;
 				sezvykan=1;
@@ -4551,7 +4594,22 @@ void functioncall(js_context*context)
 		case 2:	debug("functioncall - volam funkci\n");
 			arg=pulla(context);	
 			context->current->in=0;
-			VARTEST(arg,"You're trying to call not a function!\n");
+			VARTEST1(arg);
+			if(js_temp_var_for_vartest)
+			{	if(!js_all_conversions)
+				{	js_error("You're trying to call not a function!\n",context);
+					return;
+				} else	{	delarg(pulla(context),context);
+						arg=js_mem_alloc(sizeof(abuf));
+						arg->typ=UNDEFINED;
+						arg->argument=0;
+						pusha(arg,context);
+						sezvykan=1;
+						context->current=pullp(context);
+						js_temp_var_for_vartest=0;
+						return;
+					}
+			}
 			if(((lns*)arg->argument)->type==FUNKCE)
 			{	context->current=(vrchol*)((lns*)arg->argument)->value; /* Ja se dekuju! Ted to bouchne! */
 				/* dalsi operace pobezi uz nad definici fce */

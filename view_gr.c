@@ -861,6 +861,17 @@ int g_next_link(struct f_data_c *fd, int dir)
 	return r;
 }
 
+void unset_link(struct f_data_c *fd)
+{
+	int n = fd->vs->current_link;
+	fd->vs->current_link = -1;
+	fd->vs->g_display_link = 0;
+	fd->ses->locked_link = 0;
+	if (n >= 0 && n < fd->f_data->nlinks) {
+		redraw_link(fd, n);
+	}
+}
+
 int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 {
 	int x, y;
@@ -963,15 +974,15 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				return enter(ses, fd, 0);
 			}
 			if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && (!ev->y || ev->y== KBD_CTRL)) || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) {
+				unset_link(fd);
 				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->f_data->hsb * G_SCROLL_BAR_WIDTH) return 0;
 				fd->vs->view_pos += fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
-				fd->vs->current_link = -1;
 				return 3;
 			}
 			if (ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && (!ev->y || ev->y == KBD_CTRL)) || (upcase(ev->x) == 'B' && ev->y & KBD_CTRL)) {
+				unset_link(fd);
 				if (!fd->vs->view_pos) return 0;
 				fd->vs->view_pos -= fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
-				fd->vs->current_link = -1;
 				return 3;
 			}
 			if (0) {
@@ -1040,12 +1051,12 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			}
 			if (ev->x == KBD_HOME || (upcase(ev->x == 'A') && ev->y & KBD_CTRL)) {
 				fd->vs->view_pos = 0;
-				fd->vs->current_link = -1;
+				unset_link(fd);
 				return 3;
 			}
 			if (ev->x == KBD_END || (upcase(ev->x == 'E') && ev->y & KBD_CTRL)) {
 				fd->vs->view_pos = fd->f_data->y;
-				fd->vs->current_link = -1;
+				unset_link(fd);
 				return 3;
 			}
 			if (upcase(ev->x) == 'F' && !(ev->y & KBD_ALT)) {

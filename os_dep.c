@@ -302,10 +302,11 @@ tcount resize_count = 0;
 
 #if defined(BEOS) && defined(HAVE_SETPGID)
 
-int exe(char *path)
+int exe(char *path, int fg)
 {
 	int p;
 	int s;
+	fg=fg;  /* ignore flag */
 	if (!(p = fork())) {
 		setpgid(0, 0);
 		system(path);
@@ -318,13 +319,14 @@ int exe(char *path)
 
 #elif defined(WIN32)
 
-int exe(char *path)
+int exe(char *path, int fg)
 {
 	int r;
 	unsigned char *x1 = !GETSHELL ? DEFAULT_SHELL : GETSHELL;
 	unsigned char *x = *path != '"' ? " /c start /wait " : " /c start /wait \"\" ";
 	unsigned char *p = malloc((strlen(x1) + strlen(x) + strlen(path)) * 2 +
 1);
+	fg=fg;  /* ignore flag */
 	if (!p) return -1;
 	strcpy(p, x1);
 	strcat(p, x);
@@ -341,8 +343,12 @@ int exe(char *path)
 
 #else
 
-int exe(char *path)
+/* UNIX */
+int exe(char *path, int fg)
 {
+#ifdef G
+	if (F && drv->exec) return drv->exec(path, fg);
+#endif
 	return system(path);
 }
 
@@ -389,7 +395,7 @@ _fmutex fd_mutex;
 int fd_mutex_init = 0;
 #endif
 
-int exe(char *path)
+int exe(char *path, int fg)
 {
 	int flags = P_SESSION;
 	int pid, ret;
@@ -397,6 +403,7 @@ int exe(char *path)
 	int old0 = 0, old1 = 1, old2 = 2;
 #endif
 	char *shell;
+	fg=fg; /* ignore flag */
 	if (!(shell = GETSHELL)) shell = DEFAULT_SHELL;
 	if (is_xterm()) flags |= P_BACKGROUND;
 #ifdef G
@@ -441,7 +448,7 @@ unsigned char *get_clipboard_text(void)
 	HAB hab;
 	HMQ hmq;
 	ULONG oldType;
-	char *ret = 0;
+	char *ret = NULL;
 
 	DosGetInfoBlocks(&tib, &pib);
 
@@ -462,8 +469,11 @@ unsigned char *get_clipboard_text(void)
 					if (selClipText)
 					{
 						PCHAR pchClipText = (PCHAR)selClipText;
-						if ((ret = mem_alloc(strlen(pchClipText)+1)))
+						if ((ret = mem_alloc(strlen(pchClipText)+1))) {
+							char *u;
 							strcpy(ret, pchClipText);
+							while ((u = strchr(ret, 13))) memmove(u, u + 1, strlen(u + 1) + 1);
+						}
 					}
 				}
 
@@ -1182,7 +1192,7 @@ int start_thread(void (*fn)(void *, int), void *ptr, int l)
 		fn(ptr, p[1]);
 		write(p[1], "x", 1);
 		close(p[1]);
-		exit(0);
+		_exit(0);
 	}
 	if (f == -1) {
 		close(p[0]);
@@ -1292,9 +1302,14 @@ int get_input_handle(void)
 #endif /* defined(HAVE_BEGINTHREAD) && defined(HAVE_READ_KBD) */
 
 
-#ifndef HAVE_CFMAKERAW
-void cfmakeraw(struct termios *t)
+void os_cfmakeraw(struct termios *t)
 {
+#ifdef HAVE_CFMAKERAW
+	cfmakeraw(t);
+#ifdef VMIN
+	t->c_cc[VMIN] = 1;
+#endif
+#else
 	t->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
 	t->c_oflag &= ~OPOST;
 	t->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
@@ -1302,8 +1317,8 @@ void cfmakeraw(struct termios *t)
 	t->c_cflag |= CS8;
 	t->c_cc[VMIN] = 1;
 	t->c_cc[VTIME] = 0;
-}
 #endif
+}
 
 #ifdef USE_GPM
 
@@ -1459,15 +1474,24 @@ void open_in_new_be(struct terminal *term, unsigned char *exe, unsigned char *pa
 void open_in_new_g(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	void *info;
+	unsigned char *target=NULL;
 	int len;
 	int base = 0;
 	unsigned char *url = "";
+	if (!cmpbeg(param, "-target "))
+	{
+		unsigned char *p;
+		target=param+strlen("-target ");
+		for (p=target;*p!=' '&&*p;p++);
+		*p=0;
+		param=p+1;
+	}	
 	if (!cmpbeg(param, "-base-session ")) {
 		base = atoi(param + strlen("-base-session "));
 	} else {
 		url = param;
 	}
-	if ((info = create_session_info(base, url, &len))) attach_g_terminal(info, len);
+	if ((info = create_session_info(base, url, target, &len))) attach_g_terminal(info, len);
 }
 #endif
 

@@ -8,6 +8,10 @@
 
 #define format format_
 
+#ifdef DEBUG
+#undef DEBUG
+#endif
+
 /*#define DEBUG*/
 
 #define RECT_BOUND_BITS	10	/* --- bound at 1024 pixels */
@@ -1326,7 +1330,7 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	table_level++;
 	memcpy(&bgcolor, &par_format.bgcolor, sizeof(struct rgb));
 	get_bgcolor(attr, &bgcolor);
-	if ((border = get_num(attr, "border")) == -1) border = has_attr(attr, "border");
+	if ((border = get_num(attr, "border")) == -1) border = has_attr(attr, "border") || has_attr(attr, "rules") || has_attr(attr, "frame");
 	/*if (!border) border = 1;*/
 	if ((cellsp = get_num(attr, "cellspacing")) == -1) cellsp = gf_val(1, 2);
 	if ((cellpd = get_num(attr, "cellpadding")) == -1) {
@@ -1364,7 +1368,7 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 		if (!strcasecmp(al, "border")) frame = F_BOX;
 		mem_free(al);
 	}
-	rules = R_ALL;
+	rules = border ? R_ALL : R_NONE;
 	if ((al = get_attr_val(attr, "rules"))) {
 		if (!strcasecmp(al, "none")) rules = R_NONE;
 		if (!strcasecmp(al, "groups")) rules = R_GROUPS;

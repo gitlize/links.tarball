@@ -798,10 +798,11 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			pomstr=tostring(force_getarg(&argy),context);
 			if(!strcmp(pomstr,"undefined"))
 			{	zrusargy(argy,context);
-				js_mem_free(vysl);
-				js_mem_free(pomstr); /* snad konsolidovano */
+/*				js_mem_free(vysl);*/
 				if(!js_all_conversions)
+				{	js_mem_free(pomstr);
 					js_error("Parsing undefined value!\n",context);
+				}
 				else{	pomstr[0]='0';
 					pomstr[1]='\0';
 				}
@@ -1355,7 +1356,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 		break;
 		case Cclear:
 			idebug("Cclear called ");
-			js_mem_free(vysl);
+/*			js_mem_free(vysl);*/
 			js_upcall_clear_window(context->ptr);
 			js_durchfall=1;
 			idebug("and exited!\n");
@@ -1468,6 +1469,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				pomarg=js_mem_alloc(sizeof(abuf));
 				pomarg->typ=VARIABLE;
 				pomarg->argument=(long)pomvar;
+				pomarg->a1=0;
 				RESOLV(pomarg);
 				clearvar(pomvar,context);
 				rettype=pomarg->typ;
@@ -1558,6 +1560,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				pomarg=js_mem_alloc(sizeof(abuf));
 				pomarg->typ=VARIABLE;
 				pomarg->argument=(long)pomvar;
+				pomarg->a1=0;
 				RESOLV(pomarg);
 				clearvar(pomvar,context);
 				rettype=pomarg->typ;
@@ -1796,6 +1799,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			if(variable->identifier==CSsubstring)
 			{	
 				pomstr1=tostring(pomarg,context);
+				pomstr1=pomstr1?pomstr1:stracpy1("");
 				pomstr=js_mem_alloc(strlen(pomstr1)+1);
 				pomarg=getarg(&argy);
 				if(!pomarg) pomint=0;
@@ -1835,14 +1839,19 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			
 			if(variable->identifier==CSsubstr)
 			{	pomstr1=tostring(pomarg,context);
+				pomstr1=pomstr1?pomstr1:stracpy1("");
 				pomstr=js_mem_alloc(strlen(pomstr1)+1);
 				pomarg=getarg(&argy);
 				if(!pomarg) pomint=0;
-				else{	pomint=to32int(pomarg,context);
-					if(pomint>strlen(pomstr1))
-						pomint=pomint%strlen(pomstr1);
-					else while(pomint<0)
-						pomint+=strlen(pomstr1);
+				else{	
+					if(!strlen(pomstr1))/* Zabraneni moduleni nulou pripadne bezhlaveho nacitani nuly */
+						pomint=0; 
+					else {	pomint=to32int(pomarg,context);
+						if(pomint>strlen(pomstr1))
+							pomint=pomint%strlen(pomstr1);
+						else while(pomint<0)
+							pomint+=strlen(pomstr1);
+					}
 				}
 				pomarg=getarg(&argy);
 				if(!pomarg) pomint1=strlen(pomstr1);
@@ -1985,6 +1994,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			} else
 
 			my_internal("Blby operator vestavene metody!!\n",context);
+/*			printf("dobehl!\n");*/
 			js_mem_free(variable);
 			idebug("but not written!!!\n");
 		break;
@@ -2221,6 +2231,8 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			idebug("CgetYear called ");
 			rettype=INTEGER;
 			retval=*(long*)variable->handler;
+			while(retval<=1900)
+				retval+=1900;
 			idebug("and exited!\n");
 		break;
 		case CtoGMTString:
@@ -2232,7 +2244,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			}
 			rettype=STRING;
 			retval=(long)js_mem_alloc(DELKACASU);
-			strftime((char*)retval,DELKACASU,"%D %T %Z",casek);
+			strftime((char*)retval,DELKACASU,"%a, %d %b %Y %T %Z",casek);
 		break;
 		case CtoLocaleString:
 			idebug("CtoLocaleString called ");
@@ -2252,7 +2264,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 		break;
 		default:
 			zrusargy(argy,context);
-			js_mem_free(vysl);
+/*			js_mem_free(vysl);*/
 			internal("Internal: Strange internal function number!!\n");
 		break;	
 	}
@@ -2389,6 +2401,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
                                js_mem_free(pna);
                        } else 
                                internal("Strange internal property name!!\n");
+/*		       printf("dobehl\n");*/
                                         
                 break;	
 		case Chash:
@@ -3803,7 +3816,10 @@ void set_var_value(lns*pna,long typ, long value,js_context*context)
 			idebug("Nastavena promenna Cfename\n");
 		break;
 		case CIntMETFUN:
-			js_error("You're trying to assign internal properties!!\n",context);
+			if(!js_all_conversions)
+				js_error("You're trying to assign internal properties!!\n",context);
+			delarg((abuf*)pna->handler,context);
+			js_mem_free(pna);
 		break;
 		case Cvalue:
 			js_upcall_set_form_element_value(context->ptr,pna->handler,pna->mid,iatostring(typ,value,context)); 

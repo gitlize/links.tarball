@@ -640,8 +640,8 @@ void select_mainmenu(struct terminal *term, struct mainmenu *menu)
 	struct menu_item *it = &menu->items[menu->selected];
 	if (menu->selected < 0 || menu->selected >= menu->ni || it->hotkey == M_BAR) return;
 	if (!it->in_m) {
-		struct window *win;
-		for (win = term->windows.next; (void *)win != &term->windows && (win->handler == menu_func || win->handler == mainmenu_func); delete_window(win)) ;
+		struct window *win, *win1;
+		for (win = term->windows.next; (void *)win != &term->windows && (win->handler == menu_func || win->handler == mainmenu_func); win1 = win->next, delete_window(win), win = win1) ;
 	}
 	it->func(term, it->data, menu->data);
 }

@@ -2263,6 +2263,7 @@ struct graphics_driver svga_driver={
 	vga_block, /* block */
 	vga_unblock, /* unblock */
 	NULL, /* set_title */
+	NULL, /* exec */
 	0,				/* depth */
 	0, 0,				/* size */
 	0,				/* flags */

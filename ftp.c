@@ -257,12 +257,12 @@ struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 		add_num_to_str(&s, &l, pc[4]);
 		add_chr_to_str(&s, &l, ',');
 		add_num_to_str(&s, &l, pc[5]);
-		if (c->from) {
+		if (c->from && c->no_cache < NC_IF_MOD) {
 			add_to_str(&s, &l, "\r\nREST ");
 			add_num_to_str(&s, &l, c->from);
 			inf->rest_sent = 1;
 			inf->pending_commands++;
-		}
+		} else c->from = 0;
 		add_to_str(&s, &l, "\r\nRETR /");
 		add_bytes_to_str(&s, &l, d, de - d);
 		add_to_str(&s, &l, "\r\n");

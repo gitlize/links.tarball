@@ -1192,7 +1192,6 @@ unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 	mouse_graphics_device=fb_driver.init_device();
 	virtual_devices[0] = NULL;
 	global_mouse_hidden=1;
-	show_mouse();
 	if (handle_fb_mouse()) {
 		fb_driver.shutdown_device(mouse_graphics_device);
 		mem_free(mouse_buffer);
@@ -1209,6 +1208,7 @@ unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 	/* hide cursor */
 	printf("\033[?25l");
 	fflush(stdout);
+	show_mouse();
 	return NULL;
 }
 
@@ -1507,6 +1507,7 @@ struct graphics_driver fb_driver={
 	fb_block,
 	fb_unblock,
 	NULL,	/* set_title */
+	NULL, /* exec */
 	0,				/* depth (filled in fb_init_driver function) */
 	0, 0,				/* size (in X is empty) */
 	GD_DONT_USE_SCROLL,		/* flags */

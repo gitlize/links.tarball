@@ -278,7 +278,7 @@ void init(void)
 	if (!ggr && !no_connect && (uh = bind_to_af_unix()) != -1) {
 		close(terminal_pipe[0]);
 		close(terminal_pipe[1]);
-		if (!(info = create_session_info(base_session, u, &len))) {
+		if (!(info = create_session_info(base_session, u, default_target, &len))) {
 			close(uh);
 			goto ttt;
 		}
@@ -322,7 +322,7 @@ void init(void)
 #endif
 		}
 		initialize_all_subsystems_2();
-		if (!((info = create_session_info(base_session, u, &len)) && gf_val(attach_terminal(get_input_handle(), get_output_handle(), get_ctl_handle(), info, len), attach_g_terminal(info, len)) != -1)) {
+		if (!((info = create_session_info(base_session, u, default_target, &len)) && gf_val(attach_terminal(get_input_handle(), get_output_handle(), get_ctl_handle(), info, len), attach_g_terminal(info, len)) != -1)) {
 			retval = RET_FATAL;
 			terminate_loop = 1;
 		}

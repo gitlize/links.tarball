@@ -1084,6 +1084,11 @@ bytes_per_pixel_found:
 						case 15:
 						case 16:
 						if (x_bitmap_bpp!=2)break;
+						if (x_bitmap_bit_order==MSBFirst&&vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
+						{
+							misordered=256;
+							goto visual_found;
+						}
 						if (x_bitmap_bit_order==MSBFirst)break;
 						if (vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
 						{
@@ -1099,14 +1104,14 @@ bytes_per_pixel_found:
 							misordered=256;
 							goto visual_found;
 						}
-						if (vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
-						{
-							misordered=0;
-							goto visual_found;
-						}
 						if (x_bitmap_bit_order==MSBFirst&&vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
 						{
 							misordered=512;
+							goto visual_found;
+						}
+						if (vinfo.red_mask>vinfo.green_mask&&vinfo.green_mask>vinfo.blue_mask)
+						{
+							misordered=0;
 							goto visual_found;
 						}
 						break;
@@ -1135,6 +1140,7 @@ visual_found:;
 		case 451:
 		case 195:
 		case 196:
+		case 386:
 		case 452:
 		case 708:
 /* 			printf("depth=%d visualid=%x\n",x_driver.depth, vinfo.visualid); */
@@ -1313,10 +1319,11 @@ static struct graphics_device* x_init_device(void)
 nic_nebude_bobankove:;
 	}
 	
-	wm_hints.flags=0;
+	wm_hints.flags=InputHint;
+	wm_hints.input=True;
 	if (x_icon)
 	{	
-		wm_hints.flags=IconPixmapHint;
+		wm_hints.flags=InputHint|IconPixmapHint;
 		wm_hints.icon_pixmap=x_icon;
 	}
 
@@ -1959,6 +1966,7 @@ void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 
 	if (!gd)internal("x_set_window_title called with NULL graphics_device pointer.\n");
 	t = convert_string(ct, title, strlen(title), NULL);
+	clr_white(t);
 	XStoreName(x_display,*(Window*)(gd->driver_data),t);
 
 	class_hints.res_name = t;
@@ -1980,6 +1988,20 @@ void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text)
 		XSetSelectionOwner (x_display, XA_PRIMARY, *(Window*)(gd->driver_data), CurrentTime);
 		XFlush (x_display);
 	}
+}
+
+
+int x_exec(unsigned char *command, int fg)
+{
+	unsigned char *run;
+	int retval;
+
+	if (!fg) return system(command);
+
+	run=subst_file(*x_driver.shell?x_driver.shell:(unsigned char *)"xterm -e %",command);
+	retval=system(run);
+	mem_free(run);
+	return retval;
 }
 
 struct graphics_driver x_driver={
@@ -2007,6 +2029,7 @@ struct graphics_driver x_driver={
 	dummy_block,
 	dummy_unblock,
 	x_set_window_title,
+	x_exec,
 	0,				/* depth (filled in x_init_driver function) */
 	0, 0,				/* size (in X is empty) */
 	0,				/* flags */

@@ -922,7 +922,8 @@ void html_img(unsigned char *a)
 		i.hspace = get_num(a, "hspace");
 		i.vspace = get_num(a, "vspace");
 		i.border = get_num(a, "border");
-		i.name = get_attr_val(a, "name");
+		i.name = get_attr_val(a, "id");
+		if (!i.name) i.name = get_attr_val(a, "name");
 		i.alt = get_attr_val(a, "alt");
 		i.insert_flag= !(format.form);
 		i.ismap = ismap;
@@ -1614,11 +1615,17 @@ void html_option(unsigned char *a)
 	special_f(ff, SP_CONTROL, fc);
 }
 
-void clr_spaces(unsigned char *name)
+void clr_white(unsigned char *name)
 {
 	unsigned char *nm;
 	for (nm = name; *nm; nm++)
 		if (WHITECHAR(*nm) || *nm == 1) *nm = ' ';
+}
+
+void clr_spaces(unsigned char *name)
+{
+	unsigned char *nm;
+	clr_white(name);
 	for (nm = name; *nm; nm++)
 		while (nm[0] == ' ' && (nm == name || nm[1] == ' ' || !nm[1]))
 			memmove(nm, nm + 1, strlen(nm));
@@ -2299,10 +2306,19 @@ unsigned char *skip_comment(unsigned char *html, unsigned char *eof)
 void process_head(unsigned char *head)
 {
 	unsigned char *r, *p;
+	struct refresh_param rp;
 	if ((r = parse_http_header(head, "Refresh", NULL))) {
-		if ((p = parse_header_param(r, "URL"))) {
-			put_link_line("Refresh: ", p, p, d_opt->framename);
-			mem_free(p);
+		if (!d_opt->auto_refresh) {
+			if ((p = parse_header_param(r, "URL"))) {
+				put_link_line("Refresh: ", p, p, d_opt->framename);
+				mem_free(p);
+			}
+		} else {
+			rp.url = parse_header_param(r, "URL");
+			rp.time = atoi(r);
+			if (rp.time < 1) rp.time = 1;
+			special_f(ff, SP_REFRESH, &rp);
+			if (rp.url) mem_free(rp.url);
 		}
 		mem_free(r);
 	}

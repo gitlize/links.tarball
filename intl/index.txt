@@ -20,8 +20,10 @@ italian
 lithuanian
 norwegian
 polish
+portuguese
 romanian
 russian
+serbian
 slovak
 spanish
 swedish

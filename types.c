@@ -349,6 +349,11 @@ void update_assoc(struct assoc *new)
 {
 	struct assoc *repl;
 	if (!new->label[0] || !new->ct[0] || !new->prog[0]) return;
+	foreach(repl, assoc) if (!strcmp(repl->label, new->label) && !strcmp(repl->ct, new->ct) && !strcmp(repl->prog, new->prog) && repl->block == new->block && repl->cons == new->cons && repl->xwin == new->xwin && repl->ask == new->ask && repl->system == new->system) {
+		del_from_list(repl);
+		add_to_list(assoc, repl);
+		return;
+	}
 	if (!(repl = mem_alloc(sizeof(struct assoc)))) return;
 	add_to_list(assoc, repl);
 	repl->label = stracpy(new->label);
@@ -360,7 +365,7 @@ void update_assoc(struct assoc *new)
 	repl->ask = new->ask;
 	repl->system = new->system;
 	repl->type=0;
-	new->system = new->system;
+	/*new->system = new->system; co to je? */
 }
 
 /*------------------------ EXTENSIONS -----------------------*/
@@ -615,6 +620,11 @@ void update_ext(struct extension *new)
 {
 	struct extension *repl;
 	if (!new->ext[0] || !new->ct[0]) return;
+	foreach(repl, extensions) if (!strcmp(repl->ext, new->ext) && !strcmp(repl->ct, new->ct)) {
+		del_from_list(repl);
+		add_to_list(extensions, repl);
+		return;
+	}
 	if (!(repl = mem_alloc(sizeof(struct extension)))) return;
 	add_to_list(extensions, repl);
 	repl->ext = stracpy(new->ext);

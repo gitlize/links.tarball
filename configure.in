@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre9)
+AM_INIT_AUTOMAKE(links, 2.1pre12)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -183,14 +183,6 @@ AC_MSG_CHECKING([if you want to use graphics])
 AC_ARG_ENABLE(graphics, [  --enable-graphics       use graphics], cf_use_graphics=yes, cf_use_graphics=no)
 AC_MSG_RESULT($cf_use_graphics)
 
-AC_MSG_CHECKING([if you want the "links" executable to be static])
-AC_ARG_ENABLE(static, [  --enable-static         enable static executable], cf_use_static=yes, cf_use_static=no)
-AC_MSG_RESULT($cf_use_static)
-
-if test "$cf_use_static" = yes; then
-	LDFLAGS=" -static $LDFLAGS"
-fi
-
 AC_CHECK_LIB(gpm, Gpm_Open)
 cf_have_gpm_lib=$ac_cv_lib_gpm_Gpm_Open
 AC_CHECK_HEADERS(gpm.h)
@@ -336,6 +328,7 @@ fi
 AC_ARG_WITH(svgalib, [  --without-svgalib       compile without svgalib graphics driver],[if test "$withval" = no; then disable_svgalib=yes; else disable_svgalib=no; fi])
 AC_ARG_WITH(x, [  --without-x             compile without X Window System graphics driver],[if test "$withval" = no; then disable_x=yes; else disable_x=no; fi])
 AC_ARG_WITH(fb, [  --without-fb            compile without Linux Framebuffer graphics driver],[if test "$withval" = no; then disable_fb=yes; else disable_fb=no; fi])
+AC_ARG_WITH(directfb, [  --without-directfb      compile without DirectFB graphics driver],[if test "$withval" = no; then disable_directfb=yes; else disable_directfb=no; fi])
 AC_ARG_WITH(pmshell, [  --without-pmshell       compile without PMShell graphics driver],[if test "$withval" = no; then disable_pmshell=yes; else disable_pmshell=no; fi])
 AC_ARG_WITH(atheos, [  --without-atheos        compile without Atheos graphics driver],[if test "$withval" = no; then disable_atheos=yes; else disable_atheos; fi])
 
@@ -371,6 +364,25 @@ if test "$disable_fb" != yes ; then
 	if test "$ac_cv_header_linux_fb_h" = yes && test "$ac_cv_header_linux_kd_h" = yes && test "$ac_cv_header_linux_vt_h" = yes && test "$ac_cv_header_sys_mman_h" = yes && test "$ac_cv_header_sys_ioctl_h" = yes && test "$cf_have_gpm" = yes; then
 		AC_DEFINE(GRDRV_FB)
 		drivers="$drivers FB"
+	fi
+fi
+
+if test "$disable_directfb" != yes ; then
+	AC_PATH_PROG(DIRECTFB_CONFIG, directfb-config, no)
+	if test "$DIRECTFB_CONFIG" != "no"; then
+	        AC_MSG_CHECKING(for DirectFB >= 0.9.17)
+        	directfb_version=`$DIRECTFB_CONFIG --version`
+		if expr $directfb_version \>= 0.9.17 >/dev/null; then
+			AC_MSG_RESULT(yes)
+			DIRECTFB_CFLAGS=`$DIRECTFB_CONFIG --cflags`
+			DIRECTFB_LIBS=`$DIRECTFB_CONFIG --libs`
+	           	AC_DEFINE(GRDRV_DIRECTFB)
+        	   	drivers="$drivers DIRECTFB"
+			CPPFLAGS="$CPPFLAGS $DIRECTFB_CFLAGS"
+			LIBS="$LIBS $DIRECTFB_LIBS"
+		else
+			AC_MSG_RESULT(no)
+		fi
 	fi
 fi
 
@@ -449,7 +461,7 @@ fi
 AM_CONDITIONAL(ATHEOS_GR, test "$cf_have_atheos" = yes)
 
 test "$ac_cv_have_emx" = yes && LDFLAGS="$LDFLAGS -Zexe"
-test "$have_emx" = yes && LDFLAGS=`echo "$LDFLAGS" | sed "s/-Zbin-files//g"`
+test "$ac_cv_have_emx" = yes && LDFLAGS=`echo "$LDFLAGS" | sed "s/-Zbin-files//g"`
 
 AC_OUTPUT(Makefile)
 
@@ -465,7 +477,6 @@ if test "$cf_use_graphics" = yes; then
 	echo "Image formats:		$image_formats"
 else echo "Graphics enabled:	NO"; fi
 if test "$ac_cv_have_x2" != no; then echo "xterm for OS/2 support:	YES"; else echo "xterm for OS/2 support:	NO"; fi
-if test "$cf_use_static" = yes; then echo "\"links\" executable:	static"; else echo "\"links\" executable:	dynamic"; fi
 echo "---------------------------------------------------------"
 
 

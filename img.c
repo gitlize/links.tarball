@@ -514,11 +514,11 @@ buffer_to_bitmap_incremental");
 	       tmpbmp.data=(unsigned char *)cimg->bmp.data+cimg->bmp.skip*yoff;
 	       add1=cimg->bmp.skip*max_height;
 	}
-	tmpbmp.skip=cimg->bmp.skip;
 	add2=cimg->buffer_bytes_per_pixel*cimg->width*max_height;
 not_enough:
 	tmpbmp.y=height<max_height?height:max_height;
 	if (use_strip) tmpbmp.data=drv->prepare_strip(&(cimg->bmp),yoff,tmpbmp.y);
+	tmpbmp.skip=cimg->bmp.skip;
 	buffer_to_16(tmp, cimg, buffer, tmpbmp.y);
 	if (dregs){
 	       	dither_restart(tmp, &tmpbmp, dregs);

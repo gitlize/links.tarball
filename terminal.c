@@ -1046,7 +1046,7 @@ void exec_thread(unsigned char *path, int p)
 #if defined(HAVE_SETPGID) && !defined(BEOS) && !defined(HAVE_BEGINTHREAD)
 	if (path[0] == 2) setpgid(0, 0);
 #endif
-	exe(path + 1);
+	exe(path + 1, path[0]);
 	close(p);
 	if (path[1 + strlen(path + 1) + 1]) unlink(path + 1 + strlen(path + 1) + 1);
 }

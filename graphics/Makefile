@@ -1,5 +1,5 @@
-CFLAGS=-g -Wall
-LDFLAGS= 
+CFLAGS=-g -Wall -O2
+LDFLAGS=
 
 all: improcess genps pbm2png clip generate_font arrow
 
@@ -17,7 +17,7 @@ genps: genps.c
 clip: clip.c
 
 generate_font: generate_font.c
-	gcc -o generate_font $(CFLAGS) $(LDFLAGS) generate_font.c -lpng
+	gcc -o generate_font -lm -lpng -lz $(CFLAGS) $(LDFLAGS) generate_font.c
 
 arrow: arrow.c
 	gcc -o arrow $(CFLAGS) $(LDFLAGS) arrow.c -lpng

@@ -596,6 +596,7 @@ struct graphics_driver atheos_driver = {
 	dummy_block,
 	dummy_unblock,
 	ath_set_title,
+	NULL,				/* exec */
 	0,				/* depth */
 	0, 0,				/* size */
 	0,				/* flags */

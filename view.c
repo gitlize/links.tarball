@@ -5,6 +5,9 @@
 
 #include "links.h"
 
+void open_in_new_window(struct terminal *term, void (*xxx)(struct terminal *, void (*)(struct terminal *, unsigned char *, unsigned char *), struct session *ses), struct session *ses);
+void send_open_in_new_xterm_target(struct terminal *term, void (*open_window)(struct terminal *term, unsigned char *, unsigned char *), struct session *ses);
+
 struct view_state *create_vs(void)
 {
 	struct view_state *vs;
@@ -225,6 +228,7 @@ void sort_links(struct f_data *f)
 		int p, q, j;
 		struct link *link = &f->links[i];
 		if (!link->n) {
+			if (d_opt->num_links) continue;
 			if (link->where) mem_free(link->where);
 			if (link->target) mem_free(link->target);
 			if (link->where_img) mem_free(link->where_img);
@@ -758,6 +762,21 @@ void draw_forms(struct terminal *t, struct f_data_c *f)
 	} while (l1++ < l2);
 }
 
+/* 0 -> 1 <- 2 v 3 ^ */
+
+unsigned char fr_trans[2][4] = {{0xb3, 0xc3, 0xb4, 0xc5}, {0xc4, 0xc2, 0xc1, 0xc5}};
+
+void set_xchar(struct terminal *t, int x, int y, unsigned dir)
+{
+	unsigned c;
+	if (x < 0 || x >= t->x || y < 0 || y >= t->y) return;
+	c = get_char(t, x, y);
+	if (!(c & ATTR_FRAME)) return;
+	c &= 0xff;
+	if (c == fr_trans[dir / 2][0]) set_only_char(t, x, y, fr_trans[dir / 2][1 + (dir & 1)] | ATTR_FRAME);
+	else if (c == fr_trans[dir / 2][2 - (dir & 1)]) set_only_char(t, x, y, fr_trans[dir / 2][3] | ATTR_FRAME);
+}
+
 void draw_frame_lines(struct terminal *t, struct frameset_desc *fsd, int xp, int yp)
 {
 	int i, j;
@@ -769,8 +788,14 @@ void draw_frame_lines(struct terminal *t, struct frameset_desc *fsd, int xp, int
 		x = xp - 1;
 		for (i = 0; i < fsd->x; i++) {
 			int wwx = fsd->f[i].xw;
-			if (i) fill_area(t, x, y + 1, 1, wwy, 179 | ATTR_FRAME);
-			if (j) fill_area(t, x + 1, y, wwx, 1, 196 | ATTR_FRAME);
+			if (i) {
+				fill_area(t, x, y + 1, 1, wwy, 179 | ATTR_FRAME);
+				if (j == fsd->y - 1) set_xchar(t, x, y + wwy + 1, 3);
+			} else if (j) set_xchar(t, x, y, 0);
+			if (j) {
+				fill_area(t, x + 1, y, wwx, 1, 196 | ATTR_FRAME);
+				if (i == fsd->x - 1) set_xchar(t, x + wwx + 1, y, 1);
+			} else if (i) set_xchar(t, x, y, 2);
 			if (i && j) set_char(t, x, y, 197 | ATTR_FRAME);
 			/*if (fsd->f[j * fsd->x + i].subframe) {
 				draw_frame_lines(t, fsd->f[j * fsd->x + i].subframe, x + 1, y + 1);
@@ -1127,7 +1152,7 @@ int has_form_submit(struct f_data *f, struct form_control *form)
 {
 	struct form_control *i;
 	int q = 0;
-	if (F) return 0;
+	/*if (F) return 0;*/
 	foreach (i, f->forms) if (i->form_num == form->form_num) {
 		if ((i->type == FC_SUBMIT || i->type == FC_IMAGE)) return 1;
 		q = 1;
@@ -1536,6 +1561,8 @@ void set_frame(struct session *ses, struct f_data_c *f, int a)
 	goto_url_not_from_dialog(ses, f->loc->url);
 }
 
+int g_next_link(struct f_data_c *fd, int dir); /* jsem prase, ale nechce se mi to cely prekompilovavat po zasahu do links.h */
+
 /* pokud je a==1, tak se nebude submitovat formular, kdyz kliknu na input field a formular nema submit */
 int enter(struct session *ses, struct f_data_c *f, int a)
 {
@@ -1557,20 +1584,31 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 #endif
 			if (strlen(u) >= 4 && !casecmp(u, "MAP@", 4))
 				goto_imgmap(ses, u + 4, stracpy(u + 4), stracpy(link->target));
-			else goto_url_f(
-				ses, 
-				NULL,
-				u, 
-				link->target, 
-				f, 
-				(link->type==L_BUTTON&&link->form&&link->form->type==FC_SUBMIT)?link->form->form_num:-1, 
+			else 
+			{
+				if (ses->ds.target_in_new_window && link->target && *link->target && !find_frame(ses, link->target, f)&&can_open_in_new(ses->term))	/* open in new window */
+				{
+					if (ses->wtd_target) mem_free(ses->wtd_target);
+					ses->wtd_target=stracpy(link->target);
+					open_in_new_window(ses->term,send_open_in_new_xterm_target, ses);
+					mem_free(ses->wtd_target), ses->wtd_target=NULL;
+				}
+				else
+					goto_url_f(
+					ses, 
+					NULL,
+					u, 
+					link->target, 
+					f, 
+					(link->type==L_BUTTON&&link->form&&link->form->type==FC_SUBMIT)?link->form->form_num:-1, 
 #ifdef JS
-				(s&&(/*s->keyup_code||s->keydown_code||s->keypress_code||s->change_code||s->blur_code||s->focus_code||s->move_code||s->over_code||s->out_code||*/s->down_code||s->up_code||s->click_code||s->dbl_code))||has_onsubmit
+					(s&&(/*s->keyup_code||s->keydown_code||s->keypress_code||s->change_code||s->blur_code||s->focus_code||s->move_code||s->over_code||s->out_code||*/s->down_code||s->up_code||s->click_code||s->dbl_code))||has_onsubmit
 #else
-				0
+					0
 #endif
-				,0
-			);
+					,0,0
+					);
+			}
 			mem_free(u);
 			return 2;
 		}
@@ -1623,12 +1661,15 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 		}
 #endif
 #ifdef G
-		if (F) {
+		if (F && a) {
 			ses->locked_link = 1;
 			return 2;
 		}
 #endif
-		down(ses, f, 0);
+		if (!F) down(ses, f, 0);
+#ifdef G
+		else g_next_link(f, 1);
+#endif
 		return 1;
 	}
 	internal("bad link type %d", link->type);
@@ -2507,6 +2548,10 @@ void send_event(struct session *ses, struct event *ev)
 			state_msg(ses);
 			goto x;
 		}
+		if (ev->x == '|') {
+			head_msg(ses);
+			goto x;
+		}
 		if (ev->x == '\\') {
 			toggle(ses, ses->screen, 0);
 			goto x;
@@ -2601,6 +2646,34 @@ void send_download(struct terminal *term, void *xxx, struct session *ses)
 		query_file(ses, ses->dn_url, start_download, NULL);
 }
 
+void send_submit(struct terminal *term, void *xxx, struct session *ses)
+{
+	int has_onsubmit;
+	struct form_control *form; 
+	struct f_data_c *fd = current_frame(ses);
+	unsigned char *u;
+
+	if (!fd) return;
+	if (fd->vs->current_link == -1) return;
+	if (!(form=(fd->f_data->links[fd->vs->current_link]).form)) return;
+	u=get_form_url(ses,fd,form,&has_onsubmit);
+	goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0,0);
+	mem_free(u);
+	draw_fd(fd);
+}
+
+void send_reset(struct terminal *term, void *xxx, struct session *ses)
+{
+	struct form_control *form; 
+	struct f_data_c *fd = current_frame(ses);
+
+	if (!fd) return;
+	if (fd->vs->current_link == -1) return;
+	if (!(form=(fd->f_data->links[fd->vs->current_link]).form)) return;
+	reset_form(fd,form->form_num);
+	draw_fd(fd);
+}
+
 void copy_link_location(struct terminal *term, void *xxx, struct session *ses)
 {
 	unsigned char *current_link = print_current_link(ses);
@@ -2634,6 +2707,35 @@ void send_open_in_new_xterm(struct terminal *term, void (*open_window)(struct te
 		unsigned char *enc_url = encode_url(ses->dn_url);
 		open_window(term, path_to_exe, enc_url);
 		mem_free(enc_url);
+	}
+}
+
+/* open a link in a new xterm, pass target frame name */
+void send_open_in_new_xterm_target(struct terminal *term, void (*open_window)(struct terminal *term, unsigned char *, unsigned char *), struct session *ses)
+{
+        struct f_data_c *fd = current_frame(ses);
+        if (!fd) return;
+        if (fd->vs->current_link == -1) return;
+        if (ses->dn_url) mem_free(ses->dn_url);
+        if ((ses->dn_url = get_link_url(ses, fd, &fd->f_data->links[fd->vs->current_link], NULL))) {
+		unsigned char *params;
+		unsigned char *enc_url= encode_url(ses->dn_url);
+		if (ses->wtd_target&&*ses->wtd_target)
+		{
+			unsigned char *tgt=stracpy(ses->wtd_target);
+
+			check_shell_security(&tgt);
+			params=stracpy("-target ");
+			add_to_strn(&params, tgt);
+			add_to_strn(&params," ");
+			add_to_strn(&params, enc_url);
+			mem_free(enc_url);
+			mem_free(tgt);
+		}
+		else
+			params=enc_url;
+		open_window(term, path_to_exe, params);
+		mem_free(params);
 	}
 }
 
@@ -2758,6 +2860,13 @@ void link_menu(struct terminal *term, void *xxx, struct session *ses)
 
 		}
 	}
+	if ((link->type == L_CHECKBOX || link->type == L_SELECT || link->type == L_FIELD || link->type == L_AREA) && link->form){
+		int c = can_open_in_new(term);
+		add_to_menu(&mi, TEXT(T_SUBMIT_FORM), "", TEXT(T_HK_SUBMIT_FORM), MENU_FUNC send_submit, NULL, 0);
+		if (c && link->form->method == FM_GET) add_to_menu(&mi, TEXT(T_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT(T_HK_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1);
+		if (!anonymous) add_to_menu(&mi, TEXT(T_SUBMIT_FORM_AND_DOWNLOAD), "d", TEXT(T_HK_SUBMIT_FORM_AND_DOWNLOAD), MENU_FUNC send_download, NULL, 0);
+		add_to_menu(&mi, TEXT(T_RESET_FORM), "", TEXT(T_HK_RESET_FORM), MENU_FUNC send_reset, NULL, 0);
+	}
 	if (link->type == L_BUTTON && link->form) {
 		if (link->form->type == FC_RESET) add_to_menu(&mi, TEXT(T_RESET_FORM), "", TEXT(T_HK_RESET_FORM), MENU_FUNC send_enter, NULL, 0);
 		else if (link->form->type==FC_BUTTON);
@@ -2824,7 +2933,10 @@ unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *term)
 			if (l->img_alt)
 			{
 				unsigned char *txt;
-				txt = convert_string(convert_table, l->img_alt, strlen(l->img_alt), &fd->f_data->opt);
+				struct conv_table* ct;
+
+				ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
+				txt = convert_string(ct, l->img_alt, strlen(l->img_alt), &fd->f_data->opt);
 				add_to_str(&m, &ll, txt);
 				mem_free(txt);
 			}
@@ -2849,6 +2961,141 @@ unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *term)
 			goto p;
 		}
 		m = print_js_event_spec(l->js_event);
+		goto p;
+	}
+	if (!l->form) return NULL;
+	if (l->type == L_BUTTON) {
+		if (l->form->type == FC_BUTTON){
+			unsigned char *n;
+			unsigned char *txt;
+			m = init_str();
+			ll=0;
+			add_to_str(&m, &ll, _(TEXT(T_BUTTON), term));
+			if (!l->js_event) goto p;
+			add_to_str(&m, &ll, " ");
+			n=print_js_event_spec(l->js_event);
+			if (fd->f_data)
+			{
+				struct conv_table* ct;
+		
+				ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
+				txt=convert_string(ct,n,strlen(n),NULL);
+				mem_free(n);
+			}
+			else
+				txt=n;
+			add_to_str(&m, &ll, txt);
+			mem_free(txt);
+			goto p;
+		}
+		if (l->form->type == FC_RESET) {
+			m = stracpy(_(TEXT(T_RESET_FORM), term));
+			goto p;
+		}
+		if (!l->form->action) return NULL;
+		m = init_str();
+		ll = 0;
+		if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT(T_SUBMIT_FORM_TO), term));
+		else add_to_str(&m, &ll, _(TEXT(T_POST_FORM_TO), term));
+		add_to_str(&m, &ll, " ");
+		add_to_str(&m, &ll, l->form->action);
+		goto p;
+	}
+	if (l->type == L_CHECKBOX || l->type == L_SELECT || l->type == L_FIELD || l->type == L_AREA) {
+		m = init_str();
+		ll = 0;
+		if (l->form->type == FC_RADIO) add_to_str(&m, &ll, _(TEXT(T_RADIO_BUTTON), term));
+		else if (l->form->type == FC_CHECKBOX) add_to_str(&m, &ll, _(TEXT(T_CHECKBOX), term));
+		else if (l->form->type == FC_SELECT) add_to_str(&m, &ll, _(TEXT(T_SELECT_FIELD), term));
+		else if (l->form->type == FC_TEXT) add_to_str(&m, &ll, _(TEXT(T_TEXT_FIELD), term));
+		else if (l->form->type == FC_TEXTAREA) add_to_str(&m, &ll, _(TEXT(T_TEXT_AREA), term));
+		else if (l->form->type == FC_FILE) add_to_str(&m, &ll, _(TEXT(T_FILE_UPLOAD), term));
+		else if (l->form->type == FC_PASSWORD) add_to_str(&m, &ll, _(TEXT(T_PASSWORD_FIELD), term));
+		else {
+			mem_free(m);
+			return NULL;
+		}
+		if (l->form->name && l->form->name[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT(T_NAME), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->name);
+		if ((l->form->type == FC_CHECKBOX || l->form->type == FC_RADIO) && l->form->default_value && l->form->default_value[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT(T_VALUE), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->default_value);
+		                       /* pri enteru se bude posilat vzdycky   -- Brain */
+		if (l->type == L_FIELD && !has_form_submit(fd->f_data, l->form)  && l->form->action) {
+			add_to_str(&m, &ll, ", ");
+			add_to_str(&m, &ll, _(TEXT(T_HIT_ENTER_TO), term));
+			add_to_str(&m, &ll, " ");
+			if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT(T_SUBMIT_TO), term));
+			else add_to_str(&m, &ll, _(TEXT(T_POST_TO), term));
+			add_to_str(&m, &ll, " ");
+			add_to_str(&m, &ll, l->form->action);
+		}
+		goto p;
+	}
+	p:
+	return m;
+}
+
+/* jako print_current_linkx, ale vypisuje vice informaci o obrazku
+   pouziva se v informacich o dokumentu
+ */
+unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct terminal *term)
+{
+	int ll = 0;
+	struct link *l;
+	unsigned char *m;
+	if (!fd || !fd->vs || !fd->f_data) return NULL;
+	if (fd->vs->current_link == -1 || fd->vs->current_link >= fd->f_data->nlinks || fd->f_data->frame_desc) return NULL;
+	l = &fd->f_data->links[fd->vs->current_link];
+	if (l->type == L_LINK) {
+		unsigned char *spc;
+		m=init_str();
+		ll=0;
+		if (l->where && strlen(l->where) >= 4 && !casecmp(l->where, "MAP@", 4)) {
+			add_to_str(&m, &ll, _(TEXT(T_USEMAP), term));
+			add_to_str(&m, &ll, " ");
+			add_to_str(&m, &ll, l->where + 4);
+		}
+		else if (l->where) {
+			add_to_str(&m, &ll, l->where);
+		}
+		spc = print_js_event_spec(l->js_event);
+		if (spc&&*spc)
+		{
+			add_to_str(&m, &ll, "\n");
+			add_to_str(&m, &ll, _(TEXT(T_JAVASCRIPT), term));
+			add_to_str(&m, &ll, ": ");
+			add_to_str(&m, &ll, spc);
+		}
+		if (spc) mem_free(spc);
+		if (l->where_img) {
+			add_to_str(&m, &ll, "\n");
+			add_to_str(&m, &ll, _(TEXT(T_IMAGE), term));
+			add_to_str(&m, &ll, ": src='");
+			add_to_str(&m, &ll, l->where_img);
+			add_to_str(&m, &ll, "'");
+
+			if (l->img_alt)
+			{
+				unsigned char *txt;
+				struct conv_table* ct;
+
+				add_to_str(&m, &ll, " alt='");
+				ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
+				txt = convert_string(ct, l->img_alt, strlen(l->img_alt), &fd->f_data->opt);
+				add_to_str(&m, &ll, txt);
+				add_to_str(&m, &ll, "'");
+				mem_free(txt);
+			}
+#ifdef G
+			if (F&&l->obj)
+			{
+				add_to_str(&m, &ll, " size='");
+				add_num_to_str(&m, &ll, l->obj->xw);
+				add_to_str(&m, &ll, "x");
+				add_num_to_str(&m, &ll, l->obj->yw);
+				add_to_str(&m, &ll, "'");
+			}
+#endif
+			goto p;
+		}
 		goto p;
 	}
 	if (!l->form) return NULL;
@@ -2997,7 +3244,7 @@ void loc_msg(struct terminal *term, struct location *lo, struct f_data_c *frame)
 		}
 #endif
 	}
-	if ((a = print_current_linkx(frame, term))) {
+	if ((a = print_current_linkx_plus(frame, term))) {
 		add_to_str(&s, &l, "\n\n");
 		add_to_str(&s, &l, _(TEXT(T_LINK), term));
 		add_to_str(&s, &l, ": ");
@@ -3013,3 +3260,23 @@ void state_msg(struct session *ses)
 	else loc_msg(ses->term, cur_loc(ses), ses->screen);
 }
 
+void head_msg(struct session *ses)
+{
+	struct cache_entry *ce;
+	unsigned char *s, *ss;
+	int len;
+	if (list_empty(ses->history)) {
+		msg_box(ses->term, NULL, TEXT(T_HEADER_INFO), AL_LEFT, TEXT(T_YOU_ARE_NOWHERE), NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+		return;
+	}
+	if (!find_in_cache(cur_loc(ses)->url, &ce)) {
+		if (ce->head) ss = s = stracpy(ce->head);
+		else s = ss = stracpy("");
+		len = strlen(s) - 1;
+		if (len > 0) {
+			while ((ss = strstr(s, "\r\n"))) memmove(ss, ss + 1, strlen(ss));
+			while (*s && s[strlen(s) - 1] == '\n') s[strlen(s) - 1] = 0;
+		}
+		msg_box(ses->term, getml(s, NULL), TEXT(T_HEADER_INFO), AL_LEFT, s, NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+	}
+}
