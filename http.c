@@ -68,20 +68,21 @@ unsigned char *parse_header_param(unsigned char *x, unsigned char *e)
 	return memacpy(y, lp);
 }
 
-static int get_http_code(unsigned char *head, int *code, int *version)
+int get_http_code(unsigned char *head, int *code, int *version)
 {
+	if (!head) return -1;
 	while (head[0] == ' ') head++;
 	if (upcase(head[0]) != 'H' || upcase(head[1]) != 'T' || upcase(head[2]) != 'T' ||
 	    upcase(head[3]) != 'P') return -1;
 	if (head[4] == '/' && head[5] >= '0' && head[5] <= '9'
 	 && head[6] == '.' && head[7] >= '0' && head[7] <= '9' && head[8] <= ' ') {
-		*version = (head[5] - '0') * 10 + head[7] - '0';
-	} else *version = 0;
+		if (version) *version = (head[5] - '0') * 10 + head[7] - '0';
+	} else if (version) *version = 0;
 	for (head += 4; *head > ' '; head++) ;
 	if (*head++ != ' ') return -1;
 	if (head[0] < '1' || head [0] > '9' || head[1] < '0' || head[1] > '9' ||
 	    head[2] < '0' || head [2] > '9') return -1;
-	*code = (head[0]-'0')*100 + (head[1]-'0')*10 + head[2]-'0';
+	if (code) *code = (head[0]-'0')*100 + (head[1]-'0')*10 + head[2]-'0';
 	return 0;
 }
 
@@ -105,11 +106,11 @@ int check_http_server_bugs(unsigned char *url, struct http_connection_info *info
 	return 0;	
 }
 
-void http_end_request(struct connection *c)
+void http_end_request(struct connection *c, int notrunc)
 {
 	if (c->state == S_OK) {
 		if (c->cache) {
-			truncate_entry(c->cache, c->from, 1);
+			if (!notrunc) truncate_entry(c->cache, c->from, 1);
 			c->cache->incomplete = 0;
 		}
 	}
@@ -127,7 +128,7 @@ void http_send_header(struct connection *);
 void http_func(struct connection *c)
 {
 	/*setcstate(c, S_CONN);*/
-	set_timeout(c);
+	/*set_timeout(c);*/
 	if (get_keepalive_socket(c)) {
 		int p;
 		if ((p = get_port(c->url)) == -1) {
@@ -179,7 +180,7 @@ void http_send_header(struct connection *c)
 	if (post) post++;
 	if (!(hdr = init_str())) {
 		setcstate(c, S_OUT_OF_MEM);
-		http_end_request(c);
+		http_end_request(c, 0);
 		return;
 	}
 	if (!post) add_to_str(&hdr, &l, "GET ");
@@ -190,7 +191,7 @@ void http_send_header(struct connection *c)
 	if (upcase(c->url[0]) != 'P') add_to_str(&hdr, &l, "/");
 	if (!(u = get_url_data(c->url))) {
 		setcstate(c, S_BAD_URL);
-		http_end_request(c);
+		http_end_request(c, 0);
 		return;
 	}
 	if (!post) uu = stracpy(u);
@@ -316,6 +317,10 @@ void http_send_header(struct connection *c)
 		add_num_to_str(&hdr, &l, c->from);
 		add_to_str(&hdr, &l, "-\r\n");
 	}
+	if ((h = get_auth_string(c->url))) {
+		add_to_str(&hdr, &l, h);
+		mem_free(h);
+	}
 	if (post) {
 		unsigned char *pd = strchr(post, '\n');
 		if (pd) {
@@ -364,7 +369,7 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 	set_timeout(c);
 	if (rb->close == 2) {
 		setcstate(c, S_OK);
-		http_end_request(c);
+		http_end_request(c, 0);
 		return;
 	}
 	if (info->length != -2) {
@@ -377,7 +382,7 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 		kill_buffer_data(rb, l);
 		if (!info->length && !rb->close) {
 			setcstate(c, S_OK);
-			http_end_request(c);
+			http_end_request(c, 0);
 			return;
 		}
 	} else {
@@ -393,7 +398,7 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 				kill_buffer_data(rb, l);
 				if (l <= 2) {
 					setcstate(c, S_OK);
-					http_end_request(c);
+					http_end_request(c, 0);
 					return;
 				}
 				goto next_chunk;
@@ -403,7 +408,7 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 			if ((l = is_line_in_buffer(rb))) {
 				unsigned char *de;
 				int n = 0;	/* warning, go away */
-				if (l != -1) n = strtol(rb->data, (char **)&de, 16);
+				if (l != -1) n = strtol(rb->data, (char **)(void *)&de, 16);
 				if (l == -1 || de == rb->data) {
 					setcstate(c, S_HTTP_ERROR);
 					abort_connection(c);
@@ -539,7 +544,7 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	if (h == 304) {
 		mem_free(head);
 		setcstate(c, S_OK);
-		http_end_request(c);
+		http_end_request(c, 1);
 		return;
 	}
 	if (get_cache_entry(c->url, &e)) {
@@ -548,6 +553,7 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		abort_connection(c);
 		return;
 	}
+	e->http_code = h;
 	if (e->head) mem_free(e->head);
 	e->head = head;
 	if ((d = parse_http_header(head, "Expires", NULL))) {
@@ -580,7 +586,7 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 #endif
 	if (h == 204) {
 		setcstate(c, S_OK);
-		http_end_request(c);
+		http_end_request(c, 0);
 		return;
 	}
 	if (e->redirect) mem_free(e->redirect), e->redirect = NULL;
@@ -621,7 +627,7 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if ((d = parse_http_header(e->head, "Content-Length", NULL))) {
 		unsigned char *ep;
-		int l = strtol(d, (char **)&ep, 10);
+		int l = strtol(d, (char **)(void *)&ep, 10);
 		if (!*ep && l >= 0) {
 			if (!info->close || version >= 11) info->length = l;
 			c->est_length = c->from + l;
@@ -668,3 +674,4 @@ void http_get_header(struct connection *c)
 	rb->close = 1;
 	read_from_socket(c, c->sock1, rb, http_got_header);
 }
+

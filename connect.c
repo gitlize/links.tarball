@@ -12,7 +12,7 @@
 #ifdef LOG_TRANSFER
 void log_data(unsigned char *data, int len)
 {
-	static hlaseno = 0;
+	static int hlaseno = 0;
 	int fd;
 	if (!hlaseno) {
 		printf("\n\e[1mWARNING -- LOGGING NETWORK TRANSFERS !!!\e[0m%c\n", 7);

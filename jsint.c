@@ -218,7 +218,8 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 	r->onsubmit=onsubmit;
 	memcpy(r->code, code, len);
 	if (write_pos == -1) {
-		add_to_list(*(struct list_head *)fd->js->queue.prev, r);
+		struct list_head *l = (struct list_head *)fd->js->queue.prev;
+		add_to_list(*l, r);
 	} else {
 		/* add it beyond all <SCRIPT> requests but before non-<SCRIPT> ones */
 		foreach(q, fd->js->queue) if (q->write_pos == -1) break;

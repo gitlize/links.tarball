@@ -643,7 +643,7 @@ struct xlist_head {
 	struct xlist_head *prev;
 };
 
-#define init_list(x) {(x).next=&(x); (x).prev=&(x);}
+#define init_list(x) { do_not_optimize_here(&x); (x).next=&(x); (x).prev=&(x); do_not_optimize_here(&x);}
 #define list_empty(x) ((x).next == &(x))
 #define del_from_list(x) {do_not_optimize_here(x); ((struct list_head *)(x)->next)->prev=(x)->prev; ((struct list_head *)(x)->prev)->next=(x)->next; do_not_optimize_here(x);}
 /*#define add_to_list(l,x) {(x)->next=(l).next; (x)->prev=(typeof(x))&(l); (l).next=(x); if ((l).prev==&(l)) (l).prev=(x);}*/
@@ -818,6 +818,7 @@ struct cache_entry {
 	struct cache_entry *prev;
 	unsigned char *url;
 	unsigned char *head;
+	int http_code;
 	unsigned char *redirect;
 	int redirect_get;
 	int length;
@@ -989,6 +990,7 @@ struct status {
 	struct remaining_info *prg;
 };
 
+unsigned char *get_proxy(unsigned char *url);
 void check_queue(void);
 long connect_info(int);
 void send_connection_info(struct connection *c);
@@ -1092,8 +1094,17 @@ int is_path_prefix(unsigned char *d, unsigned char *s);
 int cookie_expired(struct cookie *c);
 void free_cookie(struct cookie *c);
 
+/* auth.c */
+
+unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy);
+char *get_auth_string(char *url);
+void cleanup_auth();
+void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, unsigned char *password, int proxy);
+int find_auth(unsigned char *url, unsigned char *realm);
+
 /* http.c */
 
+int get_http_code(unsigned char *head, int *code, int *version);
 unsigned char *parse_http_header(unsigned char *, unsigned char *, unsigned char **);
 unsigned char *parse_header_param(unsigned char *, unsigned char *);
 void http_func(struct connection *);
@@ -1118,6 +1129,8 @@ void finger_func(struct connection *);
 
 /* ftp.c */
 
+extern int fast_ftp;
+extern int passive_ftp;
 void ftp_func(struct connection *);
 
 /* mailto.c */
@@ -1922,7 +1935,10 @@ extern void menu_ext_manager(struct terminal *,void *,struct session *);
 #define O_OK		-3
 
 struct object_request {
+	struct object_request *next;
+	struct object_request *prev;
 	int refcount;
+	tcount count;
 	tcount term;
 	struct status stat;
 	struct cache_entry *ce;
@@ -3008,7 +3024,8 @@ struct history {
 #define D_END		0
 #define D_CHECKBOX	1
 #define D_FIELD		2
-#define D_BUTTON	3
+#define D_FIELD_PASS	3
+#define D_BUTTON	4
 
 #define B_ENTER		1
 #define B_ESC		2
@@ -3097,6 +3114,8 @@ void group_fn(struct dialog_data *);
 void center_dlg(struct dialog_data *);
 void draw_dlg(struct dialog_data *);
 void display_dlg_item(struct dialog_data *, struct dialog_item_data *, int);
+int check_dialog(struct dialog_data *);
+void get_dialog_data(struct dialog_data *);
 int ok_dialog(struct dialog_data *, struct dialog_item_data *);
 int cancel_dialog(struct dialog_data *, struct dialog_item_data *);
 void msg_box(struct terminal *, struct memory_list *, unsigned char *, int, /*unsigned char *, void *, int,*/ ...);

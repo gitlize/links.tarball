@@ -72,6 +72,7 @@ int get_cache_entry(unsigned char *url, struct cache_entry **f)
 	e->length = 0;
 	e->incomplete = 1;
 	e->data_size = 0;
+	e->http_code = -1;
 	init_list(e->frag);
 	e->count = cache_count++;
 	e->count2 = cache_count++;

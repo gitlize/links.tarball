@@ -376,7 +376,7 @@ void select_loop(void (*init)(void))
 		check_timers();
 		if (!F) redraw_all_terminals();
 		if (!list_empty(timers)) {
-			ttime tt = ((struct timer *)&timers)->next->interval + 1;
+			ttime tt = ((struct timer *)timers.next)->interval + 1;
 			if (tt < 0) tt = 0;
 			tv.tv_sec = tt / 1000;
 			tv.tv_usec = (tt % 1000) * 1000;

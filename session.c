@@ -992,8 +992,9 @@ void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, struct doc
 			struct f_data_c *nfdc;
 			if (!(nfdc = create_f_data_c(fd->ses, fd))) return;
 			if (c_loc) {
+				struct list_head *l = (struct list_head *)fd->loc->subframes.prev;
 				loc = new_location();
-				add_to_list(*(struct list_head *)fd->loc->subframes.prev, loc);
+				add_to_list(*l, loc);
 				loc->parent = fd->loc;
 				loc->name = stracpy(frm->name);
 				if ((loc->url = stracpy(frm->url)))
@@ -1009,7 +1010,10 @@ void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, struct doc
 			if (frm->marginheight != -1) nfdc->marginheight = frm->marginheight;
 			else nfdc->marginheight = fd->marginheight;
 			/*debug("frame: %d %d, %d %d\n", nfdc->xp, nfdc->yp, nfdc->xw, nfdc->yw);*/
-			add_to_list(*(struct list_head *)fd->subframes.prev, nfdc);
+			{
+				struct list_head *l = (struct list_head *)fd->subframes.prev;
+				add_to_list(*l, nfdc);
+			}
 			if (frm->subframe) {
 				create_new_frames(nfdc, frm->subframe, o);
 				/*nfdc->f_data = init_formatted(&fd->f_data->opt);*/
@@ -1417,7 +1421,8 @@ struct location *copy_sublocations(struct session *ses, struct location *d, stru
 	y = NULL;
 	foreach(sl, s->subframes) {
 		if ((dl = new_location())) {
-			add_to_list(*(struct list_head *)d->subframes.prev, dl);
+			struct list_head *l = (struct list_head *)d->subframes.prev;
+			add_to_list(*l, dl);
 			dl->parent = d;
 			z = copy_sublocations(ses, dl, sl, x);
 			if (z && y) internal("copy_sublocations: crossed references");
@@ -2168,7 +2173,7 @@ void win_func(struct window *win, struct event *ev, int fw)
 			break;
 		case EV_INIT:
 			if (!(ses = win->data = create_session(win)) || read_session_info(ses, (char *)ev->b + sizeof(int), *(int *)ev->b)) {
-				destroy_terminal(win->term);
+				register_bottom_half((void (*)(void *))destroy_terminal, win->term);
 				return;
 			}
 		case EV_RESIZE:

@@ -1,3 +1,55 @@
+=== Release 2.1pre13
+
+Thu Oct  9 22:37:06 MET DST 2003 mikulas:
+
+	Fixed possibility that invalid communication on socket could crash links
+
+Thu Oct  9 16:44:10 GMT 2003 mikulas:
+
+	Do not print 1000l on FreeBSD console on exit
+
+Tue Oct  7 18:38:48 GMT 2003 mikulas:
+
+	Fixed passive FTP, added option to fast FTP
+
+Mon Oct  6 00:29:56 cet 2003 mikulas:
+
+	Print host name in HTTP auth dialog
+
+Sun Oct 5 22:35:21 MET DST 2003 Brain:
+
+	Passive FTP.
+
+Fri Oct  3 23:02:59 MET DST 2003 mikulas:
+
+	Fixed incorrect truncating of file on 304 reply
+
+Fri Oct  3 21:22:11 MET DST 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+
+	Updated Russian translation
+	Russian letters
+	Changed translation of Russian letters into 7bit ascii
+
+Thu Oct  2 23:29:47 cet 2003 mikulas:
+
+	Basic HTTP authentication (sponsored PerMov^(TM))
+
+Sun Sep 28 06:05:05 CEST 2003 mikulas:
+
+	Fixed aliasing problem on gcc 3.31
+
+Fri Sep 26 00:17:04 cet 2003 mikulas:
+
+	Do not set timeout in DNS lookup and connection making
+
+Thu Sep 25 01:10:25 cet 2003 mikulas:
+
+	Fixed PmShell quirks in keyboard handling
+
+Thu Sep 25 00:37:12 cet 2003 mikulas:
+
+	Fixed screen sometimes not updating highlighted link
+
 === Release 2.1pre12
 
 Sun Sep 14 20:28:13 MET DST 2003 mikulas:

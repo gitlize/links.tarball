@@ -27,8 +27,8 @@ double display_blue_gamma=2.2; /* Blue gamma exponent of the display */
 #ifdef G
 
 /* #define this if you want to report missing letters to stderr.
- * #undef this if you don't */
-#undef REPORT_UNKNOWN
+ * Leave it commented up for normal operation and releases! */
+/* #define REPORT_UNKNOWN 1 */
 
 double sRGB_gamma=0.45455;      /* For HTML, which runs
 				 * according to sRGB standard. Number
@@ -317,6 +317,7 @@ inline static void enlarge_gray_horizontal(unsigned char *in, int ix, int y
 		goto again;
 	}
 	/* Rohan, oh Rohan... */
+	/* ztracena zeme :) */
 }
 
 /* For enlargement only -- does linear filtering
@@ -1320,7 +1321,7 @@ struct letter *find_stored_letter(int *style_table, int letter_number)
 		}
 	}
 	
-	/* 0 is system font, 0 is skull char. This must be present
+	/* 0 is system font, 0 is blotch char. This must be present
 	 * or we segfault :) */
 #ifdef REPORT_UNKNOWN
 	fprintf(stderr,"letter 0x%04x not found\n",letter_number);
@@ -2071,7 +2072,7 @@ long real_dip_get_color_sRGB(int rgb)
 	return gamma_cache_color = drv->get_color(new_rgb);
 }
 
-/* ATTENTION!!! allocates using malloc. Due to braindead Xlibe, which
+/* ATTENTION!!! allocates using malloc. Due to braindead Xlib, which
  * frees it using free and thus it is not possible to use mem_alloc. */
 void get_links_icon(unsigned char **data, int *width, int* height, int depth)
 {

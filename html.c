@@ -696,7 +696,7 @@ int parse_width(unsigned char *w, int trunc)
 	if (w[l - 1] == '%') l--, p = 1;
 	while (l && WHITECHAR(w[l - 1])) l--;
 	if (!l) return -1;
-	s = strtoul((char *)w, (char **)&end, 10);
+	s = strtoul((char *)w, (char **)(void *)&end, 10);
 	if (end - w < l) return -1;
 	if (p) {
 		if (trunc) {
@@ -2033,7 +2033,7 @@ void parse_frame_widths(unsigned char *a, int ww, int www, int **op, int *olp)
 	o = DUMMY;
 	new_ch:
 	while (WHITECHAR(*a)) a++;
-	n = strtoul(a, (char **)&a, 10);
+	n = strtoul(a, (char **)(void *)&a, 10);
 	q = n;
 	if (*a == '%') q = q * ww / 100;
 	else if (*a != '*') q = (q + (www - 1) / 2) / www;

@@ -246,7 +246,8 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 			k_usvk = ((int)mp2 >> 16) & 0xffff;
 			/*printf("%08x, %08x\n", mp1, mp2);fflush(stdout);*/
 			flags = (k_fsflags & KC_SHIFT ? KBD_SHIFT : 0) | (k_fsflags & KC_CTRL ? KBD_CTRL : 0) | (k_fsflags & KC_ALT ? KBD_ALT : 0);
-			if (k_fsflags & KC_VIRTUALKEY) {
+			if ((k_fsflags & (KC_VIRTUALKEY | KC_CHAR)) == KC_VIRTUALKEY) {
+				if (k_fsflags & KC_ALT) return 0;
 				if (k_usvk < N_VK && (key = pm_vk_table[k_usvk].x)) {
 					flags |= pm_vk_table[k_usvk].y;
 					if (key == KBD_CTRL_C) flags &= ~KBD_CTRL;
@@ -261,7 +262,7 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 					if (key == 0x09) key = KBD_TAB;
 					if (key == 0x1b) key = KBD_ESC;
 				}
-				if (key < ' ') key += '@', flags |= KBD_CTRL;
+				if (key >= 0 && key < ' ') key += '@', flags |= KBD_CTRL;
 			} else key = os2xtd[k_usch >> 8].x, flags |= os2xtd[k_usch >> 8].y;
 			if ((key & 0xdf) == 'C' && (flags & KBD_CTRL)) key = KBD_CTRL_C, flags &= ~KBD_CTRL;
 			s:

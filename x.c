@@ -1972,7 +1972,7 @@ void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 	class_hints.res_name = t;
 	class_hints.res_class = t;
 	XSetClassHint(x_display, *(Window*)(gd->driver_data), &class_hints);
-	XStringListToTextProperty((char**)(&t), 1, &windowName);
+	XStringListToTextProperty((char**)(void *)(&t), 1, &windowName);
 	XSetWMName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSetWMIconName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSync(x_display,False);

@@ -389,6 +389,7 @@ void terminate_all_subsystems(void)
 	free_conv_table();
 	free_blacklist();
 	if (init_b) cleanup_cookies();
+	cleanup_auth();
 	check_bottom_halves();
 	end_config();
 	free_strerror_buf();

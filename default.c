@@ -521,7 +521,7 @@ void lang_wr(struct option *o, unsigned char **s, int *l)
 int getnum(unsigned char *s, int *n, int r1, int r2)
 {
 	unsigned char *e;
-	long l = strtol(s, (char **)&e, 10);
+	long l = strtol(s, (char **)(void *)&e, 10);
 	if (*e || !*s) return -1;
 	if (l < r1 || l >= r2) return -1;
 	*n = (int)l;
@@ -1147,6 +1147,8 @@ struct option links_options[] = {
 	{1, gen_cmd, cp_rd, cp_wr, 0, 0, &bookmarks_codepage, "bookmarks_codepage", "bookmarks-codepage"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, bookmarks_file, "bookmarks_file", "bookmarks-file"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, default_anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &passive_ftp, "ftp.use_passive", "ftp.use-passive"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &fast_ftp, "ftp.fast", "ftp.fast"},
 	{1, gen_cmd, cp_rd, NULL, 0, 0, &dds.assume_cp, "assume_codepage", "assume-codepage"},
 	{1, NULL, term_rd, term_wr, 0, 0, NULL, "terminal", NULL},
 	{1, NULL, term2_rd, NULL, 0, 0, NULL, "terminal2", NULL},

@@ -444,7 +444,7 @@ U+0402:D%
 U+0403:G%
 U+0404:IE
 U+0405:DS
-U+0406:II
+U+0406:I~
 U+0407:YI
 U+0408:J%
 U+0409:LJ
@@ -454,7 +454,7 @@ U+040c:KJ
 U+040e:V%
 U+040f:DZ
 # Russian Cyrillic letters, transliterated
-U+0401:IO
+U+0401:YO
 U+0410:A
 U+0411:B
 U+0412:V
@@ -480,11 +480,11 @@ U+0425:H
 U+0426:C
 U+0427:CH
 U+0428:SH
-U+0429:SCH
-U+042a:"
+U+0429:SHCH
+U+042a:~
 U+042b:Y
 U+042c:'
-U+042d:`E
+U+042d:E'
 U+042e:YU
 U+042f:YA
 U+0430:a
@@ -512,21 +512,21 @@ U+0445:h
 U+0446:c
 U+0447:ch
 U+0448:sh
-U+0449:sch
-U+044a:"
+U+0449:shch
+U+044a:~
 U+044b:y
 U+044c:'
-U+044d:`e
+U+044d:e'
 U+044e:yu
 U+044f:ya
-U+0451:io
+U+0451:yo
 # end of Russian Cyrillic letters.
 # Cyrillic small letters (and some archaic)
 U+0452:d%
 U+0453:g%
 U+0454:ie
 U+0455:ds
-U+0456:ii
+U+0456:i~
 U+0457:yi
 U+0458:j%
 U+0459:lj
@@ -535,14 +535,14 @@ U+045b:ts
 U+045c:kj
 U+045e:v%
 U+045f:dz
-U+0462:Y3
-U+0463:y3
+U+0462:E~
+U+0463:e~
 U+046a:O3
 U+046b:o3
-U+0472:F3
-U+0473:f3
-U+0474:V3
-U+0475:v3
+U+0472:~F
+U+0473:~f
+U+0474:~V
+U+0475:~v
 U+0480:C3
 U+0481:c3
 U+0490:G3

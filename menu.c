@@ -751,26 +751,72 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	return 0;
 }
 
+unsigned char *ftp_texts[] = { TEXT(T_PASSWORD_FOR_ANONYMOUS_LOGIN), TEXT(T_USE_PASSIVE_FTP), TEXT(T_USE_FAST_FTP), NULL };
+
+void ftpopt_fn(struct dialog_data *dlg)
+{
+	struct terminal *term = dlg->win->term;
+	int max = 0, min = 0;
+	int w, rw;
+	int y = 0;
+	max_text_width(term, ftp_texts[0], &max, AL_LEFT);
+	min_text_width(term, ftp_texts[0], &min, AL_LEFT);
+	checkboxes_width(term, ftp_texts + 1, &max, max_text_width);
+	checkboxes_width(term, ftp_texts + 1, &min, min_text_width);
+	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
+	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
+	w = term->x * 9 / 10 - 2 * DIALOG_LB;
+	if (w > max) w = max;
+	if (w < min) w = min;
+	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
+	if (w < 5) w = 5;
+	rw = 0;
+	dlg_format_text(dlg, NULL, ftp_texts[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_checkboxes(dlg, NULL, dlg->items + 1, 2, 0, &y, w, &rw, ftp_texts + 1);
+	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
+	w = rw;
+	dlg->xw = rw + 2 * DIALOG_LB;
+	dlg->yw = y + 2 * DIALOG_TB;
+	center_dlg(dlg);
+	draw_dlg(dlg);
+	y = dlg->y + DIALOG_TB;
+	dlg_format_text(dlg, term, ftp_texts[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_field(dlg, term, dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_checkboxes(dlg, term, dlg->items + 1, 2, dlg->x + DIALOG_LB, &y, w, NULL, ftp_texts + 1);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, term, dlg->items + dlg->n - 2, 2, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
+}
+
+
 int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	struct dialog *d;
-	if (!(d = mem_alloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item)))) return 0;
-	memset(d, 0, sizeof(struct dialog) + 4 * sizeof(struct dialog_item));
+	if (!(d = mem_alloc(sizeof(struct dialog) + 6 * sizeof(struct dialog_item)))) return 0;
+	memset(d, 0, sizeof(struct dialog) + 6 * sizeof(struct dialog_item));
 	d->title = TEXT(T_FTP_OPTIONS);
-	d->fn = input_field_fn;
-	d->udata = TEXT(T_PASSWORD_FOR_ANONYMOUS_LOGIN);
+	d->fn = ftpopt_fn;
 	d->items[0].type = D_FIELD;
 	d->items[0].dlen = MAX_STR_LEN;
 	d->items[0].data = di->cdata;
-	d->items[1].type = D_BUTTON;
-	d->items[1].gid = B_ENTER;
-	d->items[1].fn = ok_dialog;
-	d->items[1].text = TEXT(T_OK);
-	d->items[2].type = D_BUTTON;
-	d->items[2].gid = B_ESC;
-	d->items[2].fn = cancel_dialog;
-	d->items[2].text = TEXT(T_CANCEL);
-	d->items[3].type = D_END;
+	d->items[1].type = D_CHECKBOX;
+	d->items[1].dlen = sizeof(int);
+	d->items[1].data = (void*)&passive_ftp;
+	d->items[1].gid = 0;
+	d->items[2].type = D_CHECKBOX;
+	d->items[2].dlen = sizeof(int);
+	d->items[2].data = (void*)&fast_ftp;
+	d->items[3].type = D_BUTTON;
+	d->items[3].gid = B_ENTER;
+	d->items[3].fn = ok_dialog;
+	d->items[3].text = TEXT(T_OK);
+	d->items[4].type = D_BUTTON;
+	d->items[4].gid = B_ESC;
+	d->items[4].fn = cancel_dialog;
+	d->items[4].text = TEXT(T_CANCEL);
+	d->items[5].type = D_END;
  	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
@@ -1139,7 +1185,6 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	do_dialog(term, d, getml(d, NULL));
 }
 
-#ifdef G
 unsigned char *prg_msg[] = {
 	TEXT(T_MAILTO_PROG),
 	TEXT(T_SHELL_PROG),
@@ -1147,15 +1192,6 @@ unsigned char *prg_msg[] = {
 	TEXT(T_TN3270_PROG),
 	""
 };
-#else
-unsigned char *prg_msg[] = {
-	TEXT(T_MAILTO_PROG),
-	TEXT(T_TELNET_PROG),
-	TEXT(T_TN3270_PROG),
-	""
-};
-#endif
-
 void netprog_fn(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
@@ -1165,8 +1201,8 @@ void netprog_fn(struct dialog_data *dlg)
 	int a;
 	max_text_width(term, prg_msg[0], &max, AL_LEFT);
 	min_text_width(term, prg_msg[0], &min, AL_LEFT);
-#ifdef G
 	a=2;
+#ifdef G
 	if (F)
 	{
 		a=1;
@@ -1197,8 +1233,8 @@ void netprog_fn(struct dialog_data *dlg)
 	rw = 0;
 	dlg_format_text(dlg, NULL, prg_msg[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(2, G_BFU_FONT_SIZE * 2);
-#ifdef G
 	a=2;
+#ifdef G
 	if (F)
 	{
 		a=1;
@@ -1228,8 +1264,8 @@ void netprog_fn(struct dialog_data *dlg)
 	dlg_format_text(dlg, term, prg_msg[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	dlg_format_field(dlg, term, &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-#ifdef G
 	a=2;
+#ifdef G
 	if (F)
 	{	
 		a=1;

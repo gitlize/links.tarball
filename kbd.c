@@ -9,6 +9,7 @@
 #define IN_BUF_SIZE	16
 
 #define USE_TWIN_MOUSE	1
+#define USE_X_MOUSE	2
 #define TW_BUTT_LEFT	1
 #define TW_BUTT_MIDDLE	2
 #define TW_BUTT_RIGHT	4
@@ -109,7 +110,7 @@ void send_init_sequence(int h,int flags)
 	hard_write(h, init_seq, strlen(init_seq));
 	if (flags & USE_TWIN_MOUSE) {
 		hard_write(h, init_seq_tw_mouse, strlen(init_seq_tw_mouse));
-	} else {
+	} else if (flags & USE_X_MOUSE) {
 		hard_write(h, init_seq_x_mouse, strlen(init_seq_x_mouse));
 	}
 }
@@ -119,7 +120,7 @@ void send_term_sequence(int h,int flags)
 	hard_write(h, term_seq, strlen(term_seq));
 	if (flags & USE_TWIN_MOUSE) {
 		hard_write(h, term_seq_tw_mouse, strlen(term_seq_tw_mouse));
-	} else {
+	} else if (flags & USE_X_MOUSE) {
 		hard_write(h, term_seq_x_mouse, strlen(term_seq_x_mouse));
 	}
 }
@@ -185,7 +186,8 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	xwin = is_xterm() * ENV_XWIN + can_twterm() * ENV_TWIN + (!!getenv("STY")) * ENV_SCREEN + get_system_env();
 	itrm->flags = 0;
 	if (!(ts = getenv("TERM"))) ts = "";
-	if ((xwin & ENV_TWIN) && !strcmp(ts,"linux")) itrm->flags |= USE_TWIN_MOUSE;
+	if ((xwin & ENV_TWIN) && !strcmp(ts, "linux")) itrm->flags |= USE_TWIN_MOUSE;
+	if ((xwin & ENV_XWIN)) itrm->flags |= USE_X_MOUSE;
 	if (strlen(ts) >= MAX_TERM_LEN) queue_event(itrm, ts, MAX_TERM_LEN);
 	else {
 		unsigned char *mm;

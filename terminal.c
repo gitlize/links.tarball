@@ -757,7 +757,10 @@ void in_term(struct terminal *term)
 		else if (ev->ev == EV_KBD && ev->x == KBD_CTRL_C) ((struct window *)&term->windows)->prev->handler(term->windows.prev, ev, 0);
 		else ((struct window *)&term->windows)->next->handler(term->windows.next, ev, 0);
 	}
-	if (ev->ev == EV_ABORT) destroy_terminal(term);
+	if (ev->ev == EV_ABORT) {
+		destroy_terminal(term);
+		return;
+	}
 	/*redraw_screen(term);*/
 	mm:
 	if (term->qlen == r) term->qlen = 0;

@@ -14,7 +14,6 @@ void finger_end_request(struct connection *);
 void finger_func(struct connection *c)
 {
 	int p;
-	set_timeout(c);
 	if ((p = get_port(c->url)) == -1) {
 		setcstate(c, S_INTERNAL);
 		abort_connection(c);
