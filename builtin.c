@@ -288,7 +288,7 @@ static void call_setsrc(js_context*context,char*string,lns*pna)
 {	struct fax_me_tender_string_2_longy * to_je_ale_woprusz=js_mem_alloc(sizeof(struct fax_me_tender_string_2_longy));
 	to_je_ale_woprusz->ident=context->ptr;
 	to_je_ale_woprusz->string=stracpy1(string);
-	mem_free(string);
+	if(string) mem_free(string);
 	to_je_ale_woprusz->doc_id=pna->handler;
 	to_je_ale_woprusz->obj_id=pna->mid;
 	context->upcall_data=to_je_ale_woprusz;
@@ -1407,7 +1407,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			pomstr=tostring(force_getarg(&argy),context);
 			pomstr1=js_mem_alloc(strlen(pomstr)+2);
 			strcpy(pomstr1,pomstr);
-			pomstr1[strlen(pomstr)]='\13';
+			pomstr1[strlen(pomstr)]=13;
 			pomstr1[strlen(pomstr)+1]='\0';
 			js_upcall_document_write(context->ptr,pomstr1,strlen(pomstr1));
 			js_mem_free(pomstr);
@@ -1924,7 +1924,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				pomstr1=tostring(force_getarg(&argy),context);
 				pomint2=0;
 				cislo=js_mem_alloc(DELKACISLA);
-				if(pomstr1[0]=='\0')
+				if(pomstr1[0]=='\0') /* FIXME! Tady to muze byt blbe kvuli nulovosti pomstr, pomstr1 a pomstr2 */
 				{	while(pomstr[0])
 					{	snprintf(cislo,DELKACISLA,"%d",(int)(pomint2++));
 						cislo[DELKACISLA-1]='\0';
@@ -2019,11 +2019,15 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			pomstr=tostring(force_getarg(&argy),context);
 			pomint=1;
 			while(pomstr[pomint]&&((pomstr[pomint]>='0' && pomstr[pomint]<='9')||pomstr[pomint]=='-'))pomint++;
+			js_durchfall=1;
 			if(pomstr[pomint])
 				call_goto(context,pomstr,0);
 			else
-				call_goto(context,"",atol(pomstr)),js_mem_free(pomstr);
-			js_durchfall=1;
+			{	if((pomint=atol(pomstr)))
+					call_goto(context,"",pomint);
+				else	js_durchfall=0;
+				js_mem_free(pomstr);
+			}
 			idebug("and exited!\n");
 		break;
 		case CtoString:
@@ -2383,7 +2387,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
                                *(float*)(*value)=MY_NAN; 
                                delarg(pomarg,context);
                                js_mem_free(pna);
-                       } else  
+                       } else 
                                internal("Strange internal property name!!\n");
                                         
                 break;	
@@ -2947,7 +2951,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			*typ=STRING;
 			pomstr=js_upcall_get_form_element_name(context->ptr,pna->handler,pna->mid);
 			*value=(long)stracpy1(pomstr);
-			mem_free(pomstr);
+			if(pomstr)	mem_free(pomstr);
 			idebug("and exited!\n");
 		break;
 		case Cselectoptions:
@@ -3502,7 +3506,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			*typ=STRING;
 			pomstr=js_upcall_get_image_alt(context->ptr,pna->handler,pna->mid);
 			*value=(long)stracpy1(pomstr);
-			mem_free(pomstr);
+			if(pomstr)mem_free(pomstr);
 			idebug("and exited!\n");
 		break;
 		case Cborder:
@@ -3650,7 +3654,7 @@ char* iatostring(long typ, long value,js_context*context)
 			pomstr=tostring(pombuf,context);
 			delete_from_parlist(&fotr_je_lotr,fotri);
 			pomstr1=stracpy(pomstr);
-			js_mem_free(pomstr);
+			if(pomstr)js_mem_free(pomstr);
 			return pomstr1;
 			idebug("iatostring: Pozor! objekt->string dosud neni vyladen\n");
 		break;
@@ -3663,7 +3667,7 @@ char* iatostring(long typ, long value,js_context*context)
 	pombuf->argument=value;
 	pomstr= tostring(pombuf,context);
 	pomstr1=stracpy(pomstr);
-	js_mem_free(pomstr);
+	if(pomstr)js_mem_free(pomstr);
 	return pomstr1;
 }
 
@@ -3872,7 +3876,9 @@ void set_var_value(lns*pna,long typ, long value,js_context*context)
 			js_upcall_set_image_alt(context->ptr,pna->handler,pna->mid,iatostring(typ,value,context));
 			idebug("Nastavena altituda image\n");
 		break;
-		default: js_error("set_var_value doesn't work yet\n",context);
+		default: if(!js_all_conversions)
+				 js_error("set_var_value doesn't work yet\n",context);
+			 idebug("Chyba pri set_var_value...\n");
 		break;
 	}
 }

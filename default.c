@@ -1071,7 +1071,7 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &download_utime, "download_utime", "download-utime"},
 	{1, gen_cmd, num_rd, num_wr, 1, 16, &max_connections, "max_connections", "max-connections"},
 	{1, gen_cmd, num_rd, num_wr, 1, 8, &max_connections_to_host, "max_connections_to_host", "max-connections-to-host"},
-	{1, gen_cmd, num_rd, num_wr, 1, 16, &max_tries, "retries", "retries"},
+	{1, gen_cmd, num_rd, num_wr, 0, 16, &max_tries, "retries", "retries"},
 	{1, gen_cmd, num_rd, num_wr, 1, 1800, &receive_timeout, "receive_timeout", "receive-timeout"},
 	{1, gen_cmd, num_rd, num_wr, 1, 1800, &unrestartable_receive_timeout, "unrestartable_receive_timeout", "unrestartable-receive-timeout"},
 	{1, gen_cmd, num_rd, num_wr, 0, 256, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
@@ -1163,7 +1163,8 @@ int load_url_history(void)
 	}
 	while (fgets (url, MAX_INPUT_URL_LEN, fp))
 	{
-		url[strlen(url)-1] = 0 ;
+		url[MAX_INPUT_URL_LEN - 1] = 0;
+		if (*url) url[strlen(url)-1] = 0 ;
 		add_to_history(&goto_url_history, url) ;
 	}
 	fclose (fp) ;

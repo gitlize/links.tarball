@@ -226,6 +226,21 @@ void abort_download(struct download *down)
 	mem_free(down);
 }
 
+void abort_and_delete_download(struct download *down)
+{
+	if (down->win) delete_window(down->win);
+	if (down->ask) delete_window(down->ask);
+	if (down->stat.state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
+	mem_free(down->url);
+	if (down->handle != -1) prealloc_truncate(down->handle, down->last_pos), close(down->handle);
+	unlink(down->file);
+	if (down->prog)
+		mem_free(down->prog);
+	mem_free(down->file);
+	del_from_list(down);
+	mem_free(down);
+}
+
 void kill_downloads_to_file(unsigned char *file)
 {
 	struct download *down;
@@ -240,6 +255,12 @@ void undisplay_download(struct download *down)
 int dlg_abort_download(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	register_bottom_half((void (*)(void *))abort_download, dlg->dlg->udata);
+	return 0;
+}
+
+int dlg_abort_and_delete_download(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	register_bottom_half((void (*)(void *))abort_and_delete_download, dlg->dlg->udata);
 	return 0;
 }
 
@@ -376,8 +397,8 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	foreach(dd, downloads) if (dd == down) goto found;
 	return;
 	found:
-	if (!(dlg = mem_alloc(sizeof(struct dialog) + 3 * sizeof(struct dialog_item)))) return;
-	memset(dlg, 0, sizeof(struct dialog) + 3 * sizeof(struct dialog_item));
+	if (!(dlg = mem_alloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item)))) return;
+	memset(dlg, 0, sizeof(struct dialog) + 4 * sizeof(struct dialog_item));
 	undisplay_download(down);
 	down->ses = ses;
 	dlg->title = TEXT(T_DOWNLOAD);
@@ -393,7 +414,15 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	dlg->items[1].gid = 0;
 	dlg->items[1].fn = dlg_abort_download;
 	dlg->items[1].text = TEXT(T_ABORT);
-	dlg->items[2].type = D_END;
+	if (!down->prog) {
+		dlg->items[2].type = D_BUTTON;
+		dlg->items[2].gid = 0;
+		dlg->items[2].fn = dlg_abort_and_delete_download;
+		dlg->items[2].text = TEXT(T_ABORT_AND_DELETE_FILE);
+		dlg->items[3].type = D_END;
+	} else {
+		dlg->items[2].type = D_END;
+	}
 	do_dialog(term, dlg, getml(dlg, NULL));
 }
 
@@ -2005,11 +2034,12 @@ void win_func(struct window *win, struct event *ev, int fw)
 		case EV_REDRAW:
 			draw_formatted(ses);
 			break;
-		case EV_KBD:
 		case EV_MOUSE:
 #ifdef G
 			if (F) set_window_ptr(win, ev->x, ev->y);
 #endif
+			/* fall through ... */
+		case EV_KBD:
 			send_event(ses, ev);
 			break;
 		default:

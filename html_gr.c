@@ -1,4 +1,5 @@
 /* html_gr.c
+ * HTML parser in graphics mode
  * (c) 2002 Mikulas Patocka
  * This file is a part of the Links program, released under GPL.
  */
@@ -118,6 +119,8 @@ int gray (int r, int g, int b)
 	return r*3+g*6+b;
 }
 
+/* Tells if two colors are too near to be legible one on another */
+/* 1=too near 0=not too near */
 int too_near(int r1, int g1, int b1, int r2, int g2, int b2)
 {
 	int gray1,gray2;
@@ -125,11 +128,12 @@ int too_near(int r1, int g1, int b1, int r2, int g2, int b2)
 	gray1=gray(r1, g1, b1);
 	gray2=gray(r2, g2, b2);
 	if (gray1<=gray2)
-		return gray2-gray1<=800;
+		return gray2-gray1<=400;
 	else
-		return gray1-gray2<=800;
+		return gray1-gray2<=400;
 }
 
+/* Fixes foreground based on background */
 void separate_fg_bg(int *fgr, int *fgg, int *fgb
 	, int bgr, int bgg, int bgb)
 {
@@ -532,7 +536,7 @@ void do_image(struct g_part *p, struct image_description *im)
 						int m = io->xw < io->yw ? io->xw : io->yw;
 						num = num * m / 100;
 						p++;
-					}
+					} else num = num * d_opt->image_scale / 100;
 					if (!(nco = mem_realloc(a->coords, (a->ncoords + 1) * sizeof(int)))) goto noc;
 					(a->coords = nco)[a->ncoords++] = num;
 					goto next_coord;

@@ -11,6 +11,7 @@
 
 #include "struct.h"
 #include "tree.h"
+#include "ns.h"
 #define YYSTYPE long
 #define BRUTALDEBUG
 #undef BRUTALDEBUG
@@ -1354,6 +1355,19 @@ printf("MemberExpression -> M1Expression [Expression]\n");
         pom_vrchol->arg[1]=(void*)$3;
         $$=(long)pom_vrchol;
 	if(((vrchol*)$1)->opcode==TArray)js_warning("Two array operators in same expression ",c_radku,js_context_ptr);
+}
+	|'[' ArgumentListOpt ']' {
+#ifdef BRUTALDEBUG
+	printf("MemberExpression -> [ 'Array','elements']\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TFunctionCall;
+	pom_vrchol->arg[1]=(void*)$2;
+	$$=(long)pom_vrchol;
+	pom_vrchol->arg[0]=terminal();
+	pom_vrchol=(vrchol*)pom_vrchol->arg[0];
+	pom_vrchol->opcode=TIDENTIFIER;
+	pom_vrchol->arg[0]=(void*)(llookup("Array",js_context_ptr->namespace,js_context_ptr->lnamespace,js_context_ptr))->identifier;
 }
 	|MemberExpression '(' ArgumentListOpt ')' {
 #ifdef BRUTALDEBUG

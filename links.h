@@ -736,8 +736,8 @@ void *handle_mouse(int, void (*)(void *, unsigned char *, int), void *);
 void unhandle_mouse(void *);
 int check_file_name(unsigned char *);
 int start_thread(void (*)(void *, int), void *, int);
-char *get_clipboard_text(void);
-void set_clipboard_text(char *);
+unsigned char *get_clipboard_text(void);
+void set_clipboard_text(struct terminal *, unsigned char *);
 void set_window_title(unsigned char *);
 unsigned char *get_window_title(void);
 int is_safe_in_shell(unsigned char);
@@ -1585,6 +1585,11 @@ void get_links_icon(unsigned char **data, int *width, int* height, int depth);
 
 #endif
 
+/* x.c */
+#if defined(G) && defined (GRDRV_X)
+void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text);
+#endif
+
 /* links_icon.c */
 
 #ifdef G
@@ -2032,6 +2037,10 @@ struct link {
 	struct point *pos;
 	struct js_event_spec *js_event;
 	int obj_order;
+#ifdef G
+	struct rect r;
+	struct g_object *obj;
+#endif
 };
 
 #define L_LINK		0
@@ -2505,6 +2514,9 @@ struct view_state {
 	int form_info_len;
 	/*struct f_data_c *f;*/
 	/*unsigned char url[1];*/
+#ifdef G
+	int g_display_link;
+#endif
 };
 
 struct f_data_c {
@@ -3186,6 +3198,7 @@ void link_menu(struct terminal *, void *, struct session *);
 void save_as(struct terminal *, void *, struct session *);
 void save_url(struct session *, unsigned char *);
 void menu_save_formatted(struct terminal *, void *, struct session *);
+void copy_url_location(struct terminal *, void *, struct session *);
 void selected_item(struct terminal *, void *, struct session *);
 void toggle(struct session *, struct f_data_c *, int);
 void do_for_frame(struct session *, void (*)(struct session *, struct f_data_c *, int), int);

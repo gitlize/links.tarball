@@ -18,9 +18,7 @@ static int root_y = 0;
 
 void g_get_search_data(struct f_data *f);
 
-#ifdef JS
 static int previous_link=-1;	/* for mouse event handlers */
-#endif
 
 void g_draw_background(struct graphics_device *dev, struct background *bg, int x, int y, int xw, int yw)
 {
@@ -78,17 +76,28 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 	struct line_info *ln, *lnx;
 	if (link && ((form = link->form)) && ((fs = find_form_state(fd, form)))) {
 		switch (form->type) {
+			struct style *inv;
+			int in;
 			case FC_RADIO:
-				g_print_text(drv, fd->ses->term->dev, x, y, t->style, fs->state ? "[X]" : "[ ]", NULL);
+				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
+				else inv = t->style, in = 0;
+				g_print_text(drv, fd->ses->term->dev, x, y, inv, fs->state ? "[X]" : "[ ]", NULL);
+				if (in) g_free_style(inv);
 				return;
 			case FC_CHECKBOX:
-				g_print_text(drv, fd->ses->term->dev, x, y, t->style, fs->state ? "[X]" : "[ ]", NULL);
+				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
+				else inv = t->style, in = 0;
+				g_print_text(drv, fd->ses->term->dev, x, y, inv, fs->state ? "[X]" : "[ ]", NULL);
+				if (in) g_free_style(inv);
 				return;
 			case FC_SELECT:
+				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
+				else inv = t->style, in = 0;
 				fixup_select_state(form, fs);
 				l = 0;
-				if (fs->state < form->nvalues) g_print_text(drv, fd->ses->term->dev, x, y, t->style, form->labels[fs->state], &l);
-				while (l < t->xw) g_print_text(drv, fd->ses->term->dev, x + l, y, t->style, "_", &l);
+				if (fs->state < form->nvalues) g_print_text(drv, fd->ses->term->dev, x, y, inv, form->labels[fs->state], &l);
+				while (l < t->xw) g_print_text(drv, fd->ses->term->dev, x + l, y, inv, "_", &l);
+				if (in) g_free_style(inv);
 				return;
 			case FC_TEXT:
 			case FC_PASSWORD:
@@ -195,10 +204,15 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				return;
 		}
 	}
-	if (!highlight_positions || !n_highlight_positions)
+	if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) {
+		struct style *inv;
+		inv = g_invert_style(t->style);
+		g_print_text(drv, fd->ses->term->dev, x, y, inv, t->text, NULL);
+		g_free_style(inv);
+	} else if (!highlight_positions || !n_highlight_positions) {
 		prn:
 		g_print_text(drv, fd->ses->term->dev, x, y, t->style, t->text, NULL);
-	else {
+	} else {
 		int tlen = strlen(t->text);
 		int found;
 		int start = t->srch_pos;
@@ -590,6 +604,20 @@ void get_parents_sub(struct g_object *p, struct g_object *c)
 		for (o = c; o; o = o->parent) x += o->x, y += o->y;
 		html_tag(ffff, ((struct g_object_tag *)c)->name, x, y);
 	}
+	if (c->mouse_event == (void (*)(struct f_data_c *, struct g_object *, int, int, int))g_text_mouse) {
+		int l = ((struct g_object_text *)c)->link_num;
+		if (l >= 0) {
+			struct link *link = &ffff->links[l];
+			int x = 0, y = 0;
+			struct g_object *o;
+			for (o = c; o; o = o->parent) x += o->x, y += o->y;
+			if (x < link->r.x1) link->r.x1 = x;
+			if (y < link->r.y1) link->r.y1 = y;
+			if (x + c->xw > link->r.x2) link->r.x2 = x + c->xw;
+			if (y + c->yw > link->r.y2) link->r.y2 = y + c->yw;
+			link->obj = c;
+		}
+	}
 }
 
 void get_parents(struct f_data *f, struct g_object *a)
@@ -608,6 +636,8 @@ void get_object_pos(struct g_object *o, int *x, int *y)
 		o = o->parent;
 	}
 }
+
+void redraw_link(struct f_data_c *fd, int nl);
 
 /* if set_position is 1 sets cursor position in FIELD/AREA elements */
 void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int x, int y, int set_position)
@@ -750,6 +780,80 @@ inline int ev_in_rect(struct event *ev, int x1, int y1, int x2, int y2)
 	return ev->x >= x1 && ev->y >= y1 && ev->x < x2 && ev->y < y2;
 }
 
+int is_link_in_view(struct f_data_c *fd, int nl)
+{
+	struct link *l = &fd->f_data->links[nl];
+	return fd->vs->view_pos < l->r.y2 && fd->vs->view_pos + fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH > l->r.y1;
+}
+
+void redraw_link(struct f_data_c *fd, int nl)
+{
+	struct link *l = &fd->f_data->links[nl];
+	struct rect r;
+	memcpy(&r, &l->r, sizeof(struct rect));
+	r.x1 += fd->f_data->opt.xp - fd->vs->view_posx;
+	r.x2 += fd->f_data->opt.xp - fd->vs->view_posx;
+	r.y1 += fd->f_data->opt.yp - fd->vs->view_pos;
+	r.y2 += fd->f_data->opt.yp - fd->vs->view_pos;
+	t_redraw(fd->ses->term->dev, &r);
+}
+
+int lr_link(struct f_data_c *fd, int nl)
+{
+	struct link *l = &fd->f_data->links[nl];
+	int xx = fd->vs->view_posx;
+	if (l->r.x2 > fd->vs->view_posx + fd->xw - fd->f_data->vsb * G_SCROLL_BAR_WIDTH) fd->vs->view_posx = l->r.x2 - (fd->xw - fd->f_data->vsb * G_SCROLL_BAR_WIDTH);
+	if (l->r.x1 < fd->vs->view_posx) fd->vs->view_posx = l->r.x1;
+	return xx != fd->vs->view_posx;
+}
+
+int g_next_link(struct f_data_c *fd, int dir)
+{
+	int r = 2;
+	int n, pn;
+	if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) {
+		n = (pn = fd->vs->current_link) + dir;
+	} else retry: n = dir > 0 ? 0 : fd->f_data->nlinks - 1, pn = -1;
+	again:
+	if (n < 0 || n >= fd->f_data->nlinks) {
+		if (r == 1) {
+			fd->vs->current_link = -1;
+			fd->ses->locked_link = 0;
+			return 1;
+		}
+		if (dir < 0) {
+			if (!fd->vs->view_pos) return 0;
+			fd->vs->view_pos -= fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
+			/*if (fd->vs->view_pos < 0) fd->vs->view_pos = 0;*/
+		} else {
+			if (fd->vs->view_pos >= fd->f_data->y - fd->yw + fd->f_data->hsb * G_SCROLL_BAR_WIDTH) return 0;
+			fd->vs->view_pos += fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
+			/*if (fd->vs->view_pos > fd->f_data->y - fd->yw + fd->f_data->hsb * G_SCROLL_BAR_WIDTH) fd->vs->view_pos = fd->f_data->y - fd->yw + fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
+			if (fd->vs->view_pos < 0) fd->vs->view_pos = 0;*/
+		}
+		r = 1;
+		goto retry;
+	}
+	if (!is_link_in_view(fd, n)) {
+		n += dir;
+		goto again;
+	}
+	if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) {
+		redraw_link(fd, fd->vs->current_link);
+	}
+	fd->vs->current_link = n;
+	fd->vs->g_display_link = 1;
+	redraw_link(fd, n);
+	fd->ses->locked_link = 0;
+	if (fd->f_data->links[fd->vs->current_link].type == L_FIELD || fd->f_data->links[fd->vs->current_link].type == L_AREA) {
+		if ((fd->f_data->locked_on = fd->f_data->links[fd->vs->current_link].obj)) fd->ses->locked_link = 1;
+	}
+	change_screen_status(fd->ses);
+	print_screen_status(fd->ses);
+	if (lr_link(fd, fd->vs->current_link)) r = 1;
+	return r;
+}
+
 int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 {
 	int x, y;
@@ -797,14 +901,14 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			}
 			if (fd->f_data->vsb && ev_in_rect(ev, fd->xw - G_SCROLL_BAR_WIDTH, 0, fd->xw, fd->yw)) return 0;
 			if (fd->f_data->hsb && ev_in_rect(ev, 0, fd->yw - G_SCROLL_BAR_WIDTH, fd->xw, fd->yw)) return 0;
-#ifdef JS
 			previous_link=fd->vs->current_link;
-#endif
+			if (fd->vs->g_display_link) {
+				fd->vs->g_display_link = 0;
+				if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) redraw_link(fd, fd->vs->current_link);
+			}
 			fd->vs->current_link = -1;
 			fd->f_data->root->mouse_event(fd, fd->f_data->root, ev->x + fd->vs->view_posx, ev->y + fd->vs->view_pos, ev->b);
-#ifdef JS
 			if (previous_link!=fd->vs->current_link)
-#endif
 				change_screen_status(ses);
 			print_screen_status(ses);
 #ifdef JS
@@ -837,19 +941,30 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 					}
 					return 1;
 				}
-				if (ev->x == KBD_ENTER) return enter(ses, fd, 0);
+				if (ev->x == KBD_ENTER) {
+					return enter(ses, fd, 0);
+				}
 			}
-			/*
-			if (ev->x == KBD_ENTER) return enter(ses, fd, 0);
-			*/
+			if (ev->x == KBD_RIGHT || ev->x == KBD_ENTER) {
+				struct link *l;
+				if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) {
+					l = &fd->f_data->links[fd->vs->current_link];
+					set_window_ptr(ses->win, fd->f_data->opt.xp + l->r.x1 - fd->vs->view_posx, fd->f_data->opt.yp + l->r.y1 - fd->vs->view_pos);
+				} else {
+					set_window_ptr(ses->win, fd->f_data->opt.xp, fd->f_data->opt.yp);
+				}
+				return enter(ses, fd, 0);
+			}
 			if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && (!ev->y || ev->y== KBD_CTRL)) || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) {
 				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->f_data->hsb * G_SCROLL_BAR_WIDTH) return 0;
 				fd->vs->view_pos += fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
+				fd->vs->current_link = -1;
 				return 3;
 			}
 			if (ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && (!ev->y || ev->y == KBD_CTRL)) || (upcase(ev->x) == 'B' && ev->y & KBD_CTRL)) {
 				if (!fd->vs->view_pos) return 0;
 				fd->vs->view_pos -= fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
+				fd->vs->current_link = -1;
 				return 3;
 			}
 			if (0) {
@@ -874,17 +989,23 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				fd->vs->view_pos -= 32;
 				return 3;
 			}
-			if (ev->x == KBD_DOWN) {
+			if (/*ev->x == KBD_DOWN*/ 0) {
 				down1:
 				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->f_data->hsb * G_SCROLL_BAR_WIDTH) return 0;
 				fd->vs->view_pos += 16;
 				return 3;
 			}
-			if (ev->x == KBD_UP) {
+			if (/*ev->x == KBD_UP*/ 0) {
 				up1:
 				if (!fd->vs->view_pos) return 0;
 				fd->vs->view_pos -= 16;
 				return 3;
+			}
+			if (ev->x == KBD_DOWN) {
+				return g_next_link(fd, 1);
+			}
+			if (ev->x == KBD_UP) {
+				return g_next_link(fd, -1);
 			}
 			if (ev->x == '[') {
 				left:
@@ -898,13 +1019,13 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				fd->vs->view_posx += 64;
 				return 3;
 			}
-			if (ev->x == KBD_LEFT) {
+			if (/*ev->x == KBD_LEFT*/ 0) {
 				left1:
 				if (!fd->vs->view_posx) return 0;
 				fd->vs->view_posx -= 16;
 				return 3;
 			}
-			if (ev->x == KBD_RIGHT) {
+			if (/*ev->x == KBD_RIGHT*/ 0) {
 				right1:
 				if (fd->vs->view_posx == fd->f_data->x - fd->xw + fd->f_data->vsb * G_SCROLL_BAR_WIDTH) return 0;
 				fd->vs->view_posx += 16;
@@ -912,10 +1033,12 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			}
 			if (ev->x == KBD_HOME || (upcase(ev->x == 'A') && ev->y & KBD_CTRL)) {
 				fd->vs->view_pos = 0;
+				fd->vs->current_link = -1;
 				return 3;
 			}
 			if (ev->x == KBD_END || (upcase(ev->x == 'E') && ev->y & KBD_CTRL)) {
 				fd->vs->view_pos = fd->f_data->y;
+				fd->vs->current_link = -1;
 				return 3;
 			}
 			if (upcase(ev->x) == 'F' && !(ev->y & KBD_ALT)) {

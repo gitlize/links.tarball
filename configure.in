@@ -5,18 +5,20 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre7)
+AM_INIT_AUTOMAKE(links, 2.1pre8)
 
-ACLOCAL="$missing_dir/missing aclocal"
-AUTOCONF="$missing_dir/missing autoconf"
-AUTOMAKE="$missing_dir/missing automake"
-AUTOHEADER="$missing_dir/missing autoheader"
+ACLOCAL="./missing aclocal"
+AUTOCONF="./missing autoconf"
+AUTOMAKE="./missing automake"
+AUTOHEADER="./missing autoheader"
 image_formats="GIF PNG XBM"
 
 AM_CONFIG_HEADER(config.h)
 
 dnl Checks for programs.
 AC_PROG_CC
+
+#AC_PROG_CXX
 #AC_PROG_AWK
 #AM_PROG_LEX
 #AC_PROG_YACC
@@ -292,7 +294,7 @@ if test "$cf_use_graphics" = yes; then
 	AC_CHECK_LIB(z, inflate)
 	AC_CHECK_HEADERS(png.h libpng/png.h)
 	AC_CHECK_LIB(png, png_create_info_struct)
-	if test "$ac_cv_header_png_h" != yes && test "ac_cv_header_libpng_png_h" != yes || test "$ac_cv_lib_png_png_create_info_struct" != yes; then
+	if test "$ac_cv_header_png_h" != yes && test "$ac_cv_header_libpng_png_h" != yes || test "$ac_cv_lib_png_png_create_info_struct" != yes; then
 		AC_ERROR([You need libpng to compile Links in graphics mode])
 	fi
 

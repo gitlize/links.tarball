@@ -142,7 +142,7 @@
 
 #define G_HTML_MARGIN			8
 
-#define G_IMG_REFRESH			100
+#define G_IMG_REFRESH			0
 
 #define ESC_TIMEOUT			200
 

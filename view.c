@@ -503,7 +503,7 @@ void get_searched(struct f_data_c *scr, struct point **pt, int *pl)
 				co = get_char(t, x, y);
 				co = ((co >> 3) & 0x0700) | ((co << 3) & 0x3800);
 				set_color(t, x, y, co);*/
-				if (!(len & ALLOC_GR)) {
+				if (!(len & (ALLOC_GR - 1))) {
 					struct point *npt;
 					if (!(npt = mem_realloc(points, sizeof(struct point) * (len + ALLOC_GR)))) continue;
 					points = npt;
@@ -623,7 +623,7 @@ struct form_state *find_form_state(struct f_data_c *f, struct form_control *form
 		vs->form_info_len = n + 1;
 		fs = &vs->form_info[n];
 	}
-	if (fs->form_num == form->form_num && fs->ctrl_num == form->ctrl_num && fs->g_ctrl_num == form->g_ctrl_num && /*fs->position == form->position &&*/ fs->type == form->type) return fs;
+	if (/*fs->form_num == form->form_num && fs->ctrl_num == form->ctrl_num && fs->g_ctrl_num == form->g_ctrl_num &&*/ /*fs->position == form->position &&*/ fs->type == form->type) return fs;
 	if (fs->value) mem_free(fs->value);
 	memset(fs, 0, sizeof(struct form_state));
 	fs->form_num = form->form_num;
@@ -1354,6 +1354,7 @@ void encode_multipart(struct session *ses, struct list_head *l, unsigned char **
 			if (*sv->value) {
 				if (anonymous) goto error;
 				if ((fh = open(sv->value, O_RDONLY)) == -1) goto error;
+				set_bin(fh);
 				do {
 					if ((rd = read(fh, buffer, F_BUFLEN)) == -1) goto error;
 					if (rd) add_bytes_to_str(data, len, buffer, rd);
@@ -1869,9 +1870,9 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 				}
 			}
 		} else if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'Z' && ev->y == KBD_CTRL)) {
-			set_clipboard_text(fs->value);
+			set_clipboard_text(ses->term, fs->value);
 		} else if ((ev->x == KBD_DEL && ev->y == KBD_SHIFT) || (upcase(ev->x) == 'X' && ev->y == KBD_CTRL)) {
-			set_clipboard_text(fs->value);
+			set_clipboard_text(ses->term, fs->value);
 			if (!form->ro) fs->value[0] = 0;
 			fs->state = 0;
 #ifdef JS
@@ -2166,9 +2167,9 @@ int frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 		else if (ev->x == KBD_UP) rep_ev(ses, fd, up, 0);
 		/* Copy current link to clipboard */
 		else if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'C' && ev->y == KBD_CTRL)) {
-			char *current_link = print_current_link(ses);
+			unsigned char *current_link = print_current_link(ses);
 			if (current_link) {
-				set_clipboard_text( current_link );
+				set_clipboard_text(ses->term, current_link);
 				mem_free(current_link);
 			}
 		}
@@ -2446,7 +2447,7 @@ void send_event(struct session *ses, struct event *ev)
 			next_frame(ses, ev->y ? -1 : 1);
 			draw_formatted(ses);
 		}
-		if (!F && ev->x == KBD_LEFT) {
+		if (ev->x == KBD_LEFT) {
 			back(ses, NULL, 0);
 			goto x;
 		}
@@ -2460,6 +2461,10 @@ void send_event(struct session *ses, struct event *ev)
 		}
 		if (upcase(ev->x) == 'R' && ev->y == KBD_CTRL) {
 			reload(ses, -1);
+			goto x;
+		}
+		if (upcase(ev->x) == 'S' && ev->y == KBD_CTRL) {
+			abort_all_connections();
 			goto x;
 		}
 		if (ev->x == 'g' && !ev->y) {
@@ -2598,6 +2603,28 @@ void send_download(struct terminal *term, void *xxx, struct session *ses)
 		query_file(ses, ses->dn_url, start_download, NULL);
 }
 
+void copy_link_location(struct terminal *term, void *xxx, struct session *ses)
+{
+	unsigned char *current_link = print_current_link(ses);
+
+	if (current_link) {
+		set_clipboard_text( term, current_link );
+		mem_free(current_link);
+	}
+
+}
+
+void copy_url_location(struct terminal *term, void *xxx, struct session *ses)
+{
+      unsigned char * url;
+	struct location * current_location;
+	
+	if (list_empty(ses->history)) return;
+
+	if ((current_location = cur_loc(ses))&& current_location && (url=current_location->url))
+	        set_clipboard_text(term, url);
+}
+
 /* open a link in a new xterm */
 void send_open_in_new_xterm(struct terminal *term, void (*open_window)(struct terminal *term, unsigned char *, unsigned char *), struct session *ses)
 {
@@ -2725,6 +2752,10 @@ void link_menu(struct terminal *term, void *xxx, struct session *ses)
 			if (!F) add_to_menu(&mi, TEXT(T_FOLLOW_LINK), "", TEXT(T_HK_FOLLOW_LINK), MENU_FUNC send_enter, NULL, 0);
 			if (c) add_to_menu(&mi, TEXT(T_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT(T_HK_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1);
 			if (!anonymous) add_to_menu(&mi, TEXT(T_DOWNLOAD_LINK), "d", TEXT(T_HK_DOWNLOAD_LINK), MENU_FUNC send_download, NULL, 0);
+#ifdef G
+			if(F && term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) 
+				add_to_menu(&mi, TEXT(T_COPY_LINK_LOCATION), "c", TEXT(T_HK_COPY_LINK_LOCATION), MENU_FUNC copy_link_location, NULL, 0);
+#endif
 			/*add_to_menu(&mi, TEXT(T_ADD_BOOKMARK), "A", TEXT(T_HK_ADD_BOOKMARK), MENU_FUNC menu_bookmark_manager, NULL, 0);*/
 
 		}

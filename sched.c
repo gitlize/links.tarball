@@ -414,7 +414,7 @@ void run_connection(struct connection *c)
 void retry_connection(struct connection *c)
 {
 	interrupt_connection(c);
-	if (c->unrestartable >= 2 || ++c->tries >= max_tries) {
+	if (c->unrestartable >= 2 || (++c->tries >= (max_tries ? max_tries : 1000))) {
 		/*send_connection_info(c);*/
 		del_connection(c);
 #ifdef DEBUG

@@ -26,42 +26,69 @@ static inline int atchr(unsigned char c)
 /*	    0 success */
 int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, int *namelen, unsigned char **attr, unsigned char **end)
 {
-	if (e >= eof || *(e++) != '<') return -1;
+	if (eof - e < 3 || *(e++) != '<') return -1;
 	if (name) *name = e;
-	if (e < eof && *e == '/') e++;
-	if (e >= eof || !isA(*e)) return -1;
-	while (e < eof && isA(*e)) e++;
-	if (e >= eof || (!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;
+	if (*e == '/') e++;
+	if (!isA(*e)) return -1;
+	goto x1;
+	while (isA(*e)) {
+		x1:
+		e++;
+		if (e >= eof) return -1;
+	}
+	if ((!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;
 	if (name && namelen) *namelen = e - *name;
-	while (e < eof && (WHITECHAR(*e) || *e == '/' || *e == ':')) e++;
-	if (e >= eof || (!atchr(*e) && *e != '>' && *e != '<')) return -1;
+	while ((WHITECHAR(*e) || *e == '/' || *e == ':')) {
+		e++;
+		if (e >= eof) return -1;
+	}
+	if ((!atchr(*e) && *e != '>' && *e != '<')) return -1;
 	if (attr) *attr = e;
 	nextattr:
-	while (e < eof && WHITECHAR(*e)) e++;
-	if (e >= eof || (!atchr(*e) && *e != '>' && *e != '<')) return -1;
+	while (WHITECHAR(*e)) {
+		e++;
+		if (e >= eof) return -1;
+	}
+	if ((!atchr(*e) && *e != '>' && *e != '<')) return -1;
 	if (*e == '>' || *e == '<') goto en;
-	while (e < eof && atchr(*e)) e++;
-	while (e < eof && WHITECHAR(*e)) e++;
-	if (e >= eof) return -1;
+	while (atchr(*e)) {
+		e++;
+		if (e >= eof) return -1;
+	}
+	while (WHITECHAR(*e)) {
+		e++;
+		if (e >= eof) return -1;
+	}
 	if (*e != '=') goto endattr;
-	e++;
-	while (e < eof && WHITECHAR(*e)) e++;
-	if (e >= eof) return -1;
+	goto x2;
+	while (WHITECHAR(*e)) {
+		x2:
+		e++;
+		if (e >= eof) return -1;
+	}
 	if (U(*e)) {
 		unsigned char uu = *e;
 		u:
-		e++;
-		while (e < eof && *e != uu && *e /*(WHITECHAR(*e) || *e > ' ')*/) e++;
-		if (e >= eof || *e < ' ') return -1;
+		goto x3;
+		while (e < eof && *e != uu && *e /*(WHITECHAR(*e) || *e > ' ')*/) {
+			x3:
+			e++;
+			if (e >= eof) return -1;
+		}
+		if (*e < ' ') return -1;
 		e++;
 		if (e >= eof /*|| (!WHITECHAR(*e) && *e != uu && *e != '>' && *e != '<')*/) return -1;
 		if (*e == uu) goto u;
 	} else {
-		while (e < eof && !WHITECHAR(*e) && *e != '>' && *e != '<') e++;
+		while (!WHITECHAR(*e) && *e != '>' && *e != '<') {
+			e++;
+			if (e >= eof) return -1;
+		}
+	}
+	while (WHITECHAR(*e)) {
+		e++;
 		if (e >= eof) return -1;
 	}
-	while (e < eof && WHITECHAR(*e)) e++;
-	if (e >= eof) return -1;
 	endattr:
 	if (*e != '>' && *e != '<') goto nextattr;
 	en:

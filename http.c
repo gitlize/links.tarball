@@ -85,7 +85,7 @@ static int get_http_code(unsigned char *head, int *code, int *version)
 	return 0;
 }
 
-unsigned char *buggy_servers[] = { "mod_czech/3.1.0", "Purveyor", "Netscape-Enterprise", NULL };
+unsigned char *buggy_servers[] = { "mod_czech/3.1.0", "Purveyor", "Netscape-Enterprise", "Apache Coyote", NULL };
 
 int check_http_server_bugs(unsigned char *url, struct http_connection_info *info, unsigned char *head)
 {
@@ -153,7 +153,7 @@ void http_send_header(struct connection *c)
 	int http10 = http_bugs.http10;
 	struct cache_entry *e = NULL;
 	unsigned char *hdr;
-	unsigned char *h, *u, *uu;
+	unsigned char *h, *u, *uu, *sp;
 	int l = 0;
 	unsigned char *post;
 	unsigned char *host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
@@ -191,16 +191,16 @@ void http_send_header(struct connection *c)
 	}
 	if (!post) uu = stracpy(u);
 	else uu = memacpy(u, post - u - 1);
-	while (strchr(uu, ' ')) {
-		unsigned char *sp = strchr(uu, ' ');
+	a:
+	for (sp = uu; *sp; sp++) if (*sp <= ' ') {
 		unsigned char *nu = mem_alloc(strlen(uu) + 3);
 		if (!nu) break;
 		memcpy(nu, uu, sp - uu);
-		nu[sp - uu] = 0;
-		strcat(nu, "%20");
+		sprintf(nu + (sp - uu), "%%%02X", (int)*sp);
 		strcat(nu, sp + 1);
 		mem_free(uu);
 		uu = nu;
+		goto a;
 	}
 	add_to_str(&hdr, &l, uu);
 	mem_free(uu);
@@ -331,7 +331,7 @@ void http_send_header(struct connection *c)
 			post += 2;
 		}
 	}
-	write_to_socket(c, c->sock1, hdr, strlen(hdr), http_get_header);
+	write_to_socket(c, c->sock1, hdr, l, http_get_header);
 	mem_free(hdr);
 	setcstate(c, S_SENT);
 }

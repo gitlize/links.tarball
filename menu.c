@@ -59,6 +59,11 @@ void menu_save_url_as(struct terminal *term, void *d, struct session *ses)
 	dialog_save_url(ses);
 }
 
+void menu_save_bookmarks(struct terminal *term, void *d, struct session *ses)
+{
+	save_bookmarks();
+}
+
 void menu_go_back(struct terminal *term, void *d, struct session *ses)
 {
 	go_back(ses);
@@ -969,7 +974,7 @@ void video_options(struct terminal *term, void *xxx, struct session *ses)
 
 unsigned char max_c_str[3];
 unsigned char max_cth_str[2];
-unsigned char max_t_str[2];
+unsigned char max_t_str[3];
 unsigned char time_str[5];
 unsigned char unrtime_str[5];
 
@@ -1047,7 +1052,7 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	struct dialog *d;
 	snprint(max_c_str, 3, max_connections);
 	snprint(max_cth_str, 2, max_connections_to_host);
-	snprint(max_t_str, 2, max_tries);
+	snprint(max_t_str, 3, max_tries);
 	snprint(time_str, 5, receive_timeout);
 	snprint(unrtime_str, 5, unrestartable_receive_timeout);
 	if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return;
@@ -1075,9 +1080,9 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	d->items[3].gnum = 8;
 	d->items[4].type = D_FIELD;
 	d->items[4].data = max_t_str;
-	d->items[4].dlen = 2;
+	d->items[4].dlen = 3;
 	d->items[4].fn = check_number;
-	d->items[4].gid = 1;
+	d->items[4].gid = 0;
 	d->items[4].gnum = 16;
 	d->items[5].type = D_FIELD;
 	d->items[5].data = time_str;
@@ -1310,6 +1315,11 @@ void menu_shell(struct terminal *term, void *xxx, void *yyy)
 void menu_kill_background_connections(struct terminal *term, void *xxx, void *yyy)
 {
 	abort_background_connections();
+}
+
+void menu_kill_all_connections(struct terminal *term, void *xxx, void *yyy)
+{
+	abort_all_connections();
 }
 
 void menu_save_html_options(struct terminal *term, void *xxx, struct session *ses)
@@ -1818,6 +1828,7 @@ struct menu_item file_menu111[] = {
 
 struct menu_item file_menu12[] = {
 	{ TEXT(T_BOOKMARKS), "s", TEXT(T_HK_BOOKMARKS), MENU_FUNC menu_bookmark_manager, (void *)0, 0, 0 },
+	{ TEXT(T_SAVE_BOOKMARKS), "", TEXT(T_HK_SAVE_BOOKMARKS), MENU_FUNC menu_save_bookmarks, (void *)0, 0, 0 },
 	/*{ TEXT(T_ADD_BOOKMARK), "a", TEXT(T_HK_ADD_BOOKMARK), MENU_FUNC menu_bookmark_manager, (void *)0, 0, 0 },*/
 };
 
@@ -1836,9 +1847,19 @@ struct menu_item file_menu211[] = {
 };
 #endif
 
+#ifdef G
+struct menu_item file_menu211_clipb[] = {
+	{ "", "", M_BAR, NULL, NULL, 0, 0 },
+	{ TEXT(T_SAVE_AS), "", TEXT(T_HK_SAVE_AS), MENU_FUNC save_as, (void *)0, 0, 0 },
+	{ TEXT(T_SAVE_URL_AS), "", TEXT(T_HK_SAVE_URL_AS), MENU_FUNC menu_save_url_as, (void *)0, 0, 0 },
+	{ TEXT(T_COPY_URL_LOCATION), "", TEXT(T_HK_COPY_URL_LOCATION), MENU_FUNC copy_url_location, (void *)0, 0, 0 },
+};
+#endif
+
 struct menu_item file_menu22[] = {
 	{ "", "", M_BAR, NULL, NULL, 0, 0} ,
 	{ TEXT(T_KILL_BACKGROUND_CONNECTIONS), "", TEXT(T_HK_KILL_BACKGROUND_CONNECTIONS), MENU_FUNC menu_kill_background_connections, (void *)0, 0, 0 },
+	{ TEXT(T_KILL_ALL_CONNECTIONS), "", TEXT(T_HK_KILL_ALL_CONNECTIONS), MENU_FUNC menu_kill_all_connections, (void *)0, 0, 0 },
 	{ TEXT(T_FLUSH_ALL_CACHES), "", TEXT(T_HK_FLUSH_ALL_CACHES), MENU_FUNC flush_caches, (void *)0, 0, 0 },
 	{ TEXT(T_RESOURCE_INFO), "", TEXT(T_HK_RESOURCE_INFO), MENU_FUNC cache_inf, (void *)0, 0, 0 },
 #if 0
@@ -1892,8 +1913,16 @@ void do_file_menu(struct terminal *term, void *xxx, struct session *ses)
 			e += sizeof(file_menu21) / sizeof(struct menu_item);
 #ifdef G
 		} else {
-			memcpy(e, file_menu211, sizeof(file_menu211));
-			e += sizeof(file_menu211) / sizeof(struct menu_item);
+			if(F && term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) 
+			{
+				memcpy(e, file_menu211_clipb, sizeof(file_menu211_clipb));
+				e += sizeof(file_menu211_clipb) / sizeof(struct menu_item);
+			}
+			else
+			{
+				memcpy(e, file_menu211, sizeof(file_menu211));
+				e += sizeof(file_menu211) / sizeof(struct menu_item);
+			}
 #endif
 		}
 	}
@@ -2058,6 +2087,7 @@ struct menu_item main_menu[] = {
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
 
+/*
 #ifdef G
 struct menu_item main_menu_g[] = {
 	{ TEXT(T_FILE), "", TEXT(T_HK_FILE), MENU_FUNC do_file_menu, NULL, 1, 1 },
@@ -2068,13 +2098,14 @@ struct menu_item main_menu_g[] = {
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
 #endif
+*/
 
 /* lame technology rulez ! */
 
 void activate_bfu_technology(struct session *ses, int item)
 {
 	struct terminal *term = ses->term;
-	do_mainmenu(term, gf_val(main_menu, main_menu_g), ses, item);
+	do_mainmenu(term, /*gf_val(*/main_menu/*, main_menu_g)*/, ses, item);
 }
 
 struct history goto_url_history = { 0, { &goto_url_history.items, &goto_url_history.items } };
