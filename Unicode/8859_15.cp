@@ -1,4 +1,4 @@
-ISO 8859-15
+ISO 8859-15 (Western European)
 "ISO-8859-15", "8859-15"
 #
 #	Name:             ISO/IEC 8859-15:1999 to Unicode

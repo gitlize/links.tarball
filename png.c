@@ -21,11 +21,11 @@
 #endif /* #if SIZEOF_UNSIGNED_SHORT != 2 */
 
 #ifndef REPACK_16
-#ifndef AC_LITTLE_ENDIAN
-#ifndef AC_BIG_ENDIAN
+#ifndef C_LITTLE_ENDIAN
+#ifndef C_BIG_ENDIAN
 #define REPACK_16
-#endif /* #ifndef AC_BIG_ENDIAN */
-#endif /* #ifndef AC_LITTLE_ENDIAN */
+#endif /* #ifndef C_BIG_ENDIAN */
+#endif /* #ifndef C_LITTLE_ENDIAN */
 #endif /* #ifndef REPACK_16 */
 	  
 /* Decoder structs */
@@ -67,13 +67,13 @@ void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 		png_set_gray_to_rgb(png_ptr);
 	if (bit_depth==16){
 #ifndef REPACK_16
-#ifdef AC_LITTLE_ENDIAN
+#ifdef C_LITTLE_ENDIAN
 		/* We use native endianity only if unsigned short is 2-byte
 		 * because otherwise we have to reassemble the buffer so we
 		 * will leave in the libpng-native big endian.
 		 */
 		png_set_swap(png_ptr);
-#endif /* #ifdef AC_LITTLE_ENDIAN */
+#endif /* #ifdef C_LITTLE_ENDIAN */
 #endif /* #ifndef REPACK_16 */
 		bytes_per_pixel*=sizeof(unsigned short);
 	}

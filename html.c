@@ -856,7 +856,9 @@ void html_img(unsigned char *a)
 	ismap = format.link && !has_attr(a, "usemap") && has_attr(a, "ismap");
 	if (format.image) mem_free(format.image), format.image = NULL;
 	if ((s = get_url_val(a, "src")) || (s = get_attr_val(a, "dynsrc")) || (s = get_attr_val(a, "data"))) {
+		 if (!format.link && d_opt->braille) goto skip_img;
 		 format.image = join_urls(format.href_base, s);
+		 skip_img:
 		 orig_link = s;
 	}
 	if (!F || !d_opt->display_images) {
@@ -974,7 +976,7 @@ void html_obj(unsigned char *a, int obj)
 		if (!url) url = get_attr_val(a, "data");
 		if (url) type = get_content_type(NULL, url), mem_free(url);
 	}
-	if (type && !casecmp(type, "image/", 6)) {
+	if (type && known_image_type(type)) {
 		html_img(a);
 		if (obj == 1) html_top.invisible = 1;
 		goto ret;
@@ -1922,7 +1924,7 @@ void html_textarea(unsigned char *a)
 void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *eof, unsigned char **end, void *f)
 {
 	struct form_control *fc;
-	unsigned char *p, *t_name;
+	unsigned char *p, *t_name, *w;
 	int t_namelen;
 	int cols, rows;
 	int i;
@@ -1964,7 +1966,11 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	if (rows > d_opt->yw) rows = d_opt->yw;
 	fc->cols = cols;
 	fc->rows = rows;
-	fc->wrap = has_attr(attr, "wrap");
+	if ((w = get_attr_val(attr, "wrap"))) {
+		if (!strcasecmp(w, "hard")) fc->wrap = 2;
+		else fc->wrap = 1;
+		mem_free(w);
+	}
 	if ((fc->maxlength = get_num(attr, "maxlength")) == -1) fc->maxlength = MAXINT;
 	if (rows > 1) ln_break(1, line_break_f, f);
 	else put_chrs(" ", 1, put_chars_f, f);

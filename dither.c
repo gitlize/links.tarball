@@ -483,7 +483,7 @@ long color_555(int rgb)
 	g=(g*31+127)/255;
 	b=(b*31+127)/255;
 	i=(r<<10)|(g<<5)|b;
-#ifdef AC_LITTLE_ENDIAN
+#ifdef C_LITTLE_ENDIAN
 #ifdef t2c
 	((t2c *)&ret)[0]=i;
 #else
@@ -493,7 +493,7 @@ long color_555(int rgb)
 #else
 	((unsigned char *)&ret)[0]=i;
 	((unsigned char *)&ret)[1]=i>>8;
-#endif /* #ifdef AC_LITTLE_ENDIAN */
+#endif /* #ifdef C_LITTLE_ENDIAN */
 			
 
 	return ret;
@@ -515,7 +515,7 @@ long color_565be(int rgb)
 	g=(g*63+127)/255;
 	b=(b*31+127)/255;
 	i = (r<<11)|(g<<5)|b;
-#ifdef AC_LITTLE_ENDIAN
+#ifdef C_LITTLE_ENDIAN
 	ret = (((i&0xff)<<8) | ((i>>8)&0xff)) << 16;
 #else
 	ret = i;
@@ -538,7 +538,7 @@ long color_565(int rgb)
 	g=(g*63+127)/255;
 	b=(b*31+127)/255;
 	i=(r<<11)|(g<<5)|b;
-#ifdef AC_LITTLE_ENDIAN
+#ifdef C_LITTLE_ENDIAN
 #ifdef t2c
 	((t2c *)&ret)[0]=i;
 #else
@@ -548,7 +548,7 @@ long color_565(int rgb)
 #else
 	((unsigned char *)&ret)[0]=i;
 	((unsigned char *)&ret)[1]=i>>8;
-#endif /* #ifdef AC_LITTLE_ENDIAN */
+#endif /* #ifdef C_LITTLE_ENDIAN */
 
 	return ret;
 

@@ -171,6 +171,7 @@ void assoc_edit_item_fn(struct dialog_data *dlg)
 	int w, rw;
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
 	int p = 1;
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef ASSOC_BLOCK
 	p++;
 #endif
@@ -193,12 +194,12 @@ void assoc_edit_item_fn(struct dialog_data *dlg)
 	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
 	rw = 0;
-	dlg_format_text(dlg, NULL, _(ct_msg[0], term), 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE * 2);
-	dlg_format_text(dlg, NULL, _(ct_msg[1], term), 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE * 2);
-	dlg_format_text(dlg, NULL, _(ct_msg[2], term), 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE * 2);
+	dlg_format_text_and_field(dlg, NULL, _(ct_msg[0], term), &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, NULL, _(ct_msg[1], term), &dlg->items[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, NULL, _(ct_msg[2], term), &dlg->items[2], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE * 1);
 	dlg_format_group(dlg, NULL, ct_msg + 3, dlg->items + 3, p, 0, &y, w, &rw);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items + 3 + p, 2, 0, &y, w, &rw, AL_CENTER);
@@ -208,14 +209,12 @@ void assoc_edit_item_fn(struct dialog_data *dlg)
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
-	dlg_format_text(dlg, term, ct_msg[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, ct_msg[0], &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, ct_msg[1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, &dlg->items[1], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, ct_msg[1], &dlg->items[1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, ct_msg[2], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, &dlg->items[2], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, ct_msg[2], &dlg->items[2], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_group(dlg, term, ct_msg + 3, &dlg->items[3], p, dlg->x + DIALOG_LB, &y, w, NULL);
 	y += gf_val(1, G_BFU_FONT_SIZE);
@@ -521,6 +520,7 @@ void ext_edit_item_fn(struct dialog_data *dlg)
 	int max = 0, min = 0;
 	int w, rw;
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	max_text_width(term, ext_msg[0], &max, AL_LEFT);
 	min_text_width(term, ext_msg[0], &min, AL_LEFT);
 	max_text_width(term, ext_msg[1], &max, AL_LEFT);
@@ -533,10 +533,10 @@ void ext_edit_item_fn(struct dialog_data *dlg)
 	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
 	rw = 0;
-	dlg_format_text(dlg, NULL, ext_msg[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE * 2);
-	dlg_format_text(dlg, NULL, ext_msg[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE * 2);
+	dlg_format_text_and_field(dlg, NULL, ext_msg[0], &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, NULL, ext_msg[1], &dlg->items[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE * 1);
 	dlg_format_buttons(dlg, NULL, dlg->items + 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
 	dlg->xw = w + 2 * DIALOG_LB;
@@ -544,11 +544,10 @@ void ext_edit_item_fn(struct dialog_data *dlg)
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
-	dlg_format_text(dlg, term, ext_msg[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, ext_msg[0], &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, ext_msg[1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, &dlg->items[1], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, ext_msg[1], &dlg->items[1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, &dlg->items[2], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }

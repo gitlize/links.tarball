@@ -51,6 +51,7 @@
 #define Cunshift 44
 #define Cslice 45
 #define Csplice 46
+#define CgetElementById 47
 
 
 #define Cjoin 200

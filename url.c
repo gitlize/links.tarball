@@ -13,19 +13,20 @@ struct {
 	int free_syntax;
 	int need_slashes;
 	int need_slash_after_host;
+	int allow_post;
 } protocols[]= {
-		{"file", 0, file_func, NULL, 1, 1, 0},
-		{"https", 443, https_func, NULL, 0, 1, 1},
-		{"http", 80, http_func, NULL, 0, 1, 1},
-		{"proxy", 3128, proxy_func, NULL, 0, 1, 1},
-		{"ftp", 21, ftp_func, NULL, 0, 1, 1},
-		{"finger", 79, finger_func, NULL, 0, 1, 1},
-		{"smb", 139, smb_func, NULL, 0, 1, 1},
-		{"mailto", 0, NULL, mailto_func, 0, 0, 0},
-		{"telnet", 0, NULL, telnet_func, 0, 0, 0},
-		{"tn3270", 0, NULL, tn3270_func, 0, 0, 0},
+		{"file", 0, file_func, NULL, 1, 1, 0, 0},
+		{"https", 443, https_func, NULL, 0, 1, 1, 1},
+		{"http", 80, http_func, NULL, 0, 1, 1, 1},
+		{"proxy", 3128, proxy_func, NULL, 0, 1, 1, 1},
+		{"ftp", 21, ftp_func, NULL, 0, 1, 1, 0},
+		{"finger", 79, finger_func, NULL, 0, 1, 1, 0},
+		{"smb", 139, smb_func, NULL, 0, 1, 1, 0},
+		{"mailto", 0, NULL, mailto_func, 0, 0, 0, 0},
+		{"telnet", 0, NULL, telnet_func, 0, 0, 0, 0},
+		{"tn3270", 0, NULL, tn3270_func, 0, 0, 0, 0},
 #ifdef JS
-		{"javascript", 0, NULL, javascript_func, 1, 0, 0},
+		{"javascript", 0, NULL, javascript_func, 1, 0, 0, 0},
 #endif
 		{NULL, 0, NULL}
 };
@@ -40,7 +41,7 @@ int check_protocol(unsigned char *p, int l)
 	return -1;
 }
 
-int get_prot_info(unsigned char *prot, int *port, void (**func)(struct connection *), void (**nc_func)(struct session *ses, unsigned char *))
+int get_prot_info(unsigned char *prot, int *port, void (**func)(struct connection *), void (**nc_func)(struct session *ses, unsigned char *), int *allow_post)
 {
 	int i;
 	for (i = 0; protocols[i].prot; i++)
@@ -48,6 +49,7 @@ int get_prot_info(unsigned char *prot, int *port, void (**func)(struct connectio
 			if (port) *port = protocols[i].port;
 			if (func) *func = protocols[i].func;
 			if (nc_func) *nc_func = protocols[i].nc_func;
+			if (allow_post) *allow_post = protocols[i].allow_post;
 			return 0;
 		}
 	return -1;
@@ -83,7 +85,7 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 		return 0;
 	}
 	p += 3;
-	q = p + strcspn(p, "@/");
+	q = p + strcspn(p, "@/?");
 	if (!*q && protocols[a].need_slash_after_host) return -1;
 	if (*q == '@') {
 		unsigned char *pp = strchr(p, ':');
@@ -98,7 +100,7 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 		}
 		p = q + 1;
 	} 
-	q = p + strcspn(p, ":/");
+	q = p + strcspn(p, ":/?");
 	if (!*q && protocols[a].need_slash_after_host) return -1;
 	if (host) *host = p;
 	if (holen) *holen = q - p;
@@ -111,7 +113,7 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 		for (cc = 0; cc < pp - q - 1; cc++) if (q[cc+1] < '0' || q[cc+1] > '9') return -1;
 		q = pp;
 	}
-	if (*q) q++;
+	if (*q && *q != '?') q++;
 	p = q;
 	p_c[0] = POST_CHAR;
 	p_c[1] = 0;
@@ -182,7 +184,7 @@ int get_port(unsigned char *url)
 		if (n) return n;
 	}
 	if ((h = get_protocol_name(url))) {
-		get_prot_info(h, &n, NULL, NULL);
+		get_prot_info(h, &n, NULL, NULL, NULL);
 		mem_free(h);
 	}
 	return n;
@@ -192,9 +194,11 @@ void (*get_protocol_handle(unsigned char *url))(struct connection *)
 {
 	unsigned char *p;
 	void (*f)(struct connection *) = NULL;
+	int post = 0;
 	if (!(p = get_protocol_name(url))) return NULL;
-	get_prot_info(p, NULL, &f, NULL);
+	get_prot_info(p, NULL, &f, NULL, &post);
 	mem_free(p);
+	if (!post && strchr(url, POST_CHAR)) return NULL;
 	return f;
 }
 
@@ -202,9 +206,11 @@ void (*get_external_protocol_function(unsigned char *url))(struct session *, uns
 {
 	unsigned char *p;
 	void (*f)(struct session *, unsigned char *) = NULL;
+	int post = 0;
 	if (!(p = get_protocol_name(url))) return NULL;
-	get_prot_info(p, NULL, NULL, &f);
+	get_prot_info(p, NULL, NULL, &f, &post);
 	mem_free(p);
+	if (!post && strchr(url, POST_CHAR)) return NULL;
 	return f;
 }
 
@@ -353,7 +359,9 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		return NULL;
 	}
 	if (!dsep(*p)) p--;
-	if (!dsep(rel[0])) for (pp = p; *pp; pp++) {
+	if (end_of_dir(rel[0])) for (; *p; p++) {
+		if (end_of_dir(*p)) break;
+	} else if (!dsep(rel[0])) for (pp = p; *pp; pp++) {
 		if (end_of_dir(*pp)) break;
 		if (dsep(*pp)) p = pp + 1;
 	}

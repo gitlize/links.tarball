@@ -23,6 +23,9 @@ struct f_data *init_formatted(struct document_options *opt)
 	init_list(scr->images);
 	scr->search_positions = DUMMY;
 	init_list(scr->image_refresh);
+	scr->start_highlight_x = -1;
+	scr->start_highlight_y = -1;
+	scr->hlt_pos = -1;
 #endif
 	return scr;
 }
@@ -286,7 +289,7 @@ static inline int xpand_lines(struct part *p, int y)
 	y += p->yp;
 	if (y >= p->data->y) {
 		int i;
-		if (XALIGN(y + 1) >= XALIGN(p->data->y)) {
+		if (XALIGN(y + 1) > XALIGN(p->data->y)) {
 			struct line *l;
 			if (!(l = mem_realloc(p->data->data, XALIGN(y+1)*sizeof(struct line))))
 				return -1;
@@ -315,7 +318,7 @@ static inline int xpand_line(struct part *p, int y, int x)
 #endif
 	if (x >= p->data->data[y].l) {
 		int i;
-		if (XALIGN(x+1) >= XALIGN(p->data->data[y].l)) {
+		if (XALIGN(x+1) > XALIGN(p->data->data[y].l)) {
 			chr *l;
 			if (!(l = mem_realloc(p->data->data[y].d, XALIGN(x+1)*sizeof(chr))))
 				return -1;
@@ -702,10 +705,8 @@ void put_chars(struct part *p, unsigned char *c, int l)
 		last_link = last_target = last_image = NULL;
 		last_form = NULL;
 		last_js_event = NULL;
-		if (!(format.link || format.image || format.form 
-		|| format.js_event
-		)) goto no_l;
-		if (d_opt->num_links) {
+		if (!(format.link || format.image || format.form || format.js_event)) goto no_l;
+		if (d_opt->num_links || d_opt->braille) {
 			unsigned char s[64];
 			unsigned char *fl = format.link, *ft = format.target, *fi = format.image;
 			struct form_control *ff = format.form;
@@ -713,9 +714,19 @@ void put_chars(struct part *p, unsigned char *c, int l)
 			format.link = format.target = format.image = NULL;
 			format.form = NULL;
 			format.js_event = NULL;
-			s[0] = '[';
-			snzprint(s + 1, 62, p->link_num);
-			strcat(s, "]");
+			if (d_opt->num_links) {
+				s[0] = '[';
+				snzprint(s + 1, 62, p->link_num);
+				strcat(s, "]");
+			} else {
+				if (ff && (ff->type == FC_TEXT || ff->type == FC_PASSWORD || ff->type == FC_FILE || ff->type == FC_TEXTAREA)) {
+					strcpy(s, ">");
+				} else if (ff && (ff->type == FC_CHECKBOX || ff->type == FC_RADIO || ff->type == FC_SELECT)) {
+					strcpy(s, "");
+				} else {
+					strcpy(s, "~");
+				}
+			}
 			put_chars(p, s, strlen(s));
 			if (ff && ff->type == FC_TEXTAREA) line_break(p);
 			if (p->cx == -1) p->cx = par_format.leftmargin;
@@ -1292,6 +1303,7 @@ int compare_opt(struct document_options *o1, struct document_options *o2)
 	    o1->cp == o2->cp &&
 	    o1->assume_cp == o2->assume_cp &&
 	    o1->hard_assume == o2->hard_assume &&
+	    o1->braille == o2->braille &&
 	    o1->tables == o2->tables &&
 	    o1->frames == o2->frames &&
 	    o1->images == o2->images &&
@@ -1406,10 +1418,11 @@ int get_srch(struct f_data *f)
 					ja_uz_z_toho_programovani_asi_zcvoknu:
 					if (!cc) add_srch_chr(f, ' ', x, y, xx - x);
 					else cnt++;
-					if (xx == x) break;
+					if (xx == x) goto uz_jsem_zcvoknul__jsem_psychopat__trpim_poruchou_osobnosti;
 					x = xx - 1;
 				}
 			}
+			uz_jsem_zcvoknul__jsem_psychopat__trpim_poruchou_osobnosti:
 			if (!cc) add_srch_chr(f, ' ', x, y, 0);
 			else cnt++;
 		}

@@ -17,6 +17,7 @@ static int root_x = 0;
 static int root_y = 0;
 
 void g_get_search_data(struct f_data *f);
+struct g_object_text * g_find_nearest_object(struct f_data *f, int x, int y);
 
 static int previous_link=-1;	/* for mouse event handlers */
 
@@ -62,6 +63,40 @@ void g_dummy_mouse(struct f_data_c *fd, struct g_object *a, int x, int y, int b)
 }
 
 int print_all_textarea = 0;
+
+
+/* returns byte index of x in t->text */
+/* x is relative coordinate within the text (can be out of bounds) */
+int g_find_text_pos(struct g_object_text *t, int x)
+{
+	int i=0, p=0;
+	unsigned char *text=t->text;
+	int ox, oy;
+
+	get_object_pos((struct g_object *)t, &ox, &oy);
+	x -= ox;
+
+	if (x<0) x=0;
+	if (x>t->xw) x=t->xw;
+
+	while(1)
+	{
+		unsigned c;
+		unsigned char *old_text;
+		int w;
+		
+		old_text=text;
+		GET_UTF_8(text, c);
+		if (!c) break;
+		w=g_char_width(t->style, c);
+		if (/*p<x&&*/x<(p+(w>>1))) break;
+		p+=w;
+		i+=text-old_text;
+		if (p>=x) break;
+	}
+	return i;
+}
+
 
 void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 {
@@ -209,7 +244,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		inv = g_invert_style(t->style);
 		g_print_text(drv, fd->ses->term->dev, x, y, inv, t->text, NULL);
 		g_free_style(inv);
-	} else if (!highlight_positions || !n_highlight_positions) {
+	} else if ( (!fd->f_data->hlt_len) && (!highlight_positions || !n_highlight_positions) ) {
 		prn:
 		g_print_text(drv, fd->ses->term->dev, x, y, t->style, t->text, NULL);
 	} else {
@@ -217,27 +252,47 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		int found;
 		int start = t->srch_pos;
 		int end = t->srch_pos + tlen;
+		int hl_start, hl_len;
 		unsigned char *mask;
 		unsigned char *tx;
 		int txl;
 		int pmask;
 		int ii;
 		struct style *inv;
+
+		intersect(fd->f_data->hlt_pos, fd->f_data->hlt_len, start, tlen, &hl_start, &hl_len);
+		
 #define B_EQUAL(t, m) ((t) + highlight_position_size > start && (t) < end)
 #define B_ABOVE(t, m) ((t) >= end)
 		BIN_SEARCH(highlight_positions, n_highlight_positions, B_EQUAL, B_ABOVE, *, found);
-		if (found == -1) goto prn;
-		while (found > 0 && B_EQUAL(highlight_positions[found - 1], *)) found--;
 		if (!(mask = mem_calloc(tlen))) goto prn;
-		while (found < n_highlight_positions && !B_ABOVE(highlight_positions[found], *)) {
-			int pos = highlight_positions[found] - t->srch_pos;
-			int ii = 0;
-			for (ii = 0; ii < highlight_position_size; ii++) {
-				if (pos >= 0 && pos < tlen) mask[pos] = 1;
-				pos++;
+		if (found != -1)
+		{
+			while (found > 0 && B_EQUAL(highlight_positions[found - 1], *)) found--;
+			while (found < n_highlight_positions && !B_ABOVE(highlight_positions[found], *)) {
+				int pos = highlight_positions[found] - t->srch_pos;
+				int ii = 0;
+				for (ii = 0; ii < highlight_position_size; ii++) {
+					if (pos >= 0 && pos < tlen) mask[pos] = 1;
+					pos++;
+				}
+				found++;
 			}
-			found++;
+			if (hl_len) goto hl;
 		}
+		else if (hl_len)
+		{
+			int x;
+			hl:
+			for (x = 0; x < hl_len; x++) mask[hl_start - t->srch_pos + x] ^= 1;
+			/*memset(mask+hl_start-t->srch_pos, 1, hl_len*sizeof(char));*/
+		}
+		else
+		{
+			mem_free(mask);
+			goto prn;
+		}
+
 		inv = g_invert_style(t->style);
 		tx = init_str();;
 		txl = 0;
@@ -655,7 +710,7 @@ void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int x, int
 	fd->vs->current_link = -1;
 	if (a->link_num >= 0) {
 		fd->vs->current_link = a->link_num;
-		/* if links is a field, set cursor position */
+		/* if link is a field, set cursor position */
 		if (set_position&&a->link_num>=0&&a->link_num<fd->f_data->nlinks) /* valid link */
 		{
 			struct link *l=&fd->f_data->links[a->link_num];
@@ -903,6 +958,8 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				}
 				break;
 			}
+
+	
 			if ((ev->b & BM_ACT) == B_DOWN && (ev->b & BM_BUTT) == B_MIDDLE) {
 				scrll:
 				ses->scrolltype = ev->x + fd->vs->view_posx;
@@ -926,12 +983,59 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) redraw_link(fd, fd->vs->current_link);
 			}
 			fd->vs->current_link = -1;
-			fd->f_data->root->mouse_event(fd, fd->f_data->root, ev->x + fd->vs->view_posx, ev->y + fd->vs->view_pos, ev->b);
+			if (!((ev->b & BM_ACT) == B_UP && fd->f_data->hlt_len && fd->f_data->start_highlight_x == -1))
+				fd->f_data->root->mouse_event(fd, fd->f_data->root, ev->x + fd->vs->view_posx, ev->y + fd->vs->view_pos, ev->b);
 			if (previous_link!=fd->vs->current_link)
 				change_screen_status(ses);
 			print_screen_status(ses);
 #ifdef JS
 			/* process onmouseover/onmouseout handlers */
+
+			/* highlight text */
+			if ((ev->b & BM_ACT) == B_DOWN && (ev->b & BM_BUTT) == B_LEFT) {   /* start highlighting */
+				fd->f_data->start_highlight_x = ev->x;
+				fd->f_data->start_highlight_y = ev->y;
+				fd->f_data->hlt_len = 0;
+				fd->f_data->hlt_pos = -1;
+				return 1;
+			}
+			if (((ev->b & BM_ACT) == B_DRAG || (ev->b & BM_ACT) == B_UP) && (ev->b & BM_BUTT) == B_LEFT) {	/* stop highlighting */
+				struct g_object_text *t;
+				if (fd->f_data->start_highlight_x != -1) {
+					if (abs(ev->x - fd->f_data->start_highlight_x) < 8 && abs(ev->y - fd->f_data->start_highlight_y) < 8) goto skip_hl;
+					t=g_find_nearest_object(fd->f_data, fd->f_data->start_highlight_x + fd->vs->view_posx, fd->f_data->start_highlight_y + fd->vs->view_pos);
+
+					if (t)
+					{
+						g_get_search_data(fd->f_data);
+						fd->f_data->hlt_pos=t->srch_pos+g_find_text_pos(t, fd->f_data->start_highlight_x+fd->vs->view_posx);
+						fd->f_data->hlt_len=0;
+					}
+					fd->f_data->start_highlight_x = -1;
+					fd->f_data->start_highlight_y = -1;
+				}
+				if (fd->f_data->hlt_pos == -1) goto skip_hl;
+				t=g_find_nearest_object(fd->f_data, ev->x + fd->vs->view_posx, ev->y + fd->vs->view_pos);
+
+				if (t)
+				{
+					int end;
+					g_get_search_data(fd->f_data);
+					end=t->srch_pos+g_find_text_pos(t, ev->x+fd->vs->view_posx);
+					fd->f_data->hlt_len=end-fd->f_data->hlt_pos;
+					if ((ev->b & BM_ACT) == B_UP) {
+						unsigned char *m = memacpy(fd->f_data->srch_string + fd->f_data->hlt_pos + (fd->f_data->hlt_len > 0 ? 0 : fd->f_data->hlt_len), fd->f_data->hlt_len > 0 ? fd->f_data->hlt_len : -fd->f_data->hlt_len);
+						if (m) {
+							unsigned char *p = m;
+							while ((p = strchr(p, 1))) *p++ = ' ';
+							if (*m) set_clipboard_text(fd->ses->term, m);
+							mem_free(m);
+						}
+					}
+					return 1;
+				}
+			}
+			skip_hl:
 
 			if (previous_link!=fd->vs->current_link)
 			{
@@ -950,7 +1054,7 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 #endif
 			break;
 		case EV_KBD:
-			if (ses->locked_link && fd->vs->current_link >= 0 && (fd->f_data->links[fd->vs->current_link].type == L_FIELD || fd->f_data->links[fd->vs->current_link].type == L_AREA)) {
+			if (ses->locked_link && fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks && (fd->f_data->links[fd->vs->current_link].type == L_FIELD || fd->f_data->links[fd->vs->current_link].type == L_AREA)) {
 				if (field_op(ses, fd, &fd->f_data->links[fd->vs->current_link], ev, 0)) {
 					if (fd->f_data->locked_on) {
 						print_all_textarea = 1;
@@ -1050,12 +1154,12 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				fd->vs->view_posx += 16;
 				return 3;
 			}
-			if (ev->x == KBD_HOME || (upcase(ev->x == 'A') && ev->y & KBD_CTRL)) {
+			if (ev->x == KBD_HOME || (upcase(ev->x) == 'A' && ev->y & KBD_CTRL)) {
 				fd->vs->view_pos = 0;
 				unset_link(fd);
 				return 3;
 			}
-			if (ev->x == KBD_END || (upcase(ev->x == 'E') && ev->y & KBD_CTRL)) {
+			if (ev->x == KBD_END || (upcase(ev->x) == 'E' && ev->y & KBD_CTRL)) {
 				fd->vs->view_pos = fd->f_data->y;
 				unset_link(fd);
 				return 3;
@@ -1148,6 +1252,72 @@ void g_get_search_data(struct f_data *f)
 	while (f->srch_string_size && f->srch_string[f->srch_string_size - 1] == ' ') {
 		f->srch_string[--f->srch_string_size] = 0;
 	}
+}
+
+static struct g_object_text *fnd_obj;
+static int fnd_x, fnd_y, fnd_found;
+static int fnd_obj_dist;
+
+/*
+#define dist(a,b) (a<b?b-a:a-b)
+*/
+
+static inline int dist_to_rect(int x, int y, int x1, int y1, int x2, int y2)
+{
+	int w;
+	if (x < x1) w = x1 - x;
+	else if (x > x2) w = x - x2;
+	else w = 0;
+	if (y < y1) w += y1 - y;
+	else if (y > y2) w += y - y2;
+	return w;
+}
+
+void find_nearest_sub(struct g_object *p, struct g_object *c)
+{
+	if (fnd_found) return;
+	/*printf("object: x=%d, y=%d\n", c->x, c->y);*/
+	if (c->draw == (void (*)(struct f_data_c *, struct g_object *, int, int))g_text_draw) {
+		struct g_object_text *t = (struct g_object_text *)c;
+		int x=fnd_x, y=fnd_y;
+		int tx=t->x, ty=t->y;
+		int a;
+		
+		/*c->parent=p;*/
+		get_object_pos(c, &tx, &ty);
+		/*for (o = c; o; o = o->parent) ty += o->y;*/ /* nevim proc s tx+=o->x to je blbe, ale takhle to chodi OK    -- BRain */
+		/*for (o = (struct g_object*)fnd_obj; o; o = o->parent) fy += o->y, fx+=o->x;*/
+	/*printf("fnd: myx=%d, myy=%d, obj: x=%d, y=%d, w=%d, h=%d, text=>%s<\n", x, y, tx, ty, t->xw, t->yw, t->text);*/
+		if (!fnd_obj)
+		{
+			fnd_obj=t;
+			fnd_obj_dist = dist_to_rect(x, y, tx, ty, tx+t->xw, ty+t->yw);
+			if (x>=tx&&x<tx+t->xw&&y>=ty&&y<ty+t->yw) { fnd_found=1; return;}
+		}
+		else
+		{
+			if (x>=tx&&x<tx+t->xw&&y>=ty&&y<ty+t->yw) {fnd_obj=t; fnd_found=1; return;}
+			/*if ( (dist(ty, y)<dist(fy,y) || dist(ty+t->yw,y)<dist(fy+fnd_obj->yw,y)) && (dist(tx, x)<dist(fx,x) || dist(tx+t->xw,x)<dist(fx+fnd_obj->xw,x)) )
+			fnd_obj=t;*/
+			if ((a = dist_to_rect(x, y, tx, ty, tx+t->xw, ty+t->yw)) < fnd_obj_dist) {
+				fnd_obj_dist = a;
+				fnd_obj = t;
+			}
+		}
+	}
+	if (c->get_list) c->get_list(c, find_nearest_sub);
+	
+}
+
+struct g_object_text * g_find_nearest_object(struct f_data *f, int x, int y)
+{
+	fnd_obj=NULL;
+	fnd_x=x;
+	fnd_y=y;
+	fnd_found=0;
+
+	if (f->root && f->root->get_list) f->root->get_list(f->root, find_nearest_sub);
+	return fnd_obj;
 }
 
 unsigned char *search_word;

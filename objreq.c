@@ -52,11 +52,9 @@ void auth_fn(struct dialog_data *dlg)
 	rw = w;
 	dlg_format_text(dlg, NULL, a->msg, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_text(dlg, NULL, TEXT(T_USERID), 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, NULL, dlg->items, 0, &y, w, &rw, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, TEXT(T_USERID), dlg->items, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_text(dlg, NULL, TEXT(T_PASSWORD), 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, NULL, dlg->items + 1, 0, &y, w, &rw, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, TEXT(T_PASSWORD), dlg->items + 1, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
 	dlg_format_buttons(dlg, NULL, dlg->items + 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -68,11 +66,9 @@ void auth_fn(struct dialog_data *dlg)
 	y += LL;
 	dlg_format_text(dlg, term, a->msg, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_text(dlg, term, TEXT(T_USERID), dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, TEXT(T_USERID), dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_text(dlg, term, TEXT(T_PASSWORD), dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, dlg->items + 1, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, TEXT(T_PASSWORD), dlg->items + 1, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
 	dlg_format_buttons(dlg, term, dlg->items + 2, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
@@ -233,6 +229,7 @@ void objreq_end(struct status *stat, struct object_request *rq)
 				load_url(u, rq->prev_url, &rq->stat, rq->pri, rq->cache);
 				return;
 			} else {
+				maxrd:
 				rq->stat.state = S_CYCLIC_REDIRECT;
 			}
 		}
@@ -240,11 +237,13 @@ void objreq_end(struct status *stat, struct object_request *rq)
 			unsigned char *realm = get_auth_realm(rq->url, stat->ce->head, stat->ce->http_code == 407);
 			if (stat->ce->http_code == 401 && !find_auth(rq->url, realm)) {
 				mem_free(realm);
+				if (rq->redirect_cnt++ >= MAX_REDIRECTS) goto maxrd;
 				change_connection(stat, NULL, PRI_CANCEL);
 				load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD);
 				return;
 			}
 			if (!auth_window(rq, realm)) {
+				rq->redirect_cnt = 0;
 				mem_free(realm);
 				goto tm;
 			}

@@ -98,6 +98,7 @@ long CStoString,CSvalueOf,CSMIN_VALUE,CSMAX_VALUE,CSNaN,CSlength,
 				case INTEGER: \
 				case FLOAT: \
 				case STRING: \
+				case REGEXP: \
 				case FUNKCE: \
 					pomvar->value=b->argument; \
 				break; \
@@ -403,7 +404,8 @@ void buildin_document(js_context*context,long id)
 	BUILDFCE("close",Cdclose);
 	BUILDFCE("open",Cdopen);
 	BUILDFCE("write",Cwrite);
-	BUILDFCE("writeln",Cwriteln); 
+	BUILDFCE("writeln",Cwriteln);
+	BUILDFCE("getElementById",CgetElementById);
 	COLORVAR("alinkColor",0xff00);
 	BIVAR("all",Call,id,id);
 	BIVAR("anchors",Canchors,id,id);
@@ -919,6 +921,14 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			rettype=FLOAT;
 			retval=(long)pomfloat;
 		break;
+		case CgetElementById:
+			idebug("GetElementById called ");
+			pomstr=tostring(force_getarg(&argy),context);
+			rettype=VARIABLE;
+			retval=(long)llookup(pomstr,context->namespace,context->lnamespace,context);
+			js_mem_free(pomstr);
+		break;
+
 		case Cacos:
 			idebug("Acos called ");
 			f1=tofloat(force_getarg(&argy),context);
@@ -1136,7 +1146,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 					pomstr=js_mem_alloc(DELKACISLA);
 					pomint=2;
 					while((pomarg=getarg(&argy)))
-					{	snprintf(pomstr,DELKACISLA,"%d",(int)(pomint++));
+					{	my_itoa(pomstr,pomint++);
 						pomstr[DELKACISLA-1]='\0';
 						RESOLV(pomarg);
 						BAE(pomstr,pomarg);
@@ -1434,7 +1444,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			pomint1=pomvar->handler;
 			cislo=js_mem_alloc(DELKACISLA);
 			while(pomint<pomint1)
-			{	snprintf(cislo,DELKACISLA,"%d",(int)pomint++);
+			{	my_itoa(cislo,pomint++);
 				pomvar=llookup(cislo,context->namespace,(plns*)variable->handler,context);
 				pomarg=js_mem_alloc(sizeof(abuf));
 				vartoarg(pomvar,pomarg,context);
@@ -1505,6 +1515,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				case FUNKCE:
 				case FLOAT:
 				case STRING:
+				case REGEXP:
 					pomvar->value=pomarg->argument;
 				break;
 				case ADDRSPACE:
@@ -1533,11 +1544,11 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				js_error("Slicing from empty array ",context);
 			else{	cislo=js_mem_alloc(DELKACISLA);
 				cislo[DELKACISLA-1]='\0';
-				snprintf(cislo,DELKACISLA-1,"%d",(int)(pomint=--pomvar->handler));
+				my_itoa(cislo,(pomint=--pomvar->handler));
 				pomvar=llookup(cislo,context->namespace,(plns*)variable->handler,context);
 				pomvar2=js_mem_alloc(sizeof(lns));
 				while(pomint--)
-				{	snprintf(cislo,DELKACISLA-1,"%d",(int)pomint);
+				{	my_itoa(cislo,pomint);
 					pomvar1=llookup(cislo,context->namespace,(plns*)variable->handler,context);
 					pomvar2->type=pomvar1->type;
 					pomvar2->value=pomvar1->value;
@@ -1606,6 +1617,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				case FUNKCE:
 				case FLOAT:
 				case STRING:
+				case REGEXP:
 					pomvar->value=pomarg->argument;
 				break;
 				case ADDRSPACE:
@@ -3623,7 +3635,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			*value=0;
 		break;
 	}
-	if(*typ==STRING && !*value)*typ=UNDEFINED;
+	if(((*typ==STRING)||(*typ==REGEXP)) && !*value)*typ=UNDEFINED;
 }
 
 /* Sada pomocnych funkci konvertujicich prvky vsech typu, co jich byl kdy
@@ -3650,6 +3662,7 @@ char* iatostring(long typ, long value,js_context*context)
 			value=(long)pomfloat;
 		break;
 		case STRING:
+		case REGEXP:
 			pomstr=js_mem_alloc(strlen((char*)value)+1);
 			strcpy(pomstr,(char*)value);
 			value=(long)pomstr;
@@ -3705,6 +3718,7 @@ int iato32int(long typ,long value, js_context*context)
 			value=(long)pomfloat;
 		break;
 		case STRING:
+		case REGEXP:
 			pomstr=js_mem_alloc(strlen((char*)value)+1);
 			strcpy(pomstr,(char*)value);
 			value=(long)pomstr;
@@ -3755,6 +3769,7 @@ int iatobool(long typ, long value, js_context*context)
 			value=(long)pomfloat;
 		break;
 		case STRING:
+		case REGEXP:
 			pomstr=js_mem_alloc(strlen((char*)value)+1);
 			strcpy(pomstr,(char*)value);
 			value=(long)pomstr;

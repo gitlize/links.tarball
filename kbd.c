@@ -9,7 +9,6 @@
 #define IN_BUF_SIZE	16
 
 #define USE_TWIN_MOUSE	1
-#define USE_X_MOUSE	2
 #define TW_BUTT_LEFT	1
 #define TW_BUTT_MIDDLE	2
 #define TW_BUTT_RIGHT	4
@@ -100,7 +99,7 @@ unsigned char *init_seq = "\033)0\0337";
 unsigned char *init_seq_x_mouse = "\033[?1000h";
 unsigned char *init_seq_tw_mouse = "\033[?9h";
 unsigned char *term_seq = "\033[2J\0338\r \b";
-unsigned char *term_seq_x_mouse = "\033[?1000l";
+unsigned char *term_seq_x_mouse = "\033[?1000l\015       \015";
 unsigned char *term_seq_tw_mouse = "\033[?9l";
 
 /*unsigned char *term_seq = "\033[2J\033[?1000l\0338\b \b";*/
@@ -110,7 +109,7 @@ void send_init_sequence(int h,int flags)
 	hard_write(h, init_seq, strlen(init_seq));
 	if (flags & USE_TWIN_MOUSE) {
 		hard_write(h, init_seq_tw_mouse, strlen(init_seq_tw_mouse));
-	} else if (flags & USE_X_MOUSE) {
+	} else {
 		hard_write(h, init_seq_x_mouse, strlen(init_seq_x_mouse));
 	}
 }
@@ -120,7 +119,7 @@ void send_term_sequence(int h,int flags)
 	hard_write(h, term_seq, strlen(term_seq));
 	if (flags & USE_TWIN_MOUSE) {
 		hard_write(h, term_seq_tw_mouse, strlen(term_seq_tw_mouse));
-	} else if (flags & USE_X_MOUSE) {
+	} else {
 		hard_write(h, term_seq_x_mouse, strlen(term_seq_x_mouse));
 	}
 }
@@ -187,7 +186,6 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	itrm->flags = 0;
 	if (!(ts = getenv("TERM"))) ts = "";
 	if ((xwin & ENV_TWIN) && !strcmp(ts, "linux")) itrm->flags |= USE_TWIN_MOUSE;
-	if ((xwin & ENV_XWIN)) itrm->flags |= USE_X_MOUSE;
 	if (strlen(ts) >= MAX_TERM_LEN) queue_event(itrm, ts, MAX_TERM_LEN);
 	else {
 		unsigned char *mm;
@@ -818,14 +816,13 @@ int process_queue(struct itrm *itrm)
 			}
 		} else {
 			el = 2;
-			if (itrm->kqueue[1] >= ' ') {
-				ev.x = itrm->kqueue[1];
-				ev.y = KBD_ALT;
-				goto l2;
-			}
 			if (itrm->kqueue[1] == '\033') {
 				if (itrm->qlen >= 3 && (itrm->kqueue[2] == '[' || itrm->kqueue[2] == 'O')) el = 1;
 				ev.x = KBD_ESC;
+				goto l2;
+			} else {
+				ev.x = itrm->kqueue[1];
+				ev.y |= KBD_ALT;
 				goto l2;
 			}
 		}
@@ -853,7 +850,7 @@ int process_queue(struct itrm *itrm)
 	if (ev.x == 127) ev.x = KBD_BS;
 	if (ev.x >= 0 && ev.x < ' ') {
 		ev.x += 'A' - 1;
-		ev.y = KBD_CTRL;
+		ev.y |= KBD_CTRL;
 	}
 	l1:
 	if (itrm->qlen < el) {

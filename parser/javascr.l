@@ -150,280 +150,339 @@ char*retezec;
 int f(void){return 0;}
 
 %}
+
+%x jiny_stav
+
 %%
 
-^[ \t]*\<\!\-\-[^\n\r]*	{
+<*>^[ \t]*\<\!\-\-[^\n\r]*	{
 	js_warning("HTML comment begin in javascript ",c_radku,js_context_ptr);
 #ifdef DEBUZIM
 	printf("Creeping featurism comment stripping!\n");
 #endif
 	}
 
-break	{ 
+<*>break	{ 
 #ifdef DEBUZIM
 	printf("break\n");
 #endif
+	BEGIN(INITIAL);
 	return BREAK; /*Keywordy*/
 	}
 
-case	{ 
+<*>case	{ 
 #ifdef DEBUZIM
         printf("case\n");
 #endif
+	BEGIN(INITIAL);
        	return CASE;}
 
-catch	{ 
+<*>catch	{ 
 #ifdef DEBUZIM
         printf("catch\n");
 #endif
-              return CATCH;}
+	BEGIN(INITIAL);
+        return CATCH;
+	}
 
-continue	{ 
+<*>continue	{ 
 #ifdef DEBUZIM
         printf("continue\n");
 #endif
-              return CONTINUE;}
+	BEGIN(INITIAL);
+	return CONTINUE;
+}
 
-default	{ 
+<*>default	{ 
 #ifdef DEBUZIM
         printf("default\n");
 #endif
-              return DEFAULT;}
+	BEGIN(INITIAL);
+        return DEFAULT;}
 
-delete	{ 
+<*>delete	{ 
 #ifdef DEBUZIM
         printf("delete\n");
 #endif
-              return DELETE;}
+	BEGIN(INITIAL);
+        return DELETE;}
 
-do	{ 
+<*>do	{ 
 #ifdef DEBUZIM
         printf("do\n");
 #endif
-              return DO;}
+	BEGIN(INITIAL);
+        return DO;}
 
-else	{ 
+<*>else	{ 
 #ifdef DEBUZIM
         printf("else\n");
 #endif
+	BEGIN(INITIAL);
               return ELSE;}
 
-finally	{ 
+<*>finally	{ 
 #ifdef DEBUZIM
         printf("finally\n");
 #endif
+	BEGIN(INITIAL);
               return FINALLY;}
 
-for	{ 
+<*>for	{ 
 #ifdef DEBUZIM
         printf("for\n");
 #endif
+	BEGIN(INITIAL);
               return FOR;}
 
-function	{ /*zde vratime dva tokeny FUNCTION*/
+<*>function	{ /*zde vratime dva tokeny FUNCTION*/
 #ifdef DEBUZIM
         printf("function\n");
 #endif
+	BEGIN(INITIAL);
               return FUNCTION;}
 
-if	{ 
+<*>if	{ 
 #ifdef DEBUZIM
         printf("if\n");
 #endif
+	BEGIN(INITIAL);
               return IF;}
 
-in	{ 
+<*>in	{ 
 #ifdef DEBUZIM
         printf("in\n");
 #endif
+	BEGIN(INITIAL);
               return IN;}
 
-instanceof	{ 
+<*>instanceof	{ 
 #ifdef DEBUZIM
         printf("instanceof\n");
 #endif
+	BEGIN(INITIAL);
               return INSTANCEOF;}
 
-new	{ 
+<*>new	{ 
 #ifdef DEBUZIM
         printf("new\n");
 #endif
+	BEGIN(INITIAL);
               return NEW;}
 
-return	{ 
+<*>return	{ 
 #ifdef DEBUZIM
         printf("return\n");
 #endif
+	BEGIN(INITIAL);
               return RETURN;}
 
-switch	{ 
+<*>switch	{ 
 #ifdef DEBUZIM
         printf("switch\n");
 #endif
+	BEGIN(INITIAL);
               return SWITCH;}
 
-this	{ 
+<*>this	{ 
 #ifdef DEBUZIM
         printf("this\n");
 #endif
+	BEGIN(jiny_stav);
               return THIS;}
 
-throw	{ 
+<*>throw	{ 
 #ifdef DEBUZIM
         printf("throw\n");
 #endif
+	BEGIN(INITIAL);
               return THROW;}
 
-try	{ 
+<*>try	{ 
 #ifdef DEBUZIM
         printf("try\n");
 #endif
+	BEGIN(INITIAL);
               return TRY;}
 
-typeof	{ 
+<*>typeof	{ 
 #ifdef DEBUZIM
         printf("typeof\n");
 #endif
+	BEGIN(INITIAL);
               return TYPEOF;}
 
-var	{ 
+<*>var	{ 
 #ifdef DEBUZIM
         printf("var\n");
 #endif
+	BEGIN(INITIAL);
               return VAR;}
 
-void	{ 
+<*>void	{ 
 #ifdef DEBUZIM
         printf("void\n");
 #endif
+	BEGIN(INITIAL);
               return VOID;}
 
-while	{ 
+<*>while	{ 
 #ifdef DEBUZIM
         printf("while\n");
 #endif
+	BEGIN(INITIAL);
               return WHILE;}
 
-with	{ 
+<*>with	{ 
 #ifdef DEBUZIM
         printf("with\n");
 #endif
+	BEGIN(INITIAL);
               return WITH;}
 
-abstract|boolean|byte|char|class|const|debugger|double|enum|export|extends|final|float	{	
+<*>(abstract|boolean|byte|char|class|const|debugger|double|enum|export|extends|final|float)	{	
 #ifdef DEBUZIM
 	printf("You use future keywords?\n");
 #endif
 		return LEXERROR;}
-goto|implements|import|int|interface|long|native|package|private|protected|public|short|static|super|synchronized|throws|transient|volatile	{
+<*>(goto|implements|import|int|interface|long|native|package|private|protected|public|short|static|super|synchronized|throws|transient|volatile)	{
 #ifdef DEBUZIM
 	printf("You use future keywords?\n");
 #endif
 		return LEXERROR;}
 
-[\{\}\(\)\[\]\.\;\,\<\>\+\-\*\/\%\&\|\^\!\?\:\=\~]	{	 
+<*>([\{\}\(\[\.\;\,\<\>\+\-\*\/\%\&\|\^\!\?\:\=\~])	{	 
 #ifdef DEBUZIM
         printf("symbol %c\n",yytext[0]);
 #endif
-       return yytext[0];}
+	BEGIN(INITIAL);
+	return yytext[0];}
 
-\<\=|\>\=|\=\=|\!\=|\+\+|\-\-|\<\<|\>\>|\&\&|\|\||\+\=|\-\=|\*\=|\/\=|\%\=|\&\=|\|\=|\^\=	{ 
+<*>[\)\]] {
+#ifdef DEBUZIM
+	printf("symbol %c\n",yytext[0]);
+#endif
+	BEGIN(jiny_stav);
+	return yytext[0];}
+
+<*>(\+\+|\-\-)	{
+#ifdef DEBUZIM
+	printf("symbol %d\n",yytext[0]+256*yytext[1]);
+#endif
+	BEGIN(jiny_stav);
+	return (yytext[0]+256*yytext[1]);}
+
+<*>(\<\=|\>\=|\=\=|\!\=|\<\<|\>\>|\&\&|\|\||\+\=|\-\=|\*\=|\/\=|\%\=|\&\=|\|\=|\^\=)	{ 
 #ifdef DEBUZIM
         printf("symbol %d\n",yytext[0]+256*yytext[1]);
 #endif
+	BEGIN(INITIAL);
        return (yytext[0]+256*yytext[1]);}
 
-\=\=\=	{
+<*>(\=\=\=)	{
 #ifdef DEBUZIM
         printf("symbol ===\n");
 #endif
+	BEGIN(INITIAL);
        return EQEQEQ;}
 
-\!\=\=	{
+<*>(\!\=\=)	{
 #ifdef DEBUZIM
         printf("symbol !==\n");
 #endif
+	BEGIN(INITIAL);
        return EXCLAMEQEQ;}
 
-\>\>\>	{
+<*>(\>\>\>)	{
 #ifdef DEBUZIM
         printf("symbol >>>\n");
 #endif
+	BEGIN(INITIAL);
        return SHRSHRSHR;}
 
-\<\<\=	{
+<*>\<\<\=	{
 #ifdef DEBUZIM
         printf("symbol <<=\n");
 #endif
+	BEGIN(INITIAL);
        return SHLSHLEQ;}
 
-\>\>\=	{ 
+<*>\>\>\=	{ 
 #ifdef DEBUZIM
         printf("symbol >>=\n");
 #endif
+	BEGIN(INITIAL);
        return SHRSHREQ;}
 
-\>\>\>\=	{ 
+<*>\>\>\>\=	{ 
 #ifdef DEBUZIM
         printf("symbol >>>=\n");
 #endif
+	BEGIN(INITIAL);
        return THREERIGHTEQUAL;
 
 	/*POZOR, prasarna, tohle se bude predelavat! Jinymi slovy tedka nemam spravne numericke a retezcove literaly a identifikatory!*/
 	}
 
-null	{ 
+<*>null	{ 
 #ifdef DEBUZIM
         printf("nullit\n");
 #endif
+	BEGIN(jiny_stav);
        return NULLLIT;}
 
-true	{ 
+<*>true	{ 
 #ifdef DEBUZIM
         printf("truelit\n");
 #endif
+	BEGIN(jiny_stav);
        return TRUELIT;}
-false	{ 
+<*>false	{ 
 #ifdef DEBUZIM
         printf("falselit\n");
 #endif
+	BEGIN(jiny_stav);
        return FALSELIT;}
 
 
-0x[0-9AaBbCcDdEeFf]*	{	yylval=(long)js_mem_alloc(sizeof(cislo));
+<*>(0x[0-9AaBbCcDdEeFf]*)	{	yylval=(long)js_mem_alloc(sizeof(cislo));
 				((cislo*)yylval)->typ=CELE;
 				((cislo*)yylval)->nr.cele=strtol(yytext+2,0,16); /*NUMERICKE LITERALY -- sestnactkovy*/
 				 
 #ifdef DEBUZIM
         printf("hexnr.: %x\n",((cislo*)yylval)->nr.cele);
 #endif
+				BEGIN(jiny_stav);
        				return NUMLIT;}
 
 
-0|[1-9][0-9]*	{	yylval=(long)js_mem_alloc(sizeof(cislo));
+<*>(0|[1-9][0-9]*)	{	yylval=(long)js_mem_alloc(sizeof(cislo));
 			((cislo*)yylval)->typ=CELE;
 			((cislo*)yylval)->nr.cele=strtol(yytext,0,10);
 #ifdef DEBUZIM
 	printf("decint.: %d\n",((cislo*)yylval)->nr.cele);
 #endif
+				BEGIN(jiny_stav);
 				return NUMLIT;}
 
-[0-9]*	{	yylval=(long)js_mem_alloc(sizeof(cislo));
+<*>[0-9]*	{	yylval=(long)js_mem_alloc(sizeof(cislo));
 		((cislo*)yylval)->typ=CELE;
 		((cislo*)yylval)->nr.cele=strtol(yytext,0,8);
 #ifdef DEBUZIM
 	printf("octint.: %d\n",((cislo*)yylval)->nr.cele);
 #endif
+		BEGIN(jiny_stav);
 		return NUMLIT;
 	}
 
 
-(((0|[1-9][0-9]*){0,1}\.[0-9]*)|(0|[1-9][0-9]*))((e|E)(\+|\-){0,1}([0-9]+)){0,1}	{	yylval=(long)js_mem_alloc(sizeof(cislo));
+<*>((((0|[1-9][0-9]*){0,1}\.[0-9]*)|(0|[1-9][0-9]*))((e|E)(\+|\-){0,1}([0-9]+)){0,1})	{	yylval=(long)js_mem_alloc(sizeof(cislo));
 			((cislo*)yylval)->typ=NECELE;
                         ((cislo*)yylval)->nr.necele=(float)atof(yytext);
 #ifdef DEBUZIM
         printf("decf.: %f\n",((cislo*)yylval)->nr.necele);
 #endif
+				BEGIN(jiny_stav);
 				return NUMLIT;}
 
 
@@ -435,7 +494,7 @@ false	{
 
 
 
-[A-Za-z\_\$][A-Za-z0-9\_\$]*	{ 
+<*>([A-Za-z\_\$][A-Za-z0-9\_\$]*)	{ 
 #ifdef DEBUZIM
         printf("IDENTIFIER ");
 #endif
@@ -499,21 +558,33 @@ false	{
 		names[j]->klic=0;
 	}
 */
+	BEGIN(jiny_stav);
 	return IDENTIFIER; /*tohle je tezce debuzi, budu to stejne cele prepisovat.*/
 	}
 
+<INITIAL>\/([^\\\/\*\n\r]|\\[^\n\r])([^\n\r\/\\]|\\[^\n\r])*\/[A-Za-z0-9\_\$]*	{
+	j=1;	rawstr=js_mem_alloc(yyleng-1);	while(j<(yyleng-1)){rawstr[j-1]=yytext[j];j++;}
+	rawstr[j-1]=0;
+	yylval=civilize(rawstr);
+#ifdef DEBUZIM
+	printf("RegExp: %s\n",(char*)yylval);
+#endif
+	BEGIN(jiny_stav);
+	return REGEXPLIT;
+}
 
-
-'((\\.)|(\\([ \t]*)((\r)|(\n)|(\r\n)))|[^\\\'])*'		{/*RETEZCOVY LITERAL*/
+<*>('((\\.)|(\\([ \t]*)((\r)|(\n)|(\r\n)))|[^\\\'])*')		{/*RETEZCOVY LITERAL*/
 		j=1;	rawstr=js_mem_alloc(yyleng-1);	while(j<(yyleng-1)){rawstr[j-1]=yytext[j];j++;}
 		rawstr[j-1]=0;/*konec stringu, spadla klec!*/
 		yylval=civilize(rawstr);
 #ifdef DEBUZIM
         printf("string1: %s\n",(char*)yylval);
 #endif
-       		return STRINGLIT;}
+		BEGIN(jiny_stav);
+       		return STRINGLIT;
+}
 
-\"((\\.)|(\\([ \t]*)((\r)|(\n)|(\r\n)))|[^\\\"])*\"	{
+<*>(\"((\\.)|(\\([ \t]*)((\r)|(\n)|(\r\n)))|[^\\\"])*\")	{
 		j=1;	rawstr=js_mem_alloc(yyleng-1);	while(j<(yyleng-1)){rawstr[j-1]=yytext[j];j++;}
 		rawstr[j-1]=0;
 		yylval=civilize(rawstr); 
@@ -521,16 +592,17 @@ false	{
 	printf("%d ",yyleng);
         printf("string2: %s\n",(char*)yylval);
 #endif
+		BEGIN(jiny_stav);
        		return STRINGLIT; /*pozor, prasarna kvuli '"', Jestli to je escsekv, tak to budu prepisovat na 2 pravidla!*/
 	}
 
-\t|\ 	/*zahodime Whitespace*/
+<*>\t|\ 	/*zahodime Whitespace*/
 
-\n	c_radku++;/*Line Terminator*/
+<*>\n	c_radku++;/*Line Terminator*/
 
-\r	c_radku++;/*ultrapervers!*/
+<*>\r	c_radku++;/*ultrapervers!*/
 
-\/\*\/*([^\/]|[^\*]\/)*\*\/	{i=0; 
+<*>\/\*\/*([^\/]|[^\*]\/)*\*\/	{i=0; 
 			while(i<yyleng)
 			{	if((yytext[i]=='\n')||(yytext[i]=='\r'))
 					c_radku++;/* viceradkovy komentar*/
@@ -538,7 +610,7 @@ false	{
 			}
 	}
 
-\/\/[^\n\r]*	{/*c_radku++;*/ /*Jednoradkovy komentar*/
+<*>\/\/[^\n\r]*	{/*c_radku++;*/ /*Jednoradkovy komentar*/
 	}
 	
 .	{	

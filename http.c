@@ -190,6 +190,13 @@ void http_send_header(struct connection *c)
 	}
 	if (upcase(c->url[0]) != 'P') add_to_str(&hdr, &l, "/");
 	if (!(u = get_url_data(c->url))) {
+		mem_free(hdr);
+		setcstate(c, S_BAD_URL);
+		http_end_request(c, 0);
+		return;
+	}
+	if (post && post < u) {
+		mem_free(hdr);
 		setcstate(c, S_BAD_URL);
 		http_end_request(c, 0);
 		return;
@@ -228,10 +235,14 @@ void http_send_header(struct connection *c)
 		add_to_str(&hdr, &l, system_name);
 		if (!F && !list_empty(terminals)) {
 			struct terminal *t = terminals.prev;
-			add_to_str(&hdr, &l, "; ");
-			add_num_to_str(&hdr, &l, t->x);
-			add_to_str(&hdr, &l, "x");
-			add_num_to_str(&hdr, &l, t->y);
+			if (!t->spec->braille) {
+				add_to_str(&hdr, &l, "; ");
+				add_num_to_str(&hdr, &l, t->x);
+				add_to_str(&hdr, &l, "x");
+				add_num_to_str(&hdr, &l, t->y);
+			} else {
+				add_to_str(&hdr, &l, "; braille");
+			}
 		}
 #ifdef G
 		if (F && drv) {
@@ -247,6 +258,7 @@ void http_send_header(struct connection *c)
 	}
 	switch (referer)
 	{
+		unsigned char *ur;
 		case REFERER_FAKE:
 		add_to_str(&hdr, &l, "Referer: ");
 		add_to_str(&hdr, &l, fake_referer);
@@ -254,9 +266,11 @@ void http_send_header(struct connection *c)
 		break;
 		
 		case REFERER_SAME_URL:
+		if (upcase(c->url[0]) != 'P') ur = c->url;
+		else ur = get_url_data(c->url);
 		add_to_str(&hdr, &l, "Referer: ");
-		if (!post) add_to_str(&hdr, &l, c->url);
-		else add_bytes_to_str(&hdr, &l, u, post - c->url - 1);
+		if (!post) add_to_str(&hdr, &l, ur);
+		else add_bytes_to_str(&hdr, &l, ur, post - ur - 1);
 		add_to_str(&hdr, &l, "\r\n");
 		break;
 
@@ -547,12 +561,19 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		http_end_request(c, 1);
 		return;
 	}
-	if (get_cache_entry(c->url, &e)) {
+	if (h == 204) {
+		mem_free(head);
+		setcstate(c, S_OK);
+		http_end_request(c, 0);
+		return;
+	}
+	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
 		mem_free(head);
 		setcstate(c, S_OUT_OF_MEM);
 		abort_connection(c);
 		return;
 	}
+	e = c->cache;
 	e->http_code = h;
 	if (e->head) mem_free(e->head);
 	e->head = head;
@@ -584,11 +605,6 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		add_to_str(&e->ssl_info, &l, (unsigned  char *)SSL_get_cipher_name(c->ssl));
 	}
 #endif
-	if (h == 204) {
-		setcstate(c, S_OK);
-		http_end_request(c, 0);
-		return;
-	}
 	if (e->redirect) mem_free(e->redirect), e->redirect = NULL;
 	if (h == 301 || h == 302 || h == 303) {
 		if (h == 302 && !e->expire_time) e->expire_time = 1;
@@ -599,7 +615,6 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		}
 	}
 	kill_buffer_data(rb, a);
-	c->cache = e;
 	info->close = 0;
 	info->length = -1;
 	info->version = version;

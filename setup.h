@@ -15,7 +15,7 @@
  *		 2=leaky, ruda zona, alloc, realloc a free patterny
  *		-1=tajny level ;-)
  */
-#define DEBUGLEVEL			1
+#define DEBUGLEVEL			2
 
 #if DEBUGLEVEL >= 1
 #define DEBUG
@@ -59,26 +59,26 @@
 
 #define COL(x)				((x)*0x100)
 
-#define COLOR_MENU			COL(070)
-#define COLOR_MENU_FRAME		COL(070)
-#define COLOR_MENU_SELECTED		COL(007)
-#define COLOR_MENU_HOTKEY		COL(007)
+#define COLOR_MENU			(term && !term->spec->braille ? COL(070) : COL(007))
+#define COLOR_MENU_FRAME		(term && !term->spec->braille ? COL(070) : COL(007))
+#define COLOR_MENU_SELECTED		(term && !term->spec->braille ? COL(007) : COL(007))
+#define COLOR_MENU_HOTKEY		(term && !term->spec->braille ? COL(007) : COL(0107))
 
-#define COLOR_MAINMENU			COL(070)
-#define COLOR_MAINMENU_SELECTED		COL(007)
-#define COLOR_MAINMENU_HOTKEY		COL(070)
+#define COLOR_MAINMENU			(term && !term->spec->braille ? COL(070) : COL(007))
+#define COLOR_MAINMENU_SELECTED		(term && !term->spec->braille ? COL(007) : COL(007))
+#define COLOR_MAINMENU_HOTKEY		(term && !term->spec->braille ? COL(070) : COL(0107))
 
-#define COLOR_DIALOG			COL(070)
-#define COLOR_DIALOG_FRAME		COL(070)
-#define COLOR_DIALOG_TITLE		COL(007)
-#define COLOR_DIALOG_TEXT		COL(070)
-#define COLOR_DIALOG_CHECKBOX		COL(070)
-#define COLOR_DIALOG_CHECKBOX_TEXT	COL(070)
-#define COLOR_DIALOG_BUTTON		COL(070)
-#define COLOR_DIALOG_BUTTON_SELECTED	COL(0107)
-#define COLOR_DIALOG_FIELD		COL(007)
-#define COLOR_DIALOG_FIELD_TEXT		COL(007)
-#define COLOR_DIALOG_METER		COL(007)
+#define COLOR_DIALOG			(term && !term->spec->braille ? COL(070) : COL(007))
+#define COLOR_DIALOG_FRAME		(term && !term->spec->braille ? COL(070) : COL(007))
+#define COLOR_DIALOG_TITLE		(term && !term->spec->braille ? COL(007) : COL(007))
+#define COLOR_DIALOG_TEXT		(term && !term->spec->braille ? COL(070) : COL(007))
+#define COLOR_DIALOG_CHECKBOX		(term && !term->spec->braille ? COL(070) : COL(0107))
+#define COLOR_DIALOG_CHECKBOX_TEXT	(term && !term->spec->braille ? COL(070) : COL(007))
+#define COLOR_DIALOG_BUTTON		(term && !term->spec->braille ? COL(070) : COL(0107))
+#define COLOR_DIALOG_BUTTON_SELECTED	(term && !term->spec->braille ? COL(0107) : COL(0107))
+#define COLOR_DIALOG_FIELD		(term && !term->spec->braille ? COL(007) : COL(0107))
+#define COLOR_DIALOG_FIELD_TEXT		(term && !term->spec->braille ? COL(007) : COL(0107))
+#define COLOR_DIALOG_METER		(term && !term->spec->braille ? COL(007) : COL(0177) | '*')
 
 #define SCROLL_ITEMS			2
 

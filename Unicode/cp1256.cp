@@ -1,4 +1,4 @@
-Window$ 1256
+Window$ 1256 (Arabic)
 "windows-1256", "1256", "cp1256"
 #
 #    Name:     cp1256 to Unicode table

@@ -199,6 +199,7 @@ void js_warning(char*a,int cislo_bugovity_lajny,js_context*context)
 %token TRUELIT
 %token NUMLIT
 %token STRINGLIT
+%token REGEXPLIT
 %token BUGGY_TOKEN
 %token PLUSPLUS 11051
 %token MINMIN 11565
@@ -605,6 +606,73 @@ printf("Statements -> Statement Statements\n");
 	$$=(long)pom_vrchol;
 };
 
+CaseBlock:
+/*          CaseClauses {
+	$$=$1;
+}
+          |*/ CaseClauses DefaultClause CaseClauses {
+#ifdef BRUTALDEBUG
+printf("CaseBlock -> CaseClauses DefaultClause CaseClauses\n");
+#endif
+	pom_vrchol=neterminal();/* Suplujeme dvema statementy, protoze se tu 
+					stejne nic jineho nedela */
+	pom_vrchol->opcode=TStatements;
+	pom_vrchol->arg[0]=(void*)$1;
+	pom_vrchol->arg[1]=neterminal();
+	$$=(long)pom_vrchol;
+	pom_vrchol=(vrchol*)pom_vrchol->arg[1];
+	pom_vrchol->opcode=TStatements;
+	pom_vrchol->arg[0]=(void*)$3;
+	pom_vrchol->arg[1]=(void*)$2;
+};
+
+CaseClauses:
+          {
+#ifdef BRUTALDEBUG
+printf("CaseClauses -> \n");
+#endif
+	$$=0;
+}
+          | CaseClause CaseClauses {
+#ifdef BRUTALDEBUG
+printf("CaseClauses -> CaseClause CaseClauses\n");
+#endif
+	if(!$2)	
+	{	$$=$1;
+	}else {	pom_vrchol=neterminal();
+		pom_vrchol->opcode=TStatements;
+		pom_vrchol->arg[0]=(void*)$1;
+		pom_vrchol->arg[1]=(void*)$2;
+		$$=(long)pom_vrchol;
+	}
+};
+
+CaseClause:
+          CASE Expression ':' Statements {
+#ifdef BRUTALDEBUG
+printf("CaseClauses -> CASE Expression: Statements\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TCS;
+	pom_vrchol->arg[0]=(void*)$2;
+	pom_vrchol->arg[1]=(void*)$4;
+	$$=(long)pom_vrchol;
+};
+
+DefaultClause:
+          {
+#ifdef BRUTALDEBUG
+printf("DefaultClause -> \n");
+#endif
+	$$=0;
+}
+          | DEFAULT ':' Statements {
+#ifdef BRUTALDEBUG
+printf("DefaultClause -> DEFAULT : Statements\n");
+#endif
+	$$=$3;
+};
+
 Statement:
           ';' {
 #ifdef BRUTALDEBUG
@@ -625,6 +693,16 @@ printf("Zahazuji zacatek HTML komentare!\n");
 #endif
 	js_warning("HTML comment begin in javascript ",c_radku,js_context_ptr);
 	$$=0;
+}
+	  |SWITCH Condition '{' CaseBlock '}' {
+#ifdef BRUTALDEBUG
+printf("Statement -> SWITCH Condition CaseBlock\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TSWITCH;
+	pom_vrchol->arg[0]=(void*)$2;
+	pom_vrchol->arg[1]=(void*)$4;
+	$$=(long)pom_vrchol;
 }
           |IF Condition Statement {
 #ifdef BRUTALDEBUG
@@ -1197,6 +1275,7 @@ printf("UnaryExpression -> MemberExpression IncrementOperator\n");
 		else	{internal("Error! Divne opcody!\n");}
 	$$=(long)pom_vrchol;
 }
+
           |NEW Constructor {
 #ifdef BRUTALDEBUG
 printf("UnaryExpression -> NEW Constructor\n");
@@ -1356,9 +1435,9 @@ printf("MemberExpression -> M1Expression [Expression]\n");
         $$=(long)pom_vrchol;
 	if(((vrchol*)$1)->opcode==TArray)js_warning("Two array operators in same expression ",c_radku,js_context_ptr);
 }
-	|'[' ArgumentListOpt ']' {
+	|'[' ArgumentListOptpom ']' {
 #ifdef BRUTALDEBUG
-	printf("MemberExpression -> [ 'Array','elements']\n");
+printf("MemberExpression -> [ 'Array','elements']\n");
 #endif
 	pom_vrchol=neterminal();
 	pom_vrchol->opcode=TFunctionCall;
@@ -1379,6 +1458,37 @@ printf("MemberExpression -> M1Expression [Expression]\n");
         pom_vrchol->arg[1]=(void*)$3;
         $$=(long)pom_vrchol;
 };	
+
+ArgumentListOptpom:
+         Argumentik {
+#ifdef BRUTALDEBUG
+printf("ArgumentListOptpom->Argumentik\n");
+#endif
+	$$=$1;
+}
+          |Argumentik ',' ArgumentListOptpom {
+#ifdef BRUTALDEBUG
+printf("ArgumentListOptpom->Argumentik,ArgumentListOptpom\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TArgumentList;
+	pom_vrchol->arg[0]=(void*)$1;
+	pom_vrchol->arg[1]=(void*)$3;
+};
+
+Argumentik:
+          {
+#ifdef BRUTALDEBUG
+printf("Argumentik->\n");
+#endif
+	$$=0;
+}
+          |AssignmentExpression {
+#ifdef BRUTALDEBUG
+printf("Argumentik->AssignmentExpression\n");
+#endif
+	$$=$1;
+};
 
 ArrayExpression:
 	PrimaryExpression {
@@ -1462,6 +1572,16 @@ printf("PrimaryExpression -> STRINGLIT\n");
 	pom_vrchol->arg[0]=(void*)yylval;
         $$=(long)pom_vrchol;
 }
+          |REGEXPLIT {
+#ifdef BRUTALDEBUG
+printf("PrimaryExpression -> REGEXPLIT\n");
+#endif
+	pom_vrchol=terminal();
+	pom_vrchol->opcode=TREGEXPLIT;
+	pom_vrchol->arg[0]=(void*)yylval;
+	$$=(long)pom_vrchol;
+}
+
           |FALSELIT {
 #ifdef BRUTALDEBUG
 printf("PrimaryExpression -> FALSELIT\n");
@@ -1505,7 +1625,7 @@ int yyerror(char*a){
 /*	snprintf(txt1,MAX_STR_LEN,"Bug in line %d!\n",c_radku);*/
 	
 
-	if((yychar==STRINGLIT)||(yychar==NUMLIT))
+	if((yychar==STRINGLIT)||(yychar==NUMLIT)||(yychar==REGEXPLIT))
 	{	if(yylval)js_mem_free((void*)yylval);
 		else internal("Trying to free null pointer!");
 	}

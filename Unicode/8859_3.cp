@@ -1,4 +1,4 @@
-ISO 8859-3
+ISO 8859-3 (Esperanto, Maltese)
 "ISO-8859-3", "8859-3"
 #
 #	Name:             ISO/IEC 8859-3:1999 to Unicode

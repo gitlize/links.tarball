@@ -1165,6 +1165,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 				*txt=0;
 			}
 
+			if (!term->spec->block_cursor || term->spec->braille) set_cursor(term, dlg->x + DIALOG_LB + x, y, dlg->x + DIALOG_LB + x, y);
 			for (b=0;b<l->depth;b++)
 				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,COLOR_MENU_SELECTED,0,0,BFU_ELEMENT_PIPE,0);
 			if (l->depth>=0)  /* everything except head */
@@ -1204,6 +1205,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 				if (!txt)internal("Cannot allocate memory.\n");
 				*txt=0;
 			}
+			if (!term->spec->block_cursor || term->spec->braille) set_cursor(term, dlg->x + DIALOG_LB + x, y, dlg->x + DIALOG_LB + x, y);
 
 			/* everything except head */
 

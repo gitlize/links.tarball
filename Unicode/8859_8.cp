@@ -1,4 +1,4 @@
-ISO 8859-8
+ISO 8859-8 (Hebrew)
 "ISO-8859-8", "8859-8"
 #
 #	Name:             ISO/IEC 8859-8:1999 to Unicode

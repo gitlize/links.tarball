@@ -1,4 +1,4 @@
-ISO 8859-6
+ISO 8859-6 (Arabic)
 "ISO-8859-6", "8859-6"
 #
 #	Name:             ISO 8859-6:1999 to Unicode

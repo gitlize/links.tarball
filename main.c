@@ -267,6 +267,8 @@ void init(void)
 #endif
 	initialize_all_subsystems();
 
+	utf8_table=get_cp_index("UTF-8");
+
 /* OS/2 has some stupid bug and the pipe must be created before socket :-/ */
 	if (c_pipe(terminal_pipe)) {
 		error("ERROR: can't create pipe for internal communication");
@@ -396,6 +398,7 @@ void terminate_all_subsystems(void)
 	shutdown_trans();
 	GF(shutdown_graphics());
 	terminate_osdep();
+	if (clipboard) mem_free(clipboard);
 }
 
 int main(int argc, char *argv[])

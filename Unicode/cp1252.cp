@@ -1,4 +1,4 @@
-Window$ 1252
+Window$ 1252 (Western European)
 "windows-1252", "1252"
 
 0x00	0x0000	#NULL

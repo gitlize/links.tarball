@@ -98,8 +98,8 @@
 #undef HAVE_JPEG
 
 /* */
-#undef AC_BIG_ENDIAN
+#undef C_BIG_ENDIAN
 
 /* */
-#undef AC_LITTLE_ENDIAN
+#undef C_LITTLE_ENDIAN
 

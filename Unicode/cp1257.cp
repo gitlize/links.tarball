@@ -1,4 +1,4 @@
-Window$ 1257
+Window$ 1257 (Baltic)
 "windows-1257", "1257", "cp1257"
 #
 #    Name:     cp1257 to Unicode table

@@ -722,7 +722,7 @@ void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
  */
 static inline int dtest(unsigned char *template, unsigned char *test)
 {
-	if (strcmp(template,test)) return 0;
+	if (strcasecmp(template,test)) return 0;
 	else{
 		mem_free(test);
 		return 1;
@@ -761,6 +761,9 @@ void type(struct cached_image *cimg, unsigned char *content_type)
 	}else 
 #endif /* #ifdef HAVE_JPEG */
 		if (dtest("image/png",content_type)){
+		cimg->image_type=IM_PNG;
+		png_start(cimg);
+	}else if (dtest("image/x-png",content_type)){
 		cimg->image_type=IM_PNG;
 		png_start(cimg);
 	}else if (dtest("image/gif",content_type)){
@@ -1213,3 +1216,26 @@ void change_image (struct g_object_image *goi, unsigned char *url, unsigned char
 }
 
 #endif
+
+int known_image_type(char *type)
+{
+#ifdef G
+	if (!strcasecmp(type, "image/png")) return 1;
+	if (!strcasecmp(type, "image/x-png")) return 1;
+	if (!strcasecmp(type, "image/gif")) return 1;
+	if (!strcasecmp(type, "image/x-xbitmap")) return 1;
+#ifdef HAVE_JPEG
+	if (!strcasecmp(type, "image/jpeg")) return 1;
+	if (!strcasecmp(type, "image/jpg")) return 1;
+	if (!strcasecmp(type, "image/jpe")) return 1;
+	if (!strcasecmp(type, "image/pjpe")) return 1;
+	if (!strcasecmp(type, "image/pjpeg")) return 1;
+	if (!strcasecmp(type, "image/pjpg")) return 1;
+#endif
+#ifdef HAVE_TIFF
+	if (!strcasecmp(type, "image/tiff")) return 1;
+	if (!strcasecmp(type, "image/tif")) return 1;
+#endif
+#endif
+	return 0;
+}

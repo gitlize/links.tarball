@@ -249,14 +249,14 @@ struct signal_handler {
 int signal_mask[NUM_SIGNALS];
 struct signal_handler signal_handlers[NUM_SIGNALS];
 
-int critical_section = 0;
+volatile int critical_section = 0;
 
 void check_for_select_race();
 
 void got_signal(int sig)
 {
 	if (sig >= NUM_SIGNALS || sig < 0) {
-		error("ERROR: bad signal number: %d", sig);
+		/*error("ERROR: bad signal number: %d", sig);*/
 		return;
 	}
 	if (!signal_handlers[sig].fn) return;
@@ -270,12 +270,11 @@ void got_signal(int sig)
 
 void install_signal_handler(int sig, void (*fn)(void *), void *data, int critical)
 {
-	struct sigaction sa;
+	struct sigaction sa = {};
 	if (sig >= NUM_SIGNALS || sig < 0) {
 		internal("bad signal number: %d", sig);
 		return;
 	}
-	memset(&sa, 0, sizeof sa);
 	if (!fn) sa.sa_handler = SIG_IGN;
 	else sa.sa_handler = got_signal;
 	sigfillset(&sa.sa_mask);
@@ -287,7 +286,7 @@ void install_signal_handler(int sig, void (*fn)(void *), void *data, int critica
 	if (fn) sigaction(sig, &sa, NULL);
 }
 
-int pending_alarm = 0;
+volatile int pending_alarm = 0;
 
 void alarm_handler(void *x)
 {
@@ -303,7 +302,7 @@ void check_for_select_race()
 #endif
 		pending_alarm = 1;
 #ifdef HAVE_ALARM
-		/*alarm(1);*/
+		alarm(1);
 #endif
 	}
 }

@@ -21,6 +21,14 @@
  * dale se bude pouzivat take ve funkcich pro praci s cookies, protoze string
  * cookies v javascript_context se tez alokuje pomoci js_mem_alloc/js_mem_free.
  */
+ 
+/*
+   Retezce:
+
+   vsechny retezce v ramci javascriptu jsou predavany v kodovani f_data->cp
+   (tedy tak, jak prisly v dokumentu ze site)
+ */
+
 
 #include "links.h" 
 
@@ -2150,6 +2158,7 @@ unsigned char *js_upcall_get_form_element_default_value(void *bidak, long docume
 	struct f_data_c *fd;
 	struct hopla_mladej *hopla;
 	unsigned char *hele_ho_bidaka;
+	struct conv_table *ct;
 
 	if (!js_ctx)internal("js_upcall_get_form_element_default_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
@@ -2175,7 +2184,9 @@ unsigned char *js_upcall_get_form_element_default_value(void *bidak, long docume
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla)return NULL;
 	
-	hele_ho_bidaka=stracpy(hopla->fc->default_value);
+	ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
+	hele_ho_bidaka=convert_string(ct,hopla->fc->default_value,strlen(hopla->fc->default_value),NULL);
+
 	mem_free(hopla);
 	return hele_ho_bidaka;
 }
@@ -2218,8 +2229,11 @@ void js_upcall_set_form_element_default_value(void *bidak, long document_id, lon
 	
 	if ((name||(hopla->fc->default_value))&&strcmp(name,hopla->fc->default_value))
 	{
+		struct conv_table *ct;
+		
 		mem_free(hopla->fc->default_value);
-		hopla->fc->default_value=stracpy(name);
+		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
+		hopla->fc->default_value=convert_string(ct,name,strlen(name),NULL);
 		fd->f_data->uncacheable=1;
 	}
 	mem_free(hopla);
@@ -2237,6 +2251,7 @@ unsigned char *js_upcall_get_form_element_value(void *bidak, long document_id, l
 	struct f_data_c *fd;
 	struct hopla_mladej *hopla;
 	unsigned char *hele_ho_bidaka;
+	struct conv_table *ct;
 
 	if (!js_ctx)internal("js_upcall_get_form_element_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
@@ -2256,7 +2271,9 @@ unsigned char *js_upcall_get_form_element_value(void *bidak, long document_id, l
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla)return NULL;
 	
-	hele_ho_bidaka=stracpy(hopla->fs->value);
+	ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
+	hele_ho_bidaka=convert_string(ct,hopla->fs->value,strlen(hopla->fs->value),NULL);
+
 	mem_free(hopla);
 	return hele_ho_bidaka;
 }
@@ -2271,6 +2288,7 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 	struct f_data_c *js_ctx=(struct f_data_c*)bidak;
 	struct f_data_c *fd;
 	struct hopla_mladej *hopla;
+	struct conv_table *ct;
 
 	if (!js_ctx)internal("js_upcall_set_form_element_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
@@ -2294,7 +2312,9 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 	if (!hopla){if (name)mem_free(name);return;}
 	
 	mem_free(hopla->fs->value);
-	hopla->fs->value=stracpy(name);
+	ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
+	hopla->fs->value=convert_string(ct,name,strlen(name),NULL);
+
 	if (hopla->fs->state > strlen(hopla->fs->value))
 		hopla->fs->state = strlen(hopla->fs->value);
 	if ((ksunt_id&JS_OBJ_MASK) != JS_OBJ_T_TEXTAREA) {
@@ -2395,6 +2415,12 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 				if (l->form&&l->form==hopla->fc)	/* to je on! */
 				{
 					fd->vs->current_link=a;
+					if (fd->ses->term->spec->braille) {
+						if (fd->f_data->links[a].n) {
+							fd->vs->brl_x = fd->f_data->links[a].pos[0].x;
+							fd->vs->brl_y = fd->f_data->links[a].pos[0].y;
+						}
+					}
 #ifdef G
 					if (F)
 					{

@@ -38,18 +38,19 @@
 # define	TRUELIT	287
 # define	NUMLIT	288
 # define	STRINGLIT	289
-# define	BUGGY_TOKEN	290
+# define	REGEXPLIT	290
+# define	BUGGY_TOKEN	291
 # define	PLUSPLUS	11051
 # define	MINMIN	11565
 # define	SHLEQ	15676
 # define	SHREQ	15678
 # define	SHLSHL	15420
 # define	SHRSHR	15934
-# define	SHRSHRSHR	291
+# define	SHRSHRSHR	292
 # define	EQEQ	15677
 # define	EXCLAMEQ	15649
-# define	EQEQEQ	292
-# define	EXCLAMEQEQ	293
+# define	EQEQEQ	293
+# define	EXCLAMEQEQ	294
 # define	ANDAND	9766
 # define	OROR	31868
 # define	PLUSEQ	15659
@@ -60,8 +61,8 @@
 # define	ANDEQ	15654
 # define	OREQ	15740
 # define	XOREQ	15710
-# define	SHLSHLEQ	294
-# define	SHRSHREQ	295
+# define	SHLSHLEQ	295
+# define	SHRSHREQ	296
 
 
 extern YYSTYPE yylval;

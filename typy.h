@@ -9,6 +9,7 @@
 #define NULLOVY 3
 #define BOOLEAN 4
 #define STRING 5
+#define REGEXP 16
 #define VARIABLE 6
 #define FUNKCE 7
 #define FUNKINT 8

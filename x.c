@@ -122,14 +122,13 @@ int x_bitmap_scanline_pad; /* bitmap scanline_padding in bytes */
 int x_colors;  /* colors in the palette (undefined when there's no palette) */
 int x_have_palette;
 int x_input_encoding;	/* locales encoding */
-int x_utf8_table;	/* index of UTF8 table */
 int x_bitmap_bit_order;
 
 
 Window x_root_window, fake_window;
 GC x_normal_gc,x_copy_gc,x_drawbitmap_gc,x_scroll_gc;
 Colormap x_colormap;
-Atom x_delete_window_atom,x_wm_protocols_atom;
+Atom x_delete_window_atom, x_wm_protocols_atom, x_sel_atom, x_targets_atom;
 Visual* x_default_visual;
 Pixmap x_icon;
 
@@ -160,6 +159,7 @@ struct
 }
 x_hash_table[X_HASH_TABLE_SIZE];
 
+/* string in clipboard is in x_input_encoding */
 static unsigned char * x_my_clipboard=NULL;
 
 
@@ -172,6 +172,14 @@ static unsigned char * x_my_clipboard=NULL;
 
 static int flush_in_progress=0;
 
+static void x_wait_for_event(void)
+{
+	fd_set rfds;
+
+	FD_ZERO(&rfds);
+	FD_SET(x_fd, &rfds);
+	select(x_fd+1, &rfds, NULL, NULL, NULL);
+}
 
 static void x_do_flush(void *ignore)
 {
@@ -283,7 +291,7 @@ unsigned char * x_set_palette(void)
 
 static inline int trans_key(unsigned char * str, int table)
 {
-	if (table==x_utf8_table){int a; GET_UTF_8(str,a);return a;}
+	if (table==utf8_table){int a; GET_UTF_8(str,a);return a;}
 	if (*str<128)return *str;
 	return cp2u(*str,table);
 }
@@ -480,6 +488,16 @@ static void x_remove_from_table(Window *win)
 }
 
 
+void x_clear_clipboard()
+{
+    if(x_my_clipboard)
+    {
+        mem_free(x_my_clipboard);
+        x_my_clipboard=NULL;
+    }
+}
+
+
 static void x_process_events(void *data)
 {
 	XEvent event;
@@ -659,7 +677,6 @@ static void x_process_events(void *data)
 					break;
 
 					case 2:
-					if (event.xbutton.state & ShiftMask) return; /* paste */
 					a=B_MIDDLE;
 					break;
 
@@ -700,21 +717,6 @@ static void x_process_events(void *data)
 
 					case 2:
 					a=B_MIDDLE;
-					if (event.xbutton.state & ShiftMask) /* paste */
-					{
-						Atom pty;
-						if ((pty = XInternAtom(x_display, "XCLIP_OUT", False)))
-						{
-							XConvertSelection(
-								x_display,
-								XA_PRIMARY,
-								XA_STRING,
-								pty,
-								event.xbutton.window,
-								CurrentTime);
-						}
-						return;
-					}
 					break;
 
 					case 4:
@@ -759,93 +761,61 @@ static void x_process_events(void *data)
 			}
 			break;
 
+			/* read clipboard */
 			case SelectionNotify:
-			if(event.xselection.property)
-			{
-				unsigned char *buffer, *p;
-				unsigned long pty_size = 0, pty_items = 0;
-				int           pty_format = 8, ret, table;
-				Atom          pty_type = None;
-
-				/* Get size and type of property */
-				ret = XGetWindowProperty(
-					x_display,
-					event.xselection.requestor,
-					event.xselection.property,
-					0,
-					0,
-					False,
-					AnyPropertyType,
-					&pty_type,
-					&pty_format,
-					&pty_items,
-					&pty_size,
-					&buffer);
-				if(ret != Success) break;
-				XFree(buffer);
-
-				ret = XGetWindowProperty(
-					x_display,
-					event.xselection.requestor,
-					event.xselection.property,
-					0,
-					(long)pty_size,
-					True,
-					AnyPropertyType,
-					&pty_type,
-					&pty_format,
-					&pty_items,
-					&pty_size,
-					&buffer
-				);
-				if(ret != Success) break;
-
-				pty_size = (pty_format>>3) * pty_items;
-				gd = x_find_gd(&(event.xselection.requestor));
-				table = x_input_encoding < 0 ? drv->codepage : x_input_encoding;
-				if(gd)
-				{
-					for (p = buffer; pty_size > 0; pty_size--, p++)
-					{
-						if (*p == 10) gd->keyboard_handler(gd,KBD_ENTER,0);
-						else if (*p >= 32) gd->keyboard_handler(gd,trans_key(p,table),0);
-					}
-				}
-				XFree(buffer);
-			}
+#ifdef X_DEBUG
+                        MESSAGE("xselectionnotify\n");
+#endif
+			/* handled in x_get_clipboard_text */
 			break;
 
 /* This long code must be here in order to implement copying of stuff into the clipboard */
                         case SelectionRequest:
                         {
                             XSelectionRequestEvent *req;
-                            XEvent respond;
+			    XSelectionEvent sel;
 
-                            req=&(event.xselectionrequest);
+                            req = &(event.xselectionrequest);
+			    sel.type = SelectionNotify;
+			    sel.requestor = req->requestor;
+			    sel.selection = XA_PRIMARY;
+			    sel.target = req->target;
+			    sel.property = req->property;
+			    sel.time = req->time;
+			    sel.display = req->display;
 #ifdef X_DEBUG
                             {
                                 unsigned char txt[256];
-                                sprintf (txt,"xselectionrequest from %i to %i\n",(int)e.xselection.requestor, (int)w);
+                                sprintf (txt,"xselectionrequest from %i\n",(int)event.xselection.requestor);
                                 MESSAGE(txt);
                                 sprintf (txt,"property:%i target:%i selection:%i\n", req->property,req->target, req->selection);
                                 MESSAGE(txt);
                             }
 #endif
-                            if (req->target == XA_STRING)
-                            {
+                            if (req->target == XA_STRING) {
 				XChangeProperty (x_display,
-                                                 req->requestor,
-                                                 req->property,
+                                                 sel.requestor,
+                                                 sel.property,
                                                  XA_STRING,
                                                  8,
                                                  PropModeReplace,
                                                  x_my_clipboard,
                                                  x_my_clipboard?strlen(x_my_clipboard):0
 				);
-				respond.xselection.property=req->property;
                             }
-                            else
-                            {
+			    else if (req->target == x_targets_atom) {
+				Atom tgt_atoms[] = {x_targets_atom, XA_STRING };
+				XChangeProperty (x_display,
+                                                 sel.requestor,
+                                                 sel.property,
+                                                 XA_ATOM,
+                                                 sizeof(Atom)*8,
+                                                 PropModeReplace,
+                                                 (char*)&tgt_atoms,
+                                                 2
+				);
+                            }
+                            else {
 #ifdef X_DEBUG
                                 {
                                     unsigned char txt[256];
@@ -853,15 +823,9 @@ static void x_process_events(void *data)
                                     MESSAGE(txt);
                                 }
 #endif
-				respond.xselection.property= None;
+				sel.property= None;
                             }
-                            respond.xselection.type= SelectionNotify;
-                            respond.xselection.display= req->display;
-                            respond.xselection.requestor= req->requestor;
-                            respond.xselection.selection=req->selection;
-                            respond.xselection.target= req->target;
-                            respond.xselection.time = req->time;
-                            XSendEvent (x_display, req->requestor,0,0,&respond);
+                            XSendEvent (x_display, sel.requestor,0,0,(XEvent*)&sel);
                             XFlush (x_display);                    
                         }
                         break;
@@ -972,7 +936,6 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 	}
 #endif
 	if (x_input_encoding<0)x_driver.flags|=GD_NEED_CODEPAGE;
-	x_utf8_table=get_cp_index("UTF-8");
 
 	if (!display||!(*display))display=0;
 
@@ -1191,6 +1154,8 @@ visual_found:;
 
 	x_delete_window_atom=XInternAtom(x_display,"WM_DELETE_WINDOW", False);
 	x_wm_protocols_atom=XInternAtom(x_display,"WM_PROTOCOLS", False);
+	x_sel_atom= XInternAtom(x_display, "SEL_PROP", False);
+	x_targets_atom= XInternAtom(x_display, "TARGETS", False);
 
 	if (x_have_palette) win_attr.colormap=x_colormap;
 	else win_attr.colormap=XCreateColormap(x_display, x_root_window, x_default_visual, AllocNone);
@@ -1229,16 +1194,6 @@ visual_found:;
 
 	XSync(x_display,False);
 	return NULL;
-}
-
-
-void x_clear_clipboard()
-{
-    if(x_my_clipboard)
-    {
-        mem_free(x_my_clipboard);
-        x_my_clipboard=NULL;
-    }
 }
 
 
@@ -1336,8 +1291,6 @@ nic_nebude_bobankove:;
 	XStoreName(x_display,*win,links_name);
 	XSetWMIconName(x_display, *win, &windowName);
 
-	XSetWindowBackgroundPixmap(x_display, *win, None);
-	if (x_have_palette) XSetWindowColormap(x_display,*win,x_colormap);
 	XMapWindow(x_display,*win);
 	
 	gd->clip.x1=gd->size.x1;
@@ -1348,6 +1301,8 @@ nic_nebude_bobankove:;
 	gd->driver_data=win;
 	gd->user_data=0;
 
+	XSetWindowBackgroundPixmap(x_display, *win, None);
+	if (x_have_palette) XSetWindowColormap(x_display,*win,x_colormap);
 	if (x_add_to_table(gd)){mem_free(win);mem_free(gd);return NULL;}
 	
 	XSetWMProtocols(x_display,*win,&x_delete_window_atom,1);
@@ -1959,7 +1914,7 @@ void x_commit_strip(struct bitmap *bmp, int top, int lines)
 
 void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 {
-	struct conv_table *ct = get_translation_table(x_utf8_table,x_input_encoding >= 0?x_input_encoding:0);
+	struct conv_table *ct = get_translation_table(utf8_table,x_input_encoding >= 0?x_input_encoding:0);
 	unsigned char *t;
 	XClassHint class_hints;
 	XTextProperty windowName;
@@ -1979,15 +1934,88 @@ void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 	mem_free(t);
 }
 
+/* gets string in UTF8 */
 void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text)
 {
 	x_clear_clipboard();
 	if(text && strlen(text))
 	{
-		x_my_clipboard = stracpy(text);
+		struct conv_table *ct;
+		
+		ct=get_translation_table(utf8_table,x_input_encoding < 0 ? drv->codepage : x_input_encoding);
+		x_my_clipboard=convert_string(ct, text, strlen(text), NULL);
+
 		XSetSelectionOwner (x_display, XA_PRIMARY, *(Window*)(gd->driver_data), CurrentTime);
 		XFlush (x_display);
 	}
+}
+
+
+unsigned char *x_get_clipboard_text(void)
+{
+	struct conv_table *ct;
+	XEvent event;
+
+	XConvertSelection(x_display, XA_PRIMARY, XA_STRING, x_sel_atom, fake_window, CurrentTime);
+
+	XSync(x_display, False);
+	x_wait_for_event();
+	if (XCheckTypedEvent(x_display,SelectionNotify, &event) && event.xselection.property)
+	{
+		unsigned char *buffer;
+		unsigned long pty_size, pty_items;
+		int pty_format, ret;
+		Atom pty_type;
+
+		if (event.xselection.target != XA_STRING) goto no_new_sel;
+		if (event.xselection.property != x_sel_atom) goto no_new_sel;
+
+		
+		/* Get size and type of property */
+		ret = XGetWindowProperty(
+			x_display,
+			fake_window,
+			event.xselection.property,
+			0,
+			0,
+			False,
+			AnyPropertyType,
+			&pty_type,
+			&pty_format,
+			&pty_items,
+			&pty_size,
+			&buffer);
+		if (ret != Success) goto no_new_sel;
+		XFree(buffer);
+
+		ret = XGetWindowProperty(
+			x_display,
+			fake_window,
+			event.xselection.property,
+			0,
+			(long)pty_size,
+			True,
+			AnyPropertyType,
+			&pty_type,
+			&pty_format,
+			&pty_items,
+			&pty_size,
+			&buffer
+		);
+		if(ret != Success) goto no_new_sel;
+
+		pty_size = (pty_format>>3) * pty_items;
+
+		x_clear_clipboard();
+		x_my_clipboard=stracpy(buffer);
+		XFree(buffer);
+	}
+
+no_new_sel:
+	if (!x_my_clipboard) return NULL;
+	
+	ct=get_translation_table(x_input_encoding < 0 ? drv->codepage : x_input_encoding,utf8_table);
+	return convert_string(ct, x_my_clipboard, strlen(x_my_clipboard), NULL);
 }
 
 

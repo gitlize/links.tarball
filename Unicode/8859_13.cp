@@ -1,4 +1,4 @@
-ISO 8859-13
+ISO 8859-13 (Baltic)
 "ISO-8859-13", "8859-13", "iso-ir-179", "latin7", "l7","iso-latin7"
 
 0x20-0x7e       idem

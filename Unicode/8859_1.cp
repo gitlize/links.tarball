@@ -1,4 +1,4 @@
-ISO 8859-1
+ISO 8859-1 (Western European)
 "ISO-8859-1", "8859-1", "iso-ir-100", "latin1", "l1", "819","iso-latin1"
 0x20	0x0020	#SPACE
 0x21	0x0021	#EXCLAMATION MARK

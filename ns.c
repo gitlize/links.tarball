@@ -483,6 +483,41 @@ lns* llookup(char* retezec,js_id_name **names,plns*lnamespace,js_context*context
 	return loklookup(klic,lnamespace,context);
 }
 
+static inline lns* cloklookup(long key,plns*pns,js_context*context)
+{	lns*current=(pns->ns)[key%HASHNUM],*pom=0;
+	debug("cLoklookup: ");
+	while(current &&current->identifier!=key)
+		current=(pom=current)->next;
+	if(current)
+	{       debug("promenna nalezena\n");
+		if(pom){ /* MFR - to by Rumcajs mrkal na drat! */
+			pom->next=current->next;
+			current->next=(pns->ns)[key%HASHNUM];
+			return (pns->ns)[key%HASHNUM]=current;
+		} else	return 0;
+		
+	}
+	else	return 0;
+}
+
+inline lns* cllookup(char* retezec,js_id_name **names,plns*lnamespace,js_context*context)
+{       long klic,i;
+	js_id_name*lastname;
+	/* We acquire a key of variable: */
+
+	klic=i=0;while(retezec[i])klic=klic*MAGIC+retezec[i++];
+	klic&=127;/*Bude potreba ohandlovat dynamitickou velikost hashoveho pole*/
+	if((lastname=names[klic])){
+		while(strcmp(retezec,lastname->jmeno) &&lastname->next)
+			lastname=lastname->next;
+		if(!strcmp(retezec,lastname->jmeno)){
+			klic=(lastname->klic)*128+klic;/*tady uz je klic cely*/
+		} else	/*Koukame na posledni vagonek a ten nematchuje!*/
+			return 0;
+	} else	return 0;
+	return cloklookup(klic,lnamespace,context);
+}
+
 void add_to_parlist(lns*parent,lns*list)
 {	parlist*pom=js_mem_alloc(sizeof(parlist));
 	pom->next=(parlist*)list->value;

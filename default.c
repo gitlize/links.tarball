@@ -646,12 +646,13 @@ unsigned char *term_rd(struct option *o, unsigned char *c)
 	}
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '3') goto err_f;
+	if (strlen(w) != 1 || w[0] < '0' || w[0] > '4') goto err_f;
 	ts->mode = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '1') goto err_f;
-	ts->m11_hack = w[0] - '0';
+	if (strlen(w) != 1 || w[0] < '0' || w[0] > '3') goto err_f;
+	ts->m11_hack = (w[0] - '0') & 1;
+	ts->braille = !!((w[0] - '0') & 2);
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
 	if (strlen(w) != 1 || w[0] < '0' || w[0] > '7') goto err_f;
@@ -719,7 +720,7 @@ void term_wr(struct option *o, unsigned char **s, int *l)
 		add_to_str(s, l, " ");
 		add_num_to_str(s, l, ts->mode);
 		add_to_str(s, l, " ");
-		add_num_to_str(s, l, ts->m11_hack);
+		add_num_to_str(s, l, !!ts->m11_hack + !!ts->braille * 2);
 		add_to_str(s, l, " ");
 		add_num_to_str(s, l, !!ts->col + !!ts->restrict_852 * 2 + !!ts->block_cursor * 4);
 		add_to_str(s, l, " ");

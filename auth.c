@@ -83,12 +83,13 @@ char *get_auth_string(char *url)
 	if (upcase(url[0]) == 'P') {
 		foreach(a, auth) {
 			if (a->proxy && !strcasecmp(a->host, host) && a->port == port) {
-			if (!r) r = init_str();
-			add_to_str(&r, &l, "Proxy-Authorization: Basic ");
-			add_to_str(&r, &l, a->user_password_encoded);
-			add_to_str(&r, &l, "\r\n");
+				if (!r) r = init_str();
+				add_to_str(&r, &l, "Proxy-Authorization: Basic ");
+				add_to_str(&r, &l, a->user_password_encoded);
+				add_to_str(&r, &l, "\r\n");
+				break;
+			}
 		}
-	}
 		url = get_url_data(url);
 		mem_free(host);
 		if (!(host = get_host_name(url))) return NULL;
@@ -105,6 +106,7 @@ char *get_auth_string(char *url)
 			add_to_str(&r, &l, "Authorization: Basic ");
 			add_to_str(&r, &l, a->user_password_encoded);
 			add_to_str(&r, &l, "\r\n");
+			break;
 		}
 	}
 	mem_free(host);
@@ -185,6 +187,8 @@ int find_auth(unsigned char *url, unsigned char *realm)
 		mem_free(a->directory);
 		a->directory = data;
 		mem_free(host);
+		del_from_list(a);
+		add_to_list(auth, a);
 		return 0;
 	}
 	mem_free(host);

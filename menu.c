@@ -462,15 +462,15 @@ void terminal_options_ok(void *p)
 	cls_redraw_all_terminals();
 }
 
-unsigned char *td_labels[] = { TEXT(T_NO_FRAMES), TEXT(T_VT_100_FRAMES), TEXT(T_LINUX_OR_OS2_FRAMES), TEXT(T_KOI8R_FRAMES), TEXT(T_USE_11M), TEXT(T_RESTRICT_FRAMES_IN_CP850_852), TEXT(T_BLOCK_CURSOR), TEXT(T_COLOR), NULL };
+unsigned char *td_labels[] = { TEXT(T_NO_FRAMES), TEXT(T_VT_100_FRAMES), TEXT(T_LINUX_OR_OS2_FRAMES), TEXT(T_KOI8R_FRAMES), TEXT(T_FREEBSD_FRAMES), TEXT(T_USE_11M), TEXT(T_RESTRICT_FRAMES_IN_CP850_852), TEXT(T_BLOCK_CURSOR), TEXT(T_COLOR), TEXT(T_BRAILLE_TERMINAL), NULL };
 
 void terminal_options(struct terminal *term, void *xxx, struct session *ses)
 {
 	struct dialog *d;
 	struct term_spec *ts = new_term_spec(term->term);
 	if (!ts) return;
-	if (!(d = mem_alloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item)))) return;
-	memset(d, 0, sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
+	if (!(d = mem_alloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item)))) return;
+	memset(d, 0, sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 	d->title = TEXT(T_TERMINAL_OPTIONS);
 	d->fn = checkbox_list_fn;
 	d->udata = td_labels;
@@ -496,30 +496,39 @@ void terminal_options(struct terminal *term, void *xxx, struct session *ses)
 	d->items[3].dlen = sizeof(int);
 	d->items[3].data = (void *)&ts->mode;
 	d->items[4].type = D_CHECKBOX;
-	d->items[4].gid = 0;
+	d->items[4].gid = 1;
+	d->items[4].gnum = TERM_FREEBSD;
 	d->items[4].dlen = sizeof(int);
-	d->items[4].data = (void *)&ts->m11_hack;
+	d->items[4].data = (void *)&ts->mode;
 	d->items[5].type = D_CHECKBOX;
 	d->items[5].gid = 0;
 	d->items[5].dlen = sizeof(int);
-	d->items[5].data = (void *)&ts->restrict_852;
+	d->items[5].data = (void *)&ts->m11_hack;
 	d->items[6].type = D_CHECKBOX;
 	d->items[6].gid = 0;
 	d->items[6].dlen = sizeof(int);
-	d->items[6].data = (void *)&ts->block_cursor;
+	d->items[6].data = (void *)&ts->restrict_852;
 	d->items[7].type = D_CHECKBOX;
 	d->items[7].gid = 0;
 	d->items[7].dlen = sizeof(int);
-	d->items[7].data = (void *)&ts->col;
-	d->items[8].type = D_BUTTON;
-	d->items[8].gid = B_ENTER;
-	d->items[8].fn = ok_dialog;
-	d->items[8].text = TEXT(T_OK);
-	d->items[9].type = D_BUTTON;
-	d->items[9].gid = B_ESC;
-	d->items[9].fn = cancel_dialog;
-	d->items[9].text = TEXT(T_CANCEL);
-	d->items[10].type = D_END;
+	d->items[7].data = (void *)&ts->block_cursor;
+	d->items[8].type = D_CHECKBOX;
+	d->items[8].gid = 0;
+	d->items[8].dlen = sizeof(int);
+	d->items[8].data = (void *)&ts->col;
+	d->items[9].type = D_CHECKBOX;
+	d->items[9].gid = 0;
+	d->items[9].dlen = sizeof(int);
+	d->items[9].data = (void *)&ts->braille;
+	d->items[10].type = D_BUTTON;
+	d->items[10].gid = B_ENTER;
+	d->items[10].fn = ok_dialog;
+	d->items[10].text = TEXT(T_OK);
+	d->items[11].type = D_BUTTON;
+	d->items[11].gid = B_ESC;
+	d->items[11].fn = cancel_dialog;
+	d->items[11].text = TEXT(T_CANCEL);
+	d->items[12].type = D_END;
  	do_dialog(term, d, getml(d, NULL));
 }
 
@@ -647,10 +656,10 @@ void httpopt_fn(struct dialog_data *dlg)
 	int y = 0;
 	checkboxes_width(term, dlg->dlg->udata, &max, max_text_width);
 	checkboxes_width(term, dlg->dlg->udata, &min, min_text_width);
-	max_text_width(term, http_labels[8], &max, AL_LEFT);
-	min_text_width(term, http_labels[8], &min, AL_LEFT);
-	max_text_width(term, http_labels[9], &max, AL_LEFT);
-	min_text_width(term, http_labels[9], &min, AL_LEFT);
+	max_text_width(term, http_labels[dlg->n - 4], &max, AL_LEFT);
+	min_text_width(term, http_labels[dlg->n - 4], &min, AL_LEFT);
+	max_text_width(term, http_labels[dlg->n - 3], &max, AL_LEFT);
+	min_text_width(term, http_labels[dlg->n - 3], &min, AL_LEFT);
 	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
 	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
 	w = term->x * 9 / 10 - 2 * DIALOG_LB;
@@ -660,11 +669,10 @@ void httpopt_fn(struct dialog_data *dlg)
 	if (w < 5) w = 5;
 	rw = 0;
 	dlg_format_checkboxes(dlg, NULL, dlg->items, dlg->n - 4, 0, &y, w, &rw, dlg->dlg->udata);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, NULL, http_labels[9], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, NULL, http_labels[10], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, 2 * G_BFU_FONT_SIZE);
+	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, NULL, http_labels[dlg->n - 4], dlg->items + dlg->n - 4, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, http_labels[dlg->n - 3], dlg->items + dlg->n - 3, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
 	dlg->xw = rw + 2 * DIALOG_LB;
@@ -674,10 +682,8 @@ void httpopt_fn(struct dialog_data *dlg)
 	y = dlg->y + DIALOG_TB + gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_checkboxes(dlg, term, dlg->items, dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, dlg->dlg->udata);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, http_labels[dlg->n - 4], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, dlg->items + dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
-	dlg_format_text(dlg, term, http_labels[dlg->n - 3], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, dlg->items + dlg->n - 3, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, http_labels[dlg->n - 4], dlg->items + dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, http_labels[dlg->n - 3], dlg->items + dlg->n - 3, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, dlg->items + dlg->n - 2, 2, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
 }
@@ -759,6 +765,7 @@ void ftpopt_fn(struct dialog_data *dlg)
 	int max = 0, min = 0;
 	int w, rw;
 	int y = 0;
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	max_text_width(term, ftp_texts[0], &max, AL_LEFT);
 	min_text_width(term, ftp_texts[0], &min, AL_LEFT);
 	checkboxes_width(term, ftp_texts + 1, &max, max_text_width);
@@ -771,8 +778,7 @@ void ftpopt_fn(struct dialog_data *dlg)
 	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
 	if (w < 5) w = 5;
 	rw = 0;
-	dlg_format_text(dlg, NULL, ftp_texts[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, NULL, ftp_texts[0], dlg->items, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	dlg_format_checkboxes(dlg, NULL, dlg->items + 1, 2, 0, &y, w, &rw, ftp_texts + 1);
 	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
@@ -782,8 +788,8 @@ void ftpopt_fn(struct dialog_data *dlg)
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
-	dlg_format_text(dlg, term, ftp_texts[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, ftp_texts[0], dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_checkboxes(dlg, term, dlg->items + 1, 2, dlg->x + DIALOG_LB, &y, w, NULL, ftp_texts + 1);
 	y += gf_val(1, G_BFU_FONT_SIZE);
@@ -1068,6 +1074,7 @@ void netopt_fn(struct dialog_data *dlg)
 	int max = 0, min = 0;
 	int w, rw;
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	max_text_width(term, net_msg[0], &max, AL_LEFT);
 	min_text_width(term, net_msg[0], &min, AL_LEFT);
 	max_text_width(term, net_msg[1], &max, AL_LEFT);
@@ -1082,10 +1089,10 @@ void netopt_fn(struct dialog_data *dlg)
 	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
 	rw = 0;
-	dlg_format_text(dlg, NULL, net_msg[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE * 2);
-	dlg_format_text(dlg, NULL, net_msg[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE * 2);
+	dlg_format_text_and_field(dlg, NULL, net_msg[0], &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, NULL, net_msg[1], &dlg->items[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
 	dlg_format_group(dlg, NULL, net_msg + 2, dlg->items + 2, 9, 0, &y, w, &rw);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items + 11, 2, 0, &y, w, &rw, AL_CENTER);
@@ -1095,12 +1102,11 @@ void netopt_fn(struct dialog_data *dlg)
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
-	dlg_format_text(dlg, term, net_msg[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, net_msg[1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, &dlg->items[1], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
-	y += gf_val(1, G_BFU_FONT_SIZE);
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, net_msg[0], &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, net_msg[1], &dlg->items[1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_group(dlg, term, net_msg + 2, &dlg->items[2], 9, dlg->x + DIALOG_LB, &y, w, NULL);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, &dlg->items[11], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
@@ -1192,6 +1198,7 @@ unsigned char *prg_msg[] = {
 	TEXT(T_TN3270_PROG),
 	""
 };
+
 void netprog_fn(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
@@ -1231,28 +1238,32 @@ void netprog_fn(struct dialog_data *dlg)
 	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
 	rw = 0;
-	dlg_format_text(dlg, NULL, prg_msg[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE * 2);
+	if (term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, NULL, prg_msg[0], &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	a=2;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef G
 	if (F)
 	{
 		a=1;
-		dlg_format_text(dlg, NULL, prg_msg[a++], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(2, G_BFU_FONT_SIZE * 2);
-		dlg_format_text(dlg, NULL, prg_msg[a++], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(2, G_BFU_FONT_SIZE * 2);
-		dlg_format_text(dlg, NULL, prg_msg[a++], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(2, G_BFU_FONT_SIZE * 2);
+		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		a++;
+		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		a++;
+		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		y += gf_val(1, G_BFU_FONT_SIZE);
 		dlg_format_buttons(dlg, NULL, dlg->items + 4, 2, 0, &y, w, &rw, AL_CENTER);
 	}
 	else
 #endif
 	{
-		dlg_format_text(dlg, NULL, prg_msg[a++], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(2, G_BFU_FONT_SIZE * 2);
-		dlg_format_text(dlg, NULL, prg_msg[a++], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(2, G_BFU_FONT_SIZE * 2);
+		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a-1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		a++;
+		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a-1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		y += gf_val(1, G_BFU_FONT_SIZE);
 		dlg_format_buttons(dlg, NULL, dlg->items + 3, 2, 0, &y, w, &rw, AL_CENTER);
 	}
 	w = rw;
@@ -1261,38 +1272,36 @@ void netprog_fn(struct dialog_data *dlg)
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
-	dlg_format_text(dlg, term, prg_msg[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
-	y += gf_val(1, G_BFU_FONT_SIZE);
+	if (term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, prg_msg[0], &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	a=2;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef G
 	if (F)
 	{	
 		a=1;
-		dlg_format_text(dlg, term, prg_msg[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		dlg_format_field(dlg, term, &dlg->items[a++], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
-		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text(dlg, term, prg_msg[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		dlg_format_field(dlg, term, &dlg->items[a++], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
-		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text(dlg, term, prg_msg[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		dlg_format_field(dlg, term, &dlg->items[a++], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+		a++;
+		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+		a++;
+		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 		y += gf_val(1, G_BFU_FONT_SIZE);
 		dlg_format_buttons(dlg, term, &dlg->items[4], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 	}
 	else
 #endif
 	{
-		dlg_format_text(dlg, term, prg_msg[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		dlg_format_field(dlg, term, &dlg->items[a++-1], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
-		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text(dlg, term, prg_msg[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		dlg_format_field(dlg, term, &dlg->items[a++-1], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a-1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+		a++;
+		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a-1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+		a++;
 		y += gf_val(1, G_BFU_FONT_SIZE);
 		dlg_format_buttons(dlg, term, &dlg->items[3], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 	}
 }
-
 void net_programs(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
@@ -1722,11 +1731,12 @@ void miscopt_fn(struct dialog_data *dlg)
 	}
 	if (bmk)
 	{
-		dlg_format_text(dlg, NULL, labels[F?7:0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		dlg_format_field(dlg, NULL, dlg->items + dlg->n - 4 - a, dlg->x + DIALOG_LB, &y, w, &rw, AL_LEFT);
+		dlg_format_text_and_field(dlg, NULL, labels[F?7:0], dlg->items + dlg->n - 4 - a, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	}
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	if (bmk)dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 3 - a, 1, 0, &y, w, &rw, AL_LEFT);
+	if (bmk) {
+		y += gf_val(1, G_BFU_FONT_SIZE);
+		dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 3 - a, 1, 0, &y, w, &rw, AL_LEFT);
+	}
 	if (a) dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 3, 1, 0, &y, w, &rw, AL_LEFT);
 	dlg_format_buttons(dlg, NULL, dlg->items +dlg->n-2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -1747,8 +1757,7 @@ void miscopt_fn(struct dialog_data *dlg)
 	} else y += gf_val(1, G_BFU_FONT_SIZE);
 	if (bmk)
 	{
-		dlg_format_text(dlg, term, labels[F?7:0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		dlg_format_field(dlg, term, dlg->items + dlg->n - 4 - a, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+		dlg_format_text_and_field(dlg, term, labels[F?7:0], dlg->items + dlg->n - 4 - a, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 		y += gf_val(1, G_BFU_FONT_SIZE);
 		dlg_format_buttons(dlg, term, dlg->items + dlg->n - 3 - a, 1, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 	}
@@ -1762,7 +1771,7 @@ void miscelaneous_options(struct terminal *term, void *xxx, struct session *ses)
 	struct dialog *d;
 	int a=0;
 
-	if (anonymous&&!F) return;	/* if you add something into text mode (or both text and graphics), remove this */
+	if (anonymous&&!F) return;	/* if you add something into text mode (or both text and graphics), remove this (and enable also miscelaneous_options in setip_menu_anon) */
 
 	strncpy(new_bookmarks_file,bookmarks_file,MAX_STR_LEN);
 	new_bookmarks_codepage=bookmarks_codepage;
@@ -2167,11 +2176,11 @@ struct menu_item setup_menu_anon[] = {
 	{ TEXT(T_LANGUAGE), ">", TEXT(T_HK_LANGUAGE), MENU_FUNC menu_language_list, NULL, 1, 0 },
 	{ TEXT(T_CHARACTER_SET), ">", TEXT(T_HK_CHARACTER_SET), MENU_FUNC charset_list, (void *)1, 1, 0 },
 	{ TEXT(T_TERMINAL_OPTIONS), "", TEXT(T_HK_TERMINAL_OPTIONS), MENU_FUNC terminal_options, NULL, 0, 0 },
-	{ TEXT(T_NETWORK_OPTIONS), "", TEXT(T_HK_NETWORK_OPTIONS), MENU_FUNC net_options, NULL, 0, 0 },
+	/*{ TEXT(T_NETWORK_OPTIONS), "", TEXT(T_HK_NETWORK_OPTIONS), MENU_FUNC net_options, NULL, 0, 0 },*/
 #ifdef JS
 	{ TEXT(T_JAVASCRIPT_OPTIONS),"", TEXT(T_HK_JAVASCRIPT_OPTIONS), MENU_FUNC javascript_options, NULL, 0, 0 },
 #endif
-	{ TEXT(T_MISCELANEOUS_OPTIONS),"", TEXT(T_HK_MISCELANEOUS_OPTIONS), MENU_FUNC miscelaneous_options, NULL, 0, 0 },
+	/*{ TEXT(T_MISCELANEOUS_OPTIONS),"", TEXT(T_HK_MISCELANEOUS_OPTIONS), MENU_FUNC miscelaneous_options, NULL, 0, 0 },*/
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
 
@@ -2197,7 +2206,7 @@ struct menu_item setup_menu_g[] = {
 struct menu_item setup_menu_anon_g[] = {
 	{ TEXT(T_LANGUAGE), ">", TEXT(T_HK_LANGUAGE), MENU_FUNC menu_language_list, NULL, 1, 0 },
 	{ TEXT(T_VIDEO_OPTIONS), "", TEXT(T_HK_VIDEO_OPTIONS), MENU_FUNC video_options, NULL, 0, 0 },
-	{ TEXT(T_NETWORK_OPTIONS), "", TEXT(T_HK_NETWORK_OPTIONS), MENU_FUNC net_options, NULL, 0, 0 },
+	/*{ TEXT(T_NETWORK_OPTIONS), "", TEXT(T_HK_NETWORK_OPTIONS), MENU_FUNC net_options, NULL, 0, 0 },*/
 #ifdef JS
 	{ TEXT(T_JAVASCRIPT_OPTIONS),"", TEXT(T_HK_JAVASCRIPT_OPTIONS), MENU_FUNC javascript_options, NULL, 0, 0 },
 #endif
@@ -2267,19 +2276,128 @@ void dialog_save_url(struct session *ses)
 	input_field(ses->term, NULL, TEXT(T_SAVE_URL), TEXT(T_ENTER_URL), TEXT(T_OK), TEXT(T_CANCEL), ses, &goto_url_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) save_url, NULL);
 }
 
+
+struct does_file_exist_s{
+	void (*fn)(void *, unsigned char *);
+	void (*cancel)(void *);
+	struct session *ses;
+	unsigned char *file;
+	unsigned char *url;
+};
+
+static void does_file_exist_ok(void *data)
+{
+	struct does_file_exist_s *h=(struct does_file_exist_s *)data;
+	if (h->fn) h->fn(h->ses, h->file);
+}
+
+static void does_file_exist_cancel(void *data)
+{
+	struct does_file_exist_s *h=(struct does_file_exist_s *)data;
+	if (h->cancel) h->cancel(h->ses);
+}
+
+static void does_file_exist_rename(void *data)
+{
+	struct does_file_exist_s *h=(struct does_file_exist_s *)data;
+	query_file(h->ses, h->url, (void (*)(struct session *, unsigned char *))h->fn, (void (*)(struct session *))h->cancel);
+}
+
+void does_file_exist(struct does_file_exist_s *d, unsigned char *file)
+{
+	struct session *ses=d->ses;
+	struct stat s;
+	int r;
+	struct download *down;
+	struct does_file_exist_s *h;
+
+	if (!(h=mem_alloc(sizeof(struct does_file_exist_s))))
+	{
+		if (d->cancel) d->cancel(ses);
+		return;
+	}
+	h->fn=d->fn;
+	h->cancel=d->cancel;
+	h->ses=ses;
+	h->file=stracpy(file);
+	h->url=stracpy(d->url);
+
+	foreach(down, downloads) 
+		if (!strcmp(down->file, file))
+		{
+			msg_box(
+				ses->term,
+				getml(h->file, h->url, h, NULL),
+				TEXT(T_FILE_ALREADY_EXISTS),
+				AL_CENTER|AL_EXTD_TEXT,
+				TEXT(T_FILE), " ", h->file, " ", TEXT(T_ALREADY_EXISTS_AS_DOWNLOAD), " ", TEXT(T_DO_YOU_WISH_TO_OVERWRITE), NULL,
+				h,
+				3,
+				TEXT(T_OVERWRITE), does_file_exist_ok, B_ENTER,
+				TEXT(T_CANCEL), does_file_exist_cancel, B_ESC,
+				TEXT(T_RENAME), does_file_exist_rename, NULL
+			);
+			return;
+		}
+	
+	if ((r=stat(file, &s)))
+	{
+		if (d->fn) d->fn(ses, file);
+		mem_free(h->file);
+		mem_free(h->url);
+		mem_free(h);
+		return;
+	}
+	msg_box(
+		ses->term,
+		getml(h->file, h->url, h, NULL),
+		TEXT(T_FILE_ALREADY_EXISTS),
+		AL_CENTER|AL_EXTD_TEXT, 
+		TEXT(T_FILE), " ", h->file, " ", TEXT(T_ALREADY_EXISTS), " ", TEXT(T_DO_YOU_WISH_TO_OVERWRITE), NULL,
+		h,
+		3,
+		TEXT(T_OVERWRITE), does_file_exist_ok, B_ENTER,
+		TEXT(T_CANCEL), does_file_exist_cancel, B_ESC,
+		TEXT(T_RENAME), does_file_exist_rename, NULL
+	);
+}
+
+
 struct history file_history = { 0, { &file_history.items, &file_history.items } };
+
+
+static void query_file_cancel(struct does_file_exist_s *d)
+{
+	if (d->cancel) d->cancel(d->ses);
+}
+
 
 void query_file(struct session *ses, unsigned char *url, void (*std)(struct session *, unsigned char *), void (*cancel)(struct session *))
 {
 	unsigned char *file, *def;
 	int dfl = 0;
 	int l;
+	struct does_file_exist_s *h;
+
+	if (!(h=mem_alloc(sizeof(struct does_file_exist_s))))
+	{
+		if (cancel) cancel(ses);
+		return;
+	}
+
 	get_filename_from_url(url, &file, &l);
 	def = init_str();
 	add_to_str(&def, &dfl, download_dir);
 	if (*def && !dir_sep(def[strlen(def) - 1])) add_chr_to_str(&def, &dfl, '/');
 	add_bytes_to_str(&def, &dfl, file, l);
-	input_field(ses->term, NULL, TEXT(T_DOWNLOAD), TEXT(T_SAVE_TO_FILE), TEXT(T_OK), TEXT(T_CANCEL), ses, &file_history, MAX_INPUT_URL_LEN, def, 0, 0, NULL, (void (*)(void *, unsigned char *))std, (void (*)(void *))cancel);
+
+	h->fn=(void (*)(void *, unsigned char *))std;
+	h->cancel=(void (*)(void *))cancel;
+	h->ses=ses;
+	h->file=NULL;
+	h->url=stracpy(url);
+
+	input_field(ses->term, getml(h->url, h, NULL), TEXT(T_DOWNLOAD), TEXT(T_SAVE_TO_FILE), TEXT(T_OK), TEXT(T_CANCEL), h, &file_history, MAX_INPUT_URL_LEN, def, 0, 0, NULL, (void (*)(void *, unsigned char *))does_file_exist, (void (*)(void *))query_file_cancel);
 	mem_free(def);
 }
 

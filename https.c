@@ -16,10 +16,11 @@ SSL_CTX *context = 0;
 
 SSL *getSSL(void)
 {
-	char f_randfile[PATH_MAX];
-
 	if (!context) {
-		if (RAND_egd(RAND_file_name(f_randfile, sizeof(f_randfile)))<0) {
+		char f_randfile[PATH_MAX];
+
+		const char *f = RAND_file_name(f_randfile, sizeof(f_randfile));
+		if (f && RAND_egd(f)<0) {
 			/* Not an EGD, so read and write to it */
 			if (RAND_load_file(f_randfile, -1))
 				RAND_write_file(f_randfile);

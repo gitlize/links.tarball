@@ -172,6 +172,7 @@ typedef struct _parlist {
 	struct _parlist* next;
 } parlist;
 
+void my_itoa(char*,long);
 vrchol*terminal(void);
 vrchol*neterminal(void);
 extern js_context* js_create_context(void*,long);

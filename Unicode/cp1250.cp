@@ -1,4 +1,4 @@
-Window$ 1250
+Window$ 1250 (Central European)
 "windows-1250", "1250"
 #
 #    Name:     cp1250 to Unicode table

@@ -77,4 +77,15 @@ void* js_js_temp_var1;
 size_t js_js_temp_var2;
 int js_zaflaknuto_pameti=0;
 
+void my_itoa(char*vysl,long cislo)
+{	char x[4*sizeof(long)+1];
+	int j,i=1;
+	x[j=0]='0'+cislo%10;
+	while(cislo/=10)
+		x[i++]='0'+cislo%10;
+	while(i--)
+		vysl[j++]=x[i];
+	vysl[j]='\0';
+}
+
 #endif

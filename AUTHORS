@@ -79,8 +79,10 @@ Wojtek Bojdo/l <wojboj@lp.net.pl>
 Jan Bobrowski <jb@mohan.krakow.pl>
 	Small optimization in file listing
 
-Serge Winitzki <serge@mendax.phys.cwru.edu>
+Serge Winitzki <serge at mendax dot phys dot cwru dot edu>,
+	       <serge at cosmos dot phy dot tufts dot edu>
 	Upadted Russian localization
+	SSL detection fix
 
 Alex Antropoff <alex@tirastel.md>
 	'charset' attribute of META element
@@ -132,6 +134,7 @@ Baris Metin <baris@gelecek.com.tr>
 Dmitry Pinchukov <dpinch@mail.ru>
 	Ukrainian translation
 
+Kalev Lember <kalev@colleduc.ee>
 Taniel Kirikal <taniel@colleduc.ee>
 	Estonian translation
 
@@ -202,6 +205,8 @@ Petr Baudis <pasky@pasky.ji.cz>
 	Cookie expiration
 	Manpage update
 	Fixed one small leak when links goes out of memory
+	Do not call memset from signal handler
+	Fixed user in smb
 
 Jacek Fedorynski <jfedor@jfedor.org>
 	Fixed segfault when posting large forms
@@ -246,6 +251,9 @@ Chris Lightfoot <chris@ex-parrot.com>
 Yevgeny Gromov <yevgeny@tut.by>
 	Belarusian translation
 
+William Yodlowsky <wyodlows@andromeda.rutgers.edu>
+	SSL patch for Solaris and other systems without /dev/random 
+
 Koblinger Egmont <egmont@cs.bme.hu>
 	Updated Hungarian translation
 
@@ -264,7 +272,7 @@ Sven Neumann <sven@convergence.de>
 Mátyás János <jani@mail.xubion.hu>
 	Updated Hungarian translation
 
-"Anton 'Keeper' Kopyov" <keeper@dfipm.vpti.vladimir.ru>
+Anton 'Keeper' Kopyov <keeper@dfipm.vpti.vladimir.ru>
 	Updated Russian translation
 
 Karvinen Ilkka <ik@cs.tut.fi>
@@ -293,3 +301,14 @@ Andrei Paskevich <andrei@capet.iut-fbleau.fr>
 Wojciech Puchar <wojtek@tensor.3miasto.net>
 	SunOS 4 portability fixes
 
+Marc Zonzon <Marc.Zonzon@univ-rennes1.fr>
+	Disable AC_BIG_ENDIAN and AC_LITTLE_ENDIAN name clash
+	Use pkg-config to find openssl
+
+Eduard Werner <edi.werner@gmx.de>
+	Upper Sorbian translation
+	Updated Polish translation
+
+Vladimir Marek <marek@printsoft.cz>
+	Fixed --disable-graphics and --disable-javascript
+	

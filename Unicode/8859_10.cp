@@ -1,4 +1,4 @@
-ISO 8859-10
+ISO 8859-10 (Lappish, Nordic, Eskimo)
 "ISO-8859-10", "8859-10"
 #
 #	Name:             ISO/IEC 8859-10:1998 to Unicode

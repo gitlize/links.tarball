@@ -135,6 +135,7 @@ void _print_screen_status(struct terminal *term, struct session *ses)
 		if ((m = print_current_title(ses))) {
 			int p = term->x - 1 - strlen(m);
 			if (p < 0) p = 0;
+			if (term->spec->braille) p = 0;
 			print_text(term, p, 0, strlen(m), m, COLOR_TITLE);
 			mem_free(m);
 		}
@@ -155,6 +156,10 @@ void print_screen_status(struct session *ses)
 		if (ses->screen && ses->screen->f_data && ses->screen->f_data->title && ses->screen->f_data->title[0]) add_to_strn(&m, " - "), add_to_strn(&m, ses->screen->f_data->title);
 		set_terminal_title(ses->term, m);
 		/*mem_free(m); -- set_terminal_title frees it */
+	}
+	if (!F && ses->brl_cursor_mode) {
+		if (ses->brl_cursor_mode == 1) set_cursor(ses->term, 0, 0, 0, 0);
+		if (ses->brl_cursor_mode == 2) set_cursor(ses->term, 0, ses->term->y - 1, 0, ses->term->y - 1);
 	}
 }
 
@@ -330,7 +335,7 @@ void download_window_function(struct dialog_data *dlg)
 	min_buttons_width(term, dlg->items, dlg->n, &min);
 	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
 	if (w < min) w = min;
-	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
+	if (!dlg->win->term->spec->braille && w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
 	if (t && stat->prg->size >= 0) {
 		if (w < DOWN_DLG_MIN) w = DOWN_DLG_MIN;
 	} else {
@@ -355,12 +360,13 @@ void download_window_function(struct dialog_data *dlg)
 		if (!F) {
 			unsigned char q[64];
 			int p = w - 6;
+			if (term->spec->braille && p > 39 - 6) p = 39 - 6;
 			y++;
 			set_only_char(term, x, y, '[');
-			set_only_char(term, x + w - 5, y, ']');
+			set_only_char(term, x + p + 1, y, ']');
 			fill_area(term, x + 1, y, (int)((longlong)p * (longlong)stat->prg->pos / (longlong)stat->prg->size), 1, COLOR_DIALOG_METER);
 			sprintf(q, "%3d%%", (int)((longlong)100 * (longlong)stat->prg->pos / (longlong)stat->prg->size));
-			print_text(term, x + w - 4, y, strlen(q), q, COLOR_DIALOG_TEXT);
+			print_text(term, x + p + 2, y, strlen(q), q, COLOR_DIALOG_TEXT);
 			y++;
 #ifdef G
 		} else {
@@ -852,6 +858,12 @@ void detach_f_data(struct f_data **ff)
 {
 	struct f_data *f = *ff;
 	if (!f) return;
+#ifdef G
+	f->hlt_pos = -1;
+	f->hlt_len = 0;
+	f->start_highlight_x = -1;
+	f->start_highlight_y = -1;
+#endif
 	*ff = NULL;
 	if (f->frame_desc_link) {
 		destroy_formatted(f);
@@ -1071,9 +1083,11 @@ void html_interpret(struct f_data_c *fd)
 	if (fd->ses->term->spec) {
 		o.col = fd->ses->term->spec->col;
 		o.cp = fd->ses->term->spec->charset;
+		o.braille = fd->ses->term->spec->braille;
 	} else {
 		o.col = 3;
 		o.cp = 0;
+		o.braille = 0;
 	}
 	if (!F) {
 		memcpy(&o.default_fg, &default_fg, sizeof(struct rgb));
@@ -1266,8 +1280,7 @@ int plain_type(struct session *ses, struct object_request *rq, unsigned char **p
 	r = 1;
 	if (!strcasecmp(ct, "text/plain")) goto ff;
 	r = 2;
-	/* !!! FIXME: tady by se mel dat test, zda to ten obrazek umi */
-	if (F && !casecmp(ct, "image/", 6)) goto ff;
+	if (F && known_image_type(ct)) goto ff;
 	r = -1;
 
 	ff:
@@ -1949,8 +1962,11 @@ void ses_imgmap(struct session *ses)
 	unsigned char *start, *end;
 	struct memory_list *ml;
 	struct menu_item *menu;
+	struct f_data_c *fd;
 	if (ses->rq->state != O_OK && ses->rq->state != O_INCOMPLETE) return;
+	if (!(fd = current_frame(ses)) || !fd->f_data) return;
 	get_file(ses->rq, &start, &end);
+	d_opt = &fd->f_data->opt;
 	if (get_image_map(ses->rq->ce && ses->rq->ce->head ? ses->rq->ce->head : (unsigned char *)"", start, end, ses->goto_position, &menu, &ml, ses->imgmap_href_base, ses->imgmap_target_base, ses->term->spec->charset, ses->ds.assume_cp, ses->ds.hard_assume, 0)) {
 		ses_abort_1st_state_loading(ses);
 		return;

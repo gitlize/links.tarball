@@ -171,6 +171,9 @@ void stat_date(unsigned char **p, int *l, struct stat *stp)
 char *get_filename(char *url)
 {
 	char *p, *m;
+#ifdef DOS_FS
+	if (url[7] == '/' && upcase(url[8]) >= 'A' && upcase(url[8]) <= 'Z' && url[9] == ':') url++;
+#endif
 	for (p = url + 7; *p && *p != 1; p++) ;
 	if (!(m = mem_alloc(p - url - 7 + 1))) return NULL;
 	memcpy(m, url + 7, p - url - 7),
@@ -208,6 +211,14 @@ void file_func(struct connection *c)
 	if (!(name = get_filename(c->url))) {
 		setcstate(c, S_OUT_OF_MEM); abort_connection(c); return;
 	}
+	if (stat(name, &stt)) {
+		mem_free(name);
+		setcstate(c, -errno); abort_connection(c); return;
+	}
+	if (!S_ISDIR(stt.st_mode) && !S_ISREG(stt.st_mode)) {
+		mem_free(name);
+		setcstate(c, S_FILE_TYPE); abort_connection(c); return;
+	}
 	if ((h = open(name, O_RDONLY | O_NOCTTY)) == -1) {
 		int er = errno;
 		if ((d = opendir(name))) goto dir;
@@ -215,11 +226,6 @@ void file_func(struct connection *c)
 		setcstate(c, -er); abort_connection(c); return;
 	}
 	set_bin(h);
-	if (fstat(h, &stt)) {
-		mem_free(name);
-		close(h);
-		setcstate(c, -errno); abort_connection(c); return;
-	}
 	if (S_ISDIR(stt.st_mode)) {
 		struct dirs *dir;
 		int dirl;
@@ -339,10 +345,6 @@ void file_func(struct connection *c)
 		mem_free(dir);
 		add_to_str(&file, &fl, "</pre></body></html>\n");
 		head = stracpy("\r\nContent-Type: text/html\r\n");
-	} else if (!S_ISREG(stt.st_mode)) {
-		mem_free(name);
-		close(h);
-		setcstate(c, S_FILE_TYPE); abort_connection(c); return;
 	} else {
 		mem_free(name);
 		/* + 1 is there because of bug in Linux. Read returns -EACCES when

@@ -5,6 +5,8 @@
 
 #include "links.h"
 
+int utf8_table;
+
 struct table_entry {
 	unsigned char c;
 	int u;

@@ -95,7 +95,6 @@ static int background_x, background_y; /* Where was the mouse background taken f
 static unsigned char *mouse_buffer, *background_buffer, *new_background_buffer;
 static struct graphics_device *mouse_graphics_device;
 static int global_mouse_hidden;
-static int utf8_table;
 
 
 #define TEST_MOUSE(xl,xh,yl,yh) if (RECTANGLES_INTERSECT(\
@@ -1034,7 +1033,6 @@ unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 	fb_driver_param=param;
 
 	fb_driver.flags |= GD_NEED_CODEPAGE;
-	utf8_table=get_cp_index("UTF-8");
 
 	if (fstat(TTY, &st)) return stracpy("Cannon stat stdin.\n");
 

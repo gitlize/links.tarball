@@ -29,3 +29,4 @@ spanish
 swedish
 turkish
 ukrainian
+upper_sorbian

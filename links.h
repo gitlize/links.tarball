@@ -28,9 +28,9 @@
 #ifndef _LINKS_H
 #define _LINKS_H
 
-#define LINKS_COPYRIGHT "(C) 1999 - 2003 Mikulas Patocka\n(C) 2000 - 2003 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2003 Mikulás Patocka\n(C) 2000 - 2003 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2003 Mikulá¹ Patoèka\n(C) 2000 - 2003 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT "(C) 1999 - 2004 Mikulas Patocka\n(C) 2000 - 2004 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2004 Mikulás Patocka\n(C) 2000 - 2004 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2004 Mikulá¹ Patoèka\n(C) 2000 - 2004 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -346,7 +346,7 @@ static inline void set_mem_comment(void *p, unsigned char *c, int l) {}
 static inline unsigned char *get_mem_comment(void *p){return (unsigned char *)"";}
 #endif
 
-static inline unsigned char upcase(unsigned char a)
+static inline unsigned upcase(unsigned a)
 {
 	if (a>='a' && a<='z') a -= 0x20;
 	return a;
@@ -764,7 +764,7 @@ void *handle_mouse(int, void (*)(void *, unsigned char *, int), void *);
 void unhandle_mouse(void *);
 int check_file_name(unsigned char *);
 int start_thread(void (*)(void *, int), void *, int);
-unsigned char *get_clipboard_text(void);
+unsigned char *get_clipboard_text(struct terminal *);
 void set_clipboard_text(struct terminal *, unsigned char *);
 void set_window_title(unsigned char *);
 unsigned char *get_window_title(void);
@@ -785,6 +785,8 @@ void prealloc_truncate(int, int);
 static inline void prealloc_truncate(int x, int y) {}
 #endif
 void os_cfmakeraw(struct termios *t);
+
+extern char *clipboard;
 
 /* memory.c */
 
@@ -1653,6 +1655,7 @@ void get_links_icon(unsigned char **data, int *width, int* height, int depth);
 /* x.c */
 #if defined(G) && defined (GRDRV_X)
 void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text);
+unsigned char *x_get_clipboard_text(void);
 #endif
 
 /* links_icon.c */
@@ -1765,6 +1768,7 @@ struct term_spec {
 	int restrict_852;
 	int block_cursor;
 	int col;
+	int braille;
 	int charset;
 };
 
@@ -1772,6 +1776,7 @@ struct term_spec {
 #define TERM_VT100	1
 #define TERM_LINUX	2
 #define TERM_KOI8	3
+#define TERM_FREEBSD	4
 
 #define ATTR_FRAME	0x8000
 
@@ -2157,6 +2162,7 @@ struct document_options {
 	int xw, yw; /* size of window */
 	int xp, yp; /* pos of window */
 	int col, cp, assume_cp, hard_assume;
+	int braille;
 	int tables, frames, images, image_names, margin;
 	int js_enable;
 	int plain;
@@ -2572,6 +2578,10 @@ struct f_data {
 	int last_search_len;
 	int *search_positions;
 	int n_search_positions;
+	int hlt_pos; /* index of first highlighted byte */
+	int hlt_len; /* length of highlighted bytes; (hlt_pos+hlt_len) is index of last highlighted character */
+	int start_highlight_x;
+	int start_highlight_y;
 	struct list_head images;	/* list of all images in this f_data */
 	int n_images;	/* pocet obrazku (tim se obrazky taky identifikujou), po kazdem pridani obrazku se zvedne o 1 */
 
@@ -2589,8 +2599,9 @@ struct view_state {
 	int plain;
 	struct form_state *form_info;
 	int form_info_len;
-	/*struct f_data_c *f;*/
-	/*unsigned char url[1];*/
+	int brl_x;
+	int brl_y;
+	int brl_in_field;
 #ifdef G
 	int g_display_link;
 #endif
@@ -2722,6 +2733,8 @@ struct session {
 	int defered_data;	/* for submit: form number, jinak -1 */
 
 	int locked_link;	/* for graphics - when link is locked on FIELD/AREA */
+
+	int brl_cursor_mode;
 
 #ifdef G
 	int scrolling;
@@ -3111,6 +3124,7 @@ struct dialog_data {
 	int n;
 	int selected;
 	struct memory_list *ml;
+	int brl_y;
 #ifdef G
 	struct rect_set *s;
 	struct rect r;
@@ -3131,7 +3145,8 @@ int check_float(struct dialog_data *, struct dialog_item_data *);
 int check_nonempty(struct dialog_data *, struct dialog_item_data *);
 void max_text_width(struct terminal *, unsigned char *, int *, int);
 void min_text_width(struct terminal *, unsigned char *, int *, int);
-void dlg_format_text(struct dialog_data *, struct terminal *, unsigned char *, int, int *, int, int *, int, int);
+int dlg_format_text(struct dialog_data *, struct terminal *, unsigned char *, int, int *, int, int *, int, int);
+void dlg_format_text_and_field(struct dialog_data *, struct terminal *, unsigned char *, struct dialog_item_data *, int, int *, int, int *, int, int);
 void max_buttons_width(struct terminal *, struct dialog_item_data *, int, int *);
 void min_buttons_width(struct terminal *, struct dialog_item_data *, int, int *);
 void dlg_format_buttons(struct dialog_data *, struct terminal *, struct dialog_item_data *, int, int, int *, int, int *, int);
@@ -3194,6 +3209,9 @@ void menu_func(struct window *, struct event *, int);
 void mainmenu_func(struct window *, struct event *, int);
 void dialog_func(struct window *, struct event *, int);
 
+void msg_box_fn(struct dialog_data *dlg);
+void download_window_function(struct dialog_data *dlg);
+
 /* menu.c */
 
 void activate_bfu_technology(struct session *, int);
@@ -3217,6 +3235,8 @@ extern int display_optimize;	/*0=CRT, 1=LCD RGB, 2=LCD BGR */
 /* charsets.c */
 
 #include "codepage.h"
+
+extern int utf8_table;
 
 struct conv_table {
 	int t;
@@ -3243,6 +3263,20 @@ extern int utf8_2_uni_table[0x200];
 #define GET_UTF_8(s, c)	do {if ((unsigned char)(s)[0] < 0x80) (c) = (s)++[0]; else if (((c) = utf8_2_uni_table[((unsigned char)(s)[0] << 2) + ((unsigned char)(s)[1] >> 6) - 0x200])) (c) += (unsigned char)(s)[1] & 0x3f, (s) += 2; else (c) = get_utf_8(&(s));} while (0)
 #define FWD_UTF_8(s) do {if ((unsigned char)(s)[0] < 0x80) (s)++; else get_utf_8(&(s));} while (0)
 #define BACK_UTF_8(p, b) do {while ((p) > (b)) {(p)--; if ((*(p) & 0xc0) != 0x80) break; }} while (0)
+static inline int utf8len(unsigned char *s)
+{
+	int len;
+	unsigned c;
+	if (!F) return strlen(s);
+	len = 0;
+	while (1) {
+		GET_UTF_8(s, c);
+		if (!c) return len;
+		len++;
+	}
+}
+#else
+#define utf8len(s) strlen(s)
 #endif
 
 /* view.c */
@@ -3474,6 +3508,8 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length);
 #endif /* #ifdef HAVE_JPEG */
 #endif /* #ifdef G */
 
+int known_image_type(char *type);
+
 /* imgcache.c */
 
 #ifdef G
@@ -3489,6 +3525,40 @@ void add_image_to_cache(struct cached_image *ci);
 /* view_gr.c */
 
 #ifdef G
+
+/* intersection of 2 intervals s=start, l=len (len 0 is empty interval) */
+static inline void intersect(int s1, int l1, int s2, int l2, int *s3, int *l3)
+{
+	int e1=s1+l1;
+	int e2=s2+l2;
+	int e3;
+
+	if (e1<s1){int tmp=s1; s1=e1; e1=tmp; }
+	if (e2<s2){int tmp=s2; s2=e2; e2=tmp; }
+
+	if (!l1||!l2) goto __intersect_empty;
+	if (s1<=s2&&s2<=e1)
+		*s3=s2;
+	else if (s2<s1)
+		*s3=s1;
+	else
+		goto __intersect_empty;
+
+	if (s1<=e2&&e2<=e1)
+		e3=e2;
+	else if (e2>e1)
+		e3=e1;
+	else goto __intersect_empty;
+
+	*l3=e3-*s3;
+	return;
+
+	__intersect_empty:
+	*s3=0;
+	*l3=0;
+	return;
+}
+
 
 void g_release_background(struct background *bg);
 void g_draw_background(struct graphics_device *dev, struct background *bg, int x, int y, int xw, int yw);

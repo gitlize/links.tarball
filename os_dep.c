@@ -38,12 +38,15 @@ int get_e(char *env)
 	return 0;
 }
 
+char *clipboard = NULL;
+
 #if defined(OS2)
 
 #define INCL_MOU
 #define INCL_VIO
 #define INCL_DOSPROCESS
 #define INCL_DOSERRORS
+#define INCL_WIN
 #define INCL_WINCLIPBOARD
 #define INCL_WINSWITCHLIST
 #include <os2.h>
@@ -361,21 +364,27 @@ int exe(char *path, int fg)
 #endif
 
 /* clipboard -> links */
-unsigned char *get_clipboard_text(void)	/* !!! FIXME */
+unsigned char *get_clipboard_text(struct terminal *term)
 {
-	char *ret = 0;
-	if ((ret = mem_alloc(1))) ret[0] = 0;
-	return ret;
+#ifdef GRDRV_X
+	if(term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) {
+		return x_get_clipboard_text();
+	}
+#endif
+	return stracpy(clipboard);
 }
 
 /* links -> clipboard */
 void set_clipboard_text(struct terminal * term, unsigned char *data)
 {
 #ifdef GRDRV_X
-	if(term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x"))
+	if(term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) {
 		x_set_clipboard_text(term->dev, data);
+		return;
+	}
 #endif
-	/* !!! FIXME */
+	if (clipboard) mem_free(clipboard);
+	clipboard = stracpy(data);
 }
 
 void set_window_title(unsigned char *url)
@@ -447,7 +456,7 @@ int exe(char *path, int fg)
 	return ret;
 }
 
-unsigned char *get_clipboard_text(void)
+unsigned char *get_clipboard_text(struct terminal *term)
 {
 	PTIB tib;
 	PPIB pib;
@@ -486,6 +495,23 @@ unsigned char *get_clipboard_text(void)
 				WinCloseClipbrd(hab);
 			}
 
+#ifdef G
+			if (F && ret) {
+				static int cp = -1;
+				struct conv_table *ct;
+				unsigned char *d;
+				if (cp == -1) {
+					int c = WinQueryCp(hmq);
+					unsigned char a[64];
+					snprintf(a, 64, "%d", c);
+					if ((cp = get_cp_index(a)) < 0 || is_cp_special(cp)) cp = 0;
+				}
+				ct = get_translation_table(cp, get_cp_index("utf-8"));
+				d = convert_string(ct, ret, strlen(ret), NULL);
+				mem_free(ret);
+				ret = d;
+			}
+#endif
 			WinDestroyMsgQueue(hmq);
 		}
 		WinTerminate(hab);
@@ -504,6 +530,8 @@ void set_clipboard_text(struct terminal * term, unsigned char *data)
 	HMQ hmq;
 	ULONG oldType;
 
+	unsigned char *d = NULL;
+	
 	DosGetInfoBlocks(&tib, &pib);
 
 	oldType = pib->pib_ultype;
@@ -512,6 +540,21 @@ void set_clipboard_text(struct terminal * term, unsigned char *data)
 
 	if ((hab = WinInitialize(0)) != NULLHANDLE) {
 		if ((hmq = WinCreateMsgQueue(hab, 0)) != NULLHANDLE) {
+#ifdef G
+			if (F) {
+				static int cp = -1;
+				struct conv_table *ct;
+				if (cp == -1) {
+					int c = WinQueryCp(hmq);
+					unsigned char a[64];
+					snprintf(a, 64, "%d", c);
+					if ((cp = get_cp_index(a)) < 0 || is_cp_special(cp)) cp = 0;
+				}
+				ct = get_translation_table(get_cp_index("utf-8"), cp);
+				d = convert_string(ct, data, strlen(data), NULL);
+				data = d;
+			}
+#endif
 			if(WinOpenClipbrd(hab)) {
 				PVOID pvShrObject = NULL;
 				if (DosAllocSharedMem(&pvShrObject, NULL, strlen(data)+1, PAG_COMMIT | PAG_WRITE | OBJ_GIVEABLE) == NO_ERROR) {
@@ -526,6 +569,8 @@ void set_clipboard_text(struct terminal * term, unsigned char *data)
 	}
 
 	pib->pib_ultype = oldType;
+
+	if (d) mem_free(d);
 }
 
 unsigned char *get_window_title(void)

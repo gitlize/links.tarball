@@ -501,7 +501,7 @@ void free_term_specs(void)
 
 struct list_head term_specs = {&term_specs, &term_specs};
 
-struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0 };
+struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0, 0 };
 
 struct term_spec *get_term_spec(unsigned char *term)
 {
@@ -569,7 +569,7 @@ struct terminal *init_term(int fdin, int fdout, void (*root_window)(struct windo
 
 #ifdef G
 
-struct term_spec gfx_term = { NULL, NULL, "", 0, 0, 0, 0, 0, 0 };
+struct term_spec gfx_term = { NULL, NULL, "", 0, 0, 0, 0, 0, 0, 0 };
 
 struct terminal *init_gfx_term(void (*root_window)(struct window *, struct event *, int), void *info, int len)
 {
@@ -783,6 +783,14 @@ unsigned char frame_koi[48] = {
 	186,182,183,170,169,162,164,189,
 	188,133,130,141,140,142,143,139,
 };
+unsigned char frame_freebsd[48] = {
+	130,138,128,153,150,150,150,140,
+	140,150,153,140,139,139,139,140,
+	142,151,152,149,146,143,149,149,
+	142,141,151,152,149,146,143,151,
+	151,152,152,142,142,141,141,143,
+	143,139,141,128,128,128,128,128,
+};
 unsigned char frame_restrict[48] = {
 	0, 0, 0, 0, 0, 179, 186, 186,
 	205, 0, 0, 0, 0, 186, 205, 0,
@@ -814,6 +822,7 @@ unsigned char frame_restrict[48] = {
 		}									\
 		if (mode && c >= 176 && c < 224) c = frame_vt100[c - 176];		\
 	} else if (s->mode == TERM_KOI8 && (ch >> 15) && c >= 176 && c < 224) { c = frame_koi[c - 176];\
+	} else if (s->mode == TERM_FREEBSD && (ch >> 15) && c >= 176 && c < 224) { c = frame_freebsd[c - 176];\
 	} else if (s->mode == TERM_DUMB && (ch >> 15) && c >= 176 && c < 224) c = frame_dumb[c - 176];\
 	if (!(A & 0100) && (A >> 3) == (A & 7)) A = (A & 070) | 7 * !(A & 020);		\
 	if (A != attrib) {								\
@@ -1035,7 +1044,7 @@ void set_cursor(struct terminal *term, int x, int y, int altx, int alty)
 {
 	NO_GFX;
 	term->dirty = 1;
-	if (term->spec->block_cursor) x = altx, y = alty;
+	if (term->spec->block_cursor && !term->spec->braille) x = altx, y = alty;
 	if (x >= term->x) x = term->x - 1;
 	if (y >= term->y) y = term->y - 1;
 	if (x < 0) x = 0;
@@ -1050,7 +1059,7 @@ void exec_thread(unsigned char *path, int p)
 	if (path[0] == 2) setpgid(0, 0);
 #endif
 	exe(path + 1, path[0]);
-	close(p);
+	/*close(p);*/
 	if (path[1 + strlen(path + 1) + 1]) unlink(path + 1 + strlen(path + 1) + 1);
 }
 

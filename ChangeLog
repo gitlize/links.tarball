@@ -1,3 +1,171 @@
+=== Release 2.1pre15
+
+Wed Apr 28 17:08:38 CEST 2004 BRain
+	
+	KEYS: overview of all keys
+
+Tue Apr  6 21:27:36 CEST 2004 mikulas:
+
+	Support for braille terminal
+
+Sun Apr  4 04:45:28 MET DST 2004 Kalev Lember <kalev@colleduc.ee>:
+
+	Updated Estonian translation
+
+Fri Apr  2 00:01:44 MET DST 2004 mikulas:
+
+	More svgalib modes added
+
+Wed Mar 24 15:50:09 CET 2004 mikulas:
+
+	Cursor on selected line in bookmarks (for Braille terminals)
+
+Mon Mar 15 17:26:02 MET 2004 Vladimir Marek <marek@printsoft.cz>:
+
+	Fixed --disable-graphics and --disable-javascript
+
+Wed Mar  3 19:49:52 CET 2004 BRain
+
+	Fixed encoding bug in javascript when modifying form element value and
+	default value.
+
+Wed Mar  3 18:43:05 CET 2004 mikulas:
+
+	Fixed crash when document changes under us and user presses 'd'
+
+Tue Feb 24 23:26:10 cet 2004 mikulas:
+
+	Fixed crash when pressed '=' on page with incomplete frames
+
+Mon Feb 23 01:37:44 cet 2004 mikulas:
+
+	Do not strip filename when relative url begins with '?'
+
+Sun Feb 15 17:46:53 cet 2004 mikulas:
+
+	SSL fix on OS/2
+
+Sat Feb 14 21:09:45 MET 2004 mikulas:
+
+	Do not timeout when file upload lasts too long
+
+Thu Feb 12 16:22:23 CET 2004 mikulas:
+
+	Terminal mouse handling returned back before change from
+	Thu Oct  9 16:44:10 GMT 2003
+
+Mon Feb  2 17:28:31 cet 2004 BRain
+
+	Copy and paste to clipboard
+
+Sun Feb  8 20:00:50 cet 2004 BRain & mikulas:
+
+	Selecting text to clipboard
+
+Sun Feb  8 18:04:48 CET 2004 mikulas:
+
+	Allow '?' instead of '/' as separator of host and path in url
+
+Sat Feb  7 22:55:39 MET 2004 BRain:
+
+	Ask for overwrite when file exists.
+
+Sun Feb  1 04:40:55 MET 2004 mikulas:
+
+	Fixed memory leak with read-only select boxes
+
+Sun Jan 18 02:10:03 cet 2004 mikulas:
+
+	textarea wrap=hard
+
+Wed Jan  7 10:58:29 MET 2004 BRain:
+
+	Added language hints to encodings.
+
+Thu Jan  1 18:54:50 MET 2004 mikulas:
+
+	Strip '#' of tag names
+
+Tue Dec 30 01:15:54 MET 2003 mikulas:
+
+	Disallow network options in anonymous mode
+
+Tue Dec 30 01:12:15 MET 2003 mikulas:
+
+	Fixed wrong error code and fd leak on error when uploading files
+
+Tue Dec 30 00:58:41 MET 2003 mikulas:
+
+	Fixed incorrect parsing of '&' entities in image maps
+
+Thu Dec 18 17:20:10 MET 2003 mikulas:
+
+	Do not hang when opening filo with file://
+
+Tue Dec 16 13:29:35 MET 2003 mikulas:
+
+	Fixed crash when url contains character with code 1
+	Fixed a security bug --- hiding url was possible with character code 1
+
+Sun Dec 14 22:39:27 MET 2003 Eduard Werner <edi.werner@gmx.de>:
+
+	Updated Upper Sorbian translation
+	Updated Polish translation
+
+Sun Dec 14 15:06:00 cet 2003 mikulas:
+
+	Allow urls: file:///d:/directory/file on OS/2
+
+Thu Dec 11 23:37:50 MET 2003 mikulas:
+
+	Fixed proxy sent in referrer
+
+Thu Dec 11 17:31:59 MET 2003 Eduard Werner <edi.werner@gmx.de>:
+
+	Upper Sorbian translation
+
+Mon Dec  8 02:41:38 MET 2003 Petr Baudis <pasky@ucw.cz>:
+
+	Fixed user in smb
+
+Sun Dec  7 12:44:10 cet 2003 mikulas:
+
+	Support directories without '/' at the end on just another ftp server
+
+Sun Nov 30 01:03:55 MET 2003 Petr Baudis <pasky@ucw.cz>:
+
+	Do not call memset from signal handler
+
+Sun Nov 30 00:22:04 MET 2003 Marc Zonzon <Marc.Zonzon@univ-rennes1.fr>:
+
+	Disable AC_BIG_ENDIAN and AC_LITTLE_ENDIAN name clash
+	Use pkg-config to find openssl
+
+Wed Nov 26 22:52:25 MET 2003 mikulas:
+
+	Fixed signal-delivery delay
+
+Sat Nov 22 23:11:41 MET 2003 mikulas:
+
+	Fixed crash in view_gr.c when displaying source
+
+Sat Nov 22 23:07:46 MET 2003 mikulas:
+
+	Fixed cache problems with long files in smb and when restarting http
+
+Fri Nov 21 02:46:24 MET 2003 mikulas:
+
+	Removed useless reallocs, speed up rendering
+
+Wed Nov 19 00:14:11 MET 2003 mikulas:
+
+	Do not send more Authorization headers
+	Detect infinite loop in authorization responses
+
+Tue Nov 18 15:59:14 GMT 2003 mikulas:
+
+	FreeBSD frames
+
 === Release 2.1pre14
 
 Wed Nov  5 03:43:33 MET 2003 Wojciech Puchar <wojtek@tensor.3miasto.net>:
@@ -45,7 +213,7 @@ Tue Oct 21 13:39:04 MET DST 2003 mikulas:
 
 	Fixed authorization not working when file was in top directory
 
-Mon Oct 20 16:33:47 GMT 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+Mon Oct 20 16:33:47 GMT 2003 Serge Winitzki <serge at cosmos dot phy dot tufts dot edu>:
 
 	Updated Russian translation
 
@@ -83,7 +251,7 @@ Fri Oct  3 23:02:59 MET DST 2003 mikulas:
 
 	Fixed incorrect truncating of file on 304 reply
 
-Fri Oct  3 21:22:11 MET DST 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+Fri Oct  3 21:22:11 MET DST 2003 Serge Winitzki <serge at cosmos dot phy dot tufts dot edu>:
 
 	Updated Russian translation
 	Russian letters
@@ -193,7 +361,7 @@ Wed May 28 02:45:06 cet 2003 mikulas:
 
 	Fixed some languages (removed name ELinks)
 
-Wed May 28 02:05:07 cet 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+Wed May 28 02:05:07 cet 2003 Serge Winitzki <serge at cosmos dot phy dot tufts dot edu>:
 
 	Updated Russian localization
 
@@ -324,7 +492,7 @@ Thu Feb 27 18:26:15 MET 2003 mikulas:
 
 	Coords in usemap can contain decimal point
 
-Thu Feb 27 18:14:11 MET 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+Thu Feb 27 18:14:11 MET 2003 Serge Winitzki <serge at cosmos dot phy dot tufts dot edu>:
 
 	Updated Russian localization
 
@@ -342,7 +510,7 @@ Sun Feb  9 22:12:19 MET 2003 mikulas:
 
 	Max tries 0 means unlimited retries
 
-Mon Feb  8 03:25:39 MET DST 2001 Serge Winitzki <serge@cosmos.phy.tutfs.edu>:
+Mon Feb  8 03:25:39 MET DST 2001 Serge Winitzki <serge at cosmos dot phy dot tutfs dot edu>:
 
         Updated russian translation
 
@@ -1050,11 +1218,11 @@ Tue Sep 25 11:10:36 MET DST 2001 Andrew Rodionoff <arnost@mail.ru>:
 
 === RELEASE 0.96 ===
 
-Mon Jul  2 03:25:39 MET DST 2001 Serge Winitzki <serge@scriabin.PHYS.cwru.edu>:
+Mon Jul  2 03:25:39 MET DST 2001 Serge Winitzki <serge at scriabin dot PHYS dot cwru dot edu>:
 
         SSL detection fix
 
-Mon Jul  2 03:21:50 MET DST 2001 Serge Winitzki <serge@scriabin.PHYS.cwru.edu>:
+Mon Jul  2 03:21:50 MET DST 2001 Serge Winitzki <serge at scriabin dot PHYS dot cwru dot edu>:
 
         Updated Russian translation
 
@@ -1559,7 +1727,7 @@ Thu Jun 22 22:21:00 MET DST 2000 Peter Gervai <grin@tolna.net>:
 
         Mailcap to links.cfg convertor
 
-Thu Jun 22 09:11:30 MET DST 2000 Serge Winitzki <serge@mendax.phys.cwru.edu>:
+Thu Jun 22 09:11:30 MET DST 2000 Serge Winitzki <serge at mendax dot phys dot cwru dot edu>:
 
         Updated Russian localization
 
@@ -1701,7 +1869,7 @@ Wed May 31 21:58:43 MET DST 2000 mikulas:
 
         Fixed memory leak
 
-Wed May 31 21:30:31 MET DST 2000 Serge Winitzki <serge@mendax.phys.cwru.edu>:
+Wed May 31 21:30:31 MET DST 2000 Serge Winitzki <serge at mendax dot phys dot cwru dot edu>:
 
         Upadted Russian localization
 

@@ -493,7 +493,7 @@ void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 	int g = get_ftp_response(c, rb, 0);
 	if (g == -1) { setcstate(c, S_FTP_ERROR); abort_connection(c); return; }
 	if (!g) { read_from_socket(c, c->sock1, rb, ftp_got_final_response); if (c->state != S_TRANS) setcstate(c, S_GETH); return; }
-	if (g == 550 || g == 425) {
+	if (g == 425 || g == 500 || g == 501 || g == 550) {
 		if (!c->cache && get_cache_entry(c->url, &c->cache)) {
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c);

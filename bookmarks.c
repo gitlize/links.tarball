@@ -195,6 +195,7 @@ void bookmark_edit_item_fn(struct dialog_data *dlg)
 	int y = gf_val(-1, -1*G_BFU_FONT_SIZE);
 	struct terminal *term;
 	int a;
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 
 	term = dlg->win->term;
 	
@@ -207,17 +208,20 @@ void bookmark_edit_item_fn(struct dialog_data *dlg)
 	min_buttons_width(term, dlg->items + dlg->n-2, 2, &min);
 	w = term->x * 9 / 10 - 2 * DIALOG_LB;
 	
-	if (w > max) w = max;
+	/*if (w > max) w = max;*/
 	if (w < min) w = min;
+	/*
 	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
+	*/
 
-	w = rw = gf_val(50,30*G_BFU_FONT_SIZE);
+	/*w = rw = gf_val(50,30*G_BFU_FONT_SIZE);*/
+	rw = w;
 	
 	for (a=0;a<dlg->n-2;a++)
 	{
-		dlg_format_text(dlg, NULL, bm_add_msg[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(2,2*G_BFU_FONT_SIZE);
+		dlg_format_text_and_field(dlg, NULL, bm_add_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		y += gf_val(1,1*G_BFU_FONT_SIZE);
 	}
 	dlg_format_buttons(dlg, NULL, dlg->items+dlg->n-2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -226,10 +230,10 @@ void bookmark_edit_item_fn(struct dialog_data *dlg)
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	for (a=0;a<dlg->n-2;a++)
 	{
-		dlg_format_text(dlg, term, bm_add_msg[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		dlg_format_field(dlg, term, &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+		dlg_format_text_and_field(dlg, term, bm_add_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 		y+=gf_val(1,G_BFU_FONT_SIZE);
 	}
 	dlg_format_buttons(dlg, term, &dlg->items[dlg->n-2], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);

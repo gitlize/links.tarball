@@ -1,4 +1,4 @@
-ISO 8859-14
+ISO 8859-14 (Celtic)
 "ISO-8859-14", "8859-14"
 #
 #	Name:             ISO/IEC 8859-14:1998 to Unicode

@@ -9,4 +9,5 @@ void add_to_parlist(lns*,lns*);
 void zrusargy(abuf*,js_context*);
 void delete_from_parlist(lns*,lns*);
 lns* llookup(char*,js_id_name **,plns*,js_context*);
+lns* cllookup(char*,js_id_name **,plns*,js_context*);
 lns* loklookup(long,plns*,js_context*);

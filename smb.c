@@ -40,8 +40,7 @@ void smb_func(struct connection *c)
 	if (!(data = get_url_data(c->url))) data = stracpy("");
 	if ((p = strchr(data, '/'))) share = memacpy(data, p - data), dir = p + 1;
 	else if (*data) {
-		struct cache_entry *e;
-		if (get_cache_entry(c->url, &e)) {
+		if (!c->cache && get_cache_entry(c->url, &c->cache)) {
 			mem_free(host);
 			mem_free(port);
 			mem_free(user);
@@ -50,7 +49,6 @@ void smb_func(struct connection *c)
 			abort_connection(c);
 			return;
 		}
-		c->cache = e;
 		if (c->cache->redirect) mem_free(c->cache->redirect);
 		c->cache->redirect = stracpy(c->url);
 		c->cache->redirect_get = 1;
@@ -145,7 +143,7 @@ void smb_func(struct connection *c)
 				unsigned char *s = stracpy(user);
 				add_to_strn(&s, "%");
 				add_to_strn(&s, pass);
-				v[n++] = pass;
+				v[n++] = s;
 			}
 		}
 		if (*share) {
@@ -219,7 +217,6 @@ void smb_read_text(struct connection *c, int sock)
 void smb_got_data(struct connection *c)
 {
 	struct smb_connection_info *si = c->info;
-	struct cache_entry *e;
 	char buffer[READ_SIZE];
 	int r;
 	if (si->list) {
@@ -242,12 +239,11 @@ void smb_got_data(struct connection *c)
 		return;
 	}
 	setcstate(c, S_TRANS);
-	if (get_cache_entry(c->url, &e)) {
+	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
 		setcstate(c, S_OUT_OF_MEM);
 		abort_connection(c);
 		return;
 	}
-	c->cache = e;
 	c->received += r;
 	if (add_fragment(c->cache, c->from, buffer, r) == 1) c->tries = 0;
 	c->from += r;
@@ -261,13 +257,11 @@ void smb_got_text(struct connection *c)
 void end_smb_connection(struct connection *c)
 {
 	struct smb_connection_info *si = c->info;
-	struct cache_entry *e;
-	if (get_cache_entry(c->url, &e)) {
+	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
 		setcstate(c, S_OUT_OF_MEM);
 		abort_connection(c);
 		return;
 	}
-	c->cache = e;
 	if (!c->from) {
 		if (si->ntext && si->text[si->ntext - 1] != '\n') si->text[si->ntext++] = '\n';
 		si->text[si->ntext] = 0;

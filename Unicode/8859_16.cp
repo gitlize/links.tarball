@@ -1,4 +1,4 @@
-ISO 8859-16
+ISO 8859-16 (Romainian)
 "ISO-8859-16", "8859-16"
 #
 #	Name:             ISO/IEC 8859-16:2001 to Unicode

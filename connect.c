@@ -5,7 +5,9 @@
 
 #include "links.h"
 
-/* #define LOG_TRANSFER	"/tmp/log" */
+/*
+#define LOG_TRANSFER	"/tmp/log"
+*/
 
 #ifdef LOG_TRANSFER
 void log_data(unsigned char *data, int len)
@@ -260,6 +262,7 @@ void write_select(struct connection *c)
 		abort_connection(c);
 		return;
 	}
+	set_timeout(c);
 	/*printf("ws: %d\n",wb->len-wb->pos);
 	for (wr = wb->pos; wr < wb->len; wr++) printf("%c", wb->data[wr]);
 	printf("-\n");*/

@@ -107,7 +107,7 @@ void zrus_strom(vrchol*pom_vrchol) /* deletes intercode-tree */
 	while(pom_vrchol){
 		p=pom_vrchol->prev;
 		if(pom_vrchol->opcode==TNUMLIT)js_mem_free(pom_vrchol->arg[0]);
-		if(pom_vrchol->opcode==TSTRINGLIT)js_mem_free(pom_vrchol->arg[0]);
+		if((pom_vrchol->opcode==TSTRINGLIT)||(pom_vrchol->opcode==TREGEXPLIT))js_mem_free(pom_vrchol->arg[0]);
 		if(pom_vrchol->opcode==TFOR3)if(pom_vrchol->arg[3])js_mem_free(pom_vrchol->arg[3]);
 		js_mem_free(pom_vrchol);
 		pom_vrchol=p;
@@ -132,6 +132,7 @@ void total_clearvar(lns*pna,js_context*context,plns*fotri)
 		break;
 		case FLOAT:
 		case STRING:
+		case REGEXP:
 			js_mem_free((void*)pna->value);
 		break;
 		case ADDRSPACEP:

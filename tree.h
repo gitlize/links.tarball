@@ -83,10 +83,12 @@
 #define TBREAK 78
 #define TRETURN 79
 #define TWITH 80
-#define TSWITCH 81
-#define TCaseBlock 82
-#define TCaseClauses 83
-#define TCASE 84
+
+/* #define TSWITCH 81
+   #define TCaseBlock 82
+   #define TCaseClauses 83
+   #define TCASE 84*/
+
 #define TTHROW 85
 #define TTRY 86
 #define TSourceElements 87
@@ -117,4 +119,24 @@
 #define TVariables 112
 #define TIdCCall 113
 #define TLocAssign 114
+#define TREGEXPLIT 115
+
+#define TCS 117 /* Case clause - prvni arg - vyraz, druhy arg kod. */
+#define TSWITCH 118 /* arg[0] toustovany vyraz, arg[1] casove klauzy. */
+/* Jeste je potreba opatchovat break, continue a return */
+/* Protokol: TSWITCH vyrobi pytlik, ktery ostatni budou cist, zrusi ho
+ * TSWITCH cestou nahoru (tj. jeste se vratime!). TCSS bude asi zmenen 
+ * na Statements (zavola leveho a praveho). Levy je TCS, ten vyhodnoti svuj
+ * expression, vytahne z bufferu "neznicitelny" token, okopiruje ho, vrati
+ * zpatky, porovna a pripadne spusti akci a kazdopadne skonci (bud probehne 
+ * nebo ne - jako v softballe). TCASECLAUD by slo zmenit na 2 statementy
+ * (a rano to taky asi udelam). TCS po sobe musi nechat (vzdy) jeden pytlik,
+ * ktery budto Statements (TCSS resp. TCASECLAUD nebo TSWITCH zrusi - TSWITCH
+ * zrusi dva a vrati tam jeden undefined. */
+
+/* Schema: TSWITCH: Vyhodnot leveho syna, vyhodnot praveho syna, zrus dva 
+ * pytliky, dej tam undefined.
+ * 	   TCS: Vyhodnot leveho syna, vytas dva pytliky, spodni tam vrat.
+ * Vyndane pytliky porovnej na rovnost. Rovne \equiv vyhodnot praveho syna,
+ * nerovno \equiv soupni na buffer undefined. */
 

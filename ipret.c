@@ -89,7 +89,7 @@ static int js_temp_var_for_vartest=0;
 	fprintf(stderr,a)
 #undef debug
 #define debug(a)
-#define KROKU 100
+#define KROKU 10
 
 extern lns fotr_je_lotr;
 extern long js_lengthid;
@@ -100,7 +100,6 @@ extern long CStoString,CSvalueOf,CSMIN_VALUE,CSMAX_VALUE,CSNaN,CSlength,
 	CStoUpperCase,CSsplit,CSparse,CSUTC;
 
 static int sezvykan;
-static int schedule;
 
 int js_durchfall=0; /* Rika, jestli mame propadnout nebo ne */
 		    /* Invariant: Pokud vypadneme, musime ho snulova! */
@@ -401,6 +400,7 @@ void delarg(abuf*pom,js_context*context)
 	switch(pom->typ)
 	{	case FLOAT:
 		case STRING:
+		case REGEXP:
 			js_mem_free((void*)pom->argument); 			
 		case NULLOVY:
 		case INTEGER:
@@ -411,7 +411,7 @@ void delarg(abuf*pom,js_context*context)
 		case VARIABLE:
 			zrusit=(lns*)pom->argument;
 			if(zrusit)
-			{	if(zrusit->value==CIntMETFUN)
+			{	if(((zrusit->type==INTVAR) ||(zrusit->type==FUNKINT))&&(zrusit->value==CIntMETFUN))
 				{	delarg((abuf*)zrusit->handler,context);
 					js_mem_free(zrusit); /* Kdyz zustane trcet na zasobniku
 						* interni funkce nebo metoda, tak ji je potreba znicit, stejne
@@ -459,6 +459,7 @@ void vartoarg(lns*variable,abuf*kam,js_context*context)
 			*(float*)kam->argument=*(float*)variable->value;
 		break;
 		case STRING:
+		case REGEXP:
 			kam->argument=(long)js_mem_alloc(strlen((char*)variable->value)+1);
 			strcpy((char*)kam->argument,(char*)variable->value);
 		break;
@@ -502,6 +503,7 @@ void clearvar(lns*pna,js_context*context)
 		break;
 		case FLOAT:
 		case STRING:
+		case REGEXP:
 			js_mem_free((void*)pna->value);
 		break;
 		case ADDRSPACEP:
@@ -557,6 +559,9 @@ int vartoint(lns*pna,js_context*context)
 				if(!js_all_conversions)
 					js_error("Converting empty string to number!\n",context);
 			retval=atoi((char*)pna->value);
+		break;
+		case REGEXP:
+			retval=0;
 		break;
 		case INTVAR:
 			pomocny=js_mem_alloc(sizeof(abuf));
@@ -618,6 +623,9 @@ float vartofloat(lns*pna,js_context*context)
 			if(retval>MY_MAXDOUBLE) retval=MY_INFINITY;
 			if(retval<MY_MINDOUBLE) retval=MY_MININFINITY;
 		break;
+		case REGEXP:
+			retval=0;
+		break;
 		case INTVAR:
 			pomocny=js_mem_alloc(sizeof(abuf));
 			get_var_value(pna,&pomocny->typ,&pomocny->argument,context);
@@ -652,6 +660,28 @@ float vartofloat(lns*pna,js_context*context)
 	return retval;
 }
 
+int porovnej1(abuf*jeden_magistr,abuf*druhej_magistr,js_context*context)
+/* Warning je sice pravdivy, ale nevim, komu ten minuly natolik branil
+ * se ukajet, ze ho zrusil. B-( #warning Tohle je delane odhadem a od ruky! */
+{	if(druhej_magistr->typ==UNDEFINED)
+	{	if(druhej_magistr->argument)
+			return 0; /* zaplatil za oba. ;-) */
+		else	if(!js_all_conversions)
+				js_error("Switching in undefined expression",context);
+			return 0; /* Tohle by byt nemelo, ale lidi jsou prasata. */
+	}
+	if(jeden_magistr->typ==UNDEFINED)
+	{	if(!js_all_conversions)
+			js_error("Case is of type UNDEFINED",context);
+		return 0;/* taky zaplatil za oba!? */
+	}
+	if(((jeden_magistr->typ==STRING)||(jeden_magistr->typ==REGEXP)) && ((druhej_magistr->typ==STRING)||(druhej_magistr->typ==REGEXP)))/* Voba stejne vysoky...? */
+		return strcmp((char*)jeden_magistr->argument,(char*)druhej_magistr->argument);
+	if(jeden_magistr->typ==FLOAT && druhej_magistr->typ==FLOAT)/* Jeden za 180, druhej za 200 - 20... */
+		return *((double*)jeden_magistr->argument)!=*((double*)druhej_magistr->argument);
+	return jeden_magistr->argument!=druhej_magistr->argument; /* at ziji, prasata... */
+}
+
 int to32int(abuf*buffer,js_context*context)
 {	int retval=0;
 	lns*promenna;
@@ -683,6 +713,10 @@ int to32int(abuf*buffer,js_context*context)
 				if(!js_all_conversions)
 					js_error("Converting empty string to number!\n",context);
 			retval=atoi((char*)buffer->argument);
+			js_mem_free((void*)buffer->argument);
+		break;
+		case REGEXP:
+			retval=0;
 			js_mem_free((void*)buffer->argument);
 		break;
 		case VARIABLE:
@@ -720,6 +754,20 @@ int to32int(abuf*buffer,js_context*context)
 	}
 	js_mem_free(buffer);
 	return retval;
+}
+
+int porovnej(abuf*jeden,abuf*druhej,js_context*context)
+{	int a=porovnej1(jeden,druhej,context);
+	abuf*pombuf;
+	if(!a){	pombuf=js_mem_alloc(sizeof(abuf));
+		pombuf->typ=druhej->typ;
+		pombuf->argument=druhej->argument;
+		pombuf->a1=druhej->a1;
+		delarg(pombuf,context);
+		druhej->typ=UNDEFINED;
+		druhej->argument=1;
+	}
+	return a;
 }
 
 char* tostring(abuf*bafr,js_context*context)
@@ -768,6 +816,7 @@ char* tostring(abuf*bafr,js_context*context)
 			if(bafr->argument)strcpy(a,"true"); else strcpy (a,"false");
 		break;
 		case STRING:
+		case REGEXP:
 			a=(char*)bafr->argument;
 		break;
 		case FUNKCE:
@@ -788,7 +837,7 @@ char* tostring(abuf*bafr,js_context*context)
 				promenna=llookup("toString",context->namespace,(plns*)bafr->argument,context);
 				if(promenna->type==UNDEFINED)
 				{	promenna=llookup("valueOf",context->namespace,(plns*)bafr->argument,context);
-					if(promenna->type==STRING)
+					if((promenna->type==STRING)||(promenna->type==REGEXP))
 					{	a=js_mem_alloc(strlen((char*)promenna->value)+1);
 						strcpy(a,(char*)promenna->value);
 					} else
@@ -853,6 +902,10 @@ float tofloat(abuf*arg,js_context*context)
 			}
 			js_mem_free((void*)arg->argument);
 		break;
+		case REGEXP:
+			js_mem_free((void*)arg->argument);
+			vysl=0;
+		break;
 		case FUNKCE:
 		case FUNKINT:
 			if(!js_all_conversions)
@@ -896,6 +949,7 @@ int tobool(abuf*buffer,js_context*context)
 			retval=FALSE; /* Zbytecne, ale paranoia je paranoia! */
 		break;
 		case STRING:
+		case REGEXP:
 			if(strlen((char*)buffer->argument))retval=TRUE; else retval=FALSE;
 			js_mem_free((void*)buffer->argument);
 			js_mem_free(buffer);
@@ -1244,6 +1298,7 @@ void assign(js_context*context)/*Mel 'sem to pojmenovat Assasin*/
 						*(float*)vysl->value=*(float*)rightside->argument;
 					break;
 					case STRING:
+					case REGEXP:
 						vysl->value=(long)js_mem_alloc(strlen((char*)rightside->argument)+1);
 						strcpy((char*)vysl->value,(char*)rightside->argument);
 					break;
@@ -1343,6 +1398,7 @@ void localassign(js_context*context)
 						*(float*)vysl->value=*(float*)rightside->argument;
 					break;
 					case STRING:
+					case REGEXP:
 						vysl->value=(long)js_mem_alloc(strlen((char*)rightside->argument)+1);
 						strcpy((char*)vysl->value,(char*)rightside->argument);
 					break;
@@ -1413,6 +1469,8 @@ void equal(js_context*context)
 			par1=pulla(context);
 			RESOLV(par2);
 /*			RESOLV(par1);*/
+			if((par1->typ==REGEXP)||(par2->typ==REGEXP))
+				debug("Porovnani regexpu neni dosud napsano!!\n");
 			if((par1->typ==STRING) &&(par2->typ==STRING)){/*Jeste neni uplne koser!*/
 				retval->argument=!strcmp((char*)par1->argument,(char*)par2->argument);
 				debug("jsou to stringy!\n");
@@ -2762,6 +2820,17 @@ void string(js_context*context)
         sezvykan=1;
 }
 
+void regexp(js_context*context)
+{	abuf*retval=js_mem_alloc(sizeof(abuf));
+	debug("Vracim REGEXP literal\n");
+	retval->typ=STRING;
+	retval->argument=(long)js_mem_alloc(1+strlen(context->current->arg[0]));
+	strcpy((char*)retval->argument,(char*)context->current->arg[0]);
+	pusha(retval,context);
+	context->current=pullp(context);
+	sezvykan=1;
+}
+
 void this(js_context*context) /* Tohle bude masite */
 {	abuf*retval=js_mem_alloc(sizeof(abuf));
 	debug("Funkce this - vracim current namespace\n");
@@ -2967,6 +3036,7 @@ void mytypeof(js_context*context)
 
 void var(js_context*context) /* Tohle bude masite */
 {	abuf*var;
+	long pop;
 	debug("Vjizdim do funkce var ");
 	switch(context->current->in)
 	{	case 0:	debug("hledam ji\n");
@@ -2979,7 +3049,7 @@ void var(js_context*context) /* Tohle bude masite */
 			var=pulla(context);
 			if(var->typ==VARIABLE)
 				create(((lns*)var->argument)->identifier,context->lnamespace,context);
-			else	if(((vrchol*)context->current->arg[0])->opcode!=TLocAssign) 
+			else	if((pop=((vrchol*)context->current->arg[0])->opcode)!=TLocAssign && pop!=TFUNCTIONDECL) 
 				{	
 					my_internal("Divny typ v inicializaci promenne!\n",context);
 					var=js_mem_alloc(sizeof(abuf));
@@ -3357,7 +3427,7 @@ void pokracuj(js_context*context)
 	while((parenti)&&(parenti->opcode !=TFOR1)&&(parenti->opcode!=TFOR3)&&
 			(parenti->opcode!=TWHILE)&&(parenti->opcode!=TFUNCTIONDECL))
 	{	if(parenti->opcode==TWITH)
-		{	debug("kucham with, ");
+		{	debug("kucham with, \n");
 			arg1=pulla(context);
 			if((arg1->typ!=ADDRSPACE) && (arg1->typ!=MAINADDRSPC))
 			{	my_internal("Internal: Lost addrspace by continue!!\n",context);
@@ -3368,6 +3438,10 @@ void pokracuj(js_context*context)
 			context->lnamespace=pom->next;
 			pom->next=(plns*)arg1->argument;
 			js_mem_free(arg1);
+		}
+		if(parenti->opcode==TSWITCH)
+		{	debug("kucham switch \n");
+			delarg(pulla(context),context);
 		}
 		parenti->in=0;
 		parenti=pullp(context);
@@ -3397,7 +3471,8 @@ void breakni(js_context*context)
 	debug("Vjizdim do funkce breakni, ");
 	parenti=pullp(context);
 	while((parenti)&&(parenti->opcode !=TFOR1)&&(parenti->opcode!=TFOR3)&&
-			(parenti->opcode!=TWHILE)&&(parenti->opcode!=TFUNCTIONDECL))
+			(parenti->opcode!=TWHILE)&&(parenti->opcode!=TSWITCH)
+			&&(parenti->opcode!=TFUNCTIONDECL))
 	{	if(parenti->opcode==TWITH)
 		{	debug("kucham with, ");
 			arg1=pulla(context);
@@ -3418,6 +3493,10 @@ void breakni(js_context*context)
 	{	js_error("You called break out of cycle!!\n",context);
 		return;
 		/* Snad jiz konsolidovano */
+	}
+	if(parenti->opcode==TSWITCH)
+	{	debug("lamu switch\n");
+		delarg(pulla(context),context);
 	}
 	arg1=js_mem_alloc(sizeof(abuf));
 	arg1->typ=UNDEFINED;
@@ -3476,6 +3555,8 @@ void vrat(js_context*context)
 					pom->next=(plns*)arg1->argument;
 					js_mem_free(arg1);
 				}
+				if(parenti->opcode==TSWITCH)
+					delarg(pulla(context),context);
 				if(parenti->opcode==TFOR3)
 				{	debug("preskakuji for3 ");
 					parenti->arg[5]=parenti->arg[4]=0;
@@ -3513,14 +3594,15 @@ void with(js_context*context) /* Tohle bude masite */
 			context->current->in=2;
 			arg=pulla(context);
 			VARTEST(arg,"\"With\" is better with variable!\n");
-			if((((lns*)arg->argument)->type!=ADDRSPACE)&&(((lns*)arg->argument)->type!=ADDRSPACEP)) 
+			RESOLV(arg);
+			if((arg->typ!=ADDRSPACE)&&(arg->typ!=ADDRSPACEP)) 
 			{	delarg(arg,context); /* Konsolidace pred krachem */
 				js_error("Usually we do \"with\" with object!\n",context);
 				return;
 			}
 			prevpar=js_mem_alloc(sizeof(abuf));
 			prevpar->typ=MAINADDRSPC;
-			prevpar->argument=(long)(pom=(plns*)((lns*)arg->argument)->value)->next;
+			prevpar->argument=(long)(pom=(plns*)arg->argument)->next;
 			pom->next=context->lnamespace;
 			context->lnamespace=pom;
 			pusha(prevpar,context);
@@ -4074,9 +4156,6 @@ void member(js_context*context)/*a.b*/
 			printf("Member v kontextu %x",context->lnamespace);
 #endif
 			if(nans->typ!=ADDRSPACE && nans->typ!=ARRAY)
-/*			{	delarg(nans,context);
-				js_error("Trying member operator to non-object!\n",context);
-			}*/
 			{	if((pomvrch=(vrchol*)context->current->arg[1])->opcode!=TIDENTIFIER)    
 				{	delarg(nans,context);
 					if(!js_all_conversions)
@@ -4115,7 +4194,7 @@ void member(js_context*context)/*a.b*/
 				pomvar->identifier=pomv;
 				pomvar->value=CIntMETFUN;
 				pomvar->handler=(long)pulla(context);
-/*				printf("Odpal! "); */
+/*				printf("Odpal! ");*/
 				pusha(nans,context);
 				context->current->in=0;
 				sezvykan=1;
@@ -4250,7 +4329,7 @@ void array(js_context*context)/*a[b]*/
 	lns*  variable,*vari=0,*pomvar=0,*pomvar1;
 	long* typ,*value;
 	varlist* svinec;
-	char* index; int pomint,je_to_cislo;
+	char* index; int pomint,to_je_ale_cislo;
 	char pomstr[DELKACISLA]; 
 		/*Hopefully number has less than 25 digits! Alert! */
 	debug("Vjizdim do fce array ");
@@ -4277,8 +4356,8 @@ void array(js_context*context)/*a[b]*/
 			printf("Hledam index %s ",index);
 #endif
 			pomint=0;
-			je_to_cislo=isanumber(index);
-			if(je_to_cislo && (atoi(index)==-1))
+			to_je_ale_cislo=isanumber(index);
+			if(to_je_ale_cislo && (atoi(index)==-1))
 			{	js_error("Index -1 is prohibited!\n",context);
 				js_mem_free(index);
 				return;
@@ -4288,29 +4367,53 @@ void array(js_context*context)/*a[b]*/
 			if(js_temp_var_for_vartest)
 			{	js_temp_var_for_vartest=0;
 				js_mem_free(index);
-				js_error("Array is usually type of variable!\n",context);
+				if(!js_all_conversions)
+					js_error("Array is usually type of variable!\n",context);
+				array=js_mem_alloc(sizeof(abuf));
+				array->typ=UNDEFINED;
+				array->argument=0;
+				pusha(array,context); /* falesny vysledek */
+				context->current->in=0;
+				sezvykan=1;
+				context->current=pullp(context);
 				return;
 			}
 			typ=js_mem_alloc(sizeof(long));
 			value=js_mem_alloc(sizeof(long));
-			je_to_cislo=(je_to_cislo&&(((lns*)array->argument)->type==ARRAY));
+			to_je_ale_cislo=(to_je_ale_cislo&&(((lns*)array->argument)->type==ARRAY));
 			if(((variable=(lns*)array->argument)->type!=ARRAY) && (variable->type!= ADDRSPACE) && (variable->type!=ADDRSPACEP))
 			{	if(variable->type!=INTVAR)	
-				{	js_error("Index operator is allowed only for arrays!\n",context);
+				{	if(!js_all_conversions)
+						js_error("Index operator is allowed only for arrays!\n",context);
 					js_mem_free(typ);
 					js_mem_free(value);
 					delarg(array,context);
 					js_mem_free(index);
+					array=js_mem_alloc(sizeof(abuf));
+					array->typ=UNDEFINED;
+					array->argument=0;
+					pusha(array,context); /* falesny vysl */
+					context->current->in=0;
+					sezvykan=1;
+					context->current=pullp(context);
 					return;
 				}
 				else {
 					get_var_value(variable,typ,value,context);
 					if((*typ!=ARRAY) && (*typ!=ADDRSPACE) && (*typ!=ADDRSPACEP)) 
-					{	js_error("Index operator is allowed only for arrays!\n",context);
+					{	if(!js_all_conversions)
+							js_error("Index operator is allowed only for arrays!\n",context);
 						js_mem_free(typ);
 						js_mem_free(value);
 						delarg(array,context);
 						js_mem_free(index);
+						array=js_mem_alloc(sizeof(abuf));
+						array->typ=UNDEFINED;
+						array->argument=0; /* fakevysl */
+						pusha(array,context);
+						context->current->in=0;
+						sezvykan=1;
+						context->current=pullp(context);
 						return;
 					}
 					else {	
@@ -4355,28 +4458,26 @@ void array(js_context*context)/*a[b]*/
 #ifdef JS_DEBUG_2
 				printf("2. zpusobem v kont. %x",variable->value);
 #endif
-				if(je_to_cislo){
+				if(to_je_ale_cislo){
 					pomvar=lookup(js_lengthid,(plns*)variable->value,context);
 					if(pomvar->type!=INTVAR)
 					{	my_internal("Internal:Strange type of \"length\" property!\n",context);
 						js_error("Invalid array/member operation ",context);
 						return;
 					}
-					if(pomvar->handler<atoi(index))
-					{
-						pomint=pomvar->handler;
-						pomvar->handler=atoi(index)+1;
+					if(pomvar->handler<(to_je_ale_cislo=atoi(index)))
+					{	pomint=pomvar->handler;
+						pomvar->handler=to_je_ale_cislo+1;
 						pomstr[DELKACISLA-1]='\0';
-						while((pomint<=atoi(index)) &&(js_memory_limit>=(js_zaflaknuto_pameti/1024)))
-						{	snprintf(pomstr,DELKACISLA-1,"%d",pomint);
-							pomvar=llookup(pomstr,context->namespace,(plns*)variable->value,context);
-							clearvar(pomvar,context);
+						while((pomint<=to_je_ale_cislo) &&(js_memory_limit>=(js_zaflaknuto_pameti/1024)))
+						{	my_itoa(pomstr,pomint);
+							if((pomvar=cllookup(pomstr,context->namespace,(plns*)variable->value,context)))
+								clearvar(pomvar,context);
 							pomint++;
 						}
 						if(js_memory_limit<(js_zaflaknuto_pameti/1024))
 							js_error("Too much memory allocated by javascript",context);
-					}
-					if(pomvar->handler==atoi(index))pomvar->handler++;
+					} else	if(pomvar->handler==atoi(index))pomvar->handler++;
 				}
 
 /* Prevention of devastating array from parent - e.g. Cradioptr -> ARRAY -> demolition after dereference */
@@ -4752,6 +4853,72 @@ void variable(js_context*context)/*Tohle bude deklovat promenne*/
 	}
 }
 
+void myswitch(js_context*context)
+{	abuf*pomarg;
+	debug("Vjizdim do funkce myswitch ");
+	switch(context->current->in)
+	{	case 0:	debug("zjistuji hodnotu podminky\n");
+			context->current->in=1;
+			pushp(context->current,context);
+			context->current=(vrchol*)context->current->arg[0];
+		break;
+		case 1:	debug("casuji...\n");
+			context->current->in=2;
+			pomarg=pulla(context);
+			RESOLV(pomarg);
+			pusha(pomarg,context);
+			sezvykan=0;
+			pushp(context->current,context);
+			context->current=(vrchol*)context->current->arg[1];
+		break;
+		case 2:	debug("uklizim po casech...\n");
+			context->current->in=0;
+			sezvykan=1;
+			pomarg=pulla(context);
+			delarg(pulla(context),context);/*uklidime podminku*/
+			pusha(pomarg,context);
+			context->current=pullp(context);
+		break;
+		default:
+			moc("myswitch");
+		break;
+	}
+}
+
+void mycasecmp(js_context*context)
+{	abuf*pomarg1,*pomarg2;
+	debug("Vjizdim do funkce mycasecmp ");
+	switch(context->current->in)
+	{	case 0: debug("zjistuji hodnotu podminky\n");
+			context->current->in=1;
+			pushp(context->current,context);
+			context->current=(vrchol*)context->current->arg[0];
+		break;
+		case 1:	debug("porovnavam a ");
+			pomarg1=pulla(context);
+			pomarg2=pulla(context);
+			pusha(pomarg2,context);
+			context->current->in=0;
+			if(porovnej(pomarg1,pomarg2,context))
+			{	/* nerovne */
+				debug("zahlazuji nerovnost\n");
+				pomarg2=js_mem_alloc(sizeof(abuf));
+				pomarg2->typ=UNDEFINED;
+				pomarg2->argument=0;
+				pusha(pomarg2,context);
+				sezvykan=1;
+				context->current=pullp(context);
+			}else {	debug("spoustim -- rovno...\n");
+				context->current=(vrchol*)context->current->arg[1];
+			}
+			delarg(pomarg1,context);
+		break;
+		default:
+			moc("mycasecmp");
+		break;
+	}
+}
+
 /* Podle opcode soucasneho uzlu zavola obsluhujici funkci. Funkce si v uzlu
  * pamatuje, kolik uz toho napocitala a uhodne z toho i kolik toho ma na
  * argbufferu. Pokud ne, je maler.
@@ -4841,6 +5008,8 @@ void zvykni(js_context*context)
 		break;
 		case TSTRINGLIT:	string(context);
 		break;
+		case TREGEXPLIT:	regexp(context);
+		break;
 		case TTHIS:	this(context);
 		break;
 		case TTHREERIGHTEQUAL:	threerighteq(context);
@@ -4921,6 +5090,10 @@ void zvykni(js_context*context)
 		break;
 		case TLocAssign:	localassign(context);
 		break;
+		case TSWITCH:	myswitch(context);
+		break;
+		case TCS:	mycasecmp(context);
+		break;	
 		default:
 			my_internal("Error! Udelal jsem si spatny intercode; tento opcode neznam!\n",context);
 			js_error("Error in javascript code ",context);
@@ -4934,6 +5107,9 @@ void ipret(js_bordylek*bordylek)
 	abuf*pomarg;
 	js_context*context=(js_context*)bordylek->context;
 	js_bordylek*pombordylek;
+	ttime dobastart=get_time();
+	ttime dobajizdy=0;
+	int schedule=0;
 	*bordylek->mytimer=-1;
 	js_mem_free(bordylek);
 	sezvykan=0; /* promenna sezvykan se nastavi pri ceste stromem nahoru na jednotku. */
@@ -4944,9 +5120,12 @@ void ipret(js_bordylek*bordylek)
 	}	
 	else {
 		schedule=0; /* schedulneme po urcitem poctu zvyknuti */
-		while((whatnow=(!sezvykan || (context->current) ||(context->parbuf))) && schedule < KROKU && !js_durchfall){
+		while((whatnow=(!sezvykan || (context->current) ||(context->parbuf))) && (dobajizdy < KROKU) && !js_durchfall){
+			if(schedule++>=(KROKU*10))
+			{	schedule=0;
+				dobajizdy=get_time()-dobastart;
+			}
 			zvykni(context);
-			schedule++;
 			if(js_memory_limit<(js_zaflaknuto_pameti/1024))
 			{	js_error("Too much memory allocated by javascript",context);
 				js_cistka_kontextu(context);

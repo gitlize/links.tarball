@@ -15,7 +15,9 @@ void pusha(abuf*,js_context*);
 char* tostring(abuf*,js_context*);
 vrchol* pullp(js_context*);
 float tofloat(abuf*,js_context*);
-#define DELKACISLA 25 /*Kvalifikovany odhad, kolika znaku se muze dobrat cislo pri konverzi do stringu ZDE JE HOLE!*/
+#define DELKACISLA (1+4*sizeof(long))
+/*#define DELKACISLA 25 */ /*Kvalifikovany odhad, kolika znaku se muze dobrat cislo pri konverzi do stringu ZDE JE HOLE!*/
+
 int to32int(abuf*,js_context*);
 void js_error(char*,js_context*);
 int tobool(abuf*,js_context*);
