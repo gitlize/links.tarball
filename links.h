@@ -51,11 +51,19 @@
 #endif
 #include <sys/types.h>
 
+#ifndef __USE_XOPEN
+#define U_X
+#define __USE_XOPEN
+#endif
+#ifndef _XOPEN_SOURCE
+#define X_S
+#define _XOPEN_SOURCE   5       /* The 5 is a kludge to get a strptime() prototype in NetBSD */
+#endif
+#ifdef HAVE_TIME_H
 #ifdef TIME_WITH_SYS_TIME
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
-#ifdef HAVE_TIME_H
 #include <time.h>
 #endif
 #else
@@ -64,6 +72,12 @@
 #elif defined(HAVE_TIME_H)
 #include <time.h>
 #endif
+#endif
+#ifdef X_S
+#undef _XOPEN_SOURCE
+#endif
+#ifdef U_X
+#undef __USE_XOPEN
 #endif
 
 #include <sys/stat.h>
@@ -3065,6 +3079,7 @@ int js_upcall_image_complete(void *smirak, long document_id, long image_id);
 long js_upcall_get_parent(void *smirak, long frame_id);
 long js_upcall_get_frame_top(void *smirak, long frame_id);
 long * js_upcall_get_subframes(void *smirak, long frame_id, int *count);
+void js_upcall_set_form_action(void *context, long document_id, long form_id, unsigned char *action);
 
 
 void js_downcall_vezmi_true(void *context);

@@ -153,6 +153,16 @@ a_znova:
 		if (!p)p=strstr(semic1+1,"path");
 		if (!p)p=strstr(semic1+1,"Path");
 		if (!p)p=strstr(semic1+1,"PATH");
+		if (!p)p=strstr(semic1+1,"comment");
+		if (!p)p=strstr(semic1+1,"Comment");
+		if (!p)p=strstr(semic1+1,"COMMENT");
+		if (!p)p=strstr(semic1+1,"max-age");
+		if (!p)p=strstr(semic1+1,"Max-age");
+		if (!p)p=strstr(semic1+1,"Max-Age");
+		if (!p)p=strstr(semic1+1,"MAX-AGE");
+		if (!p)p=strstr(semic1+1,"version");
+		if (!p)p=strstr(semic1+1,"Version");
+		if (!p)p=strstr(semic1+1,"VERSION");
 		if (p&&p>semic1&&p<eq2)  /* za 1. prirazenim nasleduje "expires=", takze to je porad jedna susenka */
 			{
 				next=semic2?semic2+1:str+strlen(str);
@@ -1614,6 +1624,50 @@ unsigned char *js_upcall_get_form_action(void *data, long document_id, long form
 	return stracpy(fc->action);
 }
 
+
+
+/* sets form action 
+ */
+void js_upcall_set_form_action(void *context, long document_id, long form_id, unsigned char *action)
+{
+	struct f_data_c *js_ctx=(struct f_data_c *)context;
+	struct f_data_c *fd;
+	struct form_control *fc;
+
+	if (!js_ctx) {
+		internal("js_upcall_set_form_action called with NULL context pointer\n");
+	}
+
+	fd=jsint_find_document(document_id);
+	if (!fd || !jsint_can_access(js_ctx,fd)) {
+		if (action) mem_free(action);
+		return;
+	}
+
+	if ( (form_id&JS_OBJ_MASK) != JS_OBJ_T_FORM ) {
+		if (action) mem_free(action);
+		return;
+	}
+
+	fc=jsint_find_object(fd,form_id);
+	if (!fc) {
+		if (action) mem_free(action);
+		return;
+	}
+
+	if (fc->action) {
+		mem_free (fc->action);
+		if ( fd->loc && fd->loc->url ) 
+			fc->action=join_urls(fd->loc->url,action);
+		else 
+			fc->action=stracpy(action);
+		fd->f_data->uncacheable=1;
+	}
+
+	if (action) {
+		mem_free(action);
+	}
+}
 
 
 /* returns allocated string with the form target
@@ -3137,8 +3191,10 @@ ty_uz_se_nevratis:
 		if (!nc) nc = 1;
 		else add_to_str(&s, &l, "; ");
 		add_to_str(&s, &l, c->name);
-		add_to_str(&s, &l, "=");
-		add_to_str(&s, &l, c->value);
+		if (c->value) {
+			add_to_str(&s, &l, "=");
+			add_to_str(&s, &l, c->value);
+		}
 	}
 	
 	if (!nc) {mem_free(s);s=NULL;}

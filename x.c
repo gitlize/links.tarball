@@ -912,6 +912,7 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 
 */
 	if (!display)display=getenv("DISPLAY");
+	if (!display)display=":0.0";	/* needed for MacOS X */
 
 	x_display=XOpenDisplay(display);
 	if (!x_display)
@@ -1945,7 +1946,9 @@ void selection_request(XEvent *event)
 	);
 	}
 	else if (req->target == x_targets_atom) {
-	Atom tgt_atoms[] = {x_targets_atom, XA_STRING };
+	Atom tgt_atoms[2] /*= {x_targets_atom, XA_STRING }*/;
+	tgt_atoms[0] = x_targets_atom;
+	tgt_atoms[1] = XA_STRING;
 	XChangeProperty (x_display,
 			 sel.requestor,
 			 sel.property,

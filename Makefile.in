@@ -357,8 +357,8 @@ block.o: block.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 bookmarks.o: bookmarks.c links.h cfg.h config.h os_dep.h os_depx.h \
 	setup.h language.h codepage.h
-builtin.o: builtin.c cfg.h config.h struct.h links.h os_dep.h os_depx.h \
-	setup.h language.h codepage.h typy.h builtin_keys.h builtin.h \
+builtin.o: builtin.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
+	language.h codepage.h struct.h typy.h builtin_keys.h builtin.h \
 	ipret.h ns.h md5.h
 cache.o: cache.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h

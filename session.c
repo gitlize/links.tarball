@@ -2257,7 +2257,7 @@ void win_func(struct window *win, struct event *ev, int fw)
 	struct session *ses = win->data;
 	switch (ev->ev) {
 		case EV_ABORT:
-			destroy_session(ses);
+			if (ses) destroy_session(ses);
 			break;
 		case EV_INIT:
 			if (!(ses = win->data = create_session(win)) || read_session_info(ses, (char *)ev->b + sizeof(int), *(int *)ev->b)) {

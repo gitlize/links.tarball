@@ -300,6 +300,13 @@ void insert_wd(unsigned char **up, unsigned char *cwd)
 	*up = url;
 }
 
+/*
+ * U funkce join_urls musi byt prvni url absolutni (takove, co projde funkci
+ * parse_url bez chyby --- pokud neni absolutni, tak to spatne na internal) a
+ * druhe url je relativni cesta vuci nemu nebo taky absolutni url. Pokud je
+ * druhe url absolutni, vrati se to; pokud je relativni, tak se spoji prvni a
+ * druhe url.
+ */
 unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 {
 	unsigned char *p, *n, *pp;

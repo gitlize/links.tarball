@@ -5,27 +5,10 @@
 
 #include "cfg.h"
 
-#ifdef HAVE_MATH_H
-#include <math.h>
-#endif
-#ifndef __USE_XOPEN
-#define U_X
-#define __USE_XOPEN
-#endif
-#ifndef _XOPEN_SOURCE
-#define X_S
-#define _XOPEN_SOURCE	5	/* The 5 is a kludge to get a strptime() prototype in NetBSD */
-#endif
-#include <time.h>
-#ifdef X_S
-#undef _XOPEN_SOURCE
-#endif
-#ifdef U_X
-#undef __USE_XOPEN
-#endif
-#include <ctype.h>
-
 #ifdef JS
+
+#include <ctype.h>
+#include "links.h"
 
 #define PREFIX 0x40
 #define DELKAJMENATIMERU 20
@@ -3939,6 +3922,10 @@ void set_var_value(lns*pna,long typ, long value,js_context*context)
 		case Cimagealt:
 			js_upcall_set_image_alt(context->ptr,pna->handler,pna->mid,iatostring(typ,value,context));
 			idebug("Nastavena altituda image\n");
+		break;
+		case Caction:
+			js_upcall_set_form_action(context->ptr,pna->handler,pna->mid,iatostring(typ,value,context));
+			idebug("Nastavena akce formulare - to je akce!!!\n");
 		break;
 		default: if(!js_all_conversions)
 				 js_error("set_var_value doesn't work yet\n",context);

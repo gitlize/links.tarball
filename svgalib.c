@@ -2542,6 +2542,8 @@ int vga_select(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 {
 	int retval,i;
 
+	if (drv != &svga_driver) return select(n, readfds, writefds, exceptfds, timeout);
+
 	/* The second flag here is to suppress mouse wait
 	 * in blocked state */
 	retval=vga_waitevent((mouse_works&&!(flags&2) ? VGA_MOUSEEVENT : 0)

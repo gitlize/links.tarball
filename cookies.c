@@ -42,7 +42,7 @@ void accept_cookie_never(void *);
 void free_cookie(struct cookie *c)
 {
 	mem_free(c->name);
-	mem_free(c->value);
+	if (c->value) mem_free(c->value);
 	if (c->server) mem_free(c->server);
 	if (c->path) mem_free(c->path);
 	if (c->domain) mem_free(c->domain);
@@ -77,18 +77,22 @@ int check_domain_security(unsigned char *server, unsigned char *domain)
  */
 int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 {
+	int noval = 0;
 	struct cookie *cookie;
 	struct c_server *cs;
 	unsigned char *p, *q, *s, *server, *date, *document;
 	if (accept_cookies == ACCEPT_NONE) return 0;
 	for (p = str; *p != ';' && *p; p++) /*if (WHITECHAR(*p)) return 0*/;
-	for (q = str; *q != '='; q++) if (!*q || q >= p) return 0;
+	for (q = str; *q != '='; q++) if (!*q || q >= p) {
+		noval = 1;
+		break;
+	}
 	if (str == q || q + 1 == p) return 0;
 	cookie = mem_alloc(sizeof(struct cookie));
 	document = get_url_data(url);
 	server = get_host_name(url);
 	cookie->name = memacpy(str, q - str);
-	cookie->value = memacpy(q + 1, p - q - 1);
+	cookie->value = !noval ? memacpy(q + 1, p - q - 1) : NULL;
 	cookie->server = stracpy(server);
 	date = parse_header_param(str, "expires");
 	if (date) {
@@ -162,6 +166,11 @@ void accept_cookie(struct cookie *c)
 		del_from_list(e);
 		free_cookie(e);
 		mem_free(e);
+	}
+	if (c->value && !strcasecmp(c->value, "deleted")) {
+		free_cookie(c);
+		mem_free(c);
+		return;
 	}
 	add_to_list(cookies, c);
 	foreach(cd, c_domains) if (!strcasecmp(cd->domain, c->domain)) return;
@@ -273,8 +282,10 @@ void send_cookies(unsigned char **s, int *l, unsigned char *url)
 		if (!nc) add_to_str(s, l, "Cookie: "), nc = 1;
 		else add_to_str(s, l, "; ");
 		add_to_str(s, l, c->name);
-		add_to_str(s, l, "=");
-		add_to_str(s, l, c->value);
+		if (c->value) {
+			add_to_str(s, l, "=");
+			add_to_str(s, l, c->value);
+		}
 	}
 	if (nc) add_to_str(s, l, "\r\n");
 	mem_free(server);

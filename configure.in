@@ -6,10 +6,14 @@
 AC_INIT(main.c)
 
 <<<<<<< configure.in
+<<<<<<< configure.in
 AM_INIT_AUTOMAKE(links, 2.1pre15)
 =======
 AM_INIT_AUTOMAKE(links, 2.1pre16)
 >>>>>>> 1.111
+=======
+AM_INIT_AUTOMAKE(links, 2.1pre17)
+>>>>>>> 1.116
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -178,14 +182,17 @@ AC_CHECK_FUNC(gethostbyname, cf_result=yes, cf_result=no)
 if test "$cf_result" = no; then
 	AC_CHECK_LIB(socket, gethostbyname, cf_result=yes, cf_result=no)
 	if test "$cf_result" = no; then
-		AC_CHECK_LIB(nsl, gethostbyname)
+		AC_CHECK_LIB(nsl, gethostbyname, cf_result=yes, cf_result=no)
 		if test "$cf_result" = no; then
 			AC_ERROR([gethostbyname function not present])
+		else
+			test -z "`echo $LIBS | grep -- -lnsl`" && LIBS="$LIBS -lnsl"
 		fi
 	else
 		test -z "`echo $LIBS | grep -- -lsocket`" && LIBS="$LIBS -lsocket"
 	fi
 fi
+AC_CHECK_FUNC(gethostbyaddr, AC_DEFINE(HAVE_GETHOSTBYADDR))
 AC_CHECK_FUNC(dhcp_option, AC_DEFINE(HAVE_DHCP_OPTION))
 
 AC_CHECK_FUNC(herror, AC_DEFINE(HAVE_HERROR))
@@ -208,6 +215,7 @@ fi
 AC_DEFINE_UNQUOTED(DEBUGLEVEL, $cf_debuglevel)
 
 AC_MSG_CHECKING([if you want to enable javascript])
+cf_use_javascript=no
 AC_ARG_ENABLE(javascript, [  --enable-javascript     use javascript interpreter], cf_use_javascript=$enableval)
 AC_MSG_RESULT($cf_use_javascript)
 if test "$cf_use_javascript" = yes; then
@@ -216,15 +224,22 @@ fi
 
 AC_ARG_WITH(libfl, [  --with-libfl            use libfl],LIBS="$LIBS -lfl",AC_DEFINE(CHCEME_FLEXI_LIBU))
 
+cf_use_graphics=no
 AC_MSG_CHECKING([if you want to use graphics])
 AC_ARG_ENABLE(graphics, [  --enable-graphics       use graphics], cf_use_graphics=$enableval )
 AC_MSG_RESULT($cf_use_graphics)
 
-AC_CHECK_LIB(gpm, Gpm_Open)
-cf_have_gpm_lib=$ac_cv_lib_gpm_Gpm_Open
-AC_CHECK_HEADERS(gpm.h)
-cf_have_gpm_includes=$ac_cv_header_gpm_h
-if test "$cf_have_gpm_lib" = yes && test "$cf_have_gpm_includes" = yes ; then cf_have_gpm=yes ; else cf_have_gpm=no; fi
+AC_ARG_WITH(gpm, [  --without-gpm           compile without gpm mouse],[if test "$withval" = no; then disable_gpm=yes; else disable_gpm=no; fi])
+
+if test "$disable_gpm" != yes; then
+	AC_CHECK_LIB(gpm, Gpm_Open)
+	cf_have_gpm_lib=$ac_cv_lib_gpm_Gpm_Open
+	AC_CHECK_HEADERS(gpm.h)
+	cf_have_gpm_includes=$ac_cv_header_gpm_h
+	if test "$cf_have_gpm_lib" = yes && test "$cf_have_gpm_includes" = yes ; then cf_have_gpm=yes ; else cf_have_gpm=no; fi
+else
+	cf_have_gpm=no
+fi
 
 AC_CACHE_CHECK([for OS/2 threads], ac_cv_have_beginthread,
 	CFLAGS_X="$CFLAGS"
@@ -332,48 +347,6 @@ if test "$cf_use_graphics" = yes; then
 #		OpenBSD needs it, but gcc-3.1 doens't work with it !!!
 #	CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 #	LDFLAGS="$LDFLAGS -L/usr/local/lib"
-	AC_CHECK_LIB(z, inflate)
-	AC_CHECK_HEADERS(png.h libpng/png.h)
-	AC_CHECK_LIB(png, png_create_info_struct)
-	if test "$ac_cv_header_png_h" != yes && test "$ac_cv_header_libpng_png_h" != yes || test "$ac_cv_lib_png_png_create_info_struct" != yes; then
-		AC_ERROR([You need libpng to compile Links in graphics mode])
-	fi
-
-	AC_HAVE_FUNCS(png_set_rgb_to_gray)
-
-	AC_CACHE_CHECK(if you can include both setjmp.h and png.h, ac_cv_include_setjmp_png,
-		AC_TRY_COMPILE([#include <setjmp.h>
-		#include <png.h>], [jmp_buf bla;], ac_cv_include_setjmp_png=yes, ac_cv_include_setjmp_png=no)
-	)
-
-	if test "$ac_cv_include_setjmp_png" != yes; then
-		AC_DEFINE(DONT_INCLUDE_SETJMP)
-	fi
-
-AC_ARG_WITH(libjpeg, [  --without-libjpeg	  compile without JPEG support],[if test "$withval" = no; then disable_jpeg=yes; else disable_jpeg=no; fi])
-	cf_have_jpeg=no
-if test "$disable_jpeg" != yes ; then
-	AC_CHECK_HEADERS(jpeglib.h)
-	AC_CHECK_LIB(jpeg, jpeg_destroy_decompress)
-	if test "$ac_cv_header_jpeglib_h" = yes && test "$ac_cv_lib_jpeg_jpeg_destroy_decompress" = yes; then
-		AC_DEFINE(HAVE_JPEG)
-		cf_have_jpeg=yes
-		image_formats="$image_formats JPEG"
-	fi
-fi
-
-AC_ARG_WITH(libtiff, [  --without-libtiff       compile without TIFF support],[if test "$withval" = no; then disable_tiff=yes; else disable_tiff=no; fi])
-	cf_have_tiff=no
-if test "$disable_tiff" != yes ; then
-	AC_CHECK_HEADERS(tiffio.h)
-	AC_CHECK_LIB(tiff, TIFFOpen)
-	if test "$ac_cv_header_tiffio_h" = yes && test "$ac_cv_lib_tiff_TIFFOpen" = yes; then
-		AC_DEFINE(HAVE_TIFF)
-		cf_have_tiff=yes
-		image_formats="$image_formats TIFF"
-	fi
-fi
-
 AC_ARG_WITH(svgalib, [  --without-svgalib       compile without svgalib graphics driver],[if test "$withval" = no; then disable_svgalib=yes; else disable_svgalib=no; fi])
 AC_ARG_WITH(x, [  --without-x             compile without X Window System graphics driver],[if test "$withval" = no; then disable_x=yes; else disable_x=no; fi])
 AC_ARG_WITH(fb, [  --without-fb            compile without Linux Framebuffer graphics driver],[if test "$withval" = no; then disable_fb=yes; else disable_fb=no; fi])
@@ -405,7 +378,7 @@ dnl 		AC_TRY_RUN([#include <stdio.h>
 dnl 		#include <fcntl.h>
 dnl 		main(){return open("/dev/fb",O_RDWR)==-1;}], ac_cv_have_fb=yes, ac_cv_have_fb=no, ac_cv_have_fb=no)
 dnl 	)
-	
+
 if test "$disable_fb" != yes ; then
 	AC_CHECK_HEADERS(linux/fb.h)
 	AC_CHECK_HEADERS(linux/kd.h)
@@ -487,7 +460,7 @@ if test "$disable_pmshell" != yes ; then
 			GpiSetPel(NULLHANDLE, NULL)],
 		ac_cv_have_pmshell=yes, ac_cv_have_pmshell=no)
 	)
-			
+
 	if test "$ac_cv_have_pmshell" = yes; then
 		AC_DEFINE(GRDRV_PMSHELL)
 		drivers="$drivers PMSHELL"
@@ -523,12 +496,68 @@ if test "$disable_atheos" != yes ; then
 	fi
 fi
 
+	AC_CHECK_LIB(z, inflate)
+	AC_CHECK_HEADERS(png.h libpng/png.h)
+	AC_CHECK_LIB(png, png_create_info_struct)
+	if test "$ac_cv_header_png_h" != yes && test "$ac_cv_header_libpng_png_h" != yes || test "$ac_cv_lib_png_png_create_info_struct" != yes; then
+		AC_ERROR([You need libpng to compile Links in graphics mode])
+	fi
+
+	AC_HAVE_FUNCS(png_set_rgb_to_gray)
+	AC_HAVE_FUNCS(png_get_image_width png_get_image_height png_get_gAMA png_get_color_type png_get_bit_depth png_set_strip_alpha png_get_valid png_get_sRGB)
+	if test "$ac_cv_func_png_get_image_width" != yes ||
+	   test "$ac_cv_func_png_get_image_height" != yes ||
+	   test "$ac_cv_func_png_get_gAMA" != yes ||
+	   test "$ac_cv_func_png_get_color_type" != yes ||
+	   test "$ac_cv_func_png_get_bit_depth" != yes ||
+	   test "$ac_cv_func_png_set_strip_alpha" != yes ||
+	   test "$ac_cv_func_png_get_valid" != yes ||
+	   test "$ac_cv_func_png_get_sRGB" != yes; then
+		set >saaa
+		AC_ERROR([Your libpng is too old])
+	fi
+
+	AC_CACHE_CHECK(if you can include both setjmp.h and png.h, ac_cv_include_setjmp_png,
+		AC_TRY_COMPILE([#include <setjmp.h>
+		#include <png.h>], [jmp_buf bla;], ac_cv_include_setjmp_png=yes, ac_cv_include_setjmp_png=no)
+	)
+
+	if test "$ac_cv_include_setjmp_png" != yes; then
+		AC_DEFINE(DONT_INCLUDE_SETJMP)
+	fi
+
+	AC_ARG_WITH(libjpeg, [  --without-libjpeg	  compile without JPEG support],[if test "$withval" = no; then disable_jpeg=yes; else disable_jpeg=no; fi])
+		cf_have_jpeg=no
+	if test "$disable_jpeg" != yes ; then
+		AC_CHECK_HEADERS(jpeglib.h)
+		AC_CHECK_LIB(jpeg, jpeg_destroy_decompress)
+		if test "$ac_cv_header_jpeglib_h" = yes && test "$ac_cv_lib_jpeg_jpeg_destroy_decompress" = yes; then
+			AC_DEFINE(HAVE_JPEG)
+			cf_have_jpeg=yes
+			image_formats="$image_formats JPEG"
+		fi
+	fi
+
+	AC_ARG_WITH(libtiff, [  --without-libtiff       compile without TIFF support],[if test "$withval" = no; then disable_tiff=yes; else disable_tiff=no; fi])
+		cf_have_tiff=no
+	if test "$disable_tiff" != yes ; then
+		AC_CHECK_HEADERS(tiffio.h)
+		AC_CHECK_LIB(tiff, TIFFClientOpen)
+		if test "$ac_cv_header_tiffio_h" = yes && test "$ac_cv_lib_tiff_TIFFClientOpen" = yes; then
+			AC_DEFINE(HAVE_TIFF)
+			cf_have_tiff=yes
+			image_formats="$image_formats TIFF"
+		fi
+	fi
+
+
 	if test -z "$drivers" && test "$cf_use_graphics" = yes; then
 		AC_MSG_ERROR([No graphics drivers found.])
 dnl	else
 dnl		AC_MSG_RESULT([The following graphics drivers are available:$drivers])
 	fi
 fi
+
 
 AM_CONDITIONAL(ATHEOS_GR, test "$cf_have_atheos" = yes)
 

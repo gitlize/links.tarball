@@ -142,6 +142,7 @@ void af_unix_connection(void *xxx)
 	int ns;
 	memset(s_unix_acc, 0, l);
 	ns = accept(s_unix_fd, (struct sockaddr *)s_unix_acc, &l);
+	if (ns == -1) return;
 	init_term(ns, ns, win_func);
 	set_highpri();
 }

@@ -2362,7 +2362,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 					mem_free(ln);
 				}
 			} else fs->state = strlen(fs->value);
-		} else if (!ev->y && (ev->x >= 32 && ev->x < gf_val(256, MAXINT))) {
+		} else if (!ev->y && (ev->x >= 32 && ev->x < gf_val(256, MAXINT) && gf_val(cp2u(ev->x, ses->term->spec->charset) != -1, 1))) {
 			set_br_pos(f, l);
 			if (!form->ro && utf8len(fs->value) < form->maxlength) {
 				unsigned char *v;
@@ -2988,6 +2988,12 @@ void do_for_frame(struct session *ses, void (*f)(struct session *, struct f_data
 		return;
 	}
 	f(ses, fd, a);
+	if (!F) {
+		fd->active = 1;
+		draw_to_window(ses->win, (void (*)(struct terminal *, void *))draw_doc_c, fd);
+		change_screen_status(ses);
+		print_screen_status(ses);
+	}
 }
 
 void do_mouse_event(struct session *ses, struct event *ev)

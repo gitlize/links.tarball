@@ -92,8 +92,32 @@
 /* Define if you have the nl_langinfo function.  */
 #undef HAVE_NL_LANGINFO
 
+/* Define if you have the png_get_bit_depth function.  */
+#undef HAVE_PNG_GET_BIT_DEPTH
+
+/* Define if you have the png_get_color_type function.  */
+#undef HAVE_PNG_GET_COLOR_TYPE
+
+/* Define if you have the png_get_gAMA function.  */
+#undef HAVE_PNG_GET_GAMA
+
+/* Define if you have the png_get_image_height function.  */
+#undef HAVE_PNG_GET_IMAGE_HEIGHT
+
+/* Define if you have the png_get_image_width function.  */
+#undef HAVE_PNG_GET_IMAGE_WIDTH
+
+/* Define if you have the png_get_sRGB function.  */
+#undef HAVE_PNG_GET_SRGB
+
+/* Define if you have the png_get_valid function.  */
+#undef HAVE_PNG_GET_VALID
+
 /* Define if you have the png_set_rgb_to_gray function.  */
 #undef HAVE_PNG_SET_RGB_TO_GRAY
+
+/* Define if you have the png_set_strip_alpha function.  */
+#undef HAVE_PNG_SET_STRIP_ALPHA
 
 /* Define if you have the popen function.  */
 #undef HAVE_POPEN
@@ -305,9 +329,6 @@
 /* Define if you have the m library (-lm).  */
 #undef HAVE_LIBM
 
-/* Define if you have the nsl library (-lnsl).  */
-#undef HAVE_LIBNSL
-
 /* Define if you have the png library (-lpng).  */
 #undef HAVE_LIBPNG
 
@@ -362,6 +383,9 @@
 
 /* */
 #undef HAVE_CFMAKERAW
+
+/* */
+#undef HAVE_GETHOSTBYADDR
 
 /* */
 #undef HAVE_DHCP_OPTION

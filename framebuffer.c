@@ -1079,28 +1079,28 @@ unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 	if (*param) {
 		if (*param < '0' || *param > '9')
 			bad_p: return stracpy("-mode syntax is left_border[,top_border[,right_border[,bottom_border]]]\n");
-		border_left = strtoul(param, (char **)&param, 10);
+		border_left = strtoul(param, (char **)(void *)&param, 10);
 		if (*param == ',') param++;
 	} else {
 		border_left = 0;
 	}
 	if (*param) {
 		if (*param < '0' || *param > '9') goto bad_p;
-		border_top = strtoul(param, (char **)&param, 10);
+		border_top = strtoul(param, (char **)(void *)&param, 10);
 		if (*param == ',') param++;
 	} else {
 		border_top = border_left;
 	}
 	if (*param) {
 		if (*param < '0' || *param > '9') goto bad_p;
-		border_right = strtoul(param, (char **)&param, 10);
+		border_right = strtoul(param, (char **)(void *)&param, 10);
 		if (*param == ',') param++;
 	} else {
 		border_right = border_left;
 	}
 	if (*param) {
 		if (*param < '0' || *param > '9') goto bad_p;
-		border_bottom = strtoul(param, (char **)&param, 10);
+		border_bottom = strtoul(param, (char **)(void *)&param, 10);
 		if (*param == ',') param++;
 	} else {
 		border_bottom = border_top;

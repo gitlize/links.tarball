@@ -1,3 +1,46 @@
+=== Release 2.1pre17
+
+Wed Feb 23 19:46:01 MET 2005 mikulas:
+
+	Correct implementation of non-aggressive cache (i.e. allow more keywords
+	in Cache-Control
+
+Wed Feb 23 18:36:52 MET 2005 mikulas:
+
+	Allow typing only characters valid in current character set into form
+	fields on web
+
+Wed Feb 23 16:31:56 MET 2005 Serge Winitzki <serge at cosmos dot phy dot tufts dot edu>:
+
+	Updated Russian translation
+
+Wed Feb 23 16:25:41 MET 2005 mikulas:
+
+	Allow cookies without a value
+
+Mon Feb 14 13:15:00 MET 2005 user:
+
+	When server returns cookie values as "deleted", delete it
+
+Tue Feb  1 18:22:11 MET 2005 user:
+
+	Fixed non-working find next/previous in view menu
+
+Thu Jan 27 19:09:46 CET 2005 mikulas:
+
+	Fixed wrong prototypes causing compilation problem on MacOS X and some
+	other systems
+
+Thu Jan 27 16:28:35 MET 2005 mikulas:
+
+	Fixed configure failure on Solaris
+
+Thu Jan 27 00:23:09 CET 2005 Brain
+
+	javascript: set form action 
+
+=== Release 2.1pre16
+
 Sat Jan 22 20:27:41 cet 2005 mikulas:
 
 	Fixed empty lines in lists in graphics mode

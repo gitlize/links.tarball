@@ -587,9 +587,17 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		mem_free(d);
 	}
 	if ((d = parse_http_header(head, "Cache-Control", NULL))) {
-		if (!casecmp(d, "no-cache", 8)) e->expire_time = 1;
-		if (!casecmp(d, "max-age=", 8)) {
-			if (e->expire_time != 1) e->expire_time = time(NULL) + atoi(d + 8);
+		char *f = d;
+		while (1) {
+			while (*f && (*f == ' ' || *f == ',')) f++;
+			if (!*f) break;
+			if (!casecmp(f, "no-cache", 8) || !casecmp(f, "must-revalidate", 15)) {
+				e->expire_time = 1;
+			}
+			if (!casecmp(f, "max-age=", 8)) {
+				if (e->expire_time != 1) e->expire_time = time(NULL) + atoi(f + 8);
+			}
+			while (*f && *f != ',') f++;
 		}
 		mem_free(d);
 	}

@@ -35,6 +35,9 @@
 #undef HAVE_CFMAKERAW
 
 /* */
+#undef HAVE_GETHOSTBYADDR
+
+/* */
 #undef HAVE_DHCP_OPTION
 
 /* */
