@@ -1073,8 +1073,6 @@ void page_up(struct session *ses, struct f_data_c *f, int a)
 	if (f->vs->view_pos < 0) f->vs->view_pos = 0/*, find_link(f, 1, a)*/;
 }
 
-void set_textarea(struct session *, struct f_data_c *, int);
-
 void down(struct session *ses, struct f_data_c *f, int a)
 {
 	int l = f->vs->current_link;
@@ -1783,7 +1781,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 					rep1:
 					for (y = 0; ln[y].st; y++) if (fs->value + fs->state >= ln[y].st && fs->value + fs->state < ln[y].en + (ln[y+1].st != ln[y].en)) {
 						if (!y) {
-							if (F) goto xx;
+							/*if (F) goto xx;*/
 							mem_free(ln);
 							goto b;
 						}
@@ -1808,7 +1806,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 					rep2:
 					for (y = 0; ln[y].st; y++) if (fs->value + fs->state >= ln[y].st && fs->value + fs->state < ln[y].en + (ln[y+1].st != ln[y].en)) {
 						if (!ln[y+1].st) {
-							if (F) goto yy;
+							/*if (F) goto yy;*/
 							mem_free(ln);
 							goto b;
 						}

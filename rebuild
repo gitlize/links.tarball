@@ -21,6 +21,8 @@ if [ "$1" = reconf ]; then
 		aclocal &&
 		automake --add-missing &&
 		autoconf
+	else
+		exit
 	fi
 fi &&
 if [ "$1" = reconf_aby_to_brain_nepouzival ]; then

@@ -808,7 +808,7 @@ fi
 
 # Define the identity of the package.
 PACKAGE=links
-VERSION=2.1pre8
+VERSION=2.1pre9
 cat >> confdefs.h <<EOF
 #define PACKAGE "$PACKAGE"
 EOF

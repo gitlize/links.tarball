@@ -786,6 +786,12 @@ int is_link_in_view(struct f_data_c *fd, int nl)
 	return fd->vs->view_pos < l->r.y2 && fd->vs->view_pos + fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH > l->r.y1;
 }
 
+int skip_link(struct f_data_c *fd, int nl)
+{
+	struct link *l = &fd->f_data->links[nl];
+	return !l->where && !l->form;
+}
+
 void redraw_link(struct f_data_c *fd, int nl)
 {
 	struct link *l = &fd->f_data->links[nl];
@@ -834,7 +840,7 @@ int g_next_link(struct f_data_c *fd, int dir)
 		r = 1;
 		goto retry;
 	}
-	if (!is_link_in_view(fd, n)) {
+	if (!is_link_in_view(fd, n) || skip_link(fd, n)) {
 		n += dir;
 		goto again;
 	}
@@ -848,6 +854,7 @@ int g_next_link(struct f_data_c *fd, int dir)
 	if (fd->f_data->links[fd->vs->current_link].type == L_FIELD || fd->f_data->links[fd->vs->current_link].type == L_AREA) {
 		if ((fd->f_data->locked_on = fd->f_data->links[fd->vs->current_link].obj)) fd->ses->locked_link = 1;
 	}
+	set_textarea(fd->ses, fd, dir < 0 ? KBD_DOWN : KBD_UP);
 	change_screen_status(fd->ses);
 	print_screen_status(fd->ses);
 	if (lr_link(fd, fd->vs->current_link)) r = 1;

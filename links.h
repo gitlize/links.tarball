@@ -1759,6 +1759,7 @@ static inline void exclude_from_set(struct rect_set **s, int x1, int y1, int x2,
 	r.x1 = x1, r.x2 = x2, r.y1 = y1, r.y2 = y2;
 	exclude_rect_from_set(s, &r);
 }
+void t_redraw(struct graphics_device *, struct rect *);
 
 #endif
 
@@ -3214,6 +3215,7 @@ void find_next_back(struct session *, struct f_data_c *, int);
 void set_frame(struct session *, struct f_data_c *, int);
 struct f_data_c *current_frame(struct session *);
 void reset_form(struct f_data_c *f, int form_num);
+void set_textarea(struct session *, struct f_data_c *, int);
 
 void copy_js_event_spec(struct js_event_spec **, struct js_event_spec *);
 void free_js_event_spec(struct js_event_spec *);
