@@ -136,7 +136,7 @@ long civilize(char* string)
 		}
 	}
 	result[j]='\0';
-	if(j>strlen(string))internal("Strilim do pameti!\n");
+	if((size_t)j>strlen(string))internal("Strilim do pameti!\n");
 	js_mem_free(string);
 	return (long) result;
 }
@@ -504,6 +504,7 @@ int f(void){return 0;}
    je, jestli ne, tak dojdeme na konec, pak zname posledniho a za nej to
    povesime
 */
+	if ((unsigned)yyleng >= MAXINT) overalloc();
 	retezec=(char*)js_mem_alloc(yyleng+1);
 	for(j=0;j<yyleng;j++)retezec[j]=yytext[j];
 	retezec[j]=0;
@@ -541,6 +542,7 @@ int f(void){return 0;}
 	}
 
 /*	yylval=(long)js_mem_alloc(sizeof(js_id_name));
+	if ((unsigned)yyleng >= MAXINT) overalloc();
 	(((js_id_name*)yylval)->jmeno)=retezec=(char*)js_mem_alloc(yyleng+1);
 	(((js_id_name*)yylval)->next)=0;/nema dosud naslednika/
 	for(j=0;j<yyleng;j++)retezec[j]=yytext[j];
@@ -563,6 +565,7 @@ int f(void){return 0;}
 	}
 
 <INITIAL>\/([^\\\/\*\n\r]|\\[^\n\r])([^\n\r\/\\]|\\[^\n\r])*\/[A-Za-z0-9\_\$]*	{
+	if ((unsigned)yyleng >= MAXINT) overalloc();
 	j=1;	rawstr=js_mem_alloc(yyleng-1);	while(j<(yyleng-1)){rawstr[j-1]=yytext[j];j++;}
 	rawstr[j-1]=0;
 	yylval=civilize(rawstr);
@@ -574,6 +577,7 @@ int f(void){return 0;}
 }
 
 <*>('((\\.)|(\\([ \t]*)((\r)|(\n)|(\r\n)))|[^\\\'])*')		{/*RETEZCOVY LITERAL*/
+	if ((unsigned)yyleng >= MAXINT) overalloc();
 		j=1;	rawstr=js_mem_alloc(yyleng-1);	while(j<(yyleng-1)){rawstr[j-1]=yytext[j];j++;}
 		rawstr[j-1]=0;/*konec stringu, spadla klec!*/
 		yylval=civilize(rawstr);
@@ -585,6 +589,7 @@ int f(void){return 0;}
 }
 
 <*>(\"((\\.)|(\\([ \t]*)((\r)|(\n)|(\r\n)))|[^\\\"])*\")	{
+	if ((unsigned)yyleng >= MAXINT) overalloc();
 		j=1;	rawstr=js_mem_alloc(yyleng-1);	while(j<(yyleng-1)){rawstr[j-1]=yytext[j];j++;}
 		rawstr[j-1]=0;
 		yylval=civilize(rawstr); 
@@ -649,7 +654,9 @@ void js_execute_code(js_context* context,unsigned char * code,int len, void (*ca
 	context->callback=callback;
 	js_context_ptr=context;
         if(context->code)
-        {       pomstr=js_mem_alloc(context->codelen+len+1);
+        {       if ((unsigned)context->codelen + (unsigned)len > MAXINT - 1) overalloc();
+		if ((unsigned)context->codelen + (unsigned)len < (unsigned)context->codelen) overalloc();
+		pomstr=js_mem_alloc(context->codelen+len+1);
                 strncpy(pomstr,context->code,context->codelen);
                 pomstr[context->codelen]='\0';
                 strncat(pomstr,code,len);
@@ -657,7 +664,8 @@ void js_execute_code(js_context* context,unsigned char * code,int len, void (*ca
                 js_mem_free(context->code);
                 context->code=pomstr;
                 pomstr=0;
-        }else { context->code=js_mem_alloc(len+1);
+        }else { if ((unsigned)len >= MAXINT) overalloc();
+		context->code=js_mem_alloc(len+1);
                 strncpy(context->code,code,len);
                 context->code[len]='\0';
         }
@@ -696,10 +704,12 @@ Tadyhle prolezeme vsechny funkce a zapamatujeme si, kam s nimi.*/
 	}
 	context->current=js_strom;
 
-	/* odsud se zadne upcally voalt nemuzou. muzou se volat az z funkce js_do_code volane z nuloveho timeru   !!! Mikulasova sekce !!! */
+	/* odsud se zadne upcally volat nemuzou. muzou se volat az z funkce js_do_code volane z nuloveho timeru   !!! Mikulasova sekce !!! */
 /*        if (context->t != -1) internal("there is already code executing in this context");*/
 /*	if(context->code)
-	{	pomstr=js_mem_alloc(context->codelen+len+1);
+        {       if ((unsigned)context->codelen + (unsigned)len > MAXINT - 1) overalloc();
+		if ((unsigned)context->codelen + (unsigned)len < (unsigned)context->codelen) overalloc();
+		pomstr=js_mem_alloc(context->codelen+len+1);
 		strncpy(pomstr,context->code,context->codelen);
 		pomstr[context->codelen]='\0';
 		strncat(pomstr,code,len);
@@ -707,7 +717,8 @@ Tadyhle prolezeme vsechny funkce a zapamatujeme si, kam s nimi.*/
 		js_mem_free(context->code);
 		context->code=pomstr;
 		pomstr=0;
-	}else {	context->code=js_mem_alloc(len+1);
+	}else {	if ((unsigned)len >= MAXINT) overalloc();
+		context->code=js_mem_alloc(len+1);
 		strncpy(context->code,code,len);
 		context[code]='\0';
 	}

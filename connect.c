@@ -9,6 +9,12 @@
 #define LOG_TRANSFER	"/tmp/log"
 */
 
+/* prototypes */
+void ssl_want_read(struct connection *);
+void write_select(struct connection *);
+void read_select(struct connection *);
+
+
 #ifdef LOG_TRANSFER
 void log_data(unsigned char *data, int len)
 {
@@ -67,12 +73,7 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 		abort_connection(c);
 		return;
 	}
-	if (!(b = mem_alloc(sizeof(struct conn_info)))) {
-		mem_free(host);
-		setcstate(c, S_OUT_OF_MEM);
-		retry_connection(c);
-		return;
-	}
+	b = mem_alloc(sizeof(struct conn_info));
 	b->func = func;
 	b->sock = sock;
 	b->port = port;
@@ -301,11 +302,8 @@ void write_to_socket(struct connection *c, int s, unsigned char *data, int len, 
 {
 	struct write_buffer *wb;
 	log_data(data, len);
-	if (!(wb = mem_alloc(sizeof(struct write_buffer) + len))) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
-	}
+	if ((unsigned)len > MAXINT - sizeof(struct write_buffer)) overalloc();
+	wb = mem_alloc(sizeof(struct write_buffer) + len);
 	wb->sock = s;
 	wb->len = len;
 	wb->pos = 0;
@@ -313,10 +311,10 @@ void write_to_socket(struct connection *c, int s, unsigned char *data, int len, 
 	memcpy(wb->data, data, len);
 	if (c->buffer) mem_free(c->buffer);
 	c->buffer = wb;
-	set_handlers(s, NULL, (void (*)())write_select, (void (*)())exception, c);
+	set_handlers(s, NULL, (void (*)(void*))write_select, (void (*)(void*))exception, c);  /* code review */
 }
 
-#define READ_SIZE 16384
+#define READ_SIZE	64240
 
 void read_select(struct connection *c)
 {
@@ -329,11 +327,8 @@ void read_select(struct connection *c)
 		return;
 	}
 	set_handlers(rb->sock, NULL, NULL, NULL, NULL);
-	if (!(rb = mem_realloc(rb, sizeof(struct read_buffer) + rb->len + READ_SIZE))) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
-	}
+	if ((unsigned)rb->len > MAXINT - sizeof(struct read_buffer) - READ_SIZE) overalloc();
+	rb = mem_realloc(rb, sizeof(struct read_buffer) + rb->len + READ_SIZE);
 	c->buffer = rb;
 
 #ifdef HAVE_SSL
@@ -376,11 +371,7 @@ void read_select(struct connection *c)
 struct read_buffer *alloc_read_buffer(struct connection *c)
 {
 	struct read_buffer *rb;
-	if (!(rb = mem_alloc(sizeof(struct read_buffer) + READ_SIZE))) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return NULL;
-	}
+	rb = mem_alloc(sizeof(struct read_buffer) + READ_SIZE);
 	memset(rb, 0, sizeof(struct read_buffer));
 	return rb;
 }
@@ -391,7 +382,7 @@ void read_from_socket(struct connection *c, int s, struct read_buffer *buf, void
 	buf->sock = s;
 	if (c->buffer && buf != c->buffer) mem_free(c->buffer);
 	c->buffer = buf;
-	set_handlers(s, (void (*)())read_select, NULL, (void (*)())exception, c);
+	set_handlers(s, (void (*)(void*))read_select, NULL, (void (*)(void*))exception, c); /* code review */
 }
 
 void kill_buffer_data(struct read_buffer *rb, int n)

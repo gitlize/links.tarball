@@ -22,7 +22,7 @@ struct codepage_desc {
 #include "uni_7b.inc"
 #include "entity.inc"
 
-char *strings[256] = {
+char strings[256][2] = {
 	"\000", "\001", "\002", "\003", "\004", "\005", "\006", "\007",
 	"\010", "\011", "\012", "\013", "\014", "\015", "\016", "\017",
 	"\020", "\021", "\022", "\023", "\024", "\025", "\026", "\033",
@@ -56,6 +56,14 @@ char *strings[256] = {
 	"\360", "\361", "\362", "\363", "\364", "\365", "\366", "\367",
 	"\370", "\371", "\372", "\373", "\374", "\375", "\376", "\377",
 };
+
+/* prototypes */
+void free_translation_table(struct conv_table *);
+void new_translation_table(struct conv_table *);
+void add_utf_8(struct conv_table *, int, unsigned char *);
+void free_utf_table(void);
+struct conv_table *get_translation_table_to_utf_8(int);
+
 
 void free_translation_table(struct conv_table *p)
 {
@@ -155,7 +163,7 @@ void add_utf_8(struct conv_table *ct, int u, unsigned char *str)
 				internal("bad utf encoding #1");
 				return;
 			}
-			if (!(nct = mem_alloc(sizeof(struct conv_table) * 256))) return;
+			nct = mem_alloc(sizeof(struct conv_table) * 256);
 			memset(nct, 0, sizeof(struct conv_table) * 256);
 			new_translation_table(nct);
 			ct[*p].t = 1;
@@ -204,7 +212,7 @@ struct conv_table *get_translation_table_to_utf_8(int from)
 	return utf_table;
 }
 
-int utf8_2_uni_table[0x200] = {
+unsigned short int utf8_2_uni_table[0x200] = {
 	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
 	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
 	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
@@ -378,7 +386,6 @@ unsigned char *get_entity_string(unsigned char *st, int l, int encoding)
 unsigned char *convert_string(struct conv_table *ct, unsigned char *c, int l, struct document_options *dopt)
 {
 	unsigned char *buffer;
-	unsigned char *b;
 	int bp = 0;
 	int pp = 0;
 	if (!ct) {
@@ -387,13 +394,16 @@ unsigned char *convert_string(struct conv_table *ct, unsigned char *c, int l, st
 		return memacpy(c, l);
 		xx:;
 	}
-	if (!(buffer = mem_alloc(ALLOC_GR))) return NULL;
+	buffer = mem_alloc(ALLOC_GR);
 	while (pp < l) {
 		unsigned char *e;
 		if (c[pp] < 128 && c[pp] != '&') {
 			putc:
 			buffer[bp++] = c[pp++];
-			if (!(bp & (ALLOC_GR - 1))) {if ((b = mem_realloc(buffer, bp + ALLOC_GR))) buffer = b; else bp--;}
+			if (!(bp & (ALLOC_GR - 1))) {
+				if ((unsigned)bp > MAXINT - ALLOC_GR) overalloc();
+				buffer = mem_realloc(buffer, bp + ALLOC_GR);
+			}
 			continue;
 		}
 		if (c[pp] != '&') {
@@ -421,12 +431,18 @@ unsigned char *convert_string(struct conv_table *ct, unsigned char *c, int l, st
 		if (!e[0]) continue;
 		if (!e[1]) {
 			buffer[bp++] = e[0];
-			if (!(bp & (ALLOC_GR - 1))) {if ((b = mem_realloc(buffer, bp + ALLOC_GR))) buffer = b; else bp--;}
+			if (!(bp & (ALLOC_GR - 1))) {
+				if ((unsigned)bp > MAXINT - ALLOC_GR) overalloc();
+				buffer = mem_realloc(buffer, bp + ALLOC_GR);
+			}
 			continue;
 		}
 		while (*e) {
 			buffer[bp++] = *(e++);
-			if (!(bp & (ALLOC_GR - 1))) {if ((b = mem_realloc(buffer, bp + ALLOC_GR))) buffer = b; else bp--;}
+			if (!(bp & (ALLOC_GR - 1))) {
+				if ((unsigned)bp > MAXINT - ALLOC_GR) overalloc();
+				buffer = mem_realloc(buffer, bp + ALLOC_GR);
+			}
 		}
 	}
 	buffer[bp] = 0;
@@ -471,7 +487,7 @@ int get_cp_index(unsigned char *n)
 					for (q = 1; codepages[i].aliases[a][q]; q++) {
 						if (upcase(n[p+q]) != upcase(codepages[i].aliases[a][q])) goto fail;
 					}
-					if (strlen(codepages[i].aliases[a]) > ll) {
+					if (strlen(codepages[i].aliases[a]) > (size_t)ll) {
 						ll = strlen(codepages[i].aliases[a]);
 						ii = i;
 					}

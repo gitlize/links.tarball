@@ -93,6 +93,42 @@ void (*round_fn)(unsigned short *in, struct bitmap *out);
 /* When you finish the stuff with dither_start, dither_restart, just do "if (dregs) mem_free(dregs);" */
 void (*dither_fn_internal)(unsigned short *in, struct bitmap *out, int * dregs);
 
+
+     /* prototypes */
+void dither_1byte(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+void round_1byte(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+void dither_2byte(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+void round_2byte(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+void dither_195(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+void round_195(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+void dither_451(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+void round_451(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+void dither_196(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+void round_196(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+void dither_452(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+void round_452(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+void dither_708(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+void round_708(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+long color_332(int);
+long color_121(int);
+long color_pass_rgb(int);
+long color_888_bgr(int);
+void pass_bgr(unsigned short *, struct bitmap *);
+long color_8888_bgr0(int);
+long color_8888_0bgr(int);
+long color_8888_0rgb(int);
+void pass_0bgr(unsigned short *, struct bitmap *);
+long color_555(int);
+long color_565be(int);
+long color_565(int);
+void make_8_table(int *, double);
+void make_16_table(int *, int, int, double , int, int);
+void make_red_table(int, int, int, int);
+void make_green_table(int, int, int, int);
+void make_blue_table(int, int, int, int);
+void make_round_tables(void);
+
+
 #define LIN \
 	r+=(int)(in[0]);\
 	g+=(int)(in[1]);\
@@ -331,6 +367,8 @@ DITHER_TEMPLATE(dither_708)
 ROUND_TEMPLATE(round_708)
 #undef SAVE_CODE
 #undef SKIP_CODE 
+
+
 
 /* For 256-color cube */
 long color_332(int rgb)
@@ -720,11 +758,12 @@ void make_blue_table(int bits, int pos,int dump_t2c, int be)
 
 void dither(unsigned short *in, struct bitmap *out)
 {
-		int *dregs;
-		
-		dregs=mem_calloc(out->x*3*sizeof(*dregs));
-		(*dither_fn_internal)(in, out, dregs);
-		mem_free(dregs);
+	int *dregs;
+	
+	if ((unsigned)out->x > MAXINT / 3 / sizeof(*dregs)) overalloc();
+	dregs=mem_calloc(out->x*3*sizeof(*dregs));
+	(*dither_fn_internal)(in, out, dregs);
+	mem_free(dregs);
 }
 
 /* For functions that do dithering.
@@ -733,6 +772,7 @@ int *dither_start(unsigned short *in, struct bitmap *out)
 {
 	int *dregs;
 	
+	if ((unsigned)out->x > MAXINT / 3 / sizeof(*dregs)) overalloc();
 	dregs=mem_calloc(out->x*3*sizeof(*dregs));
 	(*dither_fn_internal)(in, out, dregs);
 	return dregs;

@@ -8,9 +8,28 @@
 
 #define format format_
 
+/* prototypes */
+int gray (int, int, int);
+int too_near(int, int, int, int, int, int);
+void separate_fg_bg(int *, int *, int *, int, int, int);
+unsigned char *make_html_font_name(int);
+int get_real_font_size(int size);
+
+
 #ifdef G
 
 #include "links.h"
+
+struct style *get_style_by_ta(struct text_attrib *, int *);
+void split_line_object(struct g_part *, struct g_object_text *, unsigned char *);
+void g_line_break(struct g_part *);
+void g_html_form_control(struct g_part *, struct form_control *);
+void do_image(struct g_part *, struct image_description *);
+void *g_html_special(struct g_part *, int, ...);
+void g_do_format(char *, char *, struct g_part *, unsigned char *);
+void g_scan_width(struct g_object **, int, int *);
+void g_scan_lines(struct g_object_line **, int, int *);
+void g_put_chars_conv(struct g_part *, unsigned char *, int);
 
 int get_real_font_size(int size)
 {
@@ -34,7 +53,7 @@ struct background *get_background(unsigned char *bg, unsigned char *bgcolor)
 {
 	struct background *b;
 	struct rgb r;
-	if (!(b = mem_alloc(sizeof(struct background)))) return NULL;
+	b = mem_alloc(sizeof(struct background));
 	/* !!! FIXME: background image */
 	{
 		b->img = 0;
@@ -186,12 +205,22 @@ struct style *get_style_by_ta(struct text_attrib *ta, int *font_size)
 
 #define rm(x) ((x).width - (x).rightmargin * G_HTML_MARGIN > 0 ? (x).width - (x).rightmargin * G_HTML_MARGIN : 0)
 
-inline int pw2(int a)
+#ifndef __SPAD__
+static inline int pw2(int a)
 {
 	int x = 1;
-	while (x < a && x) x <<= 1;
+	while (x < a && x) {
+		if ((unsigned)x > MAXINT / 2) overalloc();
+		x <<= 1;
+	}
 	return x;
 }
+#else
+static inline int pw2(int a)
+{
+	return a;
+}
+#endif
 
 void flush_pending_line_to_obj(struct g_part *p, int minheight)
 {
@@ -205,7 +234,7 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 	w = minheight;
 	for (i = 0; i < l->n_entries; i++) {
 		pp += l->entries[i]->xw;
-		if (l->entries[i]->yw > w) w = l->entries[i]->yw;
+		if (l->entries[i]->xw && l->entries[i]->yw > w) w = l->entries[i]->yw;
 	}
 	if (par_format.align == AL_CENTER) pos = (rm(par_format) + par_format.leftmargin * G_HTML_MARGIN - pp) / 2;
 	else if (par_format.align == AL_RIGHT) pos = rm(par_format) - pp;
@@ -223,7 +252,9 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 	l->y = p->cy;
 	if (l->xw > p->root->xw) p->root->xw = l->xw;
 	p->root->yw = p->cy += w;
-	if (!(a = mem_realloc(p->root, sizeof(struct g_object_area) + sizeof(struct g_object_text *) * pw2(++p->root->n_lines + 1)))) return;
+	p->root->n_lines++;
+	if ((unsigned)p->root->n_lines > (MAXINT - sizeof(struct g_object_area)) / 2 / sizeof(struct g_object_text *) + 1) overalloc();
+	a = mem_realloc(p->root, sizeof(struct g_object_area) + sizeof(struct g_object_text *) * pw2(p->root->n_lines + 1));
 		/* note: +1 is for extend_area */
 	p->root = a;
 	p->root->lines[p->root->n_lines - 1] = l;
@@ -241,7 +272,7 @@ void add_object_to_line(struct g_part *pp, struct g_object_line **lp, struct g_o
 		return;
 	}
 	if (!*lp) {
-		if (!(l = mem_calloc(sizeof(struct g_object_line) + sizeof(struct g_object_text *)))) return;
+		l = mem_calloc(sizeof(struct g_object_line) + sizeof(struct g_object_text *));
 		l->mouse_event = g_line_mouse;
 		l->draw = g_line_draw;
 		l->destruct = g_line_destruct;
@@ -258,7 +289,9 @@ void add_object_to_line(struct g_part *pp, struct g_object_line **lp, struct g_o
 		l->n_entries = 1;
 	} else {
 		if (!go) return;
-		if (!(l = mem_realloc(*lp, sizeof(struct g_object_line) + sizeof(struct g_object *) * ++(*lp)->n_entries))) return;
+		(*lp)->n_entries++;
+		if ((unsigned)(*lp)->n_entries > (MAXINT - sizeof(struct g_object_line)) / sizeof(struct g_object *)) overalloc();
+		l = mem_realloc(*lp, sizeof(struct g_object_line) + sizeof(struct g_object *) * (*lp)->n_entries);
 		*lp = l;
 	}
 	l->entries[l->n_entries - 1] = go;
@@ -288,7 +321,7 @@ void split_line_object(struct g_part *p, struct g_object_text *text, unsigned ch
 		t2 = NULL;
 		goto nt2;
 	}
-	if (!(t2 = mem_calloc(sizeof(struct g_object_text) + strlen(ptr) + 1))) return;
+	t2 = mem_calloc(sizeof(struct g_object_text) + strlen(ptr) + 1);
 	t2->mouse_event = g_text_mouse;
 	t2->draw = g_text_draw;
 	t2->destruct = g_text_destruct;
@@ -321,10 +354,7 @@ void split_line_object(struct g_part *p, struct g_object_text *text, unsigned ch
 		int nn;
 		found:
 		n += !ptr;
-		if (!(l2 = mem_calloc(sizeof(struct g_object_line) + (p->line->n_entries - n) * sizeof(struct g_object_text *)))) {
-			t2->destruct(t2);
-			return;
-		}
+		l2 = mem_calloc(sizeof(struct g_object_line) + (p->line->n_entries - n) * sizeof(struct g_object_text *));
 		l2->mouse_event = g_line_mouse;
 		l2->draw = g_line_draw;
 		l2->destruct = g_line_destruct;
@@ -390,7 +420,7 @@ void g_line_break(struct g_part *p)
 	if (!p->line) {
 		add_object_to_line(p, &p->line, NULL);
 		flush_pending_line_to_obj(p, p->current_font_size);
-	} else {
+	} else /*if (p->w.pos || par_format.align == AL_NO)*/ {
 		flush_pending_line_to_obj(p, 0);
 	}
 	if (p->cx > p->xmax) p->xmax = p->cx;
@@ -508,17 +538,16 @@ void do_image(struct g_part *p, struct image_description *im)
 			get_file(af->rq, &start, &end);
 			if (start == end) goto ft;
 			if (get_image_map(ce->head, start, end, tag, &menu, &ml, format.href_base, format.target_base, 0, 0, 0, 1)) goto ft;
-			if (!(map = mem_alloc(sizeof(struct image_map)))) goto fml;
+			map = mem_alloc(sizeof(struct image_map));
 			map->n_areas = 0;
 			for (i = 0; menu[i].text; i++) {
 				struct link_def *ld = menu[i].data;
 				struct map_area *a;
-				struct image_map *new;
 				struct link *link;
-				int shape = !ld->shape || !*ld->shape ? SHAPE_RECT : !strcasecmp(ld->shape, "default") ? SHAPE_DEFAULT : !strcasecmp(ld->shape, "rect") ? SHAPE_RECT : !strcasecmp(ld->shape, "circle") ? SHAPE_CIRCLE : !strcasecmp(ld->shape, "poly") ? SHAPE_POLY : -1;
+				int shape = !ld->shape || !*ld->shape ? SHAPE_RECT : !strcasecmp(ld->shape, "default") ? SHAPE_DEFAULT : !strcasecmp(ld->shape, "rect") ? SHAPE_RECT : !strcasecmp(ld->shape, "circle") ? SHAPE_CIRCLE : !strcasecmp(ld->shape, "poly") || !strcasecmp(ld->shape, "polygon") ? SHAPE_POLY : -1;
 				if (shape == -1) continue;
-				if (!(new = mem_realloc(map, sizeof(struct image_map) + (map->n_areas + 1) * sizeof(struct map_area)))) continue;
-				map = new;
+				if ((unsigned)map->n_areas > (MAXINT - sizeof(struct image_map)) / sizeof(struct map_area) - 1) overalloc();
+				map = mem_realloc(map, sizeof(struct image_map) + (map->n_areas + 1) * sizeof(struct map_area));
 				a = &map->area[map->n_areas++];
 				a->shape = shape;
 				a->coords = DUMMY;
@@ -526,7 +555,6 @@ void do_image(struct g_part *p, struct image_description *im)
 				if (ld->coords) {
 					unsigned char *p = ld->coords;
 					int num;
-					int *nco;
 					next_coord:
 					num = 0;
 					while (*p && (*p < '0' || *p > '9')) p++;
@@ -541,8 +569,9 @@ void do_image(struct g_part *p, struct image_description *im)
 						num = num * m / 100;
 						p++;
 					} else num = num * d_opt->image_scale / 100;
-					if (!(nco = mem_realloc(a->coords, (a->ncoords + 1) * sizeof(int)))) goto noc;
-					(a->coords = nco)[a->ncoords++] = num;
+					if ((unsigned)a->ncoords > MAXINT / sizeof(int) - 1) overalloc();
+					a->coords = mem_realloc(a->coords, (a->ncoords + 1) * sizeof(int));
+					a->coords[a->ncoords++] = num;
 					goto next_coord;
 				}
 				noc:
@@ -570,7 +599,6 @@ void do_image(struct g_part *p, struct image_description *im)
 				if (last_link) mem_free(last_link), last_link = NULL;
 			}
 			io->map = map;
-			fml:
 			freeml(ml);
 			ft:;
 		}
@@ -596,14 +624,13 @@ void *g_html_special(struct g_part *p, int c, ...)
 			t = va_arg(l, unsigned char *);
 			va_end(l);
 			/*html_tag(p->data, t, X(p->cx), Y(p->cy));*/
-			if ((tag = mem_calloc(sizeof(struct g_object_tag) + strlen(t) + 1))) {
-				tag->mouse_event = g_dummy_mouse;
-				tag->draw = g_dummy_draw;
-				tag->destruct = g_tag_destruct;
-				strcpy(tag->name, t);
-				flush_pending_text_to_line(p);
-				add_object_to_line(p, &p->line, (struct g_object *)tag);
-			}
+			tag = mem_calloc(sizeof(struct g_object_tag) + strlen(t) + 1);
+			tag->mouse_event = g_dummy_mouse;
+			tag->draw = g_dummy_draw;
+			tag->destruct = g_tag_destruct;
+			strcpy(tag->name, t);
+			flush_pending_text_to_line(p);
+			add_object_to_line(p, &p->line, (struct g_object *)tag);
 			break;
 		case SP_CONTROL:
 			fc = va_arg(l, struct form_control *);
@@ -615,7 +642,7 @@ void *g_html_special(struct g_part *p, int c, ...)
 			return convert_table;
 		case SP_USED:
 			va_end(l);
-			return (void *)!!p->data;
+			return (void *)!!p->data; /* cast to pointer from integer of different size */
 		case SP_FRAMESET:
 			fsp = va_arg(l, struct frameset_param *);
 			va_end(l);
@@ -653,7 +680,7 @@ void *g_html_special(struct g_part *p, int c, ...)
 unsigned char to_je_ale_prasarna[] = "";
 
 unsigned char *cached_font_face = to_je_ale_prasarna;
-struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0 }, { 0, 0, 0 } };
+struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0 };
 
 void g_put_chars(struct g_part *p, unsigned char *s, int l)
 {
@@ -665,7 +692,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 	}
 	while (par_format.align != AL_NO && p->cx == -1 && l && *s == ' ') s++, l--;
 	if (!l) return;
-	if (p->cx == -1) p->cx = par_format.leftmargin * G_HTML_MARGIN;
+	if (p->cx < par_format.leftmargin * G_HTML_MARGIN) p->cx = par_format.leftmargin * G_HTML_MARGIN;
 	if (html_format_changed) {
 		if (memcmp(&ta_cache, &format, sizeof(struct text_attrib_beginning)) || xstrcmp(cached_font_face, format.fontface) || cached_font_face == to_je_ale_prasarna ||
 	xstrcmp(format.link, last_link) || xstrcmp(format.target, last_target) ||
@@ -675,7 +702,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 			flush_pending_text_to_line(p);
 			if (xstrcmp(cached_font_face, format.fontface) || cached_font_face == to_je_ale_prasarna) {
 				if (cached_font_face && cached_font_face != to_je_ale_prasarna) mem_free(cached_font_face);
-				copy_string(&cached_font_face, format.fontface);
+				cached_font_face = stracpy(format.fontface);
 			}
 			memcpy(&ta_cache, &format, sizeof(struct text_attrib_beginning));
 			if (p->current_style) g_free_style(p->current_style);
@@ -683,10 +710,10 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 		}
 		html_format_changed = 0;
 	}
-	/*if (p->cx == par_format.leftmargin * G_HTML_MARGIN && *s == ' ' && par_format.align != AL_NO) s++, l--;*/
+	/*if (p->cx <= par_format.leftmargin * G_HTML_MARGIN && *s == ' ' && par_format.align != AL_NO) s++, l--;*/
 	if (!p->text) {
 		link = NULL;
-		if (!(t = mem_calloc(sizeof(struct g_object_text) + ALLOC_GR))) return;
+		t = mem_calloc(sizeof(struct g_object_text) + ALLOC_GR);
 		t->mouse_event = g_text_mouse;
 		t->draw = g_text_draw;
 		t->destruct = g_text_destruct;
@@ -721,8 +748,10 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 		goto a1;
 	}
 	if ((p->pending_text_len & ~(ALLOC_GR - 1)) != ((p->pending_text_len + l) & ~(ALLOC_GR - 1))) a1:{
-		struct g_object_text *t = mem_realloc(p->text, sizeof(struct g_object_text) + ((p->pending_text_len + l + ALLOC_GR) & ~(ALLOC_GR - 1)));
-		if (!t) return;
+		struct g_object_text *t;
+		if ((unsigned)l > MAXINT) overalloc();
+		if ((unsigned)p->pending_text_len + (unsigned)l > MAXINT - ALLOC_GR) overalloc();
+		t = mem_realloc(p->text, sizeof(struct g_object_text) + ((p->pending_text_len + l + ALLOC_GR) & ~(ALLOC_GR - 1)));
 		if (p->w.last_wrap >= p->text->text && p->w.last_wrap < p->text->text + p->pending_text_len) p->w.last_wrap += (unsigned char *)t - (unsigned char *)p->text;
 		if (p->w.last_wrap_obj == p->text) p->w.last_wrap_obj = t;
 		p->text = t;
@@ -777,7 +806,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 			strcat(s, "]");
 			g_put_chars(p, s, strlen(s));
 			if (ff && ff->type == FC_TEXTAREA) g_line_break(p);
-			if (p->cx == -1) p->cx = par_format.leftmargin * G_HTML_MARGIN;
+			if (p->cx < par_format.leftmargin * G_HTML_MARGIN) p->cx = par_format.leftmargin * G_HTML_MARGIN;
 			format.link = fl, format.target = ft, format.image = fi;
 			format.form = ff;
 			format.js_event = js;
@@ -816,7 +845,7 @@ void g_do_format(char *start, char *end, struct g_part *part, unsigned char *hea
 	/*if ((part->y -= line_breax) < 0) part->y = 0;*/
 	flush_pending_text_to_line(part);
 	flush_pending_line_to_obj(part, 0);
-	);
+	) {};
 }
 
 struct g_table_cache_entry {
@@ -849,10 +878,9 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	struct g_table_cache_entry *tce;
 	if (!f_d) foreach(tce, g_table_cache) {
 		if (tce->start == start && tce->end == end && tce->align == align && tce->m == m && tce->width == width && tce->link_num == link_num) {
-			if ((p = mem_alloc(sizeof(struct g_part)))) {
-				memcpy(p, &tce->p, sizeof(struct part));
-				return p;
-			}
+			p = mem_alloc(sizeof(struct g_part));
+			memcpy(p, &tce->p, sizeof(struct part));
+			return p;
 		}
 	}
 	margin = m;
@@ -868,13 +896,10 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	last_js_event = NULL;
 
 	cached_font_face = to_je_ale_prasarna;
-	if (!(p = mem_calloc(sizeof(struct g_part)))) return NULL;
+	p = mem_calloc(sizeof(struct g_part));
 	{
 		struct g_object_area *a;
-		if (!(a = mem_calloc(sizeof(struct g_object_area) + sizeof(struct g_object_line *)))) {
-			mem_free(p);
-			return NULL;
-		}
+		a = mem_calloc(sizeof(struct g_object_area) + sizeof(struct g_object_line *));
 		a->bg = get_background(bg, bgcolor);
 		if (bgcolor) decode_color(bgcolor, &format.bg);
 		if (bgcolor) decode_color(bgcolor, &par_format.bgcolor);
@@ -940,7 +965,8 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	last_form = NULL;
 	last_js_event = NULL;
 
-	if (table_level > 1 && !f_d && ((tce = mem_alloc(sizeof(struct g_table_cache_entry))))) {
+	if (table_level > 1 && !f_d) {
+		tce = mem_alloc(sizeof(struct g_table_cache_entry));
 		tce->start = start;
 		tce->end = end;
 		tce->align = align;
@@ -1009,7 +1035,7 @@ void g_x_extend_area(struct g_object_area *a, int width, int height)
 		break;
 	}
 	if (a->yw >= height) return;
-	if (!(l = mem_calloc(sizeof(struct g_object_line)))) return;
+	l = mem_calloc(sizeof(struct g_object_line));
 	l->mouse_event = g_line_mouse;
 	l->draw = g_line_draw;
 	l->destruct = g_line_destruct;

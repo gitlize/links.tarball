@@ -82,6 +82,7 @@ Jan Bobrowski <jb@mohan.krakow.pl>
 Serge Winitzki <serge at mendax dot phys dot cwru dot edu>,
 	       <serge at cosmos dot phy dot tufts dot edu>
 	Upadted Russian localization
+	Updated German localication
 	SSL detection fix
 
 Alex Antropoff <alex@tirastel.md>
@@ -311,4 +312,19 @@ Eduard Werner <edi.werner@gmx.de>
 
 Vladimir Marek <marek@printsoft.cz>
 	Fixed --disable-graphics and --disable-javascript
-	
+
+Sam <sam@frida.fri.utc.sk>
+	SDL graphics driver
+
+Karel Karlik <kkar8447@ss1000.ms.mff.cuni.cz>
+	Fixed framebuffer in 15 and 16-bit modes
+
+Edward Rosten <er258@hermes.cam.ac.uk>
+	Block ad images
+
+Dieter <netbsd@sopwith.solgatos.com>
+	Fix warnings on 64-bit machines
+
+Jakub Bogusz <qboosh@pld-linux.org>
+	Updated Polish translation
+

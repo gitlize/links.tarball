@@ -17,6 +17,14 @@ void *assoc_new_item(void *);
 void assoc_delete_item(void *);
 void *assoc_find_item(void *start, unsigned char *str, int direction);
 unsigned char *assoc_type_item(struct terminal *, void *, int);
+void assoc_edit_item_fn(struct dialog_data *);
+void assoc_edit_done(void *);
+void assoc_edit_abort(struct dialog_data *);
+void ext_edit_item_fn(struct dialog_data *);
+void ext_edit_done(void *);
+void ext_edit_abort(struct dialog_data *);
+int is_in_list(unsigned char *, unsigned char *, int);
+
 
 struct list assoc={&assoc,&assoc,0,-1,NULL};
 
@@ -51,7 +59,10 @@ struct list_description assoc_ld={
 	NULL,	/* no button */
 
 	0,0,0,0,  /* internal vars */
-	0 /* modified */
+	0, /* modified */
+	NULL,
+	NULL,
+	1,
 };
 
 
@@ -71,7 +82,7 @@ void *assoc_new_item(void *ignore)
 	struct assoc *new;
 
 	ignore=ignore;
-	if (!(new = mem_alloc(sizeof(struct assoc)))) return NULL;
+	new = mem_alloc(sizeof(struct assoc));
 	new->label = stracpy("");
 	new->ct = stracpy("");
 	new->prog = stracpy("");
@@ -270,8 +281,7 @@ void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct d
 	struct assoc_ok_struct *s;
 	unsigned char *ct, *prog, *label;
 
-	if (!(d = mem_alloc(sizeof(struct dialog) + 10 * sizeof(struct dialog_item) + 3 * MAX_STR_LEN))) return;
-	memset(d, 0, sizeof(struct dialog) + 10 * sizeof(struct dialog_item) + 3 * MAX_STR_LEN);
+	d = mem_calloc(sizeof(struct dialog) + 10 * sizeof(struct dialog_item) + 3 * MAX_STR_LEN);
 
 	label=(unsigned char *)&d->items[10];
 	ct=label+MAX_STR_LEN;
@@ -282,7 +292,7 @@ void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct d
 	if (new->prog)strncpy(prog,new->prog,MAX_STR_LEN);
 	
 	/* Create the dialog */
-	if (!(s=mem_alloc(sizeof(struct assoc_ok_struct))))return;
+	s=mem_alloc(sizeof(struct assoc_ok_struct));
 	s->fn=ok_fn;
 	s->data=ok_arg;
 	s->dlg=dlg;
@@ -386,7 +396,7 @@ void update_assoc(struct assoc *new)
 		add_to_list(assoc, repl);
 		return;
 	}
-	if (!(repl = mem_alloc(sizeof(struct assoc)))) return;
+	repl = mem_alloc(sizeof(struct assoc));
 	add_to_list(assoc, repl);
 	repl->label = stracpy(new->label);
 	repl->ct = stracpy(new->ct);
@@ -438,7 +448,10 @@ struct list_description ext_ld={
 	NULL,	/* no button */
 
 	0,0,0,0,  /* internal vars */
-	0 /* modified */
+	0, /* modified */
+	NULL,
+	NULL,
+	0,
 };
 
 
@@ -450,7 +463,7 @@ void *ext_new_item(void *ignore)
 	struct extension *new;
 
 	ignore=ignore;
-	if (!(new = mem_alloc(sizeof(struct extension)))) return NULL;
+	new = mem_alloc(sizeof(struct extension));
 	new->ext = stracpy("");
 	new->ct = stracpy("");
 	new->type=0;
@@ -598,8 +611,7 @@ void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dia
 	unsigned char *ext;
 	unsigned char *ct;
 
-	if (!(d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + 2 * MAX_STR_LEN))) return;
-	memset(d, 0, sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + 2 * MAX_STR_LEN);
+	d = mem_calloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + 2 * MAX_STR_LEN);
 
 	ext=(unsigned char *)&d->items[5];
 	ct = ext + MAX_STR_LEN;
@@ -607,7 +619,7 @@ void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dia
 	if (new->ct)strncpy(ct, new->ct, MAX_STR_LEN);
 
 	/* Create the dialog */
-	if (!(s=mem_alloc(sizeof(struct assoc_ok_struct))))return;
+	s=mem_alloc(sizeof(struct assoc_ok_struct));
 	s->fn=ok_fn;
 	s->data=ok_arg;
 	s->dlg=dlg;
@@ -693,7 +705,7 @@ void update_ext(struct extension *new)
 		add_to_list(extensions, repl);
 		return;
 	}
-	if (!(repl = mem_alloc(sizeof(struct extension)))) return;
+	repl = mem_alloc(sizeof(struct extension));
 	add_to_list(extensions, repl);
 	repl->ext = stracpy(new->ext);
 	repl->ct = stracpy(new->ct);
@@ -748,6 +760,7 @@ void create_initial_extensions(void)
 struct list_head mailto_prog = { &mailto_prog, &mailto_prog };
 struct list_head telnet_prog = { &telnet_prog, &telnet_prog };
 struct list_head tn3270_prog = { &tn3270_prog, &tn3270_prog };
+struct list_head mms_prog = { &mms_prog, &mms_prog };
 
 
 int is_in_list(unsigned char *list, unsigned char *str, int l)
@@ -779,13 +792,25 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 		return ct;
 	}
 	ext = NULL, extl = 0;
-	for (ct = url; *ct && !end_of_dir(*ct); ct++)
+	for (ct = url; *ct && !end_of_dir(url, *ct); ct++)
 		if (*ct == '.') ext = ct + 1;
 		else if (dir_sep(*ct)) ext = NULL;
-	if (ext) while (ext[extl] && !dir_sep(ext[extl]) && !end_of_dir(ext[extl])) extl++;
+	if (ext) while (ext[extl] && !dir_sep(ext[extl]) && !end_of_dir(url, ext[extl])) extl++;
 	if ((extl == 3 && !casecmp(ext, "htm", 3)) ||
 	    (extl == 4 && !casecmp(ext, "html", 4))) return stracpy("text/html");
-	foreach(e, extensions) if (is_in_list(e->ext, ext, extl)) return stracpy(e->ct);
+	foreach(e, extensions) {
+		unsigned char *fname = NULL;
+		for (ct = url; *ct && !end_of_dir(url, *ct); ct++)
+			if (dir_sep(*ct)) fname = ct + 1;
+		if (!fname) {
+			if (is_in_list(e->ext, ext, extl)) return stracpy(e->ct);
+		} else {
+			int fnlen = 0;
+			int x;
+			while (fname[fnlen] && !end_of_dir(url, fname[fnlen])) fnlen++;
+			for (x = 0; x < fnlen; x++) if (fname[x] == '.') if (is_in_list(e->ext, fname + x + 1, fnlen - x - 1)) return stracpy(e->ct);
+		}
+	}
 
 	if ((extl == 3 && !casecmp(ext, "jpg", 3)) ||
 	    (extl == 4 && !casecmp(ext, "pjpg", 4))||
@@ -811,12 +836,14 @@ struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 	struct assoc *a;
 	int count=0;
 	foreach(a, assoc) 
-		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, strlen(type))) 
+		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, strlen(type))) {
+			if (count == MAXINT) overalloc();
 			count ++;
+		}
 	*n=count;
 	if (!count)return NULL;
+	if ((unsigned)count > MAXINT / sizeof(struct assoc)) overalloc();
 	vecirek=mem_alloc(count*sizeof(struct assoc));
-	if (!vecirek)internal("Cannot allocate memory.\n");
 	count=0;
 	foreach(a, assoc) 
 		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, strlen(type))) 
@@ -846,6 +873,8 @@ void free_types(void)
 	free_list(telnet_prog);
 	foreach(p, tn3270_prog) mem_free(p->prog);
 	free_list(tn3270_prog);
+	foreach(p, mms_prog) mem_free(p->prog);
+	free_list(mms_prog);
 
 	free_list(ext_search_history.items);
 	free_list(assoc_search_history.items);
@@ -858,14 +887,13 @@ void update_prog(struct list_head *l, unsigned char *p, int s)
 		mem_free(repl->prog);
 		goto ss;
 	}
-	if (!(repl = mem_alloc(sizeof(struct protocol_program)))) return;
+	repl = mem_alloc(sizeof(struct protocol_program));
 	add_to_list(*l, repl);
 	repl->system = s;
 	ss:
-	if ((repl->prog = mem_alloc(MAX_STR_LEN))) {
-		strncpy(repl->prog, p, MAX_STR_LEN);
-		repl->prog[MAX_STR_LEN - 1] = 0;
-	}
+	repl->prog = mem_alloc(MAX_STR_LEN);
+	strncpy(repl->prog, p, MAX_STR_LEN);
+	repl->prog[MAX_STR_LEN - 1] = 0;
 }
 
 unsigned char *get_prog(struct list_head *l)

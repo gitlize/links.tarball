@@ -413,11 +413,13 @@ void ath_set_title(struct graphics_device *dev, unsigned char *title)
 	unlock_dev(dev);
 }
 
+/*
 int ath_get_filled_bitmap(struct bitmap *bmp, long color)
 {
 	internal((unsigned char *)"nedopsano");
 	return 0;
 }
+*/
 
 int ath_get_empty_bitmap(struct bitmap *bmp)
 {
@@ -579,7 +581,7 @@ struct graphics_driver atheos_driver = {
 	ath_shutdown_driver,
 	ath_get_driver_param,
 	ath_get_empty_bitmap,
-	ath_get_filled_bitmap,
+	/*ath_get_filled_bitmap,*/
 	ath_register_bitmap,
 	ath_prepare_strip,
 	ath_commit_strip,
@@ -600,6 +602,8 @@ struct graphics_driver atheos_driver = {
 	0,				/* depth */
 	0, 0,				/* size */
 	0,				/* flags */
+	0,				/* codepage */
+	NULL,				/* shell */
 };
 
 #endif

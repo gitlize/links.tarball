@@ -10,7 +10,7 @@
 struct f_data *init_formatted(struct document_options *opt)
 {
 	struct f_data *scr;
-	if (!(scr = mem_calloc(sizeof(struct f_data)))) return NULL;
+	scr = mem_calloc(sizeof(struct f_data));
 	copy_opt(&scr->opt, opt);
 	scr->data = DUMMY;
 	scr->nlinks = 0;
@@ -29,6 +29,22 @@ struct f_data *init_formatted(struct document_options *opt)
 #endif
 	return scr;
 }
+
+/* prototypes */
+void clear_formatted(struct f_data *);
+void r_xpand_spaces(struct part *, int);
+int split_line(struct part *);
+void put_chars_conv(struct part *, unsigned char *, int);
+void html_form_control(struct part *, struct form_control *);
+void add_frameset_entry(struct frameset_desc *, struct frameset_desc *, unsigned char *, unsigned char *, int, int);
+void *html_special(struct part *, int, ...);
+void do_format(char *, char *, struct part *, unsigned char *);
+void release_part(struct part *);
+void push_base_format(unsigned char *, struct document_options *, int);
+void add_srch_chr(struct f_data *, unsigned char, int, int, int);
+void sort_srch(struct f_data *);
+int get_srch(struct f_data *);
+
 
 void destroy_fc(struct form_control *fc)
 {
@@ -67,7 +83,8 @@ struct frameset_desc *copy_frameset_desc(struct frameset_desc *fd)
 {
 	int i;
 	struct frameset_desc *new;
-	if (!(new = mem_alloc(sizeof(struct frameset_desc) + fd->n * sizeof(struct frame_desc)))) return NULL;
+	if ((unsigned)fd->n > MAXINT / sizeof(struct frame_desc)) overalloc();
+	new = mem_alloc(sizeof(struct frameset_desc) + fd->n * sizeof(struct frame_desc));
 	memcpy(new, fd, sizeof(struct frameset_desc) + fd->n * sizeof(struct frame_desc));
 #ifdef JS
 	if (new->onload_code) new->onload_code = stracpy(new->onload_code);
@@ -164,55 +181,55 @@ static inline int color_distance(struct rgb *c1, struct rgb *c2)
 }
 
 struct rgb palette[] = {
-/*	{0x00, 0x00, 0x00},
-	{0x80, 0x00, 0x00},
-	{0x00, 0x80, 0x00},
-	{0x80, 0x80, 0x00},
-	{0x00, 0x00, 0x80},
-	{0x80, 0x00, 0x80},
-	{0x00, 0x80, 0x80},
-	{0xC0, 0xC0, 0xC0},
-	{0x80, 0x80, 0x80},
-	{0xff, 0x00, 0x00},
-	{0x00, 0xff, 0x00},
-	{0xff, 0xff, 0x00},
-	{0x00, 0x00, 0xff},
-	{0xff, 0x00, 0xff},
-	{0x00, 0xff, 0xff},
-	{0xff, 0xff, 0xff},*/
-	/*{0x00, 0x00, 0x00},
-	{0xaa, 0x00, 0x00},
-	{0x00, 0xaa, 0x00},
-	{0xaa, 0x55, 0x00},
-	{0x00, 0x00, 0xaa},
-	{0xaa, 0x00, 0xaa},
-	{0x00, 0xaa, 0xaa},
-	{0xaa, 0xaa, 0xaa},
-	{0x55, 0x55, 0x55},
-	{0xff, 0x55, 0x55},
-	{0x55, 0xff, 0x55},
-	{0xff, 0xff, 0x55},
-	{0x55, 0x55, 0xff},
-	{0xff, 0x55, 0xff},
-	{0x55, 0xff, 0xff},
-	{0xff, 0xff, 0xff},*/
-	{0x00, 0x00, 0x00},
-	{0x80, 0x00, 0x00},
-	{0x00, 0x80, 0x00},
-	{0xaa, 0x55, 0x00},
-	{0x00, 0x00, 0x80},
-	{0x80, 0x00, 0x80},
-	{0x00, 0x80, 0x80},
-	{0xaa, 0xaa, 0xaa},
-	{0x55, 0x55, 0x55},
-	{0xff, 0x55, 0x55},
-	{0x55, 0xff, 0x55},
-	{0xff, 0xff, 0x55},
-	{0x55, 0x55, 0xff},
-	{0xff, 0x55, 0xff},
-	{0x55, 0xff, 0xff},
-	{0xff, 0xff, 0xff},
-	{-1, -1, -1}
+/*	{0x00, 0x00, 0x00, 0},
+	{0x80, 0x00, 0x00, 0},
+	{0x00, 0x80, 0x00, 0},
+	{0x80, 0x80, 0x00, 0},
+	{0x00, 0x00, 0x80, 0},
+	{0x80, 0x00, 0x80, 0},
+	{0x00, 0x80, 0x80, 0},
+	{0xC0, 0xC0, 0xC0, 0},
+	{0x80, 0x80, 0x80, 0},
+	{0xff, 0x00, 0x00, 0},
+	{0x00, 0xff, 0x00, 0},
+	{0xff, 0xff, 0x00, 0},
+	{0x00, 0x00, 0xff, 0},
+	{0xff, 0x00, 0xff, 0},
+	{0x00, 0xff, 0xff, 0},
+	{0xff, 0xff, 0xff, 0},*/
+	/*{0x00, 0x00, 0x00, 0},
+	{0xaa, 0x00, 0x00, 0},
+	{0x00, 0xaa, 0x00, 0},
+	{0xaa, 0x55, 0x00, 0},
+	{0x00, 0x00, 0xaa, 0},
+	{0xaa, 0x00, 0xaa, 0},
+	{0x00, 0xaa, 0xaa, 0},
+	{0xaa, 0xaa, 0xaa, 0},
+	{0x55, 0x55, 0x55, 0},
+	{0xff, 0x55, 0x55, 0},
+	{0x55, 0xff, 0x55, 0},
+	{0xff, 0xff, 0x55, 0},
+	{0x55, 0x55, 0xff, 0},
+	{0xff, 0x55, 0xff, 0},
+	{0x55, 0xff, 0xff, 0},
+	{0xff, 0xff, 0xff, 0},*/
+	{0x00, 0x00, 0x00, 0},
+	{0x80, 0x00, 0x00, 0},
+	{0x00, 0x80, 0x00, 0},
+	{0xaa, 0x55, 0x00, 0},
+	{0x00, 0x00, 0x80, 0},
+	{0x80, 0x00, 0x80, 0},
+	{0x00, 0x80, 0x80, 0},
+	{0xaa, 0xaa, 0xaa, 0},
+	{0x55, 0x55, 0x55, 0},
+	{0xff, 0x55, 0x55, 0},
+	{0x55, 0xff, 0x55, 0},
+	{0xff, 0xff, 0x55, 0},
+	{0x55, 0x55, 0xff, 0},
+	{0xff, 0x55, 0xff, 0},
+	{0x55, 0xff, 0xff, 0},
+	{0xff, 0xff, 0xff, 0},
+	{-1, -1, -1, 0}
 };
 
 /*struct rgb rgbcache = {0, 0, 0};
@@ -274,7 +291,7 @@ static inline int fg_color(int fg, int bg)
 	   (l == 1 && (h == 3 || h == 5 || h == 8 || h == 12)) ||
 	   (l == 2 && h == 6) || (l == 3 && (h == 5 || h == 12)) ||
 	   (l == 4 && (h == 8 || h == 12)) || (l == 5 && (h == 8 || h == 12)))
-	   	return (fg == 4 || fg == 12) && (bg == 0 || bg == 8) ? 6 : (7 - 7 * (bg == 2 || bg == 6 || bg == 7));
+		return (fg == 4 || fg == 12) && (bg == 0 || bg == 8) ? 6 : (7 - 7 * (bg == 2 || bg == 6 || bg == 7));
 	return fg;
 }
 
@@ -282,18 +299,17 @@ static inline int fg_color(int fg, int bg)
 
 int nowrap = 0;
 
-static inline int xpand_lines(struct part *p, int y)
+static inline void xpand_lines(struct part *p, int y)
 {
 	/*if (y >= p->y) p->y = y + 1;*/
-	if (!p->data) return 0;
+	if (!p->data) return;
+	if (XALIGN((unsigned)y + (unsigned)p->yp) > MAXINT) overalloc();
 	y += p->yp;
 	if (y >= p->data->y) {
 		int i;
 		if (XALIGN(y + 1) > XALIGN(p->data->y)) {
-			struct line *l;
-			if (!(l = mem_realloc(p->data->data, XALIGN(y+1)*sizeof(struct line))))
-				return -1;
-			p->data->data = l;
+			if (XALIGN((unsigned)y + 1) > MAXINT / sizeof(struct line)) overalloc();
+			p->data->data = mem_realloc(p->data->data, XALIGN(y+1)*sizeof(struct line));
 		}
 		for (i = p->data->y; i <= y; i++) {
 			p->data->data[i].l = 0;
@@ -302,50 +318,46 @@ static inline int xpand_lines(struct part *p, int y)
 		}
 		p->data->y = i;
 	}
-	return 0;
 }
 
-static inline int xpand_line(struct part *p, int y, int x)
+static inline void xpand_line(struct part *p, int y, int x)
 {
-	if (!p->data) return 0;
+	if (!p->data) return;
+	if (XALIGN((unsigned)x + (unsigned)p->xp) > MAXINT) overalloc();
 	x += p->xp;
 	y += p->yp;
 #ifdef DEBUG
 	if (y >= p->data->y) {
 		internal("line does not exist");
-		return -1;
+		return;
 	}
 #endif
 	if (x >= p->data->data[y].l) {
 		int i;
 		if (XALIGN(x+1) > XALIGN(p->data->data[y].l)) {
-			chr *l;
-			if (!(l = mem_realloc(p->data->data[y].d, XALIGN(x+1)*sizeof(chr))))
-				return -1;
-			p->data->data[y].d = l;
+			if (XALIGN((unsigned)x + 1) > MAXINT / sizeof(chr)) overalloc();
+			p->data->data[y].d = mem_realloc(p->data->data[y].d, XALIGN(x+1)*sizeof(chr));
 		}
 		for (i = p->data->data[y].l; i <= x; i++)
 			p->data->data[y].d[i] = (p->data->data[y].c << 11) | ' ';
 		p->data->data[y].c = p->bgcolor;
 		p->data->data[y].l = i;
 	}
-	return 0;
 }
 
-int r_xpand_spaces(struct part *p, int l)
+void r_xpand_spaces(struct part *p, int l)
 {
 	unsigned char *c;
-	if (!(c = mem_realloc(p->spaces, l + 1))) return -1;
+	if ((unsigned)l >= MAXINT) overalloc();
+	c = mem_realloc(p->spaces, l + 1);
 	memset(c + p->spl, 0, l - p->spl + 1);
 	p->spl = l + 1;
 	p->spaces = c;
-	return 0;
 }
 
-static inline int xpand_spaces(struct part *p, int l)
+static inline void xpand_spaces(struct part *p, int l)
 {
-	if (l >= p->spl) return r_xpand_spaces(p, l);
-	return 0;
+	if ((unsigned)l >= (unsigned)p->spl) r_xpand_spaces(p, l);
 }
 
 #define POS(x, y) (p->data->data[p->yp + (y)].d[p->xp + (x)])
@@ -356,15 +368,15 @@ static inline int xpand_spaces(struct part *p, int l)
 
 static inline void set_hchar(struct part *p, int x, int y, unsigned c)
 {
-	if (xpand_lines(p, y)) return;
-	if (xpand_line(p, y, x)) return;
+	xpand_lines(p, y);
+	xpand_line(p, y, x);
 	POS(x, y) = c;
 }
 
 static inline void set_hchars(struct part *p, int x, int y, int xl, unsigned c)
 {
-	if (xpand_lines(p, y)) return;
-	if (xpand_line(p, y, x+xl-1)) return;
+	xpand_lines(p, y);
+	xpand_line(p, y, x+xl-1);
 	for (; xl; xl--, x++) POS(x, y) = c;
 }
 
@@ -378,21 +390,21 @@ void xset_hchars(struct part *p, int x, int y, int xl, unsigned c)
 	set_hchars(p, x, y, xl, c);
 }
 
-int xxpand_lines(struct part *p, int y)
+void xxpand_lines(struct part *p, int y)
 {
-	return xpand_lines(p, y);
+	xpand_lines(p, y);
 }
 
-int xxpand_line(struct part *p, int y, int x)
+void xxpand_line(struct part *p, int y, int x)
 {
-	return xpand_line(p, y, x);
+	xpand_line(p, y, x);
 }
 
 static inline void set_hline(struct part *p, int x, int y, int xl, unsigned char *d, unsigned c, int spc)
 {
-	if (xpand_lines(p, y)) return;
-	if (xpand_line(p, y, x+xl-1)) return;
-	if (spc && xpand_spaces(p, x+xl-1)) return;
+	xpand_lines(p, y);
+	xpand_line(p, y, x+xl-1);
+	if (spc) xpand_spaces(p, x+xl-1);
 	for (; xl; xl--, x++, d++) {
 		if (spc) p->spaces[x] = *d == ' ';
 		if (p->data) POS(x, y) = *d | c;
@@ -448,8 +460,8 @@ static inline void move_links(struct part *p, int xf, int yf, int xt, int yt)
 static inline void copy_chars(struct part *p, int x, int y, int xl, chr *d)
 {
 	if (xl <= 0) return;
-	if (xpand_lines(p, y)) return;
-	if (xpand_line(p, y, x+xl-1)) return;
+	xpand_lines(p, y);
+	xpand_line(p, y, x+xl-1);
 	for (; xl; xl--, x++, d++) POS(x, y) = *d;
 }
 
@@ -465,7 +477,8 @@ static inline void shift_chars(struct part *p, int y, int s)
 {
 	chr *a;
 	int l = LEN(y);
-	if (!(a = mem_alloc(l * sizeof(chr)))) return;
+	if ((unsigned)l > MAXINT / sizeof(chr)) overalloc();
+	a = mem_alloc(l * sizeof(chr));
 	memcpy(a, &POS(0, y), l * sizeof(chr));
 	set_hchars(p, 0, y, s, (p->data->data[y].c << 11) | ' ');
 	copy_chars(p, s, y, l, a);
@@ -537,9 +550,8 @@ struct link *new_link(struct f_data *f)
 {
 	if (!f) return NULL;
 	if (!(f->nlinks & (ALLOC_GR - 1))) {
-		struct link *l;
-		if (!(l = mem_realloc(f->links, (f->nlinks + ALLOC_GR) * sizeof(struct link)))) return NULL;
-		f->links = l;
+		if ((unsigned)f->nlinks > MAXINT / sizeof(struct link) - ALLOC_GR) overalloc();
+		f->links = mem_realloc(f->links, (f->nlinks + ALLOC_GR) * sizeof(struct link));
 	}
 	memset(&f->links[f->nlinks], 0, sizeof(struct link));
 #ifdef G
@@ -553,13 +565,12 @@ void html_tag(struct f_data *f, unsigned char *t, int x, int y)
 {
 	struct tag *tag;
 	if (!f) return;
-	if ((tag = mem_alloc(sizeof(struct tag) + strlen(t) + 1))) {
-		tag->x = x;
-		tag->y = y;
-		strcpy(tag->name, t);
-		add_to_list(f->tags, tag);
-		if ((void *)last_tag_for_newline == &f->tags) last_tag_for_newline = tag;
-	}
+	tag = mem_alloc(sizeof(struct tag) + strlen(t) + 1);
+	tag->x = x;
+	tag->y = y;
+	strcpy(tag->name, t);
+	add_to_list(f->tags, tag);
+	if ((void *)last_tag_for_newline == &f->tags) last_tag_for_newline = tag;
 }
 
 unsigned char *last_link = NULL;
@@ -637,7 +648,7 @@ void put_chars_conv(struct part *p, unsigned char *c, int l)
 
 void put_chars(struct part *p, unsigned char *c, int l)
 {
-	static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0 }, { 0, 0, 0 } };
+	static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0 };
 	static int bg_cache;
 	static int fg_cache;
 
@@ -645,13 +656,14 @@ void put_chars(struct part *p, unsigned char *c, int l)
 	int i;
 	struct link *link;
 	struct point *pt;
+	if (l < 0) overalloc();
 	/*printf("%d-", p->cx);for (i=0; i<l; i++) printf("%c", c[i]); printf("-\n");sleep(1);*/
 	while (par_format.align != AL_NO && p->cx == -1 && l && *c == ' ') c++, l--;
 	if (!l) return;
 	if (c[0] != ' ' || (c[1] && c[1] != ' ')) {
 		last_tag_for_newline = (void *)&p->data->tags;
 	}
-	if (p->cx == -1) p->cx = par_format.leftmargin;
+	if (p->cx < par_format.leftmargin) p->cx = par_format.leftmargin;
 	if (last_link || last_image || last_form || format.link || format.image 
 	|| format.form || format.js_event || last_js_event
 	) goto process_link;
@@ -729,7 +741,7 @@ void put_chars(struct part *p, unsigned char *c, int l)
 			}
 			put_chars(p, s, strlen(s));
 			if (ff && ff->type == FC_TEXTAREA) line_break(p);
-			if (p->cx == -1) p->cx = par_format.leftmargin;
+			if (p->cx < par_format.leftmargin) p->cx = par_format.leftmargin;
 			format.link = fl, format.target = ft, format.image = fi;
 			format.form = ff;
 			format.js_event = js;
@@ -767,12 +779,12 @@ void put_chars(struct part *p, unsigned char *c, int l)
 		link->sel_color = ((fg & 8) << 3) | (fg & 7) | (bg << 3);
 		link->n = 0;
 		set_link:
-		if ((pt = mem_realloc(link->pos, (link->n + l) * sizeof(struct point)))) {
-			link->pos = pt;
-			for (i = 0; i < l; i++) pt[link->n + i].x = X(p->cx) + i,
-						pt[link->n + i].y = Y(p->cy);
-			link->n += i;
-		}
+		if ((unsigned)link->n + (unsigned)l > MAXINT / sizeof(struct point)) overalloc();
+		pt = mem_realloc(link->pos, (link->n + l) * sizeof(struct point));
+		link->pos = pt;
+		for (i = 0; i < l; i++) pt[link->n + i].x = X(p->cx) + i,
+					pt[link->n + i].y = Y(p->cy);
+		link->n += l;
 	}
 	goto no_l;
 
@@ -864,8 +876,9 @@ struct frameset_desc *create_frameset(struct f_data *fda, struct frameset_param 
 		internal("zero size of frameset");
 		return NULL;
 	}
-	if (!(fd = mem_alloc(sizeof(struct frameset_desc) + fp->x * fp->y * sizeof(struct frame_desc)))) return NULL;
-	memset(fd, 0, sizeof(struct frameset_desc) + fp->x * fp->y * sizeof(struct frame_desc));
+	if (fp->x && (unsigned)fp->x * (unsigned)fp->y / (unsigned)fp->x != (unsigned)fp->y) overalloc();
+	if ((unsigned)fp->x * (unsigned)fp->y > (MAXINT - sizeof(struct frameset_desc)) / sizeof(struct frame_desc)) overalloc();
+	fd = mem_calloc(sizeof(struct frameset_desc) + fp->x * fp->y * sizeof(struct frame_desc));
 	fd->n = fp->x * fp->y;
 	fd->x = fp->x;
 	fd->y = fp->y;
@@ -886,6 +899,7 @@ void create_frame(struct frame_param *fp)
 
 void process_script(struct f_data *f, unsigned char *t)
 {
+	if (!d_opt->js_enable) return;
 	if (!f->script_href_base) f->script_href_base = stracpy(format.href_base);
 	if (t) {
 		unsigned char *u;
@@ -930,7 +944,7 @@ void *html_special(struct part *p, int c, ...)
 		case SP_TABLE:
 			return convert_table;
 		case SP_USED:
-			return (void *)!!p->data;
+			return (void *)!!p->data; /* cast to pointer from integer of different size */
 		case SP_FRAMESET:
 			fsp = va_arg(l, struct frameset_param *);
 			va_end(l);
@@ -966,7 +980,7 @@ void do_format(char *start, char *end, struct part *part, unsigned char *head)
 	pr(
 	parse_html(start, end, (void (*)(void *, unsigned char *, int)) put_chars_conv, (void (*)(void *)) line_break, (void *(*)(void *, int, ...)) html_special, part, head);
 	/*if ((part->y -= line_breax) < 0) part->y = 0;*/
-	);
+	) {};
 }
 
 int margin;
@@ -1016,10 +1030,9 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 		tce = table_cache_hash[((int)(unsigned long)start + xs) & (TC_HASH_SIZE - 1)];
 		while (tce) {
 			if (tce->start == start && tce->end == end && tce->align == align && tce->m == m && tce->width == width && tce->xs == xs && tce->link_num == link_num) {
-				if ((p = mem_alloc(sizeof(struct part)))) {
-					memcpy(p, &tce->p, sizeof(struct part));
-					return p;
-				}
+				p = mem_alloc(sizeof(struct part));
+				memcpy(p, &tce->p, sizeof(struct part));
+				return p;
 			}
 			tce = tce->hash_next;
 		}
@@ -1030,12 +1043,11 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	}
 	if (data) {
 		struct node *n;
-		if ((n = mem_alloc(sizeof(struct node)))) {
-			n->x = xs;
-			n->y = ys;
-			n->xw = !table_level ? MAXINT : width;
-			add_to_list(data->nodes, n);
-		}
+		n = mem_alloc(sizeof(struct node));
+		n->x = xs;
+		n->y = ys;
+		n->xw = !table_level ? MAXINT : width;
+		add_to_list(data->nodes, n);
 		/*sdbg(data);*/
 	}
 	last_link_to_move = data ? data->nlinks : 0;
@@ -1051,7 +1063,7 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	last_form = NULL;
 	last_js_event = NULL;
 	nobreak = 1;
-	if (!(p = mem_alloc(sizeof(struct part)))) goto ret;
+	p = mem_alloc(sizeof(struct part));
 	p->x = p->y = 0;
 	p->data = data;
 	p->xp = xs; p->yp = ys;
@@ -1098,7 +1110,6 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	}
 	foreach(fc, p->uf) destroy_fc(fc);
 	free_list(p->uf);
-	ret:
 	last_link_to_move = llm;
 	last_tag_to_move = ltm;
 	/*last_tag_for_newline = ltn;*/
@@ -1108,8 +1119,9 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	last_form = NULL;
 	last_js_event = NULL;
 
-	if (table_level > 1 && !data && ((tce = mem_alloc(sizeof(struct table_cache_entry))))) {
+	if (table_level > 1 && !data) {
 		int hash;
+		tce = mem_alloc(sizeof(struct table_cache_entry));
 		tce->start = start;
 		tce->end = end;
 		tce->align = align;
@@ -1138,8 +1150,7 @@ void push_base_format(unsigned char *url, struct document_options *opt, int fram
 		internal("something on html stack");
 		init_list(html_stack);
 	}
-	if (!(e = mem_alloc(sizeof(struct html_element)))) return;
-	memset(e, 0, sizeof(struct html_element));
+	e = mem_calloc(sizeof(struct html_element));
 	add_to_list(html_stack, e);
 	format.attr = opt->plain & 1 ? AT_FIXED : 0;
 	format.fontsize = 3;
@@ -1196,7 +1207,7 @@ struct conv_table *get_convert_table(unsigned char *head, int to, int def, int *
 	return get_translation_table(from, to);
 }
 
-struct document_options dd_opt = { 0 };
+struct document_options dd_opt;
 
 struct document_options *d_opt = &dd_opt;
 
@@ -1219,6 +1230,7 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 	if (ce->head) add_to_str(&head, &hdl, ce->head);
 	scan_http_equiv(start, end, &head, &hdl, &t, d_opt->plain ? NULL : &bg, d_opt->plain ? NULL : &bgcolor);
 	convert_table = get_convert_table(head, screen->opt.cp, screen->opt.assume_cp, &screen->cp, &screen->ass, screen->opt.hard_assume);
+	screen->opt.real_cp = screen->cp;
 	i = d_opt->plain; d_opt->plain = 0;
 	screen->title = convert_string(convert_table, t, strlen(t), d_opt);
 	d_opt->plain = i;
@@ -1311,16 +1323,17 @@ int compare_opt(struct document_options *o1, struct document_options *o2)
 	    o1->margin == o2->margin &&
 	    o1->js_enable == o2->js_enable &&
 	    o1->plain == o2->plain &&
+	    o1->num_links == o2->num_links &&
+	    o1->table_order == o2->table_order &&
+	    o1->auto_refresh == o2->auto_refresh &&
 	    o1->font_size == o2->font_size &&
+	    o1->display_images == o2->display_images &&
+	    o1->image_scale == o2->image_scale &&
+	    o1->aspect_on == o2->aspect_on &&
 	    !memcmp(&o1->default_fg, &o2->default_fg, sizeof(struct rgb)) &&
 	    !memcmp(&o1->default_bg, &o2->default_bg, sizeof(struct rgb)) &&
 	    !memcmp(&o1->default_link, &o2->default_link, sizeof(struct rgb)) &&
 	    !memcmp(&o1->default_vlink, &o2->default_vlink, sizeof(struct rgb)) &&
-	    o1->num_links == o2->num_links &&
-	    o1->table_order == o2->table_order &&
-	    o1->display_images == o2->display_images &&
-	    o1->image_scale == o2->image_scale &&
-	    o1->aspect_on == o2->aspect_on &&
 	    kdo_si_hraje_nezlobi____a_nebo_to_je_PerM<=0.0001 &&
 	    kdo_si_hraje_nezlobi____a_nebo_to_je_PerM>=-0.0001 &&
 	    ((o1->framename && o2->framename && !strcasecmp(o1->framename, o2->framename)) || (!o1->framename && !o2->framename))) return 0;
@@ -1359,24 +1372,12 @@ void sort_srch(struct f_data *f)
 {
 	int i;
 	int *min, *max;
-	if (!(f->slines1 = mem_alloc(f->y * sizeof(struct search *)))) return;
-	if (!(f->slines2 = mem_alloc(f->y * sizeof(struct search *)))) {
-		mem_free(f->slines1);
-		return;
-	}
-	if (!(min = mem_alloc(f->y * sizeof(int)))) {
-		mem_free(f->slines1);
-		mem_free(f->slines2);
-		return;
-	}
-	if (!(max = mem_alloc(f->y * sizeof(int)))) {
-		mem_free(f->slines1);
-		mem_free(f->slines2);
-		mem_free(min);
-		return;
-	}
-	memset(f->slines1, 0, f->y * sizeof(struct search *));
-	memset(f->slines2, 0, f->y * sizeof(struct search *));
+	if ((unsigned)f->y > MAXINT / sizeof(struct search *)) overalloc();
+	if ((unsigned)f->y > MAXINT / sizeof(int)) overalloc();
+	f->slines1 = mem_calloc(f->y * sizeof(struct search *));
+	f->slines2 = mem_calloc(f->y * sizeof(struct search *));
+	min = mem_alloc(f->y * sizeof(int));
+	max = mem_alloc(f->y * sizeof(int));
 	for (i = 0; i < f->y; i++) min[i] = MAXINT, max[i] = 0;
 	for (i = 0; i < f->nsearch; i++) {
 		struct search *s = &f->search[i];
@@ -1437,7 +1438,8 @@ void get_search_data(struct f_data *f)
 	if (f->search) return;
 	n = get_srch(f);
 	f->nsearch = 0;
-	if (!(f->search = mem_alloc(n * sizeof(struct search)))) return;
+	if ((unsigned)n > MAXINT / sizeof(struct search)) overalloc();
+	f->search = mem_alloc(n * sizeof(struct search));
 	get_srch(f);
 	while (f->nsearch && f->search[f->nsearch - 1].c == ' ') f->nsearch--;
 	/*debug("!");*/

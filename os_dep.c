@@ -17,9 +17,24 @@
 #include <gpm.h>
 #endif
 
+/* prototypes */
+int get_e(char *);
+void sigwinch(void *);
+void exec_new_links(struct terminal *, unsigned char *, unsigned char *, unsigned char *);
+void open_in_new_twterm(struct terminal *, unsigned char *, unsigned char *);
+void open_in_new_xterm(struct terminal *, unsigned char *, unsigned char *);
+void open_in_new_screen(struct terminal *, unsigned char *, unsigned char *);
+void open_in_new_g(struct terminal *, unsigned char *, unsigned char *);
+
+
 int is_safe_in_shell(unsigned char c)
 {
-	return c == '@' || c == '+' || c == '-' || c == '.' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z');
+	return c == '@' || c == '+' || c == '-' || c == '.' || c == ',' || c == '=' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z');
+}
+
+int is_safe_in_url(unsigned char c)
+{
+	return is_safe_in_shell(c) || c == ':' || c == '/' || c >= 0x80;
 }
 
 void check_shell_security(unsigned char **cmd)
@@ -29,6 +44,15 @@ void check_shell_security(unsigned char **cmd)
 		if (!is_safe_in_shell(*c)) *c = '_';
 		c++;
 	}
+}
+
+int check_shell_url(unsigned char *url)
+{
+	while (*url) {
+		if (!is_safe_in_url(*url)) return -1;
+		url++;
+	}
+	return 0;
 }
 
 int get_e(char *env)
@@ -81,7 +105,7 @@ void prealloc_truncate(int h, int siz)
 
 /* Terminal size */
 
-#if defined(UNIX) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(WIN32)
+#if defined(UNIX) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(WIN32) || defined(SPAD)
 
 void sigwinch(void *s)
 {
@@ -230,7 +254,7 @@ int get_terminal_size(int fd, int *x, int *y)
 
 /* Pipe */
 
-#if defined(UNIX) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS)
+#if defined(UNIX) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(SPAD)
 
 void set_bin(int fd)
 {
@@ -274,7 +298,7 @@ int can_twterm(void) /* Check if it make sense to call a twterm. */
 }
 
 
-#if defined(UNIX) || defined(WIN32)
+#if defined(UNIX) || defined(WIN32) || defined(SPAD)
 
 int is_xterm(void)
 {
@@ -301,19 +325,19 @@ int is_xterm(void)
 
 tcount resize_count = 0;
 
-void close_fork_tty()
+void close_fork_tty(void)
 {
 	struct terminal *t;
 	foreach (t, terminals) if (t->fdin > 0) close(t->fdin);
 }
 
-#if defined(UNIX) || defined(WIN32) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS)
+#if defined(UNIX) || defined(WIN32) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(SPAD)
 
 #if defined(BEOS) && defined(HAVE_SETPGID)
 
 int exe(char *path, int fg)
 {
-	int p;
+	pid_t p;
 	int s;
 	fg=fg;  /* ignore flag */
 	if (!(p = fork())) {
@@ -358,6 +382,15 @@ int exe(char *path, int fg)
 #ifdef G
 	if (F && drv->exec) return drv->exec(path, fg);
 #endif
+#ifdef SIGTSTP
+	signal(SIGTSTP, SIG_DFL);
+#endif
+#ifdef SIGCONT
+	signal(SIGCONT, SIG_DFL);
+#endif
+#ifdef SIGWINCH
+	signal(SIGWINCH, SIG_DFL);
+#endif
 	return system(path);
 }
 
@@ -375,7 +408,7 @@ unsigned char *get_clipboard_text(struct terminal *term)
 }
 
 /* links -> clipboard */
-void set_clipboard_text(struct terminal * term, unsigned char *data)
+void set_clipboard_text(struct terminal *term, unsigned char *data)
 {
 #ifdef GRDRV_X
 	if(term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) {
@@ -385,6 +418,16 @@ void set_clipboard_text(struct terminal * term, unsigned char *data)
 #endif
 	if (clipboard) mem_free(clipboard);
 	clipboard = stracpy(data);
+}
+
+int clipboard_support(struct terminal *term)
+{
+#ifdef GRDRV_X
+	if(term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) {
+		return 1;
+	}
+#endif
+	return 0;
 }
 
 void set_window_title(unsigned char *url)
@@ -413,7 +456,8 @@ int fd_mutex_init = 0;
 int exe(char *path, int fg)
 {
 	int flags = P_SESSION;
-	int pid, ret;
+	pid_t pid;
+	int ret;
 #ifdef G
 	int old0 = 0, old1 = 1, old2 = 2;
 #endif
@@ -483,12 +527,11 @@ unsigned char *get_clipboard_text(struct terminal *term)
 
 					if (selClipText)
 					{
+						char *u;
 						PCHAR pchClipText = (PCHAR)selClipText;
-						if ((ret = mem_alloc(strlen(pchClipText)+1))) {
-							char *u;
-							strcpy(ret, pchClipText);
-							while ((u = strchr(ret, 13))) memmove(u, u + 1, strlen(u + 1) + 1);
-						}
+						ret = mem_alloc(strlen(pchClipText)+1);
+						strcpy(ret, pchClipText);
+						while ((u = strchr(ret, 13))) memmove(u, u + 1, strlen(u + 1) + 1);
 					}
 				}
 
@@ -573,6 +616,11 @@ void set_clipboard_text(struct terminal * term, unsigned char *data)
 	if (d) mem_free(d);
 }
 
+int clipboard_support(struct terminal *term)
+{
+	return 1;
+}
+
 unsigned char *get_window_title(void)
 {
 #ifndef OS2_DEBUG
@@ -599,9 +647,9 @@ unsigned char *get_window_title(void)
 		pib->pib_ultype = 3;
 		if ((hab = WinInitialize(0)) != NULLHANDLE) {
 			if ((hmq = WinCreateMsgQueue(hab, 0)) != NULLHANDLE) {
-				if ((org_win_title = mem_alloc(MAXNAMEL+1)))
-					WinQueryWindowText(swData.hwnd, MAXNAMEL+1, org_win_title);
-					org_win_title[MAXNAMEL] = 0;
+				org_win_title = mem_alloc(MAXNAMEL+1);
+				WinQueryWindowText(swData.hwnd, MAXNAMEL+1, org_win_title);
+				org_win_title[MAXNAMEL] = 0;
 				/* back From PM */
 				WinDestroyMsgQueue(hmq);
 			}
@@ -799,7 +847,7 @@ uint32 abgt(void *t)
 
 #endif
 
-#if defined(UNIX) || defined(OS2) || defined(RISCOS) || defined(ATHEOS)
+#if defined(UNIX) || defined(OS2) || defined(RISCOS) || defined(ATHEOS) || defined(SPAD)
 
 void terminate_osdep(void) {}
 
@@ -1232,7 +1280,7 @@ int start_thread(void (*fn)(void *, int), void *ptr, int l)
 int start_thread(void (*fn)(void *, int), void *ptr, int l)
 {
 	int p[2];
-	int f;
+	pid_t f;
 	if (c_pipe(p) < 0) return -1;
 	fcntl(p[0], F_SETFL, O_NONBLOCK);
 	fcntl(p[1], F_SETFL, O_NONBLOCK);
@@ -1323,7 +1371,7 @@ int get_input_handle(void)
 {
 	int	fd[2] ;
 	static int ti = -1, tp = -1;
-	int	pid ;
+	pid_t	pid ;
 
 	if (ti != -1) return ti;
 	if (c_pipe (fd) < 0) return 0;
@@ -1389,6 +1437,8 @@ void gpm_mouse_in(struct gpm_mouse_spec *gms)
 	ev.ev = EV_MOUSE;
 	ev.x = gev.x - 1;
 	ev.y = gev.y - 1;
+	if (ev.x < 0) ev.x = 0;
+	if (ev.y < 0) ev.y = 0;
 	if (gev.buttons & GPM_B_LEFT) ev.b = B_LEFT;
 	else if (gev.buttons & GPM_B_MIDDLE) ev.b = B_MIDDLE;
 	else if (gev.buttons & GPM_B_RIGHT) ev.b = B_RIGHT;
@@ -1410,7 +1460,7 @@ void *handle_mouse(int cons, void (*fn)(void *, unsigned char *, int), void *dat
 	conn.minMod = 0;
 	conn.maxMod = 0;
 	if ((h = Gpm_Open(&conn, cons)) < 0) return NULL;
-	if (!(gms = mem_alloc(sizeof(struct gpm_mouse_spec)))) return NULL;
+	gms = mem_alloc(sizeof(struct gpm_mouse_spec));
 	gms->h = h;
 	gms->fn = fn;
 	gms->data = data;
@@ -1469,7 +1519,7 @@ int get_system_env(void)
 void exec_new_links(struct terminal *term, unsigned char *xterm, unsigned char *exe, unsigned char *param)
 {
 	unsigned char *str;
-	if (!(str = mem_alloc(strlen(xterm) + 1 + strlen(exe) + 1 + strlen(param) + 1))) return;
+	str = mem_alloc(strlen(xterm) + 1 + strlen(exe) + 1 + strlen(param) + 1);
 	sprintf(str, "%s %s %s", xterm, exe, param);
 	exec_on_terminal(term, str, "", 2);
 	mem_free(str);
@@ -1567,7 +1617,7 @@ struct {
 #ifdef G
 	{ENV_G, open_in_new_g, TEXT(T_WINDOW), TEXT(T_HK_WINDOW)},
 #endif
-	{0, NULL, NULL}
+	{0, NULL, NULL, NULL}
 };
 
 struct open_in_new *get_open_in_new(int environment)
@@ -1575,11 +1625,11 @@ struct open_in_new *get_open_in_new(int environment)
 	int i;
 	struct open_in_new *oin = DUMMY;
 	int noin = 0;
+	if (anonymous) return NULL;
 	if (environment & ENV_G) environment = ENV_G;
 	for (i = 0; oinw[i].env; i++) if ((environment & oinw[i].env) == oinw[i].env) {
-		struct open_in_new *x;
-		if (!(x = mem_realloc(oin, (noin + 2) * sizeof(struct open_in_new)))) continue;
-		oin = x;
+		if ((unsigned)noin > MAXINT / sizeof(struct open_in_new) - 2) overalloc();
+		oin = mem_realloc(oin, (noin + 2) * sizeof(struct open_in_new));
 		oin[noin].text = oinw[i].text;
 		oin[noin].hk = oinw[i].hk;
 		oin[noin].fn = oinw[i].fn;
@@ -1635,7 +1685,7 @@ int my_snprintf(char *str, int n, char *f, ...)
 	if (i >= B_SZ) {
 		error("String size too large!");
 		va_end(l);
-		exit(1);
+		exit(RET_FATAL);
 	}
 	if (i >= n) {
 		memcpy(str, snprtintf_buffer, n);
@@ -1650,3 +1700,123 @@ int my_snprintf(char *str, int n, char *f, ...)
 
 #endif
 
+#ifndef HAVE_MEMMOVE
+
+#define MEMMOVE
+
+typedef	long word;		/* "word" used for optimal copy speed */
+
+#define	wsize	sizeof(word)
+#define	wmask	(wsize - 1)
+
+/*
+ * Copy a block of memory, handling overlap.
+ * This is the routine that actually implements
+ * (the portable versions of) bcopy, memcpy, and memmove.
+ */
+void *
+memmove(dst0, src0, length)
+	void *dst0;
+	const void *src0;
+	size_t length;
+{
+	char *dst = dst0;
+	const char *src = src0;
+	size_t t;
+	unsigned long u;
+
+	if (length == 0 || dst == src)		/* nothing to do */
+		goto done;
+
+	/*
+	 * Macros: loop-t-times; and loop-t-times, t>0
+	 */
+#define	TLOOP(s) if (t) TLOOP1(s)
+#define	TLOOP1(s) do { s; } while (--t)
+
+	if ((unsigned long)dst < (unsigned long)src) {
+		/*
+		 * Copy forward.
+		 */
+		u = (unsigned long)src;	/* only need low bits */
+		if ((u | (unsigned long)dst) & wmask) {
+			/*
+			 * Try to align operands.  This cannot be done
+			 * unless the low bits match.
+			 */
+			if ((u ^ (unsigned long)dst) & wmask || length < wsize)
+				t = length;
+			else
+				t = wsize - (size_t)(u & wmask);
+			length -= t;
+			TLOOP1(*dst++ = *src++);
+		}
+		/*
+		 * Copy whole words, then mop up any trailing bytes.
+		 */
+		t = length / wsize;
+		TLOOP(*(word *)(void *)dst = *(const word *)(const void *)src; src += wsize; dst += wsize);
+		t = length & wmask;
+		TLOOP(*dst++ = *src++);
+	} else {
+		/*
+		 * Copy backwards.  Otherwise essentially the same.
+		 * Alignment works as before, except that it takes
+		 * (t&wmask) bytes to align, not wsize-(t&wmask).
+		 */
+		src += length;
+		dst += length;
+		u = (unsigned long)src;
+		if ((u | (unsigned long)dst) & wmask) {
+			if ((u ^ (unsigned long)dst) & wmask || length <= wsize)
+				t = length;
+			else
+				t = (size_t)(u & wmask);
+			length -= t;
+			TLOOP1(*--dst = *--src);
+		}
+		t = length / wsize;
+		TLOOP(src -= wsize; dst -= wsize; *(word *)(void *)dst = *(const word *)(const void *)src);
+		t = length & wmask;
+		TLOOP(*--dst = *--src);
+	}
+done:
+#if defined(MEMCOPY) || defined(MEMMOVE)
+	return (dst0);
+#else
+	return;
+#endif
+}
+
+#endif
+
+#ifndef HAVE_RAISE
+
+int
+raise(s)
+        int s;
+        {
+#ifdef HAVE_GETPID
+                return(kill(getpid(), s));
+#else
+		return 0;
+#endif
+};
+
+#endif
+
+#ifndef HAVE_STRTOUL
+
+/****yes bad fix***/
+unsigned long strtoul(const char *nptr, char **endptr, int base) {
+ return (unsigned long)strtol(nptr,endptr,base);
+ };
+
+#endif
+
+#ifndef HAVE_STRERROR
+
+char **sys_errlist;
+char *strerror(int errnum) { return sys_errlist[errnum];};
+
+#endif

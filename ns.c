@@ -23,6 +23,9 @@
 #define debug(a) 
 extern long MIN1KEY;
 
+void clearvars(parlist*);  /* prototype */
+
+
 /* Funkce, ktere vyhledavaji v "adresnych prostorech" promenne. Jedna sada
  * ma promenne jenom nachazet, cast z nich kdekoliv, cast z nich jenom
  * lokalne, druha cast z nich ma ty promenne vyrobit (existuje-li dana
@@ -500,7 +503,7 @@ static inline lns* cloklookup(long key,plns*pns,js_context*context)
 	else	return 0;
 }
 
-inline lns* cllookup(char* retezec,js_id_name **names,plns*lnamespace,js_context*context)
+lns* cllookup(char* retezec,js_id_name **names,plns*lnamespace,js_context*context)
 {       long klic,i;
 	js_id_name*lastname;
 	/* We acquire a key of variable: */

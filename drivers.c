@@ -31,6 +31,9 @@ extern struct graphics_driver pmshell_driver;
 #ifdef GRDRV_ATHEOS
 extern struct graphics_driver atheos_driver;
 #endif
+#ifdef GRDRV_SDL
+extern struct graphics_driver sdl_driver;
+#endif
 
 struct graphics_driver *graphics_drivers[] = {
 #ifdef GRDRV_PMSHELL
@@ -45,14 +48,21 @@ struct graphics_driver *graphics_drivers[] = {
 #ifdef GRDRV_DIRECTFB
 	&directfb_driver,
 #endif
-#ifdef GRDRV_SVGALIB
-	&svga_driver,
-#endif
 #ifdef GRDRV_FB
 	&fb_driver,
 #endif
+#ifdef GRDRV_SVGALIB
+	&svga_driver,
+#endif
+#ifdef GRDRV_SDL
+	&sdl_driver,
+#endif
 	NULL
 };
+
+/* prototypes */
+unsigned char *init_graphics_driver(struct graphics_driver *, unsigned char *, unsigned char *);
+unsigned char *list_graphics_drivers(void);
 
 int dummy_block(struct graphics_device *dev)
 {
@@ -63,7 +73,7 @@ void dummy_unblock(struct graphics_device *dev)
 {
 }
 
-unsigned char *list_graphics_drivers()
+unsigned char *list_graphics_drivers(void)
 { 
 	unsigned char *d = init_str();
 	int l = 0;
@@ -87,11 +97,11 @@ unsigned char *init_graphics_driver(struct graphics_driver *gd, unsigned char *p
 	struct driver_param *dp=get_driver_param(gd->name);
 	if (!param || !*param) p = dp->param;
 	gd->codepage=dp->codepage;
-	if (!(gd->shell=mem_calloc(MAX_STR_LEN)))return NULL;
+	gd->shell=mem_calloc(MAX_STR_LEN);
 	if (dp->shell) strncpy(gd->shell,dp->shell,MAX_STR_LEN);
 	gd->shell[MAX_STR_LEN-1]=0;
 	r = gd->init_driver(p,display);
-	if (r) mem_free(gd->shell);
+	if (r) mem_free(gd->shell), gd->shell = NULL;
 	return r;
 }
 
@@ -103,6 +113,7 @@ unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsign
 	for (gd = graphics_drivers; *gd; gd++) {
 		if (!driver || !*driver || !strcasecmp((*gd)->name, driver)) {
 			unsigned char *r;
+			if ((!driver || !*driver) && (*gd)->flags & GD_NOAUTO) continue;
 			if (!(r = init_graphics_driver(*gd, param, display))) {
 				mem_free(s);
 				drv = *gd;
@@ -151,6 +162,7 @@ void update_driver_param(void)
 		dp->param=stracpy(drv->get_driver_param());
 		if (dp->shell) mem_free(dp->shell);
 		dp->shell=stracpy(drv->shell);
+		dp->nosave = 0;
 	}
 }
 
@@ -169,7 +181,8 @@ int init_virtual_devices(struct graphics_driver *drv, int n)
 		internal("init_virtual_devices: already initialized");
 		return -1;
 	}
-	if (!(virtual_devices = mem_calloc(n * sizeof(struct graphics_device *)))) return -1;
+	if ((unsigned)n > MAXINT / sizeof(struct graphics_device *)) overalloc();
+	virtual_devices = mem_calloc(n * sizeof(struct graphics_device *));
 	n_virtual_devices = n;
 	virtual_device_driver = drv;
 	virtual_device_timer = -1;
@@ -182,7 +195,7 @@ struct graphics_device *init_virtual_device()
 	int i;
 	for (i = 0; i < n_virtual_devices; i++) if (!virtual_devices[i]) {
 		struct graphics_device *dev;
-		if (!(dev = mem_calloc(sizeof(struct graphics_device)))) return NULL;
+		dev = mem_calloc(sizeof(struct graphics_device));
 		dev->drv = virtual_device_driver;
 		dev->size.x2 = virtual_device_driver->x;
 		dev->size.y2 = virtual_device_driver->y;

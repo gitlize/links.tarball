@@ -25,11 +25,20 @@ struct {
 		{"mailto", 0, NULL, mailto_func, 0, 0, 0, 0},
 		{"telnet", 0, NULL, telnet_func, 0, 0, 0, 0},
 		{"tn3270", 0, NULL, tn3270_func, 0, 0, 0, 0},
+		{"mms", 0, NULL, mms_func, 1, 0, 1, 0},
 #ifdef JS
 		{"javascript", 0, NULL, javascript_func, 1, 0, 0, 0},
 #endif
-		{NULL, 0, NULL}
+		{NULL, 0, NULL, NULL, 0, 0, 0, 0}
 };
+
+/* prototypes */
+int check_protocol(unsigned char *, int);
+int get_prot_info(unsigned char *, int *, void (**)(struct connection *), void (**)(struct session *ses, unsigned char *), int *);
+unsigned char *get_protocol_name(unsigned char *);
+void translate_directories(unsigned char *);
+void insert_wd(unsigned char **, unsigned char *);
+
 
 int check_protocol(unsigned char *p, int l)
 {
@@ -88,7 +97,10 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 	q = p + strcspn(p, "@/?");
 	if (!*q && protocols[a].need_slash_after_host) return -1;
 	if (*q == '@') {
-		unsigned char *pp = strchr(p, ':');
+		unsigned char *pp;
+		while (strcspn(q + 1, "@") < strcspn(q + 1, "/?"))
+			q = q + 1 + strcspn(q + 1, "@");
+		pp = strchr(p, ':');
 		if (!pp || pp > q) {
 			if (user) *user = p;
 			if (uslen) *uslen = q - p;
@@ -177,15 +189,17 @@ int get_port(unsigned char *url)
 {
 	unsigned char *h;
 	int hl;
-	int n = -1;
+	long n = -1;
 	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &h, &hl, NULL, NULL, NULL)) return -1;
 	if (h) {
 		n = strtol(h, NULL, 10);
-		if (n) return n;
+		if (n && n < MAXINT) return n;
 	}
 	if ((h = get_protocol_name(url))) {
-		get_prot_info(h, &n, NULL, NULL, NULL);
+		int nn;
+		get_prot_info(h, &nn, NULL, NULL, NULL);
 		mem_free(h);
+		n = nn;
 	}
 	return n;
 }
@@ -221,35 +235,6 @@ unsigned char *get_url_data(unsigned char *url)
 	return d;
 }
 
-/*void translate_directories(unsigned char *url)
-{
-	unsigned char *p;
-	unsigned char *dd = get_url_data(url);
-	unsigned char *d = dd;
-	if (!d || d == url || *--d != '/') return;
-	r:
-	p = d + strcspn(d, "/;?#");
-	if (p[0] != '/') return;
-	if (p[1] == '.' && p[2] == '/') {
-		memmove(p, p + 2, strlen(p + 2) + 1);
-		d = p;
-		goto r;
-	}
-	if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
-		unsigned char *e;
-		for (e = p - 1; e >= dd; e--) if (*e == '/') {
-			memmove(e, p + 3, strlen(p + 3) + 1);
-			d = e;
-			goto r;
-		}
-		memmove(dd, p + 3, strlen(p + 3) + 1);
-		d = dd;
-		goto r;
-	}
-	d = p + 1;
-	goto r;
-}*/
-
 #define dsep(x) (lo ? dir_sep(x) : (x) == '/')
 
 void translate_directories(unsigned char *url)
@@ -259,11 +244,18 @@ void translate_directories(unsigned char *url)
 	int lo = !casecmp(url, "file://", 7);
 	if (!casecmp(url, "javascript:", 11)) return;
 	if (!dd || dd == url/* || *--dd != '/'*/) return;
-	if (!dsep(*dd)) dd--;
+	if (!dsep(*dd)) {
+		dd--;
+		if (!dsep(*dd)) {
+			dd++;
+			memmove(dd + 1, dd, strlen(dd) + 1);
+			*dd = '/';
+		}
+	}
 	s = dd;
 	d = dd;
 	r:
-	if (end_of_dir(s[0])) {
+	if (end_of_dir(url, s[0])) {
 		memmove(d, s, strlen(s) + 1);
 		return;
 	}
@@ -274,23 +266,13 @@ void translate_directories(unsigned char *url)
 		goto r;
 	}
 	if (dsep(s[0]) && s[1] == '.' && s[2] == '.' && (dsep(s[3]) || !s[3])) {
-		unsigned char *d1 = d;
 		while (d > dd) {
 			d--;
-			if (dsep(*d)) {
-				if (d + 3 == d1 && d[1] == '.' && d[2] == '.') {
-					d = d1;
-					goto p;
-				}
-				goto b;
-			}
+			if (dsep(*d)) goto b;
 		}
-		/*d = d1;
-		goto p;*/
 		b:
-		*d++ = *s;
-		if (s[3]) s += 4;
-		else s += 3;
+		if (!s[3]) *d++ = *s;
+		s += 3;
 		goto r;
 	}
 	p:
@@ -306,7 +288,10 @@ void insert_wd(unsigned char **up, unsigned char *cwd)
 #ifdef DOS_FS
 	if (upcase(url[7]) >= 'A' && upcase(url[7]) <= 'Z' && url[8] == ':' && dir_sep(url[9])) return;
 #endif
-	if (!(url = mem_alloc(strlen(*up) + strlen(cwd) + 2))) return;
+#ifdef SPAD
+	if (_is_absolute(url + 7) != _ABS_NO) return;
+#endif
+	url = mem_alloc(strlen(*up) + strlen(cwd) + 2);
 	memcpy(url, *up, 7);
 	strcpy(url + 7, cwd);
 	if (!dir_sep(cwd[strlen(cwd) - 1])) strcat(url, "/");
@@ -321,51 +306,61 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 	int l;
 	int lo = !casecmp(base, "file://", 7);
 	if (rel[0] == '#') {
-		if (!(n = stracpy(base))) return NULL;
+		n = stracpy(base);
 		for (p = n; *p && *p != POST_CHAR && *p != '#'; p++) ;
 		*p = 0;
 		add_to_strn(&n, rel);
+		extend_str(&n, 1);
 		translate_directories(n);
 		return n;
 	}
 	if (rel[0] == '/' && rel[1] == '/') {
 		unsigned char *s, *n;
 		if (!(s = strstr(base, "//"))) {
-			internal("bad base url: %s", base);
-			return NULL;
+			if (!(s = strchr(base, ':'))) {
+				internal("bad base url: %s", base);
+				return NULL;
+			}
+			s++;
 		}
 		n = memacpy(base, s - base);
 		add_to_strn(&n, rel);
-		return n;
-	}
-	if (!casecmp("proxy://", rel, 8)) goto prx;
-	if (!parse_url(rel, &l, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
-		n = stracpy(rel);
-		translate_directories(n);
-		return n;
-	}
-	if ((n = stracpy(rel))) {
-		while (n[0] && n[strlen(n) - 1] <= ' ') n[strlen(n) - 1] = 0;
-		add_to_strn(&n, "/");
 		if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
+			extend_str(&n, 1);
 			translate_directories(n);
 			return n;
 		}
 		mem_free(n);
 	}
+	if (!casecmp("proxy://", rel, 8)) goto prx;
+	if (!parse_url(rel, &l, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
+		n = stracpy(rel);
+		extend_str(&n, 1);
+		translate_directories(n);
+		return n;
+	}
+	n = stracpy(rel);
+	while (n[0] && n[strlen(n) - 1] <= ' ') n[strlen(n) - 1] = 0;
+	add_to_strn(&n, "/");
+	if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
+		extend_str(&n, 1);
+		translate_directories(n);
+		return n;
+	}
+	mem_free(n);
 	prx:
 	if (parse_url(base, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &p, NULL, NULL) || !p) {
-		internal("bad base url");
+		internal("bad base url: %s", base);
 		return NULL;
 	}
 	if (!dsep(*p)) p--;
-	if (end_of_dir(rel[0])) for (; *p; p++) {
-		if (end_of_dir(*p)) break;
+	if (end_of_dir(base, rel[0])) for (; *p; p++) {
+		if (end_of_dir(base, *p)) break;
 	} else if (!dsep(rel[0])) for (pp = p; *pp; pp++) {
-		if (end_of_dir(*pp)) break;
+		if (end_of_dir(base, *pp)) break;
 		if (dsep(*pp)) p = pp + 1;
 	}
-	if (!(n = mem_alloc(p - base + strlen(rel) + 1))) return NULL;
+	n = mem_alloc(p - base + strlen(rel) + 2);
 	memcpy(n, base, p - base);
 	strcpy(n + (p - base), rel);
 	translate_directories(n);
@@ -381,13 +376,16 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	if (!parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &da, NULL, NULL)) {
 		nu = stracpy(url);
 		insert_wd(&nu, cwd);
+		extend_str(&nu, 1);
 		translate_directories(nu);
 		return nu;
 	}
-	if (strstr(url, "//") && (nu = stracpy(url))) {
+	if (strstr(url, "//")) {
+		nu = stracpy(url);
 		add_to_strn(&nu, "/");
 		if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
 			insert_wd(&nu, cwd);
+			extend_str(&nu, 1);
 			translate_directories(nu);
 			return nu;
 		}
@@ -406,16 +404,17 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 			if (f - e == 2) http: prefix = "http://", sl = 1;
 			else {
 				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", "arpa", "aero", "biz", "coop", "info", "museum", "name", "pro", NULL };
-				for (i = 0; tld[i]; i++) if (f - e == strlen(tld[i]) && !casecmp(tld[i], e, f - e)) goto http;
+				for (i = 0; tld[i]; i++) if ((size_t)(f - e) == strlen(tld[i]) && !casecmp(tld[i], e, f - e)) goto http;
 			}
 		}
 		if (*ch == '@' || *ch == ':' || !cmpbeg(url, "ftp.")) prefix = "ftp://", sl = 1;
-		if (!(nu = stracpy(prefix))) return NULL;
+		nu = stracpy(prefix);
 		add_to_strn(&nu, url);
 		if (sl && !strchr(url, '/')) add_to_strn(&nu, "/");
 		if (parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) mem_free(nu), nu = NULL;
 		else {
 			insert_wd(&nu, cwd);
+			extend_str(&nu, 1);
 			translate_directories(nu);
 		}
 		return nu;
@@ -425,12 +424,14 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	add_to_strn(&nu, ch + 1);
 	if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
 		insert_wd(&nu, cwd);
+		extend_str(&nu, 1);
 		translate_directories(nu);
 		return nu;
 	}
 	add_to_strn(&nu, "/");
 	if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
 		insert_wd(&nu, cwd);
+		extend_str(&nu, 1);
 		translate_directories(nu);
 		return nu;
 	}
@@ -443,8 +444,9 @@ unsigned char *extract_position(unsigned char *url)
 	unsigned char *u, *uu, *r;
 	if (!(u = strchr(url, POST_CHAR))) u = url + strlen(url);
 	uu = u;
-	while (--uu >= url && *uu != '#') ;
-	if (uu < url || !(r = mem_alloc(u - uu))) return NULL;
+	while (--uu > url && *uu != '#') ;
+	if (uu <= url) return NULL;
+	r = mem_alloc(u - uu);
 	memcpy(r, uu + 1, u - uu - 1);
 	r[u - uu - 1] = 0;
 	memmove(uu, u, strlen(u) + 1);
@@ -455,11 +457,45 @@ void get_filename_from_url(unsigned char *url, unsigned char **s, int *l)
 {
 	int lo = !casecmp(url, "file://", 7);
 	unsigned char *uu;
-	if ((uu = get_url_data(url))) url = uu;
-	*s = url;
-	while (*url && !end_of_dir(*url)) {
-		if (dsep(*url)) *s = url + 1;
-		url++;
+	if (!(uu = get_url_data(url))) uu = url;
+	*s = uu;
+	while (*uu && !end_of_dir(url, *uu)) {
+		if (dsep(*uu)) *s = uu + 1;
+		uu++;
 	}
-	*l = url - *s;
+	*l = uu - *s;
 }
+
+#define accept_char(x)	((x) != '"' && (x) != '&' && (x) != '/' && (x) != '<' && (x) != '>')
+#define special_char(x)	((x) == '%' || (x) == '#')
+
+void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encode_special)
+{
+	for (; ll; ll--, b++) {
+		if ((unsigned char)*b < ' ') continue;
+		if (special_char(*b) && encode_special == 1) {
+			unsigned char h[4];
+			sprintf(h, "%%%02X", (unsigned)*b & 0xff);
+			add_to_str(s, l, h);
+		} else if (*b == '%' && encode_special <= -1 && ll > 2 && ((b[1] >= '0' && b[1] <= '9') || (b[1] >= 'A' && b[1] <= 'F') || (b[1] >= 'a' && b[1] <= 'f'))) {
+			
+			unsigned char h = 0;
+			int i;
+			for (i = 1; i < 3; i++) {
+				if (b[i] >= '0' && b[i] <= '9') h = h * 16 + b[i] - '0';
+				if (b[i] >= 'A' && b[i] <= 'F') h = h * 16 + b[i] - 'A' + 10;
+				if (b[i] >= 'a' && b[i] <= 'f') h = h * 16 + b[i] - 'a' + 10;
+			}
+			if (h >= ' ') add_chr_to_str(s, l, h);
+			ll -= 2;
+			b += 2;
+		} else if (accept_char(*b) || encode_special == -2) {
+			add_chr_to_str(s, l, *b);
+		} else {
+			add_to_str(s, l, "&#");
+			add_num_to_str(s, l, (int)*b);
+			add_chr_to_str(s, l, ';');
+		}
+	}
+}
+

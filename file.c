@@ -5,6 +5,18 @@
 
 #include "links.h"
 
+/* prototypes */
+void setrwx(int, unsigned char *);
+void setst(int, unsigned char *);
+void stat_mode(unsigned char **, int *, struct stat *);
+void stat_links(unsigned char **, int *, struct stat *);
+void stat_user(unsigned char **, int *, struct stat *, int);
+void stat_size(unsigned char **, int *, struct stat *);
+void stat_date(unsigned char **, int *, struct stat *);
+unsigned char *get_filename(unsigned char *);
+
+
+
 #ifdef FS_UNIX_RIGHTS
 void setrwx(int m, unsigned char *p)
 {
@@ -133,10 +145,12 @@ void stat_user(unsigned char **p, int *l, struct stat *stp, int g)
 void stat_size(unsigned char **p, int *l, struct stat *stp)
 {
 	unsigned char size[64];
-	if (!stp) add_to_str(p, l, "         ");
+	if (!stp) z: add_to_str(p, l, "         ");
 	else {
-		sprintf(size, "%8ld ", (long)stp->st_size);
-		add_to_str(p, l, size);
+		if ((long)(unsigned long)stp->st_size == stp->st_size) {
+			sprintf(size, "%8lu ", (unsigned long)stp->st_size);
+			add_to_str(p, l, size);
+		} else goto z;
 	}
 }
 
@@ -168,16 +182,16 @@ void stat_date(unsigned char **p, int *l, struct stat *stp)
 	add_chr_to_str(p, l, ' ');
 }
 
-char *get_filename(char *url)
+unsigned char *get_filename(unsigned char *url)
 {
-	char *p, *m;
+	unsigned char *p, *m;
+	int ml;
 #ifdef DOS_FS
-	if (url[7] == '/' && upcase(url[8]) >= 'A' && upcase(url[8]) <= 'Z' && url[9] == ':') url++;
+	if (url[7] == '/' && strchr(url + 8, ':')) url++;
 #endif
-	for (p = url + 7; *p && *p != 1; p++) ;
-	if (!(m = mem_alloc(p - url - 7 + 1))) return NULL;
-	memcpy(m, url + 7, p - url - 7),
-	m[p - url - 7] = 0;
+	for (p = url + 7; *p && *p != POST_CHAR; p++) ;
+	m = init_str(), ml = 0;
+	add_conv_str(&m, &ml, url + 7, p - url - 7, -2);
 	return m;
 }
 
@@ -185,6 +199,8 @@ struct dirs {
 	unsigned char *s;
 	unsigned char *f;
 };
+
+int comp_de(struct dirs *, struct dirs *); /* prototype */
 
 int comp_de(struct dirs *d1, struct dirs *d2)
 {
@@ -255,20 +271,18 @@ void file_func(struct connection *c)
 		file = init_str();
 		fl = 0;
 		add_to_str(&file, &fl, "<html><head><title>");
-		add_to_str(&file, &fl, name);
+		add_conv_str(&file, &fl, name, strlen(name), -1);
 		add_to_str(&file, &fl, "</title></head><body><h2>Directory ");
-		add_to_str(&file, &fl, name);
+		add_conv_str(&file, &fl, name, strlen(name), -1);
 		add_to_str(&file, &fl, "</h2><pre>");
 		while ((de = readdir(d))) {
 			struct stat stt, *stp;
 			unsigned char **p;
 			int l;
-			struct dirs *nd;
 			unsigned char *n;
 			if (!strcmp(de->d_name, ".")) continue;
-			if (!(nd = mem_realloc(dir, (dirl + 1) * sizeof(struct dirs))))
-				continue;
-			dir = nd;
+			if ((unsigned)dirl > MAXINT / sizeof(struct dirs) - 1) overalloc();
+			dir = mem_realloc(dir, (dirl + 1) * sizeof(struct dirs));
 			dir[dirl].f = stracpy(de->d_name);
 			*(p = &dir[dirl++].s) = init_str();
 			l = 0;
@@ -303,7 +317,8 @@ void file_func(struct connection *c)
 				do {
 					if (buf) mem_free(buf);
 					size += ALLOC_GR;
-					if (!(buf = mem_alloc(size))) goto xxx;
+					if ((unsigned)size > MAXINT) overalloc();
+					buf = mem_alloc(size);
 					r = readlink(n, buf, size);
 				} while (r == size);
 				if (r == -1) goto yyy;
@@ -319,7 +334,7 @@ void file_func(struct connection *c)
 			/*add_to_str(&file, &fl, "   ");*/
 			add_to_str(&file, &fl, dir[i].s);
 			add_to_str(&file, &fl, "<a href=\"");
-			add_to_str(&file, &fl, dir[i].f);
+			add_conv_str(&file, &fl, dir[i].f, strlen(dir[i].f), 1);
 			if (dir[i].s[0] == 'd') add_to_str(&file, &fl, "/");
 			else if (lnk) {
 				struct stat st;
@@ -330,7 +345,7 @@ void file_func(struct connection *c)
 			}
 			add_to_str(&file, &fl, "\">");
 			/*if (dir[i].s[0] == 'd') add_to_str(&file, &fl, "<font color=\"yellow\">");*/
-			add_to_str(&file, &fl, dir[i].f);
+			add_conv_str(&file, &fl, dir[i].f, strlen(dir[i].f), 0);
 			/*if (dir[i].s[0] == 'd') add_to_str(&file, &fl, "</font>");*/
 			add_to_str(&file, &fl, "</a>");
 			if (lnk) {
@@ -347,12 +362,14 @@ void file_func(struct connection *c)
 		head = stracpy("\r\nContent-Type: text/html\r\n");
 	} else {
 		mem_free(name);
-		/* + 1 is there because of bug in Linux. Read returns -EACCES when
-		   reading 0 bytes to invalid address */
-		if (!(file = mem_alloc(stt.st_size + 1))) {
+		/* + !stt.st_size is there because of bug in Linux. Read returns
+		   -EACCES when reading 0 bytes to invalid address */
+		if (stt.st_size > MAXINT) {
 			close(h);
-			setcstate(c, S_OUT_OF_MEM); abort_connection(c); return;
+			setcstate(c, S_OUT_OF_MEM); abort_connection(c);
+			return;
 		}
+		file = mem_alloc(stt.st_size + !stt.st_size);
 		if ((r = read(h, file, stt.st_size)) != stt.st_size) {
 			mem_free(file); close(h);
 			setcstate(c, r == -1 ? -errno : S_FILE_ERROR);

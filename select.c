@@ -42,6 +42,13 @@ struct timer {
 
 struct list_head timers = {&timers, &timers};
 
+/* prototypes */
+void got_signal(int);
+void sigchld(void *);
+void check_timers(void);
+int check_signals(void);
+
+
 ttime get_time(void)
 {
 	struct timeval tv;
@@ -80,7 +87,7 @@ int register_bottom_half(void (*fn)(void *), void *data)
 {
 	struct bottom_half *bh;
 	foreach(bh, bottom_halves) if (bh->fn == fn && bh->data == data) return 0;
-	if (!(bh = mem_alloc(sizeof(struct bottom_half)))) return -1;
+	bh = mem_alloc(sizeof(struct bottom_half));
 	bh->fn = fn;
 	bh->data = data;
 	add_to_list(bottom_halves, bh);
@@ -124,7 +131,7 @@ void check_bottom_halves(void)
 		
 ttime last_time;
 
-void check_timers()
+void check_timers(void)
 {
 	ttime interval = get_time() - last_time;
 	struct timer *t;
@@ -161,7 +168,7 @@ void check_timers()
 int install_timer(ttime t, void (*func)(void *), void *data)
 {
 	struct timer *tm, *tt;
-	if (!(tm = mem_alloc(sizeof(struct timer)))) return -1;
+	tm = mem_alloc(sizeof(struct timer));
 	tm->interval = t;
 	tm->func = func;
 	tm->data = data;
@@ -249,28 +256,38 @@ struct signal_handler {
 int signal_mask[NUM_SIGNALS];
 struct signal_handler signal_handlers[NUM_SIGNALS];
 
-volatile int critical_section = 0;
+int signal_pipe[2];
 
-void check_for_select_race();
+void signal_break(void *data)
+{
+	char c;
+	while (can_read(signal_pipe[0])) read(signal_pipe[0], &c, 1);
+}
 
 void got_signal(int sig)
 {
+	int sv_errno = errno;
+		/*fprintf(stderr, "ERROR: signal number: %d", sig);*/
 	if (sig >= NUM_SIGNALS || sig < 0) {
 		/*error("ERROR: bad signal number: %d", sig);*/
-		return;
+		goto ret;
 	}
-	if (!signal_handlers[sig].fn) return;
+	if (!signal_handlers[sig].fn) goto ret;
 	if (signal_handlers[sig].critical) {
 		signal_handlers[sig].fn(signal_handlers[sig].data);
-		return;
+		goto ret;
 	}
 	signal_mask[sig] = 1;
-	check_for_select_race();
+	ret:
+	if (can_write(signal_pipe[1])) write(signal_pipe[1], "x", 1);
+	errno = sv_errno;
 }
+
+struct sigaction sa_zero;
 
 void install_signal_handler(int sig, void (*fn)(void *), void *data, int critical)
 {
-	struct sigaction sa = {};
+	struct sigaction sa = sa_zero;
 	if (sig >= NUM_SIGNALS || sig < 0) {
 		internal("bad signal number: %d", sig);
 		return;
@@ -278,7 +295,7 @@ void install_signal_handler(int sig, void (*fn)(void *), void *data, int critica
 	if (!fn) sa.sa_handler = SIG_IGN;
 	else sa.sa_handler = got_signal;
 	sigfillset(&sa.sa_mask);
-	/*sa.sa_flags = SA_RESTART;*/
+	sa.sa_flags = SA_RESTART;
 	if (!fn) sigaction(sig, &sa, NULL);
 	signal_handlers[sig].fn = fn;
 	signal_handlers[sig].data = data;
@@ -286,36 +303,21 @@ void install_signal_handler(int sig, void (*fn)(void *), void *data, int critica
 	if (fn) sigaction(sig, &sa, NULL);
 }
 
-volatile int pending_alarm = 0;
-
-void alarm_handler(void *x)
+void interruptible_signal(int sig, int in)
 {
-	pending_alarm = 0;
-	check_for_select_race();
-}
-
-void check_for_select_race()
-{
-	if (critical_section) {
-#ifdef SIGALRM
-		install_signal_handler(SIGALRM, alarm_handler, NULL, 1);
-#endif
-		pending_alarm = 1;
-#ifdef HAVE_ALARM
-		alarm(1);
-#endif
+	struct sigaction sa = sa_zero;
+	if (sig >= NUM_SIGNALS || sig < 0) {
+		internal("bad signal number: %d", sig);
+		return;
 	}
+	if (!signal_handlers[sig].fn) return;
+	sa.sa_handler = got_signal;
+	sigfillset(&sa.sa_mask);
+	if (!in) sa.sa_flags = SA_RESTART;
+	sigaction(sig, &sa, NULL);
 }
 
-void uninstall_alarm()
-{
-	pending_alarm = 0;
-#ifdef HAVE_ALARM
-	alarm(0);
-#endif
-}
-
-int check_signals()
+int check_signals(void)
 {
 	int i, r = 0;
 	for (i = 0; i < NUM_SIGNALS; i++)
@@ -341,7 +343,7 @@ void sigchld(void *p)
 #ifndef WNOHANG
 	wait(NULL);
 #else
-	while ((int)waitpid(-1, NULL, WNOHANG) > 0) ;
+	while (waitpid(-1, NULL, WNOHANG) > 0) ;
 #endif
 }
 
@@ -354,6 +356,9 @@ int terminate_loop = 0;
 
 void select_loop(void (*init)(void))
 {
+	struct stat st;
+	if (stat(".", &st) && getenv("HOME")) chdir(getenv("HOME"));
+	memset(&sa_zero, 0, sizeof sa_zero);
 	memset(signal_mask, 0, sizeof signal_mask);
 	memset(signal_handlers, 0, sizeof signal_handlers);
 	FD_ZERO(&w_read);
@@ -362,6 +367,14 @@ void select_loop(void (*init)(void))
 	w_max = 0;
 	last_time = get_time();
 	signal(SIGPIPE, SIG_IGN);
+	if (c_pipe(signal_pipe)) {
+		error("ERROR: can't create pipe for signal handling");
+		retval = RET_FATAL;
+		return;
+	}
+	fcntl(signal_pipe[0], F_SETFL, O_NONBLOCK);
+	fcntl(signal_pipe[1], F_SETFL, O_NONBLOCK);
+	set_handlers(signal_pipe[0], signal_break, NULL, NULL, NULL);
 	init();
 	CHK_BH;
 	while (!terminate_loop) {
@@ -390,9 +403,7 @@ void select_loop(void (*init)(void))
 			/*internal("select_loop: no more events to wait for");*/
 			break;
 		}
-		critical_section = 1;
 		if (check_signals()) {
-			critical_section = 0;
 			continue;
 		}
 			/*{
@@ -412,16 +423,12 @@ void select_loop(void (*init)(void))
 #ifdef DEBUG_CALLS
 			fprintf(stderr, "select intr\n");
 #endif
-			critical_section = 0;
-			uninstall_alarm();
 			if (errno != EINTR) error("ERROR: select failed: %d", errno);
 			continue;
 		}
 #ifdef DEBUG_CALLS
 		fprintf(stderr, "select done\n");
 #endif
-		critical_section = 0;
-		uninstall_alarm();
 		check_signals();
 		/*printf("sel: %d\n", n);*/
 		check_timers();

@@ -28,9 +28,9 @@
 #ifndef _LINKS_H
 #define _LINKS_H
 
-#define LINKS_COPYRIGHT "(C) 1999 - 2004 Mikulas Patocka\n(C) 2000 - 2004 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2004 Mikulás Patocka\n(C) 2000 - 2004 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2004 Mikulá¹ Patoèka\n(C) 2000 - 2004 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT "(C) 1999 - 2005 Mikulas Patocka\n(C) 2000 - 2005 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2005 Mikulás Patocka\n(C) 2000 - 2005 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2005 Mikulá¹ Patoèka\n(C) 2000 - 2005 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -114,6 +114,9 @@ x #endif*/
 #ifdef HAVE_NETINET_IP_H
 #include <netinet/ip.h>
 #endif
+#ifdef HAVE_NETINET_DHCP_H
+#include <netinet/dhcp.h>
+#endif
 #include <utime.h>
 
 #ifdef HAVE_SSL
@@ -145,29 +148,67 @@ x #endif*/
 
 #define DUMMY ((void *)-1L)
 
-/*
-#if defined(HAVE_GETPID) && defined(HAVE_SETPGID) && defined(HAVE_GETPGID)
-#define USE_PGRP
-#ifndef HAVE_SETPGRP
-static inline int setpgrp()
-{
-	return getpgid(0);
-}
-#endif
-#ifndef HAVE_GETPGRP
-static inline int getpgrp()
-{
-	return setpgid(0,0);
-}
-#endif
-#endif
-*/
+#define RET_OK		0
+#define RET_ERROR	1
+#define RET_SIGNAL	2
+#define RET_SYNTAX	3
+#define RET_FATAL	4
 
 #ifndef HAVE_SNPRINTF
-
 int my_snprintf(char *, int n, char *format, ...);
 #define snprintf my_snprintf
-
+#endif
+#ifndef HAVE_MEMMOVE
+void *memmove(void *, const void *, size_t);
+#endif
+#ifndef HAVE_RAISE
+int raise(int);
+#endif
+#ifndef HAVE_STRTOUL
+unsigned long strtoul(const char *, char **, int);
+#endif
+#ifndef HAVE_STRERROR
+char *strerror(int);
+#endif
+#ifndef HAVE_GETTIMEOFDAY
+struct timeval {
+	long tv_sec;
+	long tv_usec;
+};
+struct timezone {
+	int tz_minuteswest;
+	int tz_dsttime;
+};
+static inline int gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+	if (tv) tv->tv_sec = time(NULL), tv->tv_usec = 0;
+	if (tz) tz->tz_minuteswest = tz->tz_dsttime = 0;
+	return 0;
+}
+#endif
+#ifndef HAVE_STRCSPN
+size_t strcspn(const char *s, const char *reject)
+{
+	size_t r;
+	for (r = 0; *s; r++, s++) {
+		const char *rj;
+		for (rj = reject; *rj; rj++) if (*s == *rj) goto brk;
+	}
+	brk:
+	return r;
+}
+#endif
+#ifndef HAVE_STRSTR
+char *strstr(const char *haystack, const char *needle)
+{
+	size_t hs = strlen(haystack);
+	size_t ns = strlen(needle);
+	while (hs >= ns) {
+		if (!memcmp(haystack, needle, ns)) return haystack;
+		haystack++, hs--;
+	}
+	return NULL;
+}
 #endif
 
 #define option option_dirty_workaround_for_name_clash_with_include_on_cygwin
@@ -242,6 +283,14 @@ static inline void *x_calloc(size_t x)
 }
 #endif
 
+#define overalloc()							\
+do {									\
+	error((unsigned char *)"ERROR: attempting to allocate too large block at %s:%d", __FILE__, __LINE__);\
+	exit(RET_FATAL);						\
+} while (1)	/* while (1) is not a type --- it's here to allow the
+	compiler that doesn't know that exit doesn't return to do better
+	optimizations */
+
 #ifdef LEAK_DEBUG
 
 extern long mem_amount;
@@ -292,9 +341,10 @@ static inline void *mem_alloc(size_t size)
 {
 	void *p;
 	if (!size) return DUMMY;
+	if (size > MAXINT) overalloc();
 	if (!(p = malloc(size))) {
 		error((unsigned char *)"ERROR: out of memory (malloc returned NULL)\n");
-		return NULL;
+		exit(RET_FATAL);
 	}
 	return p;
 }
@@ -303,9 +353,10 @@ static inline void *mem_calloc(size_t size)
 {
 	void *p;
 	if (!size) return DUMMY;
+	if (size > MAXINT) overalloc();
 	if (!(p = x_calloc(size))) {
 		error((unsigned char *)"ERROR: out of memory (calloc returned NULL)\n");
-		return NULL;
+		exit(RET_FATAL);
 	}
 	return p;
 }
@@ -331,9 +382,10 @@ static inline void *mem_realloc(void *p, size_t size)
 		mem_free(p);
 		return DUMMY;
 	}
+	if (size > MAXINT) overalloc();
 	if (!(p = realloc(p, size))) {
 		error((unsigned char *)"ERROR: out of memory (realloc returned NULL)\n");
-		return NULL;
+		exit(RET_FATAL);
 	}
 	return p;
 }
@@ -371,10 +423,9 @@ static inline int cmpbeg(unsigned char *str, unsigned char *b)
 static inline unsigned char *memacpy(const unsigned char *src, int len)
 {
 	unsigned char *m;
-	if ((m = (unsigned char *)mem_alloc(len + 1))) {
-		memcpy(m, src, len);
-		m[len] = 0;
-	}
+	m = (unsigned char *)mem_alloc(len + 1);
+	memcpy(m, src, len);
+	m[len] = 0;
 	return m;
 }
 
@@ -385,13 +436,12 @@ static inline unsigned char *stracpy(const unsigned char *src)
 
 #else
 
-static inline unsigned char *debug_memacpy(unsigned char *f, int l, unsigned char *src, int len)
+static inline unsigned char *debug_memacpy(unsigned char *f, int l, unsigned char *src, size_t len)
 {
 	unsigned char *m;
-	if ((m = (unsigned char *)debug_mem_alloc(f, l, len + 1))) {
-		memcpy(m, src, len);
-		m[len] = 0;
-	}
+	m = (unsigned char *)debug_mem_alloc(f, l, len + 1);
+	memcpy(m, src, len);
+	m[len] = 0;
 	return m;
 }
 
@@ -399,7 +449,7 @@ static inline unsigned char *debug_memacpy(unsigned char *f, int l, unsigned cha
 
 static inline unsigned char *debug_stracpy(unsigned char *f, int l, unsigned char *src)
 {
-	return src ? (unsigned char *)debug_memacpy(f, l, src, src != DUMMY ? strlen((char *)src) : 0) : NULL;
+	return src ? (unsigned char *)debug_memacpy(f, l, src, src != DUMMY ? strlen((char *)src) : 0L) : NULL;
 }
 
 #define stracpy(s) debug_stracpy((unsigned char *)__FILE__, __LINE__, s)
@@ -441,12 +491,21 @@ static inline int snzprint(unsigned char *s, int n, int num)
 static inline void add_to_strn(unsigned char **s, unsigned char *a)
 {
 	unsigned char *p;
-	if (!(p = (unsigned char *)mem_realloc(*s, strlen((char *)*s) + strlen((char *)a) + 1))) return;
+	size_t l1 = strlen((char *)*s), l2 = strlen((char *)a);
+	if (((l1 | l2) | (l1 + l2 + 1)) > MAXINT) overalloc();
+	p = (unsigned char *)mem_realloc(*s, l1 + l2 + 1);
 	strcat((char *)p, (char *)a);
 	*s = p;
 }
 
-#define ALLOC_GR	0x100		/* must be power of 2 */
+static inline void extend_str(unsigned char **s, int n)
+{
+	size_t l = strlen((char *)*s);
+	if (((l | n) | (l + n + 1)) > MAXINT) overalloc();
+	*s = (unsigned char *)mem_realloc(*s, l + n + 1);
+}
+
+#define ALLOC_GR	0x040		/* must be power of 2 */
 
 #define init_str() init_str_x((unsigned char *)__FILE__, __LINE__)
 
@@ -454,7 +513,7 @@ static inline unsigned char *init_str_x(unsigned char *file, int line)
 {
 	unsigned char *p;
 	
-	p=(unsigned char *)debug_mem_alloc(file, line, 1);
+	p=(unsigned char *)debug_mem_alloc(file, line, 1L);
        	*p = 0;
 	return p;
 }
@@ -463,11 +522,13 @@ static inline void add_to_str(unsigned char **s, int *l, unsigned char *a)
 {
 	unsigned char *p=*s;
 	unsigned old_length;
-	unsigned new_length;
+	size_t new_length;
 	unsigned x;
 
 	old_length=*l;
-	new_length=strlen((char *)a)+old_length;
+	new_length=strlen((char *)a);
+	if (new_length + old_length >= MAXINT / 2 || new_length + old_length < new_length) overalloc();
+	new_length+=old_length;
 	*l=new_length;
 	x=old_length^new_length;
 	if (x>=old_length){
@@ -477,20 +538,21 @@ static inline void add_to_str(unsigned char **s, int *l, unsigned char *a)
 		new_length|=(new_length>>4);
 		new_length|=(new_length>>8);
 		new_length|=(new_length>>16);
-		p=(unsigned char *)mem_realloc(p,new_length+1);
+		p=(unsigned char *)mem_realloc(p,new_length+1L);
 	}
 	*s=p;
 	strcpy((char *)(p+old_length),(char *)a);
 }
 
-static inline void add_bytes_to_str(unsigned char **s, int *l, unsigned char *a, int ll)
+static inline void add_bytes_to_str(unsigned char **s, int *l, unsigned char *a, size_t ll)
 {
 	unsigned char *p=*s;
-	unsigned old_length;
-	unsigned new_length;
-	unsigned x;
+	unsigned long old_length;
+	unsigned long new_length;
+	unsigned long x;
 
 	old_length=*l;
+	if (ll + old_length >= (unsigned)MAXINT / 2 || ll + old_length < (unsigned)ll) overalloc();
 	new_length=old_length+ll;
 	*l=new_length;
 	x=old_length^new_length;
@@ -511,11 +573,12 @@ static inline void add_bytes_to_str(unsigned char **s, int *l, unsigned char *a,
 static inline void add_chr_to_str(unsigned char **s, int *l, unsigned char a)
 {
 	unsigned char *p=*s;
-	unsigned old_length;
-	unsigned new_length;
-	unsigned x;
+	unsigned long old_length;
+	unsigned long new_length;
+	unsigned long x;
 
 	old_length=*l;
+	if (1 + old_length >= MAXINT / 2 || 1 + old_length < 1) overalloc();
 	new_length=old_length+1;
 	*l=new_length;
 	x=old_length^new_length;
@@ -546,7 +609,9 @@ static inline void add_knum_to_str(unsigned char **s, int *l, int n)
 
 static inline long strtolx(unsigned char *c, unsigned char **end)
 {
-	long l = strtol((char *)c, (char **)end, 10);
+	long l;
+	if (c[0] == '0' && upcase(c[1]) == 'X' && c[2]) l = strtol((char *)c + 2, (char **)end, 16);
+	else l = strtol((char *)c, (char **)end, 10);
 	if (!*end) return l;
 	if (upcase(**end) == 'K') {
 		(*end)++;
@@ -561,12 +626,6 @@ static inline long strtolx(unsigned char *c, unsigned char **end)
 		return l * (1024 * 1024);
 	}
 	return l;
-}
-
-static inline unsigned char *copy_string(unsigned char **dst, unsigned char *src)
-{
-	if ((*dst = src) && (*dst = (unsigned char *)mem_alloc(strlen((char *)src) + 1))) strcpy((char *)*dst, (char *)src);
-	return *dst;
 }
 
 /* Copies at most dst_size chars into dst. Ensures null termination of dst. */
@@ -646,13 +705,13 @@ struct xlist_head {
 #define init_list(x) { do_not_optimize_here(&x); (x).next=&(x); (x).prev=&(x); do_not_optimize_here(&x);}
 #define list_empty(x) ((x).next == &(x))
 #define del_from_list(x) {do_not_optimize_here(x); ((struct list_head *)(x)->next)->prev=(x)->prev; ((struct list_head *)(x)->prev)->next=(x)->next; do_not_optimize_here(x);}
-/*#define add_to_list(l,x) {(x)->next=(l).next; (x)->prev=(typeof(x))&(l); (l).next=(x); if ((l).prev==&(l)) (l).prev=(x);}*/
+/*#define add_to_list(l,x) {(x)->next=(l).next; (x)->prev=(typeof(x))(void *)&(l); (l).next=(x); if ((l).prev==&(l)) (l).prev=(x);}*/
 
 #ifdef HAVE_TYPEOF
 #define add_at_pos(p,x) do {do_not_optimize_here(p); (x)->next=(p)->next; (x)->prev=(p); (p)->next=(x); (x)->next->prev=(x);do_not_optimize_here(p);} while(0)
-#define add_to_list(l,x) add_at_pos((typeof(x))&(l),(x))
-#define foreach(e,l) for ((e)=(l).next; (e)!=(typeof(e))&(l); (e)=(e)->next)
-#define foreachback(e,l) for ((e)=(l).prev; (e)!=(typeof(e))&(l); (e)=(e)->prev)
+#define add_to_list(l,x) add_at_pos((typeof(x))(void *)&(l),(x))
+#define foreach(e,l) for ((e)=(l).next; (e)!=(typeof(e))(void *)&(l); (e)=(e)->next)
+#define foreachback(e,l) for ((e)=(l).prev; (e)!=(typeof(e))(void *)&(l); (e)=(e)->prev)
 #else
 #define add_at_pos(p,x) do {do_not_optimize_here(p); (x)->next=(p)->next; (x)->prev=(void *)(p); (p)->next=(x); (x)->next->prev=(x); do_not_optimize_here(p); } while(0)
 #define add_to_list(l,x) add_at_pos(&(l),(x))
@@ -673,9 +732,9 @@ static inline int isA(unsigned char c)
 /* case insensitive compare of 2 strings */
 /* comparison ends after len (or less) characters */
 /* return value: 1=strings differ, 0=strings are same */
-static inline int casecmp(unsigned char *c1, unsigned char *c2, int len)
+static inline int casecmp(unsigned char *c1, unsigned char *c2, size_t len)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < len; i++) if (upcase(c1[i]) != upcase(c2[i])) return 1;
 	return 0;
 }
@@ -692,7 +751,7 @@ static inline int casestrstr(unsigned char *h, unsigned char *n)
 
 	for (p=h;*p;p++)
 	{
-		if (!srch_cmp(*p,*n));  /* same */
+		if (!srch_cmp(*p,*n))  /* same */
 		{
 			unsigned char *q, *r;
 			for (q=n, r=p;*r&&*q;)
@@ -745,7 +804,7 @@ struct open_in_new {
 	void (*fn)(struct terminal *term, unsigned char *, unsigned char *);
 };
 
-void close_fork_tty();
+void close_fork_tty(void);
 int get_system_env(void);
 int is_xterm(void);
 int can_twterm(void);
@@ -766,10 +825,12 @@ int check_file_name(unsigned char *);
 int start_thread(void (*)(void *, int), void *, int);
 unsigned char *get_clipboard_text(struct terminal *);
 void set_clipboard_text(struct terminal *, unsigned char *);
+int clipboard_support(struct terminal *);
 void set_window_title(unsigned char *);
 unsigned char *get_window_title(void);
 int is_safe_in_shell(unsigned char);
 void check_shell_security(unsigned char **);
+int check_shell_url(unsigned char *);
 void block_stdin(void);
 void unblock_stdin(void);
 int exe(char *, int);
@@ -808,6 +869,7 @@ void free_all_caches(void);
 #endif
 
 typedef long ttime;
+typedef unsigned long uttime;
 typedef unsigned tcount;
 
 extern int terminate_loop;
@@ -829,6 +891,7 @@ ttime get_time(void);
 void *get_handler(int, int);
 void set_handlers(int, void (*)(void *), void (*)(void *), void (*)(void *), void *);
 void install_signal_handler(int, void (*)(void *), void *, int);
+void interruptible_signal(int sig, int in);
 void set_sigcld(void);
 
 /* dns.c */
@@ -874,6 +937,8 @@ struct fragment {
 	int real_length;
 	unsigned char data[1];
 };
+
+extern int page_size;
 
 void init_cache(void);
 long cache_info(int);
@@ -1054,9 +1119,9 @@ struct session;
 
 #define POST_CHAR 1
 
-static inline int end_of_dir(unsigned char c)
+static inline int end_of_dir(unsigned char *url, unsigned char c)
 {
-	return c == POST_CHAR || c == '#' || c == ';' || c == '?';
+	return c == POST_CHAR || c == '#' || ((c == ';' || c == '?') && (!url || !casecmp(url, (unsigned char *)"http://", 7)));
 }
 
 int parse_url(unsigned char *, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **);
@@ -1073,6 +1138,7 @@ unsigned char *join_urls(unsigned char *, unsigned char *);
 unsigned char *translate_url(unsigned char *, unsigned char *);
 unsigned char *extract_position(unsigned char *);
 void get_filename_from_url(unsigned char *, unsigned char **, int *);
+void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encode_special);
 
 /* connect.c */
 
@@ -1129,7 +1195,7 @@ void free_cookie(struct cookie *c);
 
 unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy);
 char *get_auth_string(char *url);
-void cleanup_auth();
+void cleanup_auth(void);
 void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, unsigned char *password, int proxy);
 int find_auth(unsigned char *url, unsigned char *realm);
 
@@ -1173,6 +1239,7 @@ void smb_func(struct connection *);
 void mailto_func(struct session *, unsigned char *);
 void telnet_func(struct session *, unsigned char *);
 void tn3270_func(struct session *, unsigned char *);
+void mms_func(struct session *, unsigned char *);
 
 /* kbd.c */
 
@@ -1250,7 +1317,7 @@ extern int kbd_set_raw;
 struct itrm *handle_svgalib_keyboard(void (*)(void *, unsigned char *, int));
 void svgalib_free_trm(struct itrm *);
 void svgalib_block_itrm(struct itrm *);
-void svgalib_unblock_itrm(struct itrm *);
+int svgalib_unblock_itrm(struct itrm *);
 #endif
 
 
@@ -1353,7 +1420,7 @@ struct graphics_driver{
 
 	/* dest must have x and y filled in when get_filled_bitmap is called. */
 	/* bitmap is created, pre-filled with n_bytes of pattern, and registered */
-	int (*get_filled_bitmap)(struct bitmap *dest, long color);
+	/*int (*get_filled_bitmap)(struct bitmap *dest, long color);*/
 
 	void (*register_bitmap)(struct bitmap *bmp);
 
@@ -1446,6 +1513,8 @@ struct graphics_driver{
 
 #define GD_DONT_USE_SCROLL	1
 #define GD_NEED_CODEPAGE	2
+#define GD_ONLY_1_WINDOW	4
+#define GD_NOAUTO		8
 
 extern struct graphics_driver *drv;
 
@@ -1885,12 +1954,6 @@ void af_unix_close(void);
 
 /* main.c */
 
-#define RET_OK		0
-#define RET_ERROR	1
-#define RET_SIGNAL	2
-#define RET_SYNTAX	3
-#define RET_FATAL	4
-
 extern int retval;
 
 extern unsigned char *path_to_exe;
@@ -1951,6 +2014,7 @@ extern struct list extensions;
 extern struct list_head mailto_prog;
 extern struct list_head telnet_prog;
 extern struct list_head tn3270_prog;
+extern struct list_head mms_prog;
 
 unsigned char *get_content_type(unsigned char *, unsigned char *);
 struct assoc *get_type_assoc(struct terminal *term, unsigned char *, int *);
@@ -1963,6 +2027,25 @@ void free_types(void);
 
 extern void menu_assoc_manager(struct terminal *,void *,struct session *);
 extern void menu_ext_manager(struct terminal *,void *,struct session *);
+
+
+/*URL blocking calls*/
+struct block {
+	struct block *next;
+	struct block *prev;
+	unsigned char type;
+	int depth;
+	void* fotr;
+	
+	unsigned char* url;
+};
+extern struct list blocks;
+int is_url_blocked(unsigned char* url);
+void block_add_URL(struct terminal *term, void *xxx, struct session *ses);
+void* block_add_URL_fn(void* garbage, unsigned char* url);
+extern void block_manager(struct terminal *term,void *fcp,struct session *ses);
+void free_blocks();
+
 
 /* objreq.c */
 
@@ -2178,6 +2261,7 @@ struct document_options {
 	int image_scale;
 	double bfu_aspect; /* 0.1 to 10.0, 1.0 default. >1 makes circle wider */
 	int aspect_on;
+	int real_cp;	/* codepage of document. Does not really belong here. Must not be compared. Used only in get_attr_val */
 };
 
 static inline void ds2do(struct document_setup *ds, struct document_options *doo)
@@ -2402,7 +2486,7 @@ struct cached_image {
 	int last_length; /* length of cache entry at which last decoding was
 			  * done. Makes sense only if reparse==0
 			  */
-	int last_count2; /* Always valid. */
+	tcount last_count2; /* Always valid. */
 	void *decoder; 	      /* Decoder unfinished work. If NULL, decoder
 			       * has finished or has not yet started.
 			       */
@@ -2624,6 +2708,7 @@ struct f_data_c {
 
 	struct object_request *rq;
 	unsigned char *goto_position;
+	unsigned char *went_to_position;
 	struct additional_files *af;
 
 	struct list_head subframes;	/* struct f_data_c */
@@ -2760,7 +2845,7 @@ extern struct list_head sessions;
 time_t parse_http_date(char *);
 unsigned char *encode_url(unsigned char *);
 unsigned char *decode_url(unsigned char *);
-unsigned char *subst_file(unsigned char *, unsigned char *);
+unsigned char *subst_file(unsigned char *, unsigned char *, int);
 int are_there_downloads(void);
 void free_strerror_buf(void);
 unsigned char *get_err_msg(int);
@@ -2770,6 +2855,9 @@ void print_error_dialog(struct session *, struct status *, unsigned char *);
 void start_download(struct session *, unsigned char *);
 void abort_all_downloads(void);
 void display_download(struct terminal *, struct download *, struct session *);
+struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq, unsigned char *url, struct document_options *opt, int *cch);
+struct f_data_c *create_f_data_c(struct session *, struct f_data_c *);
+void reinit_f_data_c(struct f_data_c *);
 int create_download_file(struct terminal *, unsigned char *, int);
 void *create_session_info(int, unsigned char *, unsigned char *, int *);
 void win_func(struct window *, struct event *, int);
@@ -3134,7 +3222,7 @@ struct dialog_data {
 };
 
 struct menu_item *new_menu(int);
-void add_to_menu(struct menu_item **, unsigned char *, unsigned char *, unsigned char *, void (*)(struct terminal *, void *, void *), void *, int);
+void add_to_menu(struct menu_item **, unsigned char *, unsigned char *, unsigned char *, void (*)(struct terminal *, void *, void *), void *, int, int);
 void do_menu(struct terminal *, struct menu_item *, void *);
 void do_menu_selected(struct terminal *, struct menu_item *, void *, int);
 void do_mainmenu(struct terminal *, struct menu_item *, void *, int);
@@ -3259,7 +3347,7 @@ int cp2u(unsigned char, int);
 
 #ifdef G
 int get_utf_8(unsigned char **p);
-extern int utf8_2_uni_table[0x200];
+extern unsigned short int utf8_2_uni_table[0x200];
 #define GET_UTF_8(s, c)	do {if ((unsigned char)(s)[0] < 0x80) (c) = (s)++[0]; else if (((c) = utf8_2_uni_table[((unsigned char)(s)[0] << 2) + ((unsigned char)(s)[1] >> 6) - 0x200])) (c) += (unsigned char)(s)[1] & 0x3f, (s) += 2; else (c) = get_utf_8(&(s));} while (0)
 #define FWD_UTF_8(s) do {if ((unsigned char)(s)[0] < 0x80) (s)++; else get_utf_8(&(s));} while (0)
 #define BACK_UTF_8(p, b) do {while ((p) > (b)) {(p)--; if ((*(p) & 0xc0) != 0x80) break; }} while (0)
@@ -3267,7 +3355,7 @@ static inline int utf8len(unsigned char *s)
 {
 	int len;
 	unsigned c;
-	if (!F) return strlen(s);
+	if (!F) return strlen((char *)s);
 	len = 0;
 	while (1) {
 		GET_UTF_8(s, c);
@@ -3313,6 +3401,7 @@ int dump_to_file(struct f_data *, int);
 void draw_doc(struct terminal *t, struct f_data_c *scr);
 void draw_formatted(struct session *);
 void draw_fd(struct f_data_c *);
+void next_frame(struct session *, int);
 void send_event(struct session *, struct event *);
 void link_menu(struct terminal *, void *, struct session *);
 void save_as(struct terminal *, void *, struct session *);
@@ -3614,8 +3703,9 @@ void init_grview(void);
 #define AL_BLOCK	3
 #define AL_NO		4
 
-#define AL_MASK		0x3f
+#define AL_MASK		0x1f
 
+#define AL_NOBRLEXP	0x20
 #define AL_MONO		0x40
 #define AL_EXTD_TEXT	0x80
 	/* DIRTY! for backward compatibility with old menu code */
@@ -3832,8 +3922,8 @@ extern struct document_options *d_opt;
 extern int last_link_to_move;
 extern int margin;
 
-int xxpand_line(struct part *, int, int);
-int xxpand_lines(struct part *, int);
+void xxpand_line(struct part *, int, int);
+void xxpand_lines(struct part *, int);
 void xset_hchar(struct part *, int, int, unsigned);
 void xset_hchars(struct part *, int, int, int, unsigned);
 void align_line(struct part *, int);
@@ -3913,6 +4003,7 @@ struct driver_param {
 	int codepage;
 	unsigned char *param;
 	unsigned char *shell;
+	int nosave;
 	unsigned char name[1];
 };
 
@@ -3940,6 +4031,8 @@ extern int download_utime;
 extern int max_connections;
 extern int max_connections_to_host;
 extern int max_tries;
+extern int screen_width;
+extern int dump_codepage;
 extern int receive_timeout;
 extern int unrestartable_receive_timeout;
 

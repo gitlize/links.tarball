@@ -5,6 +5,9 @@
 
 #include "links.h"
 
+/* prototypes */
+void get_system_name(void);
+
 void get_system_name(void)
 {
 	FILE *f;
@@ -60,6 +63,51 @@ extern struct option html_options[];
 
 struct option *all_options[] = { links_options, html_options, NULL, };
 
+
+/* prototypes */
+unsigned char *get_token(unsigned char **);
+void parse_config_file(unsigned char *, unsigned char *, struct option **);
+unsigned char *create_config_string(struct option *);
+unsigned char *read_config_file(unsigned char *);
+int write_to_config_file(unsigned char *, unsigned char *);
+unsigned char *get_home(int *);
+void load_config_file(unsigned char *, unsigned char *);
+int write_config_file(unsigned char *, unsigned char *, struct option *, struct terminal *);
+void add_nm(struct option *, unsigned char **, int *);
+void add_quoted_to_str(unsigned char **, int *, unsigned char *);
+unsigned char *num_rd(struct option *, unsigned char *);
+void num_wr(struct option *, unsigned char **, int *);
+unsigned char *dbl_rd(struct option *, unsigned char *);
+void dbl_wr(struct option *, unsigned char **, int *);
+unsigned char *str_rd(struct option *, unsigned char *);
+void str_wr(struct option *, unsigned char **, int *);
+unsigned char *cp_rd(struct option *, unsigned char *);
+void cp_wr(struct option *, unsigned char **, int *);
+unsigned char *lang_rd(struct option *, unsigned char *);
+void lang_wr(struct option *, unsigned char **, int *);
+int getnum(unsigned char *, int *, int, int);
+unsigned char *type_rd(struct option *, unsigned char *);
+void type_wr(struct option *, unsigned char **, int *);
+unsigned char *ext_rd(struct option *, unsigned char *);
+void ext_wr(struct option *, unsigned char **, int *);
+unsigned char *prog_rd(struct option *, unsigned char *);
+void prog_wr(struct option *, unsigned char **, int *);
+unsigned char *term_rd(struct option *, unsigned char *);
+unsigned char *term2_rd(struct option *, unsigned char *);
+void term_wr(struct option *, unsigned char **, int *);
+unsigned char *dp_rd(struct option *, unsigned char *);
+void dp_wr(struct option *, unsigned char **, int *);
+unsigned char *gen_cmd(struct option *, unsigned char ***, int *);
+unsigned char *lookup_cmd(struct option *, unsigned char ***, int *);
+unsigned char *version_cmd(struct option *, unsigned char ***, int *);
+unsigned char *set_cmd(struct option *, unsigned char ***, int *);
+unsigned char *unset_cmd(struct option *, unsigned char ***, int *);
+unsigned char *setstr_cmd(struct option *, unsigned char ***, int *);
+unsigned char *force_html_cmd(struct option *, unsigned char ***, int *);
+unsigned char *dump_cmd(struct option *, unsigned char ***, int *);
+unsigned char *printhelp_cmd(struct option *, unsigned char ***, int *);
+unsigned char *_parse_options(int, unsigned char *[], struct option **);
+
 unsigned char *_parse_options(int argc, unsigned char *argv[], struct option **opt)
 {
 	unsigned char *e, *u = NULL;
@@ -108,15 +156,15 @@ unsigned char *get_token(unsigned char **line)
 	while (**line == ' ' || **line == 9) (*line)++;
 	if (**line) {
 		for (s = init_str(); **line; (*line)++) {
-			if (escape) 
+			if (escape)
 				escape = 0;
 			else if (**line == '\\') {
-				escape = 1; 
+				escape = 1;
 				continue;
 			}	
 			else if (**line == '"') {
 				quote = !quote;
-			    	continue;
+				continue;
 			}
 			else if ((**line == ' ' || **line == 9) && !quote)
 				break;
@@ -159,8 +207,8 @@ void parse_config_file(unsigned char *name, unsigned char *file, struct option *
 		if (n[0] == '#') goto f;
 		if (!(tok = get_token(&n))) goto f;
 		nl = strlen(tok);
-		for (op = opt; (options = *op); op++) 
-		    	for (i = 0; options[i].p; i++) if (options[i].cfg_name && nl == strlen(options[i].cfg_name) && !casecmp(tok, options[i].cfg_name, nl)) {
+		for (op = opt; (options = *op); op++)
+			for (i = 0; options[i].p; i++) if (options[i].cfg_name && (size_t)nl == strlen(options[i].cfg_name) && !casecmp(tok, options[i].cfg_name, nl)) {
 				unsigned char *o = memacpy(p, pl);
 				if ((e = options[i].rd_cfg(&options[i], o))) {
 					if (e[0]) fprintf(stderr, "Error parsing config file %s, line %d: %s\n", name, line, e), err = 1;
@@ -253,13 +301,13 @@ unsigned char *get_home(int *n)
 	while (home[0] && dir_sep(home[strlen(home) - 1])) home[strlen(home) - 1] = 0;
 	if (home[0]) add_to_strn(&home, "/");
 	home_links = stracpy(home);
-	if (config_dir) 	
+	if (config_dir)
 	{
 		add_to_strn(&home_links, config_dir);
 		while (home_links[0] && dir_sep(home_links[strlen(home_links) - 1])) home_links[strlen(home_links) - 1] = 0;
 		if (stat(home_links, &st) != -1 && S_ISDIR(st.st_mode)) {
 			add_to_strn(&home_links, "/links");
-	    	} else {
+		} else {
 			fprintf(stderr, "CONFIG_DIR set to %s. But directory %s doesn't exist.\n\007", config_dir, home_links);
 			sleep(3);
 			mem_free(home_links);
@@ -269,7 +317,9 @@ unsigned char *get_home(int *n)
 		mem_free(config_dir);
 	} else add_to_strn(&home_links, ".links");
 	if (stat(home_links, &st)) {
+#ifdef HAVE_MKDIR
 		if (!mkdir(home_links, 0777)) goto home_creat;
+#endif
 		if (config_dir) goto failed;
 		goto first_failed;
 	}
@@ -279,7 +329,13 @@ unsigned char *get_home(int *n)
 	home_links = stracpy(home);
 	add_to_strn(&home_links, "links");
 	if (stat(home_links, &st)) {
+#ifdef HAVE_MKDIR
 		if (!mkdir(home_links, 0777)) goto home_creat;
+#else
+		mem_free(home_links);
+		home_links = stracpy(home);
+		goto home_ok;
+#endif
 		goto failed;
 	}
 	if (S_ISDIR(st.st_mode)) goto home_ok;
@@ -333,7 +389,9 @@ void load_config_file(unsigned char *prefix, unsigned char *name)
 
 void load_config(void)
 {
-	load_config_file("/etc/", "links.cfg");
+#ifdef SHARED_CONFIG_DIR
+	load_config_file(SHARED_CONFIG_DIR, "links.cfg");
+#endif
 	load_config_file(links_home, "links.cfg");
 	load_config_file(links_home, "html.cfg");
 	load_config_file(links_home, "user.cfg");
@@ -458,7 +516,7 @@ unsigned char *str_rd(struct option *o, unsigned char *c)
 	unsigned char *tok = get_token(&c);
 	unsigned char *e = NULL;
 	if (!tok) return NULL;
-	if (strlen(tok) + 1 > o->max) e = "String too long";
+	if (strlen(tok) + 1 > (size_t)o->max) e = "String too long";
 	else strcpy(o->ptr, tok);
 	mem_free(tok);
 	return e;
@@ -467,7 +525,7 @@ unsigned char *str_rd(struct option *o, unsigned char *c)
 void str_wr(struct option *o, unsigned char **s, int *l)
 {
 	add_nm(o, s, l);
-	if (strlen(o->ptr) > o->max - 1) {
+	if (strlen(o->ptr) + 1 > (size_t)o->max) {
 		unsigned char *s1 = init_str();
 		int l1 = 0;
 		add_bytes_to_str(&s1, &l1, o->ptr, o->max - 1);
@@ -483,8 +541,8 @@ unsigned char *cp_rd(struct option *o, unsigned char *c)
 	unsigned char *e = NULL;
 	int i;
 	if (!tok) return "Missing argument";
-	/*if (!strcasecmp(c, "none")) i = -1;
-	else */if ((i = get_cp_index(tok)) == -1) e = "Unknown codepage";
+	if ((i = get_cp_index(tok)) == -1) e = "Unknown codepage";
+	else if (o->min == 1 && is_cp_special(i)) e = "UTF-8 can't be here";
 	else *(int *)o->ptr = i;
 	mem_free(tok);
 	return e;
@@ -561,6 +619,34 @@ unsigned char *type_rd(struct option *o, unsigned char *c)
 	mem_free(w);
 	goto err;
 }
+
+
+unsigned char *block_rd(struct option *o, unsigned char *c)
+{
+	unsigned char *err = "Error reading image block specification";
+	unsigned char* url;
+
+	if(!(url = get_token(&c)))
+		return err;
+	
+	block_add_URL_fn(NULL, url);
+
+	mem_free(url);
+
+	return NULL;
+}
+
+void block_wr(struct option *o, unsigned char **s, int *l)
+{
+	struct block *a;
+	foreachback(a, blocks) {
+		add_nm(o, s, l);
+		add_quoted_to_str(s, l, a->url);
+	}
+}
+
+
+
 
 void type_wr(struct option *o, unsigned char **s, int *l)
 {
@@ -661,7 +747,7 @@ unsigned char *term_rd(struct option *o, unsigned char *c)
 	ts->block_cursor = !!((w[0] - '0') & 4);
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if ((i = get_cp_index(w)) == -1) goto err_f;
+	if ((i = get_cp_index(w)) == -1 || is_cp_special(i)) goto err_f;
 	ts->charset = i;
 	mem_free(w);
 	end:
@@ -700,7 +786,7 @@ unsigned char *term2_rd(struct option *o, unsigned char *c)
 	ts->col = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if ((i = get_cp_index(w)) == -1) goto err_f;
+	if ((i = get_cp_index(w)) == -1 || is_cp_special(i)) goto err_f;
 	ts->charset = i;
 	mem_free(w);
 	end:
@@ -737,12 +823,15 @@ struct driver_param *get_driver_param(unsigned char *n)
 	dp = mem_calloc(sizeof(struct driver_param) + strlen(n) + 1);
 	dp->codepage = get_cp_index("iso-8859-1");
 	strcpy(dp->name, n);
+	dp->shell = mem_calloc(1);
+	dp->nosave = 1;
 	add_to_list(driver_params, dp);
 	return dp;
 }
 
 unsigned char *dp_rd(struct option *o, unsigned char *c)
 {
+	int cc;
 	unsigned char *n, *param, *cp, *shell;
 	struct driver_param *dp;
 	if (!(n = get_token(&c))) goto err;
@@ -761,11 +850,20 @@ unsigned char *dp_rd(struct option *o, unsigned char *c)
 		mem_free(shell);
 		goto err;
 	}
+	if ((cc=get_cp_index(cp)) == -1 || is_cp_special(cc)) {
+		mem_free(n);
+		mem_free(param);
+		mem_free(shell);
+		mem_free(cp);
+		goto err;
+	}
 	dp=get_driver_param(n);
-	dp->codepage=get_cp_index(cp);
+	dp->codepage=cc;
 	if (dp->param) mem_free(dp->param);
 	dp->param=param;
+	if (dp->shell) mem_free(dp->shell);
 	dp->shell=shell;
+	dp->nosave = 0;
 	mem_free(cp);
 	mem_free(n);
 	return NULL;
@@ -777,11 +875,12 @@ void dp_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct driver_param *dp;
 	foreachback(dp, driver_params) {
-		if ((!dp->param || !*dp->param) && !dp->codepage) continue;
+		if ((!dp->param || !*dp->param) && !dp->codepage && !*dp->shell) continue;
+		if (dp->nosave) continue;
 		add_nm(o, s, l);
 		add_quoted_to_str(s, l, dp->name);
 		add_to_str(s, l, " ");
-		add_quoted_to_str(s, l, (dp->param) ? (dp->param) : (unsigned char*)"");
+		add_quoted_to_str(s, l, dp->param ? dp->param : (unsigned char*)"");
 		add_to_str(s, l, " ");
 		add_quoted_to_str(s, l, dp->shell);
 		add_to_str(s, l, " ");
@@ -851,7 +950,7 @@ unsigned char *force_html_cmd(struct option *o, unsigned char ***argv, int *argc
 {
 	force_html = 1;
 	return NULL;
-} 
+}
 
 unsigned char *dump_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
@@ -867,7 +966,7 @@ unsigned char *printhelp_cmd(struct option *o, unsigned char ***argv, int *argc)
  * Print to stdout instead stderr (,,links -help | more''
  * is much better than ,,links -help 2>&1 | more'').
  */
-fprintf(stdout, "%s%s%s%s%s%s\n", 
+fprintf(stdout, "%s%s%s%s%s%s\n",
 
 ("links [options] URL\n"
 "Options are:\n"
@@ -879,74 +978,285 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Run in text mode (overrides previous -g).\n"
 "\n"
 " -driver <driver name>\n"
-"  Graphics driver to use. Drivers are: x, svgalib, fb, directfb, pmshell,"
-"  atheos.\n"
+"  Graphics driver to use. Drivers are: x, svgalib, fb, directfb, pmshell,\n"
+"    atheos, sdl.\n"
+"  List of drivers will be shown if you give it an unknown driver.\n"
 "  Available drivers depend on your operating system and available libraries.\n"
 "\n"
 " -mode <graphics mode>\n"
 "  Graphics mode. For SVGALIB it is in format COLUMNSxROWSxCOLORS --\n"
-"  for example 640x480x256, 800x600x64k, 1024x768x16M32\n"
+"    for example 640x480x256, 800x600x64k, 960x720x16M, 1024x768x16M32\n"
+"    List of modes will be shown if you give it an unknown videomode.\n"
+"  For framebuffer it is number of pixels in border --- LEFT,TOP,RIGHT,BOTTOM\n"
+"    other 3 values are optional --- i.e. -mode 10 will set all borders to 10,\n"
+"    -mode 10,20 will set left & right border to 10 and top & bottom to 20.\n"
+"  For Xwindow it is size of a window in format WIDTHxHEIGHT.\n"
 "\n"
-" -async-dns <0>/<1>\n"
-"  Asynchronous DNS resolver on(1)/off(0). \n"
+" -display <x-display>\n"
+"  Set Xwindow display.\n"
 "\n"
-" -max-connections <max>\n"
-"  Maximum number of concurrent connections.\n"
-"  (default: 10)\n"
-"\n"),
-(" -max-connections-to-host <max>\n"
-"  Maximum number of concurrent connection to a given host.\n"
-"  (default: 2)\n"
+" -force-html\n"
+"  Treat files with unknown type as html rather than text.\n"
+"    (can be toggled with '\' key)\n"
 "\n"
-" -retries <retry>\n"
-"  Number of retries.\n"
-"  (default: 3)\n"
+" -source <url>\n"
+"  Write unformatted data stream to stdout.\n"
 "\n"
-" -receive-timeout <sec>\n"
-"  Timeout on receive.\n"
-"  (default: 120)\n"
-"\n"),
-(" -unrestartable-receive-timeout <sec>\n"
-"  Timeout on non restartable connections.\n"
-"  (default: 600)\n"
+" -dump <url>\n"
+"  Write formatted document to stdout.\n"
 "\n"
-" -format-cache-size <num>\n"
-"  Number of formatted document pages cached.\n"
-"  (default: 5)\n"
+" -width <number>\n"
+"  For dump, document will be formatted to this screen width (but it can still\n"
+"    exceed it if lines can't be broken).\n"
 "\n"
-" -memory-cache-size <bytes>\n"
-"  Cache memory in bytes.\n"
-"  (default: 1048576)\n"
-"\n"
-" -image-cache-size <bytes>\n"
-"  Cache memory in bytes.\n"
-"  (default: 1048576)\n"
-"\n"),
-(" -http-proxy <host:port>\n"
-"  Host and port number of the HTTP proxy, or blank.\n"
-"  (default: blank)\n"
-"\n"
-" -ftp-proxy <host:port>\n"
-"  Host and port number of the FTP proxy, or blank.\n"
-"  (default: blank)\n"
-"\n"
-" -download-dir <path>\n"
-"  Default download directory.\n"
-"  (default: actual dir)\n"
-"\n"),
-(" -assume-codepage <codepage>\n"
-"  Use the given codepage when the webpage did not specify\n"
-"  its codepage. (default: ISO 8859-1)\n"
+" -codepage <codepage>\n"
+"  For dump, convert output to specified character set --\n"
+"    for eaxmple iso-8859-2, windows-1250.\n"
 "\n"
 " -anonymous\n"
 "  Restrict links so that it can run on an anonymous account.\n"
-"  No local file browsing. No downloads. Executing of viewers\n"
-"  is allowed, but user can't add or modify entries in\n"
-"  association table.\n"
+"  No local file browsing. No downloads. Executing viewers\n"
+"    is allowed, but user can't add or modify entries in\n"
+"    association table.\n"
 "\n"
 " -no-connect\n"
 "  Runs links as a separate instance - instead of connecting to\n"
-"  existing instance.\n"
+"    existing instance.\n"
+"\n"
+" -download-utime <0>/<1>\n"
+"  Set time of downloaded files to last modifications time reported by server.\n"
+"\n"
+" -async-dns <0>/<1>\n"
+"  Asynchronous DNS resolver on(1)/off(0).\n"
+"\n"
+" -max-connections <max>\n"
+"  Maximum number of concurrent connections.\n"
+"    (default: 10)\n"
+"\n"),
+(" -max-connections-to-host <max>\n"
+"  Maximum number of concurrent connection to a given host.\n"
+"    (default: 2)\n"
+"\n"
+" -retries <retry>\n"
+"  Number of retries.\n"
+"    (default: 3)\n"
+"\n"
+" -receive-timeout <sec>\n"
+"  Timeout on receive.\n"
+"    (default: 120)\n"
+"\n"),
+(" -unrestartable-receive-timeout <sec>\n"
+"  Timeout on non restartable connections.\n"
+"    (default: 600)\n"
+"\n"
+" -format-cache-size <num>\n"
+"  Number of formatted document pages cached.\n"
+"    (default: 5)\n"
+"\n"
+" -memory-cache-size <bytes>\n"
+"  Cache memory in bytes.\n"
+"    (default: 1048576)\n"
+"\n"
+" -image-cache-size <bytes>\n"
+"  Cache memory in bytes.\n"
+"    (default: 1048576)\n"
+"\n"),
+(" -http-proxy <host:port>\n"
+"  Host and port number of the HTTP proxy, or blank.\n"
+"    (default: blank)\n"
+"\n"
+" -ftp-proxy <host:port>\n"
+"  Host and port number of the FTP proxy, or blank.\n"
+"    (default: blank)\n"
+"\n"
+" -download-dir <path>\n"
+"  Default download directory.\n"
+"    (default: actual dir)\n"
+"\n"),
+(" -language <language>\n"
+"  Set user interface language.\n"
+"\n"
+" -http-bugs.http10 <0>/<1>\n"
+"    (default 0)\n"
+"  \"1\" forces using only HTTP/1.0 protocol. (useful for buggy servers\n"
+"    that claim to be HTTP/1.1 compliant but are not)\n"
+"  \"0\" use both HTTP/1.0 and HTTP/1.1.\n"
+"\n"
+" -http-bugs.allow-blacklist <0>/<1>\n"
+"    (default 1)\n"
+"  \"1\" defaults to using list of servers that have broken HTTP/1.1 support.\n"
+"     When links finds such server, it will retry the request with HTTP/1.0.\n"
+"\n"
+" -http-bugs.bug-302-redirect <0>/<1>\n"
+"    (default 1)\n"
+"  Process 302 redirect in a way that is incompatible with RFC1945 and RFC2068,\n"
+"    but the same as Netscape and MSIE. Many pages depend on it.\n"
+"\n"
+" -http-bugs.bug-post-no-keepalive <0>/<1>\n"
+"    (default 0)\n"
+"  No keepalive connection after post requests. For some buggy servers.\n"
+"\n"
+" -http-bugs.bug-no-accept-charset <0>/<1>\n"
+"    (default 0)\n"
+"  Do not send Accept-Charset field of HTTP header. Because it is too long\n"
+"    some servers will deny the request. Other servers will convert content\n"
+"    to plain ascii when Accept-Charset is missing.\n"
+"\n"
+" -http-bugs.aggressive-cache <0>/<1>\n"
+"    (default 1)\n"
+"  Always cache everything regardless of server's caching recomendations.\n"
+"    Many servers deny caching even if their content is not changing\n"
+"    just to get more hits and more money from ads.\n"
+"\n"
+" -http-referer <0>/<1>/<2>/<3>\n"
+"    (default 0)\n"
+"  0 - do not send referer\n"
+"  1 - send the requested URL as referer\n"
+"  2 - send real referer\n"
+"  3 - send fake referer\n"
+"\n"
+" -fake-referer <string>\n"
+"  Fake referer value.\n"
+"\n"
+" -fake-user-agent <string>\n"
+"  Fake user agent value.\n"
+"\n"
+" -ftp.anonymous-password <string>\n"
+"  Password for anonymous ftp access.\n"
+"\n"
+" -ftp.use-passive <0>/<1>\n"
+"  Use ftp PASV command to bypass firewalls.\n"
+"\n"
+" -ftp.fast <0>/<1>\n"
+"  Send more ftp commands simultaneously. Faster response when\n"
+"    browsing ftp directories, but it is incompatible with RFC\n"
+"    and some servers don't like it.\n"
+"\n"
+" -menu-font-size <size>\n"
+"  Size of font in menu.\n"
+"\n"
+" -background-color 0xRRGGBB\n"
+"  Set menu background color in graphics mode, RRGGBB are hex.\n"
+"\n"
+" -foreground-color 0xRRGGBB\n"
+"  Set menu foreground color in graphics mode.\n"
+"\n"
+" -scroll-bar-area-color 0xRRGGBB\n"
+"  Set color of scroll bar area.\n"
+"\n"
+" -scroll-bar-bar-color 0xRRGGBB\n"
+"  Set color of scroll bar.\n"
+"\n"
+" -scroll-bar-frame-color 0xRRGGBB\n"
+"  Set color of scroll bar frame.\n"
+"\n"
+" -display-red-gamma <fp-value>\n"
+"  Red gamma of display.\n"
+"    (default 2.2)\n"
+"\n"
+" -display-green-gamma <fp-value>\n"
+"  Green gamma of display.\n"
+"    (default 2.2)\n"
+"\n"
+" -display-blue-gamma <fp-value>\n"
+"  Blue gamma of display.\n"
+"    (default 2.2)\n"
+"\n"
+" -user-gamma <fp-value>\n"
+"  Additional gamma.\n"
+"\n"
+" -bfu-aspect <fp-value>\n"
+"  Display aspect ration.\n"
+"\n"
+" -aspect-on <0>/<1>\n"
+"  Enable aspect ratio correction.\n"
+"\n"
+" -dither-letters <0>/<1>\n"
+"  Do letter dithering.\n"
+"\n"
+" -dither-images <0>/<1>\n"
+"  Do image dithering.\n"
+"\n"
+" -display-optimize <0>/<1>/<2>\n"
+"  Optimize for CRT (0), LCD RGB (1), LCD BGR (2).\n"
+"\n"
+" -enable-javascript <0>/<1>\n"
+"  Enable javascript.\n"
+"\n"
+" -js.verbose-errors <0>/<1>\n"
+"  Display javascript errors.\n"
+"\n"
+" -js.verbose-warnings <0>/<1>\n"
+"  Display javascript warnings.\n"
+"\n"
+" -js.enable-all-conversions <0>/<1>\n"
+"  Enable conversions between all types in javascript.\n"
+"\n"
+" -js.enable-global-resolution <0>/<1>\n"
+"  Resolve global names.\n"
+"\n"
+" -js.manual-confirmation <0>/<1>\n"
+"  Ask user to confirm potentially dangerous operations\n"
+"    (opening windows, going to url etc.) Default 1.\n"
+"\n"
+" -js.recursion-depth <integer>\n"
+"  Depth of javascript call stack.\n"
+"\n"
+" -js.memory-limit <memory amount>\n"
+"  Amount of kilobytes the javascript may allocate.\n"
+"\n"
+" -bookmarks-codepage <codepage>\n"
+"  Character set of bookmarks file.\n"
+"\n"
+" -bookmarks-file <file>\n"
+"  File to store bookmarks.\n"
+"\n"
+" -html-assume-codepage <codepage>\n"
+"  If server didn't specify document character set, assume this.\n"
+"\n"
+" -html-hard-assume <0>/<1>\n"
+"  Use always character set from \"-html-assume-codepage\" no matter\n"
+"    what server sent.\n"
+"\n"
+" -html-tables <0>/<1>\n"
+"  Render tables. (0) causes tables being rendered like in lynx.\n"
+"\n"
+" -html-frames <0>/<1>\n"
+"  Render frames. (0) causes frames  rendered like in lynx.\n"
+"\n"
+" -html-images <0>/<1>\n"
+"  Display links to unnamed images as [IMG].\n"
+"\n"
+" -html-image-names <0>/<1>\n"
+"  Display filename of an image instead of [IMG].\n"
+"\n"
+" -html-display-images <0>/<1>\n"
+"  Display images in graphics mode.\n"
+"\n"
+" -html-image-scale <percent>\n"
+"  Scale images in graphics mode.\n"
+"\n"
+" -html-numbered-links <0>/<1>\n"
+"  Number links in text mode. Allow quick link selection by typing\n"
+"    link number and enter.\n"
+"\n"
+" -html-table-order <0>/<1>\n"
+"  In text mode, walk through table by rows (0) or columns (1)\n"
+"\n"
+" -html-auto-refresh <0>/<1>\n"
+"  Process refresh to other page (1), or display link to that page (0).\n"
+"\n"
+" -html-target-in-new-window <0>/<1>\n"
+"  Allow opening new windows from html.\n"
+"\n"
+" -html-margin <number of spaces>\n"
+"  Margin in text mode.\n"
+"\n"
+" -html-user-font-size <size>\n"
+"  Size of font on pages in graphics mode.\n"
+"\n"
+" -lookup <hostname>\n"
+"  Does name lookup, like command \"host\".\n"
 "\n"
 " -version\n"
 "  Prints the links version number and exit.\n"
@@ -956,31 +1266,47 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 "\n"),
 ("Keys:\n"
-" 	ESC	  display menu\n"
+"	ESC	  display menu\n"
 "	^C	  quit\n"
-"	^P        scroll up (text mode)\n"
-"       	^N	  scroll down\n"
+"	^P	  scroll up\n"
+"	^N	  scroll down\n"
 "	[, ]	  scroll left, right\n"
-"	up, down  select link (text mode)\n"
-"	->	  follow link (text mode), scroll right (graphics mode)\n"
-"	<-	  go back (text mode), scroll left (graphics mode)\n"
-"	z	  go back\n"
+"	up, down  select link\n"
+"	->, enter follow link\n"
+"	<-, z	  go back\n"
 "	g	  go to url\n"
 "	G	  go to url based on current url\n"
 "	^G	  go to url based on current link\n"
+"	^R	  reload\n"
 "	/	  search\n"
 "	?	  search back\n"
 "	n	  find next\n"
 "	N	  find previous\n"
 "	=	  document info\n"
 "	\\	  document source\n"
+"	|	  HTTP header\n"
+"	*	  toggle displaying of image links (text mode)\n"
 "	d	  download\n"
+"	s	  bookmarks\n"
 "	q	  quit or close current window\n"
-"	Ctrl-INS  copy to clipboard (OS/2 only)\n"
-"	Shift-DEL cut to clipboard (OS/2 only)\n"
-"	Shift-INS paste clipboard (OS/2 only)\n"
+"	^X	  cut to clipboard\n"
+"	^V	  paste from clipboard\n"
+"	^K	  cut line (in textarea) or text to the end (in field)\n"
+"	^U	  cut all text before cursor\n"
+"	^W	  autocomplete url\n"
 "	Alt-1 .. Alt-9\n"
 "		  switch virtual screens (svgalib and framebuffer)\n"
+"\n"
+"Keys for braille terminal:\n"
+"       arrows	  move the cursor\n"
+"       enter	  follow link\n"
+"	a	  cursor to status line\n"
+"	w	  cursor to title\n"
+"	^Y	  next link\n"
+"	^T	  previous link\n"
+"	y	  next word\n"
+"	t	  previous word\n"
+"	^O	  next form field entry\n"
 ));
 
 	fflush(stdout);
@@ -1027,6 +1353,9 @@ int max_tries = 3;
 int receive_timeout = 120;
 int unrestartable_receive_timeout = 600;
 
+int screen_width = 80;
+int dump_codepage = -1;
+
 int max_format_cache_entries = 5;
 long memory_cache_size = 1048576;
 long image_cache_size = 1048576;
@@ -1036,15 +1365,15 @@ int enable_html_frames = 1;
 
 struct document_setup dds = { 0, 0, 1, 1, 0, 0, 3, 0, 0, 0, 18, 1, 100, 0 };
 
-struct rgb default_fg = { 191, 191, 191 };
-struct rgb default_bg = { 0, 0, 0 };
-struct rgb default_link = { 255, 255, 255 };
-struct rgb default_vlink = { 255, 255, 0 };
+struct rgb default_fg = { 191, 191, 191, 0 };
+struct rgb default_bg = { 0, 0, 0, 0 };
+struct rgb default_link = { 255, 255, 255, 0 };
+struct rgb default_vlink = { 255, 255, 0, 0 };
 
-struct rgb default_fg_g = { 0, 0, 0 };
-struct rgb default_bg_g = { 192, 192, 192 };
-struct rgb default_link_g = { 0, 0, 255 };
-struct rgb default_vlink_g = { 0, 0, 128 };
+struct rgb default_fg_g = { 0, 0, 0, 0 };
+struct rgb default_bg_g = { 192, 192, 192, 0 };
+struct rgb default_link_g = { 0, 0, 255, 0 };
+struct rgb default_vlink_g = { 0, 0, 128, 0 };
 
 int default_left_margin = HTML_LEFT_MARGIN;
 
@@ -1095,10 +1424,10 @@ struct option links_options[] = {
 	{1, setstr_cmd, NULL, NULL, 0, MAX_STR_LEN, &ggr_display, NULL, "display"},
 	{1, gen_cmd, num_rd, NULL, 0, MAXINT, &base_session, NULL, "base-session"},
 	{1, force_html_cmd, NULL, NULL, 0, 0, NULL, NULL, "force-html"},
-/*
-	{1, dump_cmd, NULL, NULL, D_DUMP, 0, NULL, NULL, "dump"},
-*/
 	{1, dump_cmd, NULL, NULL, D_SOURCE, 0, NULL, NULL, "source"},
+	{1, dump_cmd, NULL, NULL, D_DUMP, 0, NULL, NULL, "dump"},
+	{1, gen_cmd, num_rd, NULL, 10, 512, &screen_width, "dump_width", "width" },
+	{1, gen_cmd, cp_rd, NULL, 1, 0, &dump_codepage, "dump_codepage", "codepage" },
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &async_lookup, "async_dns", "async-dns"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &download_utime, "download_utime", "download-utime"},
 	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections, "max_connections", "max-connections"},
@@ -1122,6 +1451,9 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 3, &referer, "http_referer", "http-referer"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, fake_useragent, "fake_useragent", "fake-user-agent"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, fake_referer, "fake_referer", "fake-referer"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, default_anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &passive_ftp, "ftp.use_passive", "ftp.use-passive"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &fast_ftp, "ftp.fast", "ftp.fast"},
 	{1, gen_cmd, num_rd, num_wr, 1, 999, &menu_font_size, "menu_font_size", "menu-font-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_BG_COLOR, "background_color", "background-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_FG_COLOR, "foreground_color", "foreground-color"},
@@ -1134,22 +1466,19 @@ struct option links_options[] = {
 	{1, gen_cmd, dbl_rd, dbl_wr, 1, 10000, &user_gamma, "user_gamma", "user-gamma"},
 	{1, gen_cmd, dbl_rd, dbl_wr, 25, 400, &bfu_aspect, "bfu_aspect", "bfu-aspect"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &aspect_on, "aspect_on", "aspect-on"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &dither_letters, "dither_letters", "dither-letters"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &dither_images, "dither_images", "dither-images"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 2, &display_optimize, "display_optimize", "display-optimize"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_enable, "enable_javascript", "enable-javascript"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_verbose_errors, "verbose_javascript_errors", "verbose-javascript-errors"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_verbose_warnings, "verbose_javascript_warnings", "verbose-javascript-warnings"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_all_conversions, "enable_all_conversions", "enable-all-conversions"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_global_resolve, "enable_global_resolution", "enable-global-resolution"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_manual_confirmation, "javascript_manual_confirmation", "javascript-manual-confirmation"}, 
-	{1, gen_cmd, num_rd, num_wr, 0, 999999, &js_fun_depth, "js_recursion_depth", "js-recursion-depth"}, 
-	{1, gen_cmd, num_rd, num_wr, 1024, 30*1024, &js_memory_limit, "js_memory_limit", "js-memory-limit"}, 
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dither_letters, "dither_letters", "dither-letters"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dither_images, "dither_images", "dither-images"},
+	{1, gen_cmd, num_rd, num_wr, 0, 2, &display_optimize, "display_optimize", "display-optimize"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_enable, "enable_javascript", "enable-javascript"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_verbose_errors, "verbose_javascript_errors", "js.verbose-errors"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_verbose_warnings, "verbose_javascript_warnings", "js.verbose-warnings"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_all_conversions, "enable_all_conversions", "js.enable-all-conversions"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_global_resolve, "enable_global_resolution", "js.enable-global-resolution"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_manual_confirmation, "javascript_manual_confirmation", "js.manual-confirmation"},
+	{1, gen_cmd, num_rd, num_wr, 0, 999999, &js_fun_depth, "js_recursion_depth", "js.recursion-depth"},
+	{1, gen_cmd, num_rd, num_wr, 1024, 30*1024, &js_memory_limit, "js_memory_limit", "js.memory-limit"},
 	{1, gen_cmd, cp_rd, cp_wr, 0, 0, &bookmarks_codepage, "bookmarks_codepage", "bookmarks-codepage"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, bookmarks_file, "bookmarks_file", "bookmarks-file"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, default_anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &passive_ftp, "ftp.use_passive", "ftp.use-passive"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &fast_ftp, "ftp.fast", "ftp.fast"},
 	{1, gen_cmd, cp_rd, NULL, 0, 0, &dds.assume_cp, "assume_codepage", "assume-codepage"},
 	{1, NULL, term_rd, term_wr, 0, 0, NULL, "terminal", NULL},
 	{1, NULL, term2_rd, NULL, 0, 0, NULL, "terminal2", NULL},
@@ -1158,6 +1487,8 @@ struct option links_options[] = {
 	{1, NULL, prog_rd, prog_wr, 0, 0, &mailto_prog, "mailto", NULL},
 	{1, NULL, prog_rd, prog_wr, 0, 0, &telnet_prog, "telnet", NULL},
 	{1, NULL, prog_rd, prog_wr, 0, 0, &tn3270_prog, "tn3270", NULL},
+	{1, NULL, prog_rd, prog_wr, 0, 0, &mms_prog, "mms", NULL},
+	{1, NULL, block_rd, block_wr, 0, 0, NULL, "imageblock", NULL},
 	{1, NULL, dp_rd, dp_wr, 0, 0, NULL, "video_driver", NULL},
 	{0, NULL, NULL, NULL, 0, 0, NULL, NULL, NULL},
 };

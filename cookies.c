@@ -30,6 +30,15 @@ struct list_head c_servers = { &c_servers, &c_servers };
 void accept_cookie(struct cookie *);
 void delete_cookie(struct cookie *);
 
+/* prototypes */
+int check_domain_security(unsigned char *, unsigned char *);
+struct cookie *find_cookie_id(void *);
+void reject_cookie(void *);
+void cookie_default(void *, int);
+void accept_cookie_always(void *);
+void accept_cookie_never(void *);
+
+
 void free_cookie(struct cookie *c)
 {
 	mem_free(c->name);
@@ -41,7 +50,8 @@ void free_cookie(struct cookie *c)
 
 int check_domain_security(unsigned char *server, unsigned char *domain)
 {
-	int i, j, dl, nd;
+	size_t i, j, dl;
+	int nd;
 	if (domain[0] == '.') domain++;
 	dl = strlen(domain);
 	if (dl > strlen(server)) return 1;
@@ -74,7 +84,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	for (p = str; *p != ';' && *p; p++) /*if (WHITECHAR(*p)) return 0*/;
 	for (q = str; *q != '='; q++) if (!*q || q >= p) return 0;
 	if (str == q || q + 1 == p) return 0;
-	if (!(cookie = mem_alloc(sizeof(struct cookie)))) return 0;
+	cookie = mem_alloc(sizeof(struct cookie));
 	document = get_url_data(url);
 	server = get_host_name(url);
 	cookie->name = memacpy(str, q - str);
@@ -92,7 +102,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 		unsigned char *w;
 		cookie->path = stracpy("/");
 		add_to_strn(&cookie->path, document);
-		for (w = cookie->path; *w; w++) if (end_of_dir(*w)) {
+		for (w = cookie->path; *w; w++) if (end_of_dir(cookie->path, *w)) {
 			*w = 0;
 			break;
 		}
@@ -155,7 +165,7 @@ void accept_cookie(struct cookie *c)
 	}
 	add_to_list(cookies, c);
 	foreach(cd, c_domains) if (!strcasecmp(cd->domain, c->domain)) return;
-	if (!(cd = mem_alloc(sizeof(struct c_domain) + strlen(c->domain) + 1))) return;
+	cd = mem_alloc(sizeof(struct c_domain) + strlen(c->domain) + 1);
 	strcpy(cd->domain, c->domain);
 	add_to_list(c_domains, cd);
 }
@@ -178,7 +188,7 @@ void delete_cookie(struct cookie *c)
 
 struct cookie *find_cookie_id(void *idp)
 {
-	int id = (int)idp;
+	long id = (long)idp;
 	struct cookie *c;
 	foreach(c, cookies) if (c->id == id) return c;
 	return NULL;
@@ -197,12 +207,11 @@ void cookie_default(void *idp, int a)
 	struct c_server *s;
 	if (!(c = find_cookie_id(idp))) return;
 	foreach(s, c_servers) if (!strcasecmp(s->server, c->server)) goto found;
-	if ((s = mem_alloc(sizeof(struct c_server) + strlen(c->server) + 1))) {
-		strcpy(s->server, c->server);
-		add_to_list(c_servers, s);
-		found:
-		s->accept = a;
-	}
+	s = mem_alloc(sizeof(struct c_server) + strlen(c->server) + 1);
+	strcpy(s->server, c->server);
+	add_to_list(c_servers, s);
+	found:
+	s->accept = a;
 }
 
 void accept_cookie_always(void *idp)
@@ -236,7 +245,7 @@ int is_path_prefix(unsigned char *d, unsigned char *s)
 
 int cookie_expired(struct cookie *c)	/* parse_http_date is broken */
 {
-  	return 0 && (c->expires && c->expires < time(NULL));
+	return 0 && (c->expires && c->expires < time(NULL));
 }
 
 void send_cookies(unsigned char **s, int *l, unsigned char *url)

@@ -12,6 +12,10 @@
 
 struct list_head image_cache = { &image_cache, &image_cache };
 
+/* prototypes */
+int image_size(struct cached_image *);
+int shrink_image_cache(int);
+
 struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
 		yw, int scale, int aspect)
 {

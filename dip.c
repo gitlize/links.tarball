@@ -94,6 +94,21 @@ float fancy_constants[64]={
 	.01,1  		/* 32 */
 };
 
+/* prototypes */
+void decimate_3(unsigned short **, int, int);
+struct letter *find_stored_letter(int *, int);
+void read_stored_data(png_structp, png_bytep, png_uint_32);
+void my_png_warning(png_structp, png_const_charp);
+void my_png_error(png_structp, png_const_charp);
+struct font_cache_entry *supply_color_cache_entry (struct graphics_driver *, struct style *, struct letter *);
+void get_underline_pos(int, int *, int *);
+int compare_font_entries(void *, void *);
+void init_font_cache(int);
+void recode_font_name(unsigned char **);
+int compare_family(unsigned char *, unsigned char *);
+int fill_style_table(int *, unsigned char *);
+
+
 /* This shall be hopefully reasonably fast and portable
  * We assume ix is <65536. If not, the letters will be smaller in
  * horizontal dimension (because of overflow) but this will not cause
@@ -280,6 +295,8 @@ inline static void enlarge_gray_horizontal(unsigned char *in, int ix, int y
 	unsigned char *outptr;
 	unsigned char *inptr;
 
+	if (ox && (unsigned)ox * (unsigned)y / (unsigned)ox != (unsigned)y) overalloc();
+	if ((unsigned)ox * (unsigned)y > MAXINT) overalloc();
 	outptr=mem_alloc(ox*y);
 	inptr=in;
 	*out=outptr;
@@ -293,6 +310,7 @@ inline static void enlarge_gray_horizontal(unsigned char *in, int ix, int y
 		mem_free(in);
 	}else{
 		total=(ix-1)*(ox-1);
+		if ((unsigned)y > MAXINT / sizeof(*col_buf)) overalloc();
 		col_buf=mem_alloc(y*sizeof(*col_buf));
 		bias_buf_gray(col_buf, y, half);
 		out_pos=0;
@@ -338,6 +356,8 @@ static inline void enlarge_color_horizontal(unsigned short *ina, int ix, int y,
 		*outa=ina;
 		return;
 	}
+	if (ox && (unsigned)ox * (unsigned)y / (unsigned)ox != (unsigned)y) overalloc();
+	if ((unsigned)ox * (unsigned)y > MAXINT / 3 / sizeof(*out)) overalloc();
 	out=mem_alloc(sizeof(*out)*3*ox*y);
 	*outa=out;
 	in=ina;
@@ -351,6 +371,7 @@ static inline void enlarge_color_horizontal(unsigned short *ina, int ix, int y,
 		return;
 	}
 	total=(ix-1)*(ox-1);
+	if ((unsigned)y > MAXINT / 3 / sizeof(*col_buf)) overalloc();
 	col_buf=mem_alloc(y*3*sizeof(*col_buf));
 	bias_buf_color(col_buf,y,half);
 	out_pos=0;
@@ -396,9 +417,12 @@ inline static void scale_gray_horizontal(unsigned char *in, int ix, int y
 		*out=in;
 		return;
 	}
+	if (ox && (unsigned)ox * (unsigned)y / (unsigned)ox != (unsigned)y) overalloc();
+	if ((unsigned)ox * (unsigned)y > MAXINT) overalloc();
 	outptr=mem_alloc(ox*y);
 	inptr=in;
 	*out=outptr;
+	if ((unsigned)y > MAXINT / sizeof(*col_buf)) overalloc();
 	col_buf=mem_alloc(y*sizeof(*col_buf));
 	bias_buf_gray(col_buf, y, ix>>1);
 	out_pos=0;
@@ -454,9 +478,12 @@ inline static void scale_color_horizontal(unsigned short *ina, int ix, int y,
 		*outa=ina;
 		return;
 	}
+	if (ox && (unsigned)ox * (unsigned)y / (unsigned)ox != (unsigned)y) overalloc();
+	if ((unsigned)ox * (unsigned)y > MAXINT / 3 / sizeof(*out)) overalloc();
 	out=mem_alloc(sizeof(*out)*3*ox*y);
 	*outa=out;
 	in=ina;
+	if ((unsigned)y > MAXINT / 3 / sizeof(*col_buf)) overalloc();
 	col_buf=mem_alloc(y*3*sizeof(*col_buf));
 	bias_buf_color(col_buf,y,ix>>1);
 	out_pos=0;
@@ -499,6 +526,8 @@ inline static void enlarge_gray_vertical(unsigned char *in, int x, int iy,
 	unsigned char *inptr;
 
 	if (iy==1){
+		if (x && (unsigned)x * (unsigned)oy / (unsigned)x != (unsigned)oy) overalloc();
+		if ((unsigned)x * (unsigned)oy > MAXINT) overalloc();
 		outptr=mem_alloc(oy*x);
 		*out=outptr;
 		for(;oy;oy--,outptr+=x)
@@ -508,10 +537,13 @@ inline static void enlarge_gray_vertical(unsigned char *in, int x, int iy,
 	else if (iy==oy){
 		*out=in;
 	}else{
+		if (x && (unsigned)x * (unsigned)oy / (unsigned)x != (unsigned)oy) overalloc();
+		if ((unsigned)x * (unsigned)oy > MAXINT) overalloc();
 		outptr=mem_alloc(oy*x);
 		inptr=in;
 		*out=outptr;
 		total=(iy-1)*(oy-1);
+		if ((unsigned)x > MAXINT / sizeof(*row_buf)) overalloc();
 		row_buf=mem_alloc(x*sizeof(*row_buf));
 		bias_buf_gray(row_buf, x, half);
 		out_pos=0;
@@ -552,6 +584,8 @@ inline static void enlarge_color_vertical(unsigned short *ina, int x, int iy,
 		return;
 	}
 	/* Rivendell */
+	if (x && (unsigned)x * (unsigned)oy / (unsigned)x != (unsigned)oy) overalloc();
+	if ((unsigned)x * (unsigned)oy > MAXINT / 3 / sizeof(*out)) overalloc();
 	out=mem_alloc(sizeof(*out)*3*oy*x);
 	*outa=out;
 	in=ina;
@@ -564,6 +598,7 @@ inline static void enlarge_color_vertical(unsigned short *ina, int x, int iy,
 		return;
 	}
 	total=(iy-1)*(oy-1);
+	if ((unsigned)x > MAXINT / 3 / sizeof(*row_buf)) overalloc();
 	row_buf=mem_alloc(x*3*sizeof(*row_buf));
 	bias_buf_color(row_buf,x,half);
 	out_pos=0;
@@ -612,9 +647,12 @@ inline static void scale_gray_vertical(unsigned char *in, int x, int iy,
 		*out=in;
 		return;
 	}
+	if (x && (unsigned)x * (unsigned)oy / (unsigned)x != (unsigned)oy) overalloc();
+	if ((unsigned)x * (unsigned)oy > MAXINT) overalloc();
 	outptr=mem_alloc(x*oy);
 	inptr=in;
 	*out=outptr;
+	if ((unsigned)x > MAXINT / sizeof(*row_buf)) overalloc();
 	row_buf=mem_calloc(x*sizeof(*row_buf));
 	bias_buf_gray(row_buf, x, iy>>1);
 	out_pos=0;
@@ -665,9 +703,12 @@ inline static void scale_color_vertical(unsigned short *ina, int x, int iy
 		enlarge_color_vertical(ina,x,iy,outa,oy);
 		return;
 	}
+	if (x && (unsigned)x * (unsigned)oy / (unsigned)x != (unsigned)oy) overalloc();
+	if ((unsigned)x * (unsigned)oy > MAXINT / 3 / sizeof(*out)) overalloc();
 	out=mem_alloc(sizeof(*out)*3*oy*x);
 	*outa=out;
 	in=ina;
+	if ((unsigned)x > MAXINT / 3 / sizeof(*row_buf)) overalloc();
 	row_buf=mem_alloc(x*3*sizeof(*row_buf));
 	bias_buf_color(row_buf,x,iy>>1);
 	out_pos=0;
@@ -709,6 +750,8 @@ inline static void scale_gray(unsigned char *in, int ix, int iy, unsigned char *
 
 	if (!ix||!iy){
 		if (in) mem_free(in);
+		if (ox && (unsigned)ox * (unsigned)oy / (unsigned)ox != (unsigned)oy) overalloc();
+		if ((unsigned)ox * (unsigned)oy > MAXINT) overalloc();
 		*out=mem_calloc(ox*oy);
 		return;
 	}
@@ -732,7 +775,10 @@ void decimate_3(unsigned short **data0, int x, int y)
 {
 	unsigned short *data=*data0;
 	unsigned short *ahead=data;
-	int i, futuresize=x*y*3*sizeof(**data0);
+	int i, futuresize;
+	if (x && (unsigned)x * (unsigned)y / (unsigned)x != (unsigned)y) overalloc();
+	if ((unsigned)x * (unsigned)y > MAXINT / 3 / sizeof(**data0)) overalloc();
+	futuresize=x*y*3*sizeof(**data0);
 	
 #ifdef DEBUG
 	if (!(x>0&&y>0)) internal("zero width or height in decimate_3");
@@ -803,6 +849,8 @@ void scale_color(unsigned short *in, int ix, int iy, unsigned short **out,
 
 	if (!ix||!iy){
 		if (in) mem_free(in);
+		if (ox && (unsigned)ox * (unsigned)oy / (unsigned)ox != (unsigned)oy) overalloc();
+		if ((unsigned)ox * (unsigned)oy > MAXINT / 3 / sizeof(**out)) overalloc();
 		*out=mem_calloc(ox*oy*sizeof(**out)*3);
 		return;
 	}
@@ -1334,7 +1382,7 @@ void read_stored_data(png_structp png_ptr, png_bytep data, png_uint_32 length)
 	struct read_work *work;
 
 	work=png_get_io_ptr(png_ptr);
-	if (length>work->length) png_error(png_ptr,"Ran out of input data");
+	if (length>(png_uint_32)work->length) png_error(png_ptr,"Ran out of input data");
 	memcpy(data,work->pointer,length);
 	work->length-=length;
 	work->pointer+=length;
@@ -1346,7 +1394,7 @@ void my_png_warning(png_structp a, png_const_charp b)
 
 void my_png_error(png_structp a, png_const_charp error_string)
 {
-	error("Error when loading compiled-in font: %s.\n",error_string);
+	error("Error when loading compiled-in font: %s.",error_string);
 }
 
 /* Loads width and height of the PNG (nothing is scaled). Style table is
@@ -1435,7 +1483,10 @@ unsigned char *png_data, int png_length, struct style *style)
 	 */
 	number_of_passes=png_set_interlace_handling(png_ptr);
 	png_read_update_info(png_ptr,info_ptr);
+	if (*x && (unsigned)*x * (unsigned)*y / (unsigned)*x != (unsigned)*y) overalloc();
+	if ((unsigned)*x * (unsigned)*y > MAXINT) overalloc();
 	*dest=mem_alloc(*x*(*y));
+	if ((unsigned)*y > MAXINT / sizeof(*ptrs)) overalloc();
 	ptrs=mem_alloc(*y*sizeof(*ptrs));
 	for (y1=0;y1<*y;y1++) ptrs[y1]=*dest+*x*y1;
 	for (;number_of_passes;number_of_passes--){
@@ -1447,6 +1498,8 @@ unsigned char *png_data, int png_length, struct style *style)
 	return;
 #ifndef HAVE_PNG_SET_RGB_TO_GRAY
 	end:
+	if (*x && (unsigned)*x * (unsigned)*y / (unsigned)*x != (unsigned)*y) overalloc();
+	if ((unsigned)*x * (unsigned)*y > MAXINT) overalloc();
 	*dest=mem_calloc(*x*(*y));
 	return;
 #endif
@@ -1473,6 +1526,8 @@ unsigned char *png_data, int png_length, struct style *style)
 	if (y>32||y<=0) return ; /* No convolution */
 	ix=*x+2; /* There is one-pixel border around */
 	iy=y+2;
+	if (ix && (unsigned)ix * (unsigned)iy / (unsigned)ix != (unsigned)iy) overalloc();
+	if ((unsigned)ix * (unsigned)iy > MAXINT) overalloc();
 	interm2=mem_alloc(ix*iy);
 	i2ptr=interm2+ix+1;
 	dptr=*dest;
@@ -1550,6 +1605,8 @@ struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 	new->mono_space=style->mono_space;
 	new->mono_height=style->mono_height;
 
+	if (new->bitmap.x && (unsigned)new->bitmap.x * (unsigned)new->bitmap.y / (unsigned)new->bitmap.x != (unsigned)new->bitmap.y) overalloc();
+	if ((unsigned)new->bitmap.x * (unsigned)new->bitmap.y > MAXINT / 3 / sizeof(*primary_data)) overalloc();
 	primary_data=mem_alloc(3
 			*new->bitmap.x*new->bitmap.y*sizeof(*primary_data));
 
@@ -1810,6 +1867,8 @@ static inline int g_get_width(struct style *style, int charcode)
 {
 	int x, y, width;
 
+	if (!charcode || charcode == 0xad) return 0;
+	if (charcode == 0x01 || charcode == 0xa0) charcode = ' ';
 	if (style->mono_space>=0){
 		x=style->mono_space;
 		y=style->mono_height;
@@ -1825,8 +1884,6 @@ int g_text_width(struct style *style, unsigned char *text)
 	while (*text) {
 		int u;
 		GET_UTF_8(text, u);
-		if (!u || u == 0xad) continue;
-		if (u == 0x01 || u == 0xa0) u = ' ';
 		w += g_get_width(style, u);
 	}
 	return w;
@@ -1998,6 +2055,7 @@ struct style *g_invert_style(struct style *old)
 		st->underline_color=dip_get_color_sRGB(
 			(st->r1<<16)|(st->g1<<8)|(st->b1));
 	}
+	if ((unsigned)n_fonts > MAXINT / sizeof(*st->table)) overalloc();
 	length=sizeof(*st->table)*(n_fonts-1);
 	st->table=mem_alloc(length);
 	memcpy(st->table,old->table,length);
@@ -2028,6 +2086,7 @@ struct style *g_get_style(int fg, int bg, int size, unsigned char *font, int fla
 		/* We have to get a foreground color for underlining */
 		st->underline_color=dip_get_color_sRGB(fg);
 	}
+	if ((unsigned)n_fonts > MAXINT / sizeof(*st->table)) overalloc();
 	st->table=mem_alloc(sizeof(*st->table)*(n_fonts-1));
 	if(fill_style_table(st->table, font))
 		load_metric(&(st->mono_space), &(st->mono_height),' ',st->table);

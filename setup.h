@@ -15,7 +15,9 @@
  *		 2=leaky, ruda zona, alloc, realloc a free patterny
  *		-1=tajny level ;-)
  */
+/* nastavuje se v configure --enable-debuglevel=-1,0,1,2
 #define DEBUGLEVEL			2
+*/
 
 #if DEBUGLEVEL >= 1
 #define DEBUG
@@ -50,6 +52,7 @@
 #define KEEPALIVE_CHECK_TIME		20000
 
 #define MAX_REDIRECTS			10
+#define MAX_CACHED_REDIRECTS		5
 
 #define MEMORY_CACHE_GC_PERCENT		9/10
 #define MAX_CACHED_OBJECT		1/4

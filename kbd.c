@@ -39,6 +39,18 @@ void in_sock(struct itrm *);
 
 struct itrm *ditrm = NULL;
 
+/* prototypes */
+void write_ev_queue(struct itrm *);
+void queue_event(struct itrm *, unsigned char *, int);
+void send_init_sequence(int, int);
+void send_term_sequence(int, int);
+int setraw(int, struct termios *);
+void unblock_itrm_x(void *);
+void resize_terminal_x(unsigned char *);
+void kbd_timeout(struct itrm *);
+int get_esc_code(char *, int, char *, int *, int *);
+
+
 int is_blocked(void)
 {
 	return ditrm && ditrm->blocked;
@@ -71,13 +83,8 @@ void queue_event(struct itrm *itrm, unsigned char *data, int len)
 		return;
 	}
 	if (w < len) {
-		unsigned char *c;
-		if (!(c = mem_realloc(itrm->ev_queue, itrm->eqlen + len - w))) {
-			/*free_trm(itrm);*/
-			register_bottom_half((void (*)(void *))itrm->free_trm, itrm);
-			return;
-		}
-		itrm->ev_queue = c;
+		if ((unsigned)itrm->eqlen + (unsigned)(len - w) > MAXINT) overalloc();
+		itrm->ev_queue = mem_realloc(itrm->ev_queue, itrm->eqlen + len - w);
 		memcpy(itrm->ev_queue + itrm->eqlen, data + w, len - w);
 		itrm->eqlen += len - w;
 		set_handlers(itrm->sock_out, get_handler(itrm->sock_out, H_READ), (void (*)(void *))write_ev_queue, (void (*)(void *))itrm->free_trm, itrm);
@@ -134,11 +141,49 @@ void resize_terminal(void)
 	queue_event(ditrm, (char *)&ev, sizeof(struct event));
 }
 
+int ttcgetattr(int fd, struct termios *t)
+{
+	int r;
+#ifdef SIGTTOU
+	interruptible_signal(SIGTTOU, 1);
+#endif
+#ifdef SIGTTIN
+	interruptible_signal(SIGTTIN, 1);
+#endif
+	r = tcgetattr(fd, t);
+#ifdef SIGTTOU
+	interruptible_signal(SIGTTOU, 0);
+#endif
+#ifdef SIGTTIN
+	interruptible_signal(SIGTTIN, 0);
+#endif
+	return r;
+}
+
+int ttcsetattr(int fd, int a, struct termios *t)
+{
+	int r;
+#ifdef SIGTTOU
+	interruptible_signal(SIGTTOU, 1);
+#endif
+#ifdef SIGTTIN
+	interruptible_signal(SIGTTIN, 1);
+#endif
+	r = tcsetattr(fd, a, t);
+#ifdef SIGTTOU
+	interruptible_signal(SIGTTOU, 0);
+#endif
+#ifdef SIGTTIN
+	interruptible_signal(SIGTTIN, 0);
+#endif
+	return r;
+}
+
 int setraw(int fd, struct termios *p)
 {
 	struct termios t;
 	memset(&t, 0, sizeof(struct termios));
-	if (tcgetattr(fd, &t)) return -1;
+	if (ttcgetattr(fd, &t)) return -1;
 	if (p) memcpy(p, &t, sizeof(struct termios));
 	os_cfmakeraw(&t);
 	t.c_lflag |= ISIG;
@@ -146,7 +191,7 @@ int setraw(int fd, struct termios *p)
 	t.c_lflag |= TOSTOP;
 #endif
 	t.c_oflag |= OPOST;
-	if (tcsetattr(fd, TCSANOW, &t)) return -1;
+	if (ttcsetattr(fd, TCSANOW, &t)) return -1;
 	return 0;
 }
 
@@ -161,7 +206,7 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 		error("ERROR: could not get terminal size");
 		return;
 	}
-	if (!(itrm = mem_alloc(sizeof(struct itrm)))) return;
+	itrm = mem_alloc(sizeof(struct itrm));
 	itrm->queue_event = queue_event;
 	itrm->free_trm = free_trm;
 	ditrm = itrm;
@@ -191,30 +236,21 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 		unsigned char *mm;
 		int ll = MAX_TERM_LEN - strlen(ts);
 		queue_event(itrm, ts, strlen(ts));
-		if (!(mm = mem_alloc(ll))) {
-			itrm->free_trm(itrm);
-			return;
-		}
-		memset(mm, 0, ll);
+		mm = mem_calloc(ll);
 		queue_event(itrm, mm, ll);
 		mem_free(mm);
 	}
-	if (!(ts = get_cwd()) && !(ts = stracpy(""))) goto neni_pamet;
+	if (!(ts = get_cwd())) ts = stracpy("");
 	if (strlen(ts) >= MAX_CWD_LEN) queue_event(itrm, ts, MAX_CWD_LEN);
 	else {
 		unsigned char *mm;
 		int ll = MAX_CWD_LEN - strlen(ts);
 		queue_event(itrm, ts, strlen(ts));
-		if (!(mm = mem_alloc(ll))) {
-			itrm->free_trm(itrm);
-			return;
-		}
-		memset(mm, 0, ll);
+		mm = mem_calloc(ll);
 		queue_event(itrm, mm, ll);
 		mem_free(mm);
 	}
 	mem_free(ts);
-	neni_pamet:
 	queue_event(itrm, (char *)&xwin, sizeof(int));
 	queue_event(itrm, (char *)&init_len, sizeof(int));
 	queue_event(itrm, (char *)init_string, init_len);
@@ -230,24 +266,20 @@ void unblock_itrm_x(void *h)
 	close_handle(h);
 	if (!ditrm) return;
 	unblock_itrm(0);
-	resize_terminal();
 }
 
 int unblock_itrm(int fd)
 {
 	struct itrm *itrm = ditrm;
-/*	NO_GFX;*/
 	if (!itrm) return -1;
-	/*if (ditrm->sock_out != fd) {
-		internal("unblock_itrm: bad fd: %d", fd);
-		return -1;
-	}*/
 	if (itrm->ctl_in >= 0 && setraw(itrm->ctl_in, NULL)) return -1;
+	if (itrm->blocked != fd + 1) return -1;
 	itrm->blocked = 0;
 	send_init_sequence(itrm->std_out,itrm->flags);
 	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm->free_trm, itrm);
 	handle_terminal_resize(itrm->ctl_in, resize_terminal);
 	unblock_stdin();
+	resize_terminal();
 	return 0;
 }
 
@@ -256,15 +288,12 @@ void block_itrm(int fd)
 	struct itrm *itrm = ditrm;
 	NO_GFX;
 	if (!itrm) return;
-	/*if (ditrm->sock_out != fd) {
-		internal("block_itrm: bad fd: %d", fd);
-		return;
-	}*/
-	itrm->blocked = 1;
+	if (itrm->blocked) return;
+	itrm->blocked = fd + 1;
 	block_stdin();
 	unhandle_terminal_resize(itrm->ctl_in);
 	send_term_sequence(itrm->std_out,itrm->flags);
-	tcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
+	ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
 	set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm->free_trm, itrm);
 }
 
@@ -275,7 +304,7 @@ void free_trm(struct itrm *itrm)
 	if (itrm->orig_title) mem_free(itrm->orig_title), itrm->orig_title = NULL;
 	unhandle_terminal_resize(itrm->ctl_in);
 	send_term_sequence(itrm->std_out,itrm->flags);
-	tcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
+	ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
 	if (itrm->mouse_h) unhandle_mouse(itrm->mouse_h);
 	set_handlers(itrm->std_in, NULL, NULL, NULL, NULL);
 	set_handlers(itrm->sock_in, NULL, NULL, NULL, NULL);
@@ -366,26 +395,25 @@ void in_sock(struct itrm *itrm)
 	if (!*path) {
 		dispatch_special(delete);
 	} else {
-		int blockh;
+		long blockh;
 		unsigned char *param;
 		if (is_blocked() && fg) {
 			if (*delete) unlink(delete);
 			goto to_je_ale_hnus;
 		}
-		if (!(param = mem_alloc(strlen(path) + strlen(delete) + 3))) goto to_je_ale_hnus;
+		param = mem_alloc(strlen(path) + strlen(delete) + 3);
 		param[0] = fg;
 		strcpy(param + 1, path);
 		strcpy(param + 1 + strlen(path) + 1, delete);
-		if (fg == 1) block_itrm(itrm->ctl_in);
+		if (fg == 1) block_itrm(0);
 		if ((blockh = start_thread((void (*)(void *, int))exec_thread, param, strlen(path) + strlen(delete) + 3)) == -1) {
-			if (fg == 1) unblock_itrm(itrm->ctl_in);
+			if (fg == 1) unblock_itrm(0);
 			mem_free(param);
 			goto to_je_ale_hnus;
 		}
 		mem_free(param);
 		if (fg == 1) {
 			set_handlers(blockh, (void (*)(void *))unblock_itrm_x, NULL, (void (*)(void *))unblock_itrm_x, (void *)blockh);
-			/*block_itrm(itrm->ctl_in);*/
 		} else {
 			set_handlers(blockh, close_handle, NULL, close_handle, (void *)blockh);
 		}
@@ -901,7 +929,7 @@ void svgalib_free_trm(struct itrm *itrm)
 {
 	/*debug("svgalib_free: %p", itrm);*/
 	if (!itrm) return;
-	if (kbd_set_raw) tcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
+	if (kbd_set_raw) ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
 	set_handlers(itrm->std_in, NULL, NULL, NULL, NULL);
 	if (itrm->tm != -1) kill_timer(itrm->tm);
 	mem_free(itrm);
@@ -911,7 +939,7 @@ void svgalib_free_trm(struct itrm *itrm)
 struct itrm *handle_svgalib_keyboard(void (*queue_event)(void *, unsigned char *, int))
 {
 	struct itrm *itrm;
-	if (!(itrm = mem_calloc(sizeof(struct itrm)))) return NULL;
+	itrm = mem_calloc(sizeof(struct itrm));
 	ditrm = itrm;
 	itrm->queue_event = (void (*)(struct itrm *, unsigned char *, int))queue_event;
 	itrm->free_trm = svgalib_free_trm;
@@ -924,15 +952,15 @@ struct itrm *handle_svgalib_keyboard(void (*queue_event)(void *, unsigned char *
 	return itrm;
 }
 
-void svgalib_unblock_itrm(struct itrm *itrm)
+int svgalib_unblock_itrm(struct itrm *itrm)
 {
 	/*debug("svgalib_unblock: %p", itrm);*/
-	if (!itrm) return;
-	if (kbd_set_raw) if (itrm->ctl_in >= 0) setraw(itrm->ctl_in, NULL);
+	if (!itrm) return -1;
+	if (kbd_set_raw) if (itrm->ctl_in >= 0) if (setraw(itrm->ctl_in, NULL)) return -1;
 	itrm->blocked = 0;
 	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm->free_trm, itrm);
 	unblock_stdin();
-	return;
+	return 0;
 }
 
 void svgalib_block_itrm(struct itrm *itrm)
@@ -941,7 +969,7 @@ void svgalib_block_itrm(struct itrm *itrm)
 	if (!itrm) return;
 	itrm->blocked = 1;
 	block_stdin();
-	if (kbd_set_raw) tcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
+	if (kbd_set_raw) ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
 	set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm->free_trm, itrm);
 }
 

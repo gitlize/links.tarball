@@ -25,6 +25,8 @@ struct jerr_struct{
 
 struct jerr_struct *global_jerr;
 struct jpeg_decompress_struct *global_cinfo;
+int mesg_unsup_emitted; /* Defaults to zero at program startup and once set
+			 * is never reset back to zero */
 
 METHODDEF(void) my_error_exit(j_common_ptr cinfo)
 {
@@ -48,7 +50,7 @@ METHODDEF(boolean) my_fill_input_buffer(j_decompress_ptr cinfo)
 
 METHODDEF(void) my_skip_input_data(j_decompress_ptr cinfo,long num_bytes)
 {
-	if (num_bytes>cinfo->src->bytes_in_buffer)
+	if ((unsigned long)num_bytes>cinfo->src->bytes_in_buffer)
 	{
 	 	/* We have to enter skipping state */
 	 	cinfo->src->next_input_byte+=cinfo->src->bytes_in_buffer;
@@ -104,6 +106,63 @@ g19_2000:
 	jd->scanlines[0]=NULL; /* This flags emptiness */
 }
 
+/* This is here because libjpeg doesn't support transformation from CMYK
+ * to RGB so that we must do it ourselves. */
+void cmyk_to_rgb(unsigned char *data, int pixels)
+{
+	for (;pixels;pixels--, data+=4)
+	{
+		/* C -> R */
+		data[0]=((data[0])*(data[3])+127)/255;
+
+		/* M -> G */
+		data[1]=((data[1])*(data[3])+127)/255;
+
+		/* Y -> B */
+		data[2]=((data[2])*(data[3])+127)/255;
+
+		/* Put alpha=1 instead of K */
+		data[3]=255;
+	}
+}
+
+void gray_to_rgb(unsigned char *data, int pixels)
+{
+	unsigned char *dest;
+
+	dest=data+(pixels-1)*3;
+	data+=pixels-1;
+	for(;pixels;pixels--,data--,dest-=3){
+		dest[2]=*data;
+		dest[1]=*data;
+		dest[0]=*data;
+	}
+}
+
+/* Fixes returned data in case they are CMYK or grayscale. */
+inline void fix_data( struct jpg_decoder *deco, int lines_read)
+{
+	int a;
+
+	switch (global_cinfo->output_components){
+		case 1:
+		for (a=0; a<lines_read; a++)
+			gray_to_rgb(deco->scanlines[a], global_cinfo
+				->output_width);
+		break;
+
+		case 3:
+		break;
+
+		case 4:
+		cmyk_to_rgb(deco->scanlines[0], global_cinfo
+			->output_width*lines_read);
+		break;
+
+		default: internal("Invalid output_components");
+	}
+}
+
 void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 {
 	struct jpg_decoder *deco;
@@ -114,28 +173,56 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 #endif /* #ifdef DEBUG */
 	global_cinfo=((struct jpg_decoder *)(cimg->decoder))->cinfo;
 	global_jerr=((struct jpg_decoder *)(cimg->decoder))->jerr;
+	/* These global variables are here so that we don't have to pass lots
+	 * of structure pointers into each function. The jpeg decoder is never
+	 * running twice at the same time so it doesn't matter.
+	 */
 
+	/* If the decoder wants us to skip bytes it's not interested in */
 	if (deco->skip_bytes>=length){
+		/* If the decoder wants to skip as much as or more bytes than
+		 * the chunk that has just arrived */
 		deco->skip_bytes-=length;
 		return;
 	}else{
+		/* If the decoder wants to skip less bytes than the chunk
+		 * that has just arrived */
 		data+=deco->skip_bytes;
 		length-=deco->skip_bytes;
 		deco->skip_bytes=0;
 	}
+
+	/* Add the arrived data chunk into the decoder buffer. Sometimes the
+	 * chunks are so small the decoder can't move on on a single chunk
+	 * so it has to accumulate more chunks together. This is why the buffer
+	 * is there. */
+	if ((unsigned)global_cinfo->src->bytes_in_buffer + (unsigned)length > MAXINT) overalloc();
+	if ((unsigned)global_cinfo->src->bytes_in_buffer + (unsigned)length < (unsigned)length) overalloc();
 	if (deco->jdata){
+		/* If there is already some decoder buffer, we have to
+		 * allocate more space */
 		memcpy(deco->jdata,global_cinfo->src->next_input_byte,
 			global_cinfo->src->bytes_in_buffer);
 		deco->jdata=mem_realloc(
 			deco->jdata, global_cinfo->src->bytes_in_buffer+length);
 	}else{
+		/* If there is no decoder buffer we'll have to allocate
+		 * space for a new buffer */
 		deco->jdata=mem_alloc(global_cinfo->src->bytes_in_buffer+length);
 	}
+
+	/* Copy the data iself into the decoder buffer */
 	memcpy(deco->jdata+global_cinfo->src->bytes_in_buffer
 		,data,length);
+
+	/* Update the next input byte pointer for the decoder to continue at
+	 * the right position */
 	global_cinfo->src->next_input_byte=deco->jdata;
+
 	/* ...:::...:..:.:::.:.::::.::.:.:.:.::..::::.::::.:...: */
+	/* Update the length of data in the decoder buffer */
 	global_cinfo->src->bytes_in_buffer+=length;
+
 	if (setjmp(global_jerr->setjmp_buffer)) goto decoder_ended;
 	switch(deco->state){
 		case 0:
@@ -157,27 +244,69 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 		 * is known, the scanlines are allocated to the space
 	         * needed for grayscale data.
 	         */	 
-		if (global_cinfo->output_components==1){
-			int a;
-
-			/* It means grayscale data */
-#ifdef DEBUG
-			if (deco->scanlines[0])
-				internal("Prebouchavam deco->scanlines[0]");
-#endif /* #ifdef DEBUG */
-			deco->scanlines[0]=mem_alloc(16*cimg->width);	
-			for (a=1;a<16;a++){
-				deco->scanlines[a]=deco->scanlines[0]
-					+a*cimg->width;
-			}
-		}
 		   
 		cimg->height=global_cinfo->output_height;
-		cimg->buffer_bytes_per_pixel=3;
+		switch(cimg->buffer_bytes_per_pixel=
+			global_cinfo->output_components)
+		{
+			case 1:
+				/* We'll do the conversion ourselves
+				 * because libjpeg seems to be buggy */
+				cimg->buffer_bytes_per_pixel=3;
+				break;
+
+
+			case 3: /* RGB or YCrCb. We will ask libjpeg to
+				 * possibly convert from YCrCb to RGB. */
+
+				global_cinfo->out_color_space=JCS_RGB;
+				break;
+
+			case 4:
+				/* CMYK or YCCK. We need to enable conversion
+				 * to CMYK and then convert CMYK data to RGBA
+				 * with dummy A ourselves.
+				 * We will ask libjpeg to possibly convert from
+				 * YCCK to CMYK. */
+				global_cinfo->out_color_space=JCS_CMYK;
+				break;
+
+			default:
+			/* Let's make a decompression fatal error here */
+
+			if (!mesg_unsup_emitted){
+				fprintf(stderr,
+			"Unsupported JPEG output components number: %d.\n",
+			cimg->buffer_bytes_per_pixel);
+				mesg_unsup_emitted=1;
+			}
+			longjmp(global_jerr->setjmp_buffer,2);
+
+			/* longjmp()  and  siglongjmp() make programs hard to
+			 * understand and maintain.  If possible an alternative
+			 * should be used. Hahaha :) ;-)
+			 */
+			/* Free will makes people hard to understand 
+			 * and maintain. If possible an alternative should be 
+			 * used.
+			 */
+			/* With our new LongJump(TM) your jumps will be longer
+			 * than with ordinary commercially available jumps.
+			 */
+		}
 		cimg->red_gamma=sRGB_gamma;
 		cimg->green_gamma=sRGB_gamma;
 		cimg->blue_gamma=sRGB_gamma;
+		/* This is defined in the JPEG standard somehow that sRGB
+		 * color space is used. */
+
 		cimg->strip_optimized=0;
+		/* Strip optimization yet waits to be written. This will
+		 * allow huge jpegs to be processed without consuming
+		 * Links memory and consuming Xserver memory instead ;-)
+		 * However strip optimization is already written for PNG's.
+		 */
+
 		header_dimensions_known(cimg);
 new_scan:
 		deco->state=2;
@@ -193,59 +322,36 @@ susp0:
 
 		case 3:
 		/* jpeg_read_scanlines */
-		if (global_cinfo->output_components==1){
-			/* grayscale */
-
-			int lines,pixels;
-			unsigned char *dest, *src;
-			
-                	while (global_cinfo->output_scanline
-				<global_cinfo->output_height){
-                 		if ((lines=jpeg_read_scanlines(global_cinfo,deco->scanlines,16)))
-                 		{
-					cimg->rows_added=1;
-					pixels=lines*global_cinfo->output_width;
-					dest=cimg->buffer+cimg->buffer_bytes_per_pixel*cimg->width
-							 *(global_cinfo->output_scanline-lines);
-					src=deco->scanlines[0];
-					for(;pixels;pixels--){
-						/* Transform GRAY -> R G B triplet */
-						dest[0]=*src;
-						dest[1]=*src;
-						dest[2]=*src;
-						dest+=3;
-						src++;
-					}
-                 		}
-                 		else
-                 		{
-	                		 /* We are suspended and we want more data */
-                 	 		goto susp0; /* Break the switch statement */
-                 		}
-			}
-		}else{
 			/* color */
-                	while (global_cinfo->output_scanline
-				<global_cinfo->output_height){
-				int a;
+        	while (global_cinfo->output_scanline
+			<global_cinfo->output_height){
+			int a, lines;
 
 #ifdef DEBUG
-				if (deco->scanlines[0])
-					internal("Prebouchavam dec->scanlines v barevne sekci");
+			if (deco->scanlines[0])
+				internal("Prebouchavam dec->scanlines v barevne sekci");
 #endif /* #ifdef DEBUG */
-				for (a=0;a<16;a++) deco->scanlines[a]=cimg->buffer
-					+(global_cinfo
-					->output_scanline+a)
-					*global_cinfo->output_width*3;
-			
-                 		if (jpeg_read_scanlines(global_cinfo,deco->scanlines,1)){
-					 cimg->rows_added=1;
-					 deco->scanlines[0]=NULL;
-				}else{
-					 deco->scanlines[0]=NULL;
-	                	 	/* We are suspended and we want more data */
-                 	 		goto susp0; /* Break the switch statement */
-				}
+			for (a=0;a<16;a++) deco->scanlines[a]=cimg->buffer
+				+(global_cinfo
+				->output_scanline+a)
+				*global_cinfo->output_width*cimg->
+					buffer_bytes_per_pixel;
+		
+         		if ((lines=
+				jpeg_read_scanlines(
+				global_cinfo,deco->scanlines,1))){
+				/* Some lines were written into cimg buffer */
+				cimg->rows_added=1;
+				
+				fix_data(deco, lines);
+				deco->scanlines[0]=NULL;
+			}else{
+				/* No lines have been written into cimg
+				 * buffer */
+				deco->scanlines[0]=NULL;
+                	 	/* We are suspended and we want more data */
+         	 		goto susp0; /* Break the outer 
+					     * switch statement */
 			}
 		}
 		deco->state=4;

@@ -30,6 +30,16 @@
 	  
 /* Decoder structs */
 
+/* prototypes */
+void img_my_png_warning(png_structp, png_const_charp);
+void img_my_png_error(png_structp, png_const_charp);
+void png_info_callback(png_structp, png_infop);
+void a2char_from_unsigned_short(unsigned char *, unsigned short *, int);
+void unsigned_short_from_2char(unsigned short *, unsigned char *, int);
+void png_row_callback(png_structp, png_bytep, png_uint_32, int);
+void png_end_callback(png_structp, png_infop);
+
+
 /* Warning for from-web PNG images */
 void img_my_png_warning(png_structp a, png_const_charp b)
 {
@@ -150,6 +160,7 @@ void png_row_callback(png_structp png_ptr, png_bytep new_row, png_uint_32
 				*row_num), new_row, cimg->width
 				*channels);
 		}else{
+			if ((unsigned)cimg->width > MAXINT / 2 / channels) overalloc();
 			tmp=mem_alloc(cimg->width*2*channels);
 			a2char_from_unsigned_short(tmp, (unsigned short *)(cimg->buffer
 				+cimg->buffer_bytes_per_pixel

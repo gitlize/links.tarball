@@ -6,7 +6,7 @@
  * this stuff is worth it, you can buy me a beer in return.   Poul-Henning Kamp
  * ----------------------------------------------------------------------------
  *
- * $Id: md5hl.c,v 1.7 2002/05/09 23:12:59 mikulas Exp $
+ * $Id: md5hl.c,v 1.8 2004/10/22 18:11:32 mikulas Exp $
  *
  */
 
@@ -37,8 +37,6 @@ MD5End(JS_MD5_CTX *ctx, char *buf)
 
     if (!buf)
         buf = mem_alloc(33);
-    if (!buf)
-	return 0;
     MD5Final(digest,ctx);
     for (i=0;i<MD5_HASHBYTES;i++) {
 	buf[i+i] = hex[digest[i] >> 4];

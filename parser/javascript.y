@@ -725,6 +725,18 @@ printf("Statement -> IF Condition Statement ELSE Statement\n");
 	pom_vrchol->arg[2]=(void*)$5;
 	$$=(long)pom_vrchol;
 }
+
+          |DO Statement WHILE Condition {
+#ifdef BRUTALDEBUG
+printf("Statement -> DO Statement WHILE Condition\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TDWHILE;
+	pom_vrchol->arg[0]=(void*)$4;
+	pom_vrchol->arg[1]=(void*)$2;
+	$$=(long)pom_vrchol;
+}
+
           |WHILE Condition Statement {
 #ifdef BRUTALDEBUG
 printf("Statement -> WHILE Condition Statement\n");
@@ -831,6 +843,50 @@ printf("Statement -> RETURN ExpressionOpt\n");
 	$$=(long)pom_vrchol;
 	js_warning("Missing ';' after return ",c_radku,js_context_ptr);
 }
+          |THROW Expression ';' {
+#ifdef BRUTALDEBUG
+printf("Statement -> THROW Expression;\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TTHROW;
+	pom_vrchol->arg[0]=(void*)$2;
+	$$=(long)pom_vrchol;
+}
+
+          |TRY CompoundStatement Catch {
+#ifdef BRUTALDEBUG
+printf("Statement -> TRY CompoundStatement Catch\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TTRY;
+	pom_vrchol->arg[0]=(void*)$2;
+	pom_vrchol->arg[2]=(void*)$3;
+	pom_vrchol->arg[1]=0;
+	$$=(long)pom_vrchol;
+}
+
+          |TRY CompoundStatement Finally {
+#ifdef BRUTALDEBUG
+printf("Statement -> TRY CompoundStatement Finally\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TTRY;
+	pom_vrchol->arg[0]=(void*)$2;
+	pom_vrchol->arg[1]=(void*)$3;
+	pom_vrchol->arg[2]=0;
+	$$=(long)pom_vrchol;
+}
+          |TRY CompoundStatement Catch Finally {
+#ifdef BRUTALDEBUG
+printf("Statement -> TRY CompoundStatement Catch Finally\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TTRY;
+	pom_vrchol->arg[0]=(void*)$2;
+	pom_vrchol->arg[1]=(void*)$4;
+	pom_vrchol->arg[2]=(void*)$3;
+	$$=(long)pom_vrchol;
+}
           |CompoundStatement {
 #ifdef BRUTALDEBUG
 printf("Statement -> CompoundStatement\n");
@@ -849,6 +905,24 @@ printf("Statement -> VariablesOrExpression\n");
 #endif
 	$$=$1;
 	js_warning("Missing ';' at the end of the statement",c_radku-1,js_context_ptr);
+};
+
+Catch:    CATCH '(' Identifier ')' CompoundStatement {
+#ifdef BRUTALDEBUG
+printf("Catch -> CATCH (Identifier) CompoundStatement\n");
+#endif
+	pom_vrchol=neterminal();
+	pom_vrchol->opcode=TCATCH;
+	pom_vrchol->arg[0]=(void*)$3;
+	pom_vrchol->arg[1]=(void*)$5;
+	$$=(long)pom_vrchol;
+};
+
+Finally: FINALLY CompoundStatement {
+#ifdef BRUTALDEBUG
+printf("Finally -> FINALLY CompoundStatement\n");
+#endif
+	$$=$2;
 };
 
 Condition:

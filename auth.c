@@ -17,11 +17,16 @@ struct http_auth {
 
 unsigned char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+/* prototypes */
+unsigned char *base64_encode(unsigned char *);
+void free_auth_entry(struct http_auth *);
+
 unsigned char *base64_encode(unsigned char *in)
 {
 	unsigned char *out, *outstr;
-	int inlen = strlen(in);
-	if (!(outstr = out = mem_alloc(((inlen / 3) + 1) * 4 + 1 ))) return NULL;
+	size_t inlen = strlen(in);
+	if (inlen > MAXINT / 4) overalloc();
+	outstr = out = mem_alloc(((inlen / 3) + 1) * 4 + 1 );
 	while (inlen >= 3) {
 		*out++ = base64_chars[ (int)(*in >> 2) ];
 		*out++ = base64_chars[ (int)((*in << 4 | *(in + 1) >> 4) & 63) ];
@@ -59,7 +64,10 @@ unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy
 		return stracpy("");
 	}
 	q = strchr(h, '"');
-	if (!q) goto xxx;
+	if (!q) {
+		mem_free(h);
+		goto xxx;
+	}
 	q++;
 	r = init_str();
 	l = 0;
@@ -101,7 +109,7 @@ char *get_auth_string(char *url)
 		d = strrchr(data, '/');
 		if (!d) d = data;
 		else d++;
-		if (d - data >= strlen(a->directory) && !memcmp(data, a->directory, strlen(a->directory))) {
+		if ((size_t)(d - data) >= strlen(a->directory) && !memcmp(data, a->directory, strlen(a->directory))) {
 			if (!r) r = init_str();
 			add_to_str(&r, &l, "Authorization: Basic ");
 			add_to_str(&r, &l, a->user_password_encoded);
@@ -125,7 +133,7 @@ void free_auth_entry(struct http_auth *a)
 	mem_free(a);
 }
 
-void cleanup_auth()
+void cleanup_auth(void)
 {
 	while (!list_empty(auth)) free_auth_entry(auth.next);
 }

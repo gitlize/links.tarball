@@ -34,11 +34,44 @@ struct dnsquery {
 
 struct list_head dns_cache = {&dns_cache, &dns_cache};
 
+inline int get_addr_byte(unsigned char **ptr, unsigned char *res, char stp)
+{
+	unsigned u = 0;
+	if (!(**ptr >= '0' && **ptr <= '9')) return -1;
+	while (**ptr >= '0' && **ptr <= '9') {
+		u = u * 10 + **ptr - '0';
+		if (u >= 256) return -1;
+		(*ptr)++;
+	}
+	if (**ptr != stp) return -1;
+	(*ptr)++;
+	*res = u;
+	return 0;
+}
+
+/* prototypes */
+void lookup_fn(unsigned char *, int);
+void end_real_lookup(struct dnsquery *);
+int do_lookup(struct dnsquery *, int);
+int do_queued_lookup(struct dnsquery *);
+int find_in_dns_cache(char *, struct dnsentry **);
+void end_dns_lookup(struct dnsquery *, int);
+int shrink_dns_cache(int);
+void failed_real_lookup(struct dnsquery *);
+
+
 int do_real_lookup(unsigned char *name, ip__address *host)
 {
-	char *n;
+	unsigned char *n;
 	struct hostent *hst;
 	for (n = name; *n; n++) if (*n != '.' && (*n < '0' || *n > '9')) goto nogethostbyaddr;
+	n = name;
+	if (get_addr_byte(&n, ((unsigned char *)host + 0), '.')) goto skip_addr;
+	if (get_addr_byte(&n, ((unsigned char *)host + 1), '.')) goto skip_addr;
+	if (get_addr_byte(&n, ((unsigned char *)host + 2), '.')) goto skip_addr;
+	if (get_addr_byte(&n, ((unsigned char *)host + 3), 0)) goto skip_addr;
+	return 0;
+	skip_addr:
 #ifdef HAVE_GETHOSTBYADDR
 	if (!(hst = gethostbyaddr (name, strlen(name), AF_INET)))
 #endif
@@ -153,12 +186,11 @@ void end_dns_lookup(struct dnsquery *q, int a)
 		mem_free(dnsentry);
 	}
 	if (a) goto e;
-	if ((dnsentry = mem_alloc(sizeof(struct dnsentry) + strlen(q->name) + 1))) {
-		strcpy(dnsentry->name, q->name);
-		memcpy(&dnsentry->addr, q->addr, sizeof(ip__address));
-		dnsentry->get_time = get_time();
-		add_to_list(dns_cache, dnsentry);
-	}
+	dnsentry = mem_alloc(sizeof(struct dnsentry) + strlen(q->name) + 1);
+	strcpy(dnsentry->name, q->name);
+	memcpy(&dnsentry->addr, q->addr, sizeof(ip__address));
+	dnsentry->get_time = get_time();
+	add_to_list(dns_cache, dnsentry);
 	e:
 	if (q->s) *q->s = NULL;
 	fn = q->fn;
@@ -189,7 +221,7 @@ int find_host(unsigned char *name, ip__address *addr, void **qp, void (*fn)(void
 	struct dnsentry *dnsentry;
 	if (qp) *qp = NULL;
 	if (!find_in_dns_cache(name, &dnsentry)) {
-		if (dnsentry->get_time + DNS_TIMEOUT < get_time()) goto timeout;
+		if ((uttime)get_time() - (uttime)dnsentry->get_time > DNS_TIMEOUT) goto timeout;
 		memcpy(addr, &dnsentry->addr, sizeof(ip__address));
 		fn(data, 0);
 		return 0;
@@ -217,7 +249,7 @@ int shrink_dns_cache(int u)
 		d = dns_cache.prev;
 		goto free_e;
 	}
-	foreach(d, dns_cache) if (u == SH_FREE_ALL || d->get_time + DNS_TIMEOUT < get_time()) {
+	foreach(d, dns_cache) if (u == SH_FREE_ALL || (uttime)get_time() - (uttime)d->get_time > DNS_TIMEOUT) {
 		free_e:
 		e = d;
 		d = d->prev;

@@ -5,7 +5,11 @@
 
 AC_INIT(main.c)
 
+<<<<<<< configure.in
 AM_INIT_AUTOMAKE(links, 2.1pre15)
+=======
+AM_INIT_AUTOMAKE(links, 2.1pre16)
+>>>>>>> 1.111
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -22,6 +26,8 @@ AC_PROG_CC
 #AC_PROG_AWK
 #AM_PROG_LEX
 #AC_PROG_YACC
+
+AC_HEADER_STDC
 
 dnl Check for libraries
 #AC_CHECK_LIB(fl,main,AC_DEFINE(JS) LIBS="$LIBS -lfl",AC_MSG_WARN(You don't have libfl; you won't be able to run javascript))
@@ -46,7 +52,6 @@ test "$ac_cv_have_long_long" = yes && AC_DEFINE(HAVE_LONG_LONG)
 
 dnl Checks for header files.
 AC_HEADER_DIRENT
-AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS(fcntl.h limits.h sys/ioctl.h sys/time.h time.h unistd.h math.h ieee.h endian.h)
 AC_CHECK_HEADERS(values.h)
@@ -54,6 +59,7 @@ AC_CHECK_HEADERS(sigaction.h)
 AC_CHECK_HEADERS(netinet/in_systm.h)
 AC_CHECK_HEADERS(netinet/in_system.h)
 AC_CHECK_HEADERS(netinet/ip.h)
+AC_CHECK_HEADERS(netinet/dhcp.h)
 AC_CHECK_HEADERS(sys/select.h)
 AC_CHECK_HEADERS(sys/resource.h)
 AC_CHECK_HEADERS(sys/utsname.h)
@@ -124,10 +130,13 @@ AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
 AC_HAVE_FUNCS(calloc)
 AC_HAVE_FUNCS(snprintf)
-AC_HAVE_FUNCS(gettimeofday mkdir select strcspn strerror strstr strtol strtoul alarm chmod)
-AC_HAVE_FUNCS(getpid setpgid getpgid setpgrp getpgrp)
+AC_HAVE_FUNCS(memmove)
+AC_HAVE_FUNCS(raise)
+AC_HAVE_FUNCS(gettimeofday mkdir select strcspn strerror strstr strtol strtoul chmod)
+AC_HAVE_FUNCS(getpid setpgid)
 AC_HAVE_FUNCS(popen)
 AC_HAVE_FUNCS(uname)
+AC_HAVE_FUNCS(getpagesize)
 AC_HAVE_FUNCS(strptime)
 AC_HAVE_FUNCS(setlocale)
 AC_HAVE_FUNCS(nl_langinfo)
@@ -140,12 +149,22 @@ if test "$ac_cv_have_sigsetjmp" = yes; then
 	AC_DEFINE(HAVE_SIGSETJMP)
 fi
 
+if test "$ac_cv_func_select" != yes; then
+	AC_ERROR([select function not present])
+fi
+if test "$ac_cv_func_strtol" != yes; then
+	AC_ERROR([strtol function not present])
+fi
+
 dnl Checks for libraries.
 AC_CHECK_LIB(m, atan)
 
 AC_CHECK_FUNC(socket, cf_result=yes, cf_result=no)
 if test "$cf_result" = no; then
-	AC_CHECK_LIB(socket, socket)
+	AC_CHECK_LIB(socket, socket, cf_result=yes, cf_result=no)
+	if test "$cf_result" = no; then
+		AC_ERROR([socket function not present])
+	fi
 fi
 AC_CHECK_FUNC(setsockopt, cf_result=yes, cf_result=no)
 if test "$cf_result" = no; then
@@ -160,15 +179,33 @@ if test "$cf_result" = no; then
 	AC_CHECK_LIB(socket, gethostbyname, cf_result=yes, cf_result=no)
 	if test "$cf_result" = no; then
 		AC_CHECK_LIB(nsl, gethostbyname)
+		if test "$cf_result" = no; then
+			AC_ERROR([gethostbyname function not present])
+		fi
 	else
 		test -z "`echo $LIBS | grep -- -lsocket`" && LIBS="$LIBS -lsocket"
 	fi
 fi
+AC_CHECK_FUNC(dhcp_option, AC_DEFINE(HAVE_DHCP_OPTION))
 
 AC_CHECK_FUNC(herror, AC_DEFINE(HAVE_HERROR))
 AC_CHECK_FUNC(cfmakeraw, AC_DEFINE(HAVE_CFMAKERAW))
 
 AC_HAVE_FUNCS(cygwin_conv_to_full_win32_path)
+
+AC_MSG_CHECKING([for requested debug level])
+AC_ARG_ENABLE(debuglevel, [  --enable-debuglevel     set internal checking level
+	-1 - recover from segmentation faults
+	 0 - no checks (fastest)
+	 1 - check memory leaks
+	 2 - leaks with file/line accuracy, memory red zone, pattern filling], cf_debuglevel=$enableval, cf_debuglevel=2)
+if test "$cf_debuglevel" = no; then cf_debuglevel=0; fi
+if test "$cf_debuglevel" = yes; then cf_debuglevel=2; fi
+AC_MSG_RESULT($cf_debuglevel)
+if test "$cf_debuglevel" != -1 && test "$cf_debuglevel" != 0 && test "$cf_debuglevel" != 1 && test "$cf_debuglevel" != 2; then
+	AC_ERROR([Invalid debuglevel specified])
+fi
+AC_DEFINE_UNQUOTED(DEBUGLEVEL, $cf_debuglevel)
 
 AC_MSG_CHECKING([if you want to enable javascript])
 AC_ARG_ENABLE(javascript, [  --enable-javascript     use javascript interpreter], cf_use_javascript=$enableval)
@@ -249,7 +286,7 @@ if test -z "$disable_ssl"; then
 	if test "$pkgconfig_openssl" = "yes"; then
 		AC_MSG_CHECKING([for OpenSSL])
 		CPPFLAGS="$CPPFLAGS `pkg-config openssl --cflags-only-I`"
-		LIBS="$LIBS `pkg-config openssl --libs`"
+		LIBS="`pkg-config openssl --libs` $LIBS"
 		AC_TRY_LINK([#include <openssl/ssl.h>], [OpenSSL_add_all_algorithms()], cf_result=yes, cf_result=no)
 		if test "$cf_result" != yes; then
 			AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=yes, cf_result=no)
@@ -341,6 +378,7 @@ AC_ARG_WITH(svgalib, [  --without-svgalib       compile without svgalib graphics
 AC_ARG_WITH(x, [  --without-x             compile without X Window System graphics driver],[if test "$withval" = no; then disable_x=yes; else disable_x=no; fi])
 AC_ARG_WITH(fb, [  --without-fb            compile without Linux Framebuffer graphics driver],[if test "$withval" = no; then disable_fb=yes; else disable_fb=no; fi])
 AC_ARG_WITH(directfb, [  --without-directfb      compile without DirectFB graphics driver],[if test "$withval" = no; then disable_directfb=yes; else disable_directfb=no; fi])
+AC_ARG_WITH(sdl, [  --without-sdl           compile without SDL graphics driver],[if test "$withval" = no; then disable_sdl=yes; else disable_sdl=no; fi])
 AC_ARG_WITH(pmshell, [  --without-pmshell       compile without PMShell graphics driver],[if test "$withval" = no; then disable_pmshell=yes; else disable_pmshell=no; fi])
 AC_ARG_WITH(atheos, [  --without-atheos        compile without Atheos graphics driver],[if test "$withval" = no; then disable_atheos=yes; else disable_atheos; fi])
 
@@ -349,14 +387,14 @@ AC_ARG_WITH(atheos, [  --without-atheos        compile without Atheos graphics d
 if test "$disable_svgalib" != yes ; then
 	AC_CACHE_CHECK([for svgalib], ac_cv_have_svgalib,
 		LIBS_X="$LIBS"
-		LIBS="$LIBS -lvga"
+		LIBS="-lvga $LIBS"
 		AC_TRY_LINK([#include <vga.h>], [vga_setmode(0)], ac_cv_have_svgalib=yes, ac_cv_have_svgalib=no)
 		LIBS="$LIBS_X"
 	)
 
 	if test "$ac_cv_have_svgalib" = yes; then
 		AC_DEFINE(GRDRV_SVGALIB)
-		LIBS="$LIBS -lvga"
+		LIBS="-lvga $LIBS"
 		drivers="$drivers SVGALIB"
 	fi
 fi
@@ -391,19 +429,20 @@ if test "$disable_directfb" != yes ; then
 	           	AC_DEFINE(GRDRV_DIRECTFB)
         	   	drivers="$drivers DIRECTFB"
 			CPPFLAGS="$CPPFLAGS $DIRECTFB_CFLAGS"
-			LIBS="$LIBS $DIRECTFB_LIBS"
+			LIBS="$DIRECTFB_LIBS $LIBS"
 		else
 			AC_MSG_RESULT(no)
 		fi
 	fi
 fi
 
+if test "$disable_x" != yes ; then
 	AC_PATH_X
 
 	if test "$have_x" = yes; then
 		AC_DEFINE(GRDRV_X)
-		test -n "$x_libraries" && LIBS="$LIBS -L$x_libraries"
-		LIBS="$LIBS -lX11"
+		LIBS="-lX11 $LIBS"
+		test -n "$x_libraries" && LIBS="-L$x_libraries $LIBS"
 		test -n "$x_includes" && CPPFLAGS="$CPPFLAGS -I$x_includes"
 		drivers="$drivers X"
 	elif test "$ac_cv_have_x2" != no; then
@@ -412,9 +451,30 @@ fi
 		if test "$ac_cv_have_libx11" = yes && test "$ac_cv_have_x11_xlib_h" = test && test "$ac_cv_have_x11_x_h" = test && test "$ac_cv_have_x11_xutil_h" = test && test "$ac_cv_have_x11_xlocale_h" = test; then
 			AC_DEFINE(GRDRV_X)
 			drivers="$drivers X"
-			LIBS="$LIBS -lX11"
+			LIBS="-lX11 $LIBS"
 		fi
 	fi
+fi
+
+if test "$disable_sdl" != yes ; then
+	AC_PATH_PROG(SDL_CONFIG, sdl-config, no)
+	if test "$SDL_CONFIG" != "no"; then
+	        AC_MSG_CHECKING(for SDL >= 1.2.0)
+        	sdl_version="`$SDL_CONFIG --version`"
+		if expr "$sdl_version" \>= 1.2.0 >/dev/null; then
+			AC_MSG_RESULT(yes)
+			SDL_CFLAGS="`$SDL_CONFIG --cflags`"
+			SDL_LIBS="`$SDL_CONFIG --libs`"
+	           	AC_DEFINE(GRDRV_SDL)
+        	   	drivers="$drivers SDL"
+			CPPFLAGS="$CPPFLAGS $SDL_CFLAGS"
+			AC_CHECK_LIB(Xext, XextAddDisplay)
+			LIBS="$SDL_LIBS $LIBS"
+		else
+			AC_MSG_RESULT(no)
+		fi
+	fi
+fi
 
 if test "$disable_pmshell" != yes ; then
 	AC_CACHE_CHECK([for pmshell], ac_cv_have_pmshell,
@@ -496,6 +556,3 @@ echo "---------------------------------------------------------"
 #grep -v DEPS_MAGIC Makefile.tmp >Makefile
 #rm Makefile.tmp
 
-#if test -z "$AWK"; then
-#	AC_WARN([awk not found. You won't be able to rebuild code page table.]);
-#fi

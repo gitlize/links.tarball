@@ -9,6 +9,14 @@
 int retval = RET_OK;
 
 void unhandle_basic_signals(struct terminal *);
+void sig_terminate(struct terminal *);
+void sig_intr(struct terminal *);
+void sig_ctrl_c(struct terminal *);
+void handle_basic_signals(struct terminal *);
+void end_dump(struct object_request *, void *);
+void init(void);
+void terminate_all_subsystems(void);
+
 
 void sig_terminate(struct terminal *t)
 {
@@ -40,26 +48,35 @@ void sig_ign(void *x)
 void sig_tstp(struct terminal *t)
 {
 #ifdef SIGSTOP
-	int pid = getpid();
-	if (!F) block_itrm(0);
+#if defined (SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
+	pid_t pid = getpid();
+	pid_t newpid;
+#endif
+	if (!F) {
+		block_itrm(1);
+	}
 #ifdef G
 	else drv->block(NULL);
 #endif
 #if defined (SIGCONT) && defined(SIGTTOU)
-	if (!fork()) {
-		sleep(1);
-		kill(pid, SIGCONT);
-		exit(0);
+	if (!(newpid = fork())) {
+		while (1) {
+			sleep(1);
+			kill(pid, SIGCONT);
+		}
 	}
 #endif
 	raise(SIGSTOP);
+#if defined (SIGCONT) && defined(SIGTTOU)
+	if (newpid != -1) kill(newpid, SIGKILL);
+#endif
 #endif
 }
 
 void sig_cont(struct terminal *t)
 {
 	if (!F) {
-		if (!unblock_itrm(0)) resize_terminal();
+		unblock_itrm(1);
 #ifdef G
 	} else {
 		drv->unblock(NULL);
@@ -86,25 +103,6 @@ void handle_basic_signals(struct terminal *term)
 	if (!F) install_signal_handler(SIGCONT, (void (*)(void *))sig_cont, term, 0);
 #endif
 }
-
-/*void handle_slave_signals(struct terminal *term)
-{
-	install_signal_handler(SIGHUP, (void (*)(void *))sig_terminate, term, 0);
-	install_signal_handler(SIGINT, (void (*)(void *))sig_terminate, term, 0);
-	install_signal_handler(SIGTERM, (void (*)(void *))sig_terminate, term, 0);
-#ifdef SIGTSTP
-	install_signal_handler(SIGTSTP, (void (*)(void *))sig_tstp, term, 0);
-#endif
-#ifdef SIGTTIN
-	install_signal_handler(SIGTTIN, (void (*)(void *))sig_tstp, term, 0);
-#endif
-#ifdef SIGTTOU
-	install_signal_handler(SIGTTOU, (void (*)(void *))sig_ign, term, 0);
-#endif
-#ifdef SIGCONT
-	install_signal_handler(SIGCONT, (void (*)(void *))sig_cont, term, 0);
-#endif
-}*/
 
 void unhandle_terminal_signals(struct terminal *term)
 {
@@ -204,33 +202,30 @@ void end_dump(struct object_request *r, void *p)
 		}
 		if (r->state >= 0) return;
 	} else if (ce) {
-		/* !!! FIXME */
-		/*struct document_options o;
-		struct view_state *vs;
+		struct document_options o;
 		struct f_data_c *fd;
-		if (!(vs = create_vs())) goto terminate;
-		if (!(vs = create_vs())) goto terminate;
+		if (!(fd = create_f_data_c(NULL, NULL))) goto terminate;
 		memset(&o, 0, sizeof(struct document_options));
 		o.xp = 0;
 		o.yp = 1;
-		o.xw = 80;
+		o.xw = screen_width;
 		o.yw = 25;
 		o.col = 0;
-		o.cp = 0;
+		o.cp = dump_codepage == -1 ? 0 : dump_codepage;
 		ds2do(&dds, &o);
 		o.plain = 0;
 		o.frames = 0;
+		o.js_enable = 0;
 		memcpy(&o.default_fg, &default_fg, sizeof(struct rgb));
 		memcpy(&o.default_bg, &default_bg, sizeof(struct rgb));
 		memcpy(&o.default_link, &default_link, sizeof(struct rgb));
 		memcpy(&o.default_vlink, &default_vlink, sizeof(struct rgb));
 		o.framename = "";
-		init_vs(vs, stat->ce->url);
-		cached_format_html(vs, &fd, &o);
-		dump_to_file(fd.f_data, oh);
-		detach_formatted(&fd);
-		destroy_vs(vs);*/
-
+		if (!(fd->f_data = cached_format_html(fd, r, r->url, &o, NULL))) goto term_1;
+		dump_to_file(fd->f_data, oh);
+		term_1:
+		reinit_f_data_c(fd);
+		mem_free(fd);
 	}
 	if (r->state != O_OK) {
 		unsigned char *m = get_err_msg(r->stat.state);
@@ -272,9 +267,13 @@ void init(void)
 /* OS/2 has some stupid bug and the pipe must be created before socket :-/ */
 	if (c_pipe(terminal_pipe)) {
 		error("ERROR: can't create pipe for internal communication");
+		retval = RET_FATAL;
 		goto ttt;
 	}
-	if (!(u = parse_options(g_argc - 1, g_argv + 1))) goto ttt;
+	if (!(u = parse_options(g_argc - 1, g_argv + 1))) {
+		retval = RET_SYNTAX;
+		goto ttt;
+	}
 	if (ggr_drv[0] || ggr_mode[0]) ggr = 1;
 	if (dmp) ggr = 0;
 	if (!ggr && !no_connect && (uh = bind_to_af_unix()) != -1) {
@@ -282,6 +281,7 @@ void init(void)
 		close(terminal_pipe[1]);
 		if (!(info = create_session_info(base_session, u, default_target, &len))) {
 			close(uh);
+			retval = RET_FATAL;
 			goto ttt;
 		}
 		initialize_all_subsystems_2();
@@ -303,7 +303,6 @@ void init(void)
 		initialize_all_subsystems_2();
 		tttt:
 		terminate_loop = 1;
-		retval = RET_SYNTAX;
 		return;
 	}
 	if (!dmp) {
@@ -313,6 +312,7 @@ void init(void)
 			if ((r = init_graphics(ggr_drv, ggr_mode, ggr_display))) {
 				fprintf(stderr, "%s", r);
 				mem_free(r);
+				retval = RET_SYNTAX;
 				goto ttt;
 			}
 			handle_basic_signals(NULL);
@@ -320,6 +320,7 @@ void init(void)
 			F = 1;
 #else
 			fprintf(stderr, "Graphics not enabled when compiling\n");
+			retval = RET_SYNTAX;
 			goto ttt;
 #endif
 		}
@@ -335,6 +336,7 @@ void init(void)
 		close(terminal_pipe[1]);
 		if (!*u) {
 			fprintf(stderr, "URL expected after %s\n.", dmp == D_DUMP ? "-dump" : "-source");
+			retval = RET_SYNTAX;
 			goto tttt;
 		}
 		if (!(uu = translate_url(u, wd = get_cwd()))) uu = stracpy(u);
@@ -353,6 +355,7 @@ void initialize_all_subsystems(void)
 	init_dns();
 	init_cache();
 	iinit_bfu();
+	memset(&dd_opt, 0, sizeof dd_opt);
 }
 
 /* Is called sometimes after and sometimes before graphics driver init */
@@ -387,6 +390,7 @@ void terminate_all_subsystems(void)
 	free_history_lists();
 	free_term_specs();
 	free_types();
+	free_blocks();
 	if (init_b) finalize_bookmarks();
 	free_conv_table();
 	free_blacklist();

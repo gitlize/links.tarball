@@ -10,7 +10,7 @@
 #define MD5_HASHBYTES 16
 
 #ifndef u_int32_t
-#define u_int32_t int
+#define u_int32_t unsigned
 #endif
 
 typedef struct MD5Context {

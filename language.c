@@ -51,7 +51,8 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 	unsigned char *trn;
 	static int utf8_charset = -1;
 	int charset;
-	if (term->spec) charset = term->spec->charset;
+	if (!term) charset = 0;
+	else if (term->spec) charset = term->spec->charset;
 	else {
 		if (utf8_charset == -1) utf8_charset = get_cp_index("UTF-8");
 		charset = utf8_charset;
@@ -74,10 +75,9 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 		current_tra[text - dummyarray] = trn;
 	} else {
 		if (current_lang_charset && charset != current_lang_charset) {
-			if ((current_tra = translation_array[current_language][charset] = mem_alloc(sizeof (unsigned char **) * T__N_TEXTS))) {
-				memset(current_tra, 0, sizeof (unsigned char **) * T__N_TEXTS);
-				goto tr;
-			}
+			current_tra = translation_array[current_language][charset] = mem_alloc(sizeof (unsigned char **) * T__N_TEXTS);
+			memset(current_tra, 0, sizeof (unsigned char **) * T__N_TEXTS);
+			goto tr;
 		}
 		if (!(trn = translations[current_language].t[text - dummyarray].name)) {
 			trn = translations[current_language].t[text - dummyarray].name = translation_english[text - dummyarray].name;	/* modifying translation structure */

@@ -43,6 +43,9 @@ struct xbm_decoder{
 
 extern int get_foreground(int rgb);
 
+unsigned char *my_memmem(unsigned char *, int, unsigned char *, int);
+void xbm_decode(struct cached_image *, unsigned char *, int);
+
 
 unsigned char *my_memmem(unsigned char *h, int hl, unsigned char *n, int nl)
 {
@@ -58,7 +61,6 @@ void xbm_start(struct cached_image *cimg)
 	unsigned short r,g,b;
 
 	deco=mem_alloc(sizeof(struct xbm_decoder));
-	if (!deco){img_end(cimg);return;}
 	cimg->decoder=deco;
 	deco->state=0;
 	deco->width=-1;

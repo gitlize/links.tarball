@@ -12,6 +12,7 @@
 #define SYS_BEOS	4
 #define SYS_RISCOS	5
 #define SYS_ATHEOS	6
+#define SYS_SPAD	7
 
 /* hardcoded limit of 10 OSes in default.c */
 
@@ -25,11 +26,13 @@
 #define RISCOS
 #elif defined(__ATHEOS__)
 #define ATHEOS
+#elif defined(__SPAD__)
+#define SPAD
 #else
 #define UNIX
 #endif
 
-#if defined(OS2) || defined(WIN32) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS)
+#if defined(OS2) || defined(WIN32) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(SPAD)
 #ifdef UNIX
 #undef UNIX
 #endif
@@ -56,6 +59,7 @@ static inline int dir_sep(char x) { return x == '/'; }
 #define SYSTEM_NAME "Unix"
 #define DEFAULT_SHELL "/bin/sh"
 #define GETSHELL getenv("SHELL")
+#define SHARED_CONFIG_DIR "/etc/"
 #ifdef HAVE_SYS_UN_H
 #define USE_AF_UNIX
 #else
@@ -108,6 +112,7 @@ static inline int dir_sep(char x) { return x == '/'; }
 #define SYSTEM_NAME "BeOS"
 #define DEFAULT_SHELL "/bin/sh"
 #define GETSHELL getenv("SHELL")
+#define SHARED_CONFIG_DIR "/etc/"
 #define NO_FORK_ON_EXIT
 #define ASSOC_BLOCK
 
@@ -155,7 +160,28 @@ static inline int dir_sep(char x) { return x == '/'; }
 #define SYSTEM_NAME "Atheos"
 #define DEFAULT_SHELL "/bin/sh"
 #define GETSHELL getenv("SHELL")
+#define SHARED_CONFIG_DIR "/etc/"
 #define ASSOC_BLOCK
+
+#elif defined(SPAD)
+
+static inline int dir_sep(char x) { return x == '/'; }
+#define NEWLINE	"\n"
+#define SYSTEM_ID SYS_SPAD
+#define SYSTEM_NAME "Spad"
+#define DEFAULT_SHELL "LIB.:/SHELL.EXE"
+#define GETSHELL "LIB.:/SHELL.EXE"
+#define SHARED_CONFIG_DIR "ETC.:/"
+#ifdef HAVE_SYS_UN_H
+#define USE_AF_UNIX
+#else
+#define DONT_USE_AF_UNIX
+#endif
+#define ASSOC_BLOCK
+/*
+#define ASSOC_CONS_XWIN
+*/
+#define NO_FORK_ON_EXIT
 
 #endif
 

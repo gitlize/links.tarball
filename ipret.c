@@ -36,6 +36,95 @@ int js_memory_limit=5*1024;  /* in kilobytes, should be in range 1M-20M (1MB=102
 #undef rint
 #endif
 
+/* prototypes */
+void pushp(vrchol*, js_context*);
+double mojeinv(double);
+double mojenas(double, double);
+double mojescit(double, double);
+void delete_name_space(plns*, js_context*);
+int vartoint(lns*, js_context*);
+float vartofloat(lns*, js_context*);
+int porovnej1(abuf*, abuf*, js_context*);
+int porovnej(abuf*, abuf*, js_context*);
+void moc(char*);
+void bitand(js_context*);
+void logand(js_context*);
+void andassign(js_context*);
+void delete(js_context*);
+void divassign(js_context*);
+void assign(js_context*);
+void localassign(js_context*);
+void equal(js_context*);
+void not(js_context*);
+void notassign(js_context*);
+void false(js_context*);
+void myif(js_context*);
+void unassign(js_context*);
+void decpref(js_context*);
+void minus(js_context*);
+void modulo(js_context*);
+void modassign(js_context*);
+void mynull(js_context*);
+void number(js_context*);
+void bitor(js_context*);
+void orassign(js_context*);
+void logor(js_context*);
+void plus(js_context*);
+void plusassign(js_context*);
+void incpref(js_context*);
+void lt(js_context*);
+void le(js_context*);
+void shl(js_context*);
+void shlshleq(js_context*);
+void gt(js_context*);
+void ge(js_context*);
+void shr(js_context*);
+void shrshreq(js_context*);
+void shrshrshr(js_context*);
+void string(js_context*);
+void regexp(js_context*);
+void this(js_context*);
+void threerighteq(js_context*);
+void mulassign(js_context*);
+void true(js_context*);
+void mytypeof(js_context*);
+void var(js_context*);
+void myvoid(js_context*);
+void xor(js_context*);
+void xorassign(js_context*);
+void mywhile(js_context*);
+void for1(js_context*);
+void for2(js_context*);
+void for3(js_context*);
+void pokracuj(js_context*);
+void breakni(js_context*);
+void vrat(js_context*);
+void with(js_context*);
+void identifier(js_context*);
+void program(js_context*);
+void funkce(js_context*);
+void multiply(js_context*);
+void divide(js_context*);
+void complement(js_context*);
+void parametry(js_context*);
+void statementy(js_context*);
+void zaporne(js_context*);
+void thisccall(js_context*);
+void idccall(js_context*);
+void eccall(js_context*);
+void conscall(js_context*);
+void member(js_context*);
+int isanumber(char*);
+void array(js_context*);
+void carka(js_context*);
+void incpost(js_context*);
+void decpost(js_context*);
+void variable(js_context*);
+void myswitch(js_context*);
+void mycasecmp(js_context*);
+void zvykni(js_context*);
+
+
 static inline int my_rint(float f)
 {
 	if (f < -MAXINT+1) return -MAXINT;
@@ -83,6 +172,18 @@ static int js_temp_var_for_vartest=0;
 			context->current=pullp(context); \
 			return; \
 		}
+lns* pomocna_promenna_kvuli_with;
+#define PRIDEJ_RODICE(a,b) pomocna_promenna_kvuli_with=lookup(MIN1KEY,b,context);\
+			if(pomocna_promenna_kvuli_with->type!=PARLIST)\
+				my_internal("Parentlist corrupted!\n",context);\
+			add_to_parlist(a,pomocna_promenna_kvuli_with);
+
+#define VYHOD_RODICE(a,b)	pomocna_promenna_kvuli_with=lookup(MIN1KEY,b,context);\
+				if(pomocna_promenna_kvuli_with->type!=PARLIST)\
+				{	my_internal("Parentlist corrupted!\n",context);\
+				}\
+			delete_from_parlist(a,pomocna_promenna_kvuli_with);
+
 #undef debug
 /* #define JS_DEBUG_2 1 */
 #define debug(a) \
@@ -476,6 +577,11 @@ void vartoarg(lns*variable,abuf*kam,js_context*context)
 /*			kam->argument=(long)js_mem_alloc(strlen("function f(){ [native code] }")+1);*/
 			kam->argument=(long)stracpy1("function f(){ [native code] }");
 			kam->typ=STRING;
+			if(variable->value==CIntMETFUN)/*To by melo zrusit extravagantni chovani k pameti pri
+							 nezavolani interni metody */
+			{	delarg((abuf*)variable->handler,context);
+				js_mem_free(variable);
+			}
 		break;
 		case INTVAR:
 			debug("Getting value of internal variable\n");
@@ -1469,8 +1575,9 @@ void equal(js_context*context)
 			par1=pulla(context);
 			RESOLV(par2);
 /*			RESOLV(par1);*/
-			if((par1->typ==REGEXP)||(par2->typ==REGEXP))
+			if((par1->typ==REGEXP)||(par2->typ==REGEXP)) {
 				debug("Porovnani regexpu neni dosud napsano!!\n");
+			}
 			if((par1->typ==STRING) &&(par2->typ==STRING)){/*Jeste neni uplne koser!*/
 				retval->argument=!strcmp((char*)par1->argument,(char*)par2->argument);
 				debug("jsou to stringy!\n");
@@ -3225,6 +3332,18 @@ void mywhile(js_context*context)
 	}
 }
 
+void mydowhile(js_context*context)
+{	abuf*pom;
+	if(!context->current->in)
+	{	pom=js_mem_alloc(sizeof(abuf));
+		pom->typ=BOOLEAN;
+		pom->argument=TRUE;
+		pusha(pom,context);
+		context->current->in=1;
+	}
+	mywhile(context);
+}
+
 void for1(js_context*context) 
 {	vrchol*pomocny_byva_casto_nemocny=0;
 	abuf*retval=0;
@@ -3351,22 +3470,22 @@ void for3(js_context*context)
 			 */
 			debug("For3 vracim identifier\n");
 			if(!context->current->arg[6])
-nebo_skrtnem_sirkou:		while(!context->current->arg[6] && ((int)context->current->arg[5])<HASHNUM)
+nebo_skrtnem_sirkou:		while(!context->current->arg[6] && ((long)context->current->arg[5])<HASHNUM)
 				{
-					context->current->arg[6]=((plns*)((lns*)context->current->arg[3])->value)->ns[(int)context->current->arg[5]];
+					context->current->arg[6]=((plns*)((lns*)context->current->arg[3])->value)->ns[(long)context->current->arg[5]];
 					/* co tim chtel basnik rict ?? */
 /* Basnik: context->ptr->arg[3] je typu lns*, jeho value je plns* a my
    koukneme do namespacu pod timto plns (to znamena pointer na localnamespace)
    a to konkretne do context->current->arg[5]-te pozice. */
 					/*(int)context->current->arg[5]=(int)context->current->arg[5]+1;*/
-					context->current->arg[5]=(void *)((int)context->current->arg[5]+1);
+					context->current->arg[5]=(void *)((long)context->current->arg[5]+1);
 				}
 			else {	context->current->arg[6]=((lns*)context->current->arg[6])->next;
-				while(!context->current->arg[6] && ((int)context->current->arg[5])<HASHNUM)
-				{	context->current->arg[6]=((plns*)((lns*)context->current->arg[3])->value)->ns[(int)context->current->arg[5]];
+				while(!context->current->arg[6] && ((long)context->current->arg[5])<HASHNUM)
+				{	context->current->arg[6]=((plns*)((lns*)context->current->arg[3])->value)->ns[(long)context->current->arg[5]];
 					/* co tim chtel basnik rict ?? */
 					/*(int)context->current->arg[5]=(int)context->current->arg[5]+1;*/
-					context->current->arg[5]=(void *)((int)context->current->arg[5]+1);
+					context->current->arg[5]=(void *)((long)context->current->arg[5]+1);
 				}
 			}
 			if(!context->current->arg[6])
@@ -3391,7 +3510,7 @@ nebo_skrtnem_sirkou:		while(!context->current->arg[6] && ((int)context->current-
 			{	context->current->arg[6]=((lns*)context->current->arg[6])->next;
 				goto nebo_skrtnem_sirkou;
 			}
-			pna=context->namespace[((int)context->current->arg[5])-1];
+			pna=context->namespace[((long)context->current->arg[5])-1];
 			while(pna && (pna->klic!=((lns*)context->current->arg[6])->identifier/HASHNUM))pna=pna->next;
 			if(!pna){ my_internal("Kalim mimo misu!\n",context);
 				retval=js_mem_alloc(sizeof(abuf));
@@ -3425,7 +3544,8 @@ void pokracuj(js_context*context)
 	debug("Vjizdim do funkce pokracuj, ");
 	parenti=pullp(context);
 	while((parenti)&&(parenti->opcode !=TFOR1)&&(parenti->opcode!=TFOR3)&&
-			(parenti->opcode!=TWHILE)&&(parenti->opcode!=TFUNCTIONDECL))
+			(parenti->opcode!=TWHILE)&&(parenti->opcode!=TDWHILE)&&
+			(parenti->opcode!=TFUNCTIONDECL))
 	{	if(parenti->opcode==TWITH)
 		{	debug("kucham with, \n");
 			arg1=pulla(context);
@@ -3435,9 +3555,13 @@ void pokracuj(js_context*context)
 				return;
 			}	
 			pom=context->lnamespace;
+			VYHOD_RODICE(&fotr_je_lotr,pom);
 			context->lnamespace=pom->next;
 			pom->next=(plns*)arg1->argument;
-			js_mem_free(arg1);
+			arg1->argument=(long)pom;
+			delarg(arg1,context);/* Snad je to spravne - melo by to
+			odallokovat relikty treba po with(document.hovno)
+			{...continut...} */
 		}
 		if(parenti->opcode==TSWITCH)
 		{	debug("kucham switch \n");
@@ -3471,7 +3595,8 @@ void breakni(js_context*context)
 	debug("Vjizdim do funkce breakni, ");
 	parenti=pullp(context);
 	while((parenti)&&(parenti->opcode !=TFOR1)&&(parenti->opcode!=TFOR3)&&
-			(parenti->opcode!=TWHILE)&&(parenti->opcode!=TSWITCH)
+			(parenti->opcode!=TWHILE)&&(parenti->opcode!=TDWHILE)
+			&&(parenti->opcode!=TSWITCH)
 			&&(parenti->opcode!=TFUNCTIONDECL))
 	{	if(parenti->opcode==TWITH)
 		{	debug("kucham with, ");
@@ -3482,9 +3607,11 @@ void breakni(js_context*context)
 				return;
 			}
 			pom=context->lnamespace;
+			VYHOD_RODICE(&fotr_je_lotr,pom);
 			context->lnamespace=pom->next;
 			pom->next=(plns*)arg1->argument;
-			js_mem_free(arg1);
+			arg1->argument=(long)pom;
+			delarg(arg1,context);
 		}
 		parenti->in=0;
 		parenti=pullp(context);
@@ -3551,9 +3678,11 @@ void vrat(js_context*context)
 						return;
 					}
 					pom=context->lnamespace;
+					VYHOD_RODICE(&fotr_je_lotr,pom);
 					context->lnamespace=pom->next;
 					pom->next=(plns*)arg1->argument;
-					js_mem_free(arg1);
+					arg1->argument=(long)pom;
+					delarg(arg1,context);
 				}
 				if(parenti->opcode==TSWITCH)
 					delarg(pulla(context),context);
@@ -3567,9 +3696,10 @@ void vrat(js_context*context)
 				parenti=pullp(context);
 			}
 			pusha(arg2,context); /* vracim retval na buffer */
-			if(!parenti)
+			if(!parenti) {
 				debug("You called return out of function!!\n");
 				/* Snad jiz konsolidovano */
+			}
 			sezvykan=1;
 			context->current=parenti;
 			debug("to je konec\n");
@@ -3604,6 +3734,7 @@ void with(js_context*context) /* Tohle bude masite */
 			prevpar->typ=MAINADDRSPC;
 			prevpar->argument=(long)(pom=(plns*)arg->argument)->next;
 			pom->next=context->lnamespace;
+			PRIDEJ_RODICE(&fotr_je_lotr,pom);
 			context->lnamespace=pom;
 			pusha(prevpar,context);
 			delarg(arg,context);
@@ -3622,9 +3753,11 @@ void with(js_context*context) /* Tohle bude masite */
 				return;
 			}
 			pom=context->lnamespace;
+			VYHOD_RODICE(&fotr_je_lotr,pom);
 			context->lnamespace=pom->next;
 			pom->next=(plns*)arg->argument;
-			js_mem_free(arg);
+			arg->argument=(long)pom;
+			delarg(arg,context);
 			sezvykan=1;
 			context->current=pullp(context);
 		break;
@@ -4269,7 +4402,9 @@ void member(js_context*context)/*a.b*/
 					pomvar->type=UNDEFINED;
 					pomvar->value=0;
 					retval->argument=(long)pomvar1;*/
-				} else	debug("Divne, divne, ale jedeme dal!\n");
+				} else	{
+					debug("Divne, divne, ale jedeme dal!\n");
+				}
 
 				if(retval->typ!=UNDEFINED){
 					pomvar1=context->lnamespace->ns[((lns*)retval->argument)->identifier%HASHNUM];
@@ -4919,6 +5054,14 @@ void mycasecmp(js_context*context)
 	}
 }
 
+void mythrow(js_context*context)
+{	js_error("Couldn't throw exception",context);
+}
+
+void mycatch(js_context*context)
+{	my_internal("Somebody has called CATCH block, although throwing wasn't written yet!",context);
+}
+
 /* Podle opcode soucasneho uzlu zavola obsluhujici funkci. Funkce si v uzlu
  * pamatuje, kolik uz toho napocitala a uhodne z toho i kolik toho ma na
  * argbufferu. Pokud ne, je maler.
@@ -4930,7 +5073,9 @@ void zvykni(js_context*context)
 	{	sezvykan=1;/* Rozhodne se deje neco divneho */
 		debug("Zahazuji prazdny pytlik!\n");
 		context->current=pullp(context);
-		if(! context->current)debug("Deje se neco moc divneho!\n");
+		if(! context->current) {
+			debug("Deje se neco moc divneho!\n");
+		}
 		pom=js_mem_alloc(sizeof(abuf));
 		pom->typ=UNDEFINED;
 		pom->argument=0;
@@ -5030,6 +5175,8 @@ void zvykni(js_context*context)
 		break;
 		case TWHILE:	mywhile(context);
 		break;
+		case TDWHILE:	mydowhile(context);
+		break;
 		case TFOR1:	for1(context);
 		break;
 		case TFOR2:	for2(context);
@@ -5094,6 +5241,12 @@ void zvykni(js_context*context)
 		break;
 		case TCS:	mycasecmp(context);
 		break;	
+		case TTHROW:	mythrow(context);
+		break; /* Udela chybu, protoze nevim, jak to napsat */
+		case TTRY:	statementy(context);
+		break; /* udela totez, co statement */
+		case TCATCH:	mycatch(context);
+		break; /* Udela taky chybu, protoze to zatim nema nikdo co volat */
 		default:
 			my_internal("Error! Udelal jsem si spatny intercode; tento opcode neznam!\n",context);
 			js_error("Error in javascript code ",context);

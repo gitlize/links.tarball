@@ -25,22 +25,26 @@ int shrink_memory(int type)
 void register_cache_upcall(int (*upcall)(int), unsigned char *name)
 {
 	struct cache_upcall *c;
-	if ((c = mem_alloc(sizeof(struct cache_upcall) + strlen(name) + 1))) {
-		c->upcall = upcall;
-		strcpy(c->name, name);
-		add_to_list(cache_upcalls, c);
-	}
+	c = mem_alloc(sizeof(struct cache_upcall) + strlen(name) + 1);
+	c->upcall = upcall;
+	strcpy(c->name, name);
+	add_to_list(cache_upcalls, c);
 }
 
 void free_all_caches(void)
 {
 	struct cache_upcall *c;
-	int a;
+	int a, b;
 	do {
 		a = 0;
-		foreach(c, cache_upcalls) a |= c->upcall(SH_FREE_ALL);
+		b = ~0;
+		foreach(c, cache_upcalls) {
+			int x = c->upcall(SH_FREE_ALL);
+			a |= x;
+			b &= x;
+		}
 	} while (a & ST_SOMETHING_FREED);
-	if (!(a & ST_CACHE_EMPTY)) {
+	if (!(b & ST_CACHE_EMPTY)) {
 		unsigned char *m = init_str();
 		int l = 0;
 		foreach(c, cache_upcalls) if (!(c->upcall(SH_FREE_ALL) & ST_CACHE_EMPTY)) {

@@ -120,6 +120,7 @@
 #define TIdCCall 113
 #define TLocAssign 114
 #define TREGEXPLIT 115
+#define TDWHILE 116
 
 #define TCS 117 /* Case clause - prvni arg - vyraz, druhy arg kod. */
 #define TSWITCH 118 /* arg[0] toustovany vyraz, arg[1] casove klauzy. */

@@ -16,6 +16,14 @@
 
 #include "links.h"
 
+/* prototypes */
+void alloc_color_map(int);
+void implant_transparent(struct gif_decoder *);
+void gif_dimensions_known(void);
+void gif_restart_internal(unsigned char *, int);
+void init_table(void);
+
+
 /****************************** Functions *************************************/
 
 /* Takes the argument from global_cimg. Does not free the gif_decoder
@@ -35,6 +43,7 @@ alloc_color_map(int colors)
  struct gif_decoder* deco=global_cimg->decoder;
 
  if (deco->color_map) mem_free(deco->color_map);
+ if ((unsigned)colors > MAXINT / 3 / sizeof(*(deco->color_map))) overalloc();
  deco->color_map=mem_alloc(colors*3*sizeof(*(deco->color_map)));
 }
 
@@ -51,7 +60,7 @@ alloc_color_map(int colors)
    string)
 */
 void
-init_table()
+init_table(void)
 {
  int i;
  struct gif_decoder *deco;
@@ -330,7 +339,7 @@ void gif_dimensions_known(void)
    Caller is responsible for destorying the decoder when
    end_callback_hit is 1.
 */
-void inline
+static inline void 
 gif_accept_byte(int c)
 {
 	struct gif_decoder *deco;
@@ -405,6 +414,8 @@ gif_accept_byte(int c)
 			}else
 				deco->interl_dist=1;
 			gif_dimensions_known();
+			if (global_cimg->width && (unsigned)global_cimg->width * (unsigned)global_cimg->buffer_bytes_per_pixel / (unsigned)global_cimg->width != (unsigned)global_cimg->buffer_bytes_per_pixel) overalloc();
+			if ((unsigned)global_cimg->width * (unsigned)global_cimg->buffer_bytes_per_pixel > MAXINT) overalloc();
 			deco->actual_line=global_cimg->strip_optimized
 				?mem_alloc(global_cimg->width*global_cimg
 				->buffer_bytes_per_pixel)

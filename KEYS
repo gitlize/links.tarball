@@ -12,7 +12,7 @@ s			bookmark manager
 			pressed 3x=force reload through all proxy caches
 ^S			abort all connections
 f			frame to full screen
-i			view image (graphics only)
+i			view image
 d			download link
 I			download image
 *			toggle displaying image links (text only)
@@ -34,6 +34,10 @@ PAGE_UP			previous page
 PAGE_DOWN		next page
 HOME			go to start of the document
 END			go to end of the document
+1-9			count to repeat the next move (only text)
+	(you can press more number keys to repeat more than 9 times)
+ALT-1 ... ALT-9		the same as previous --- if you have numbered links
+	(only text)
 
 
 SEARCH

@@ -75,14 +75,23 @@ struct js_request {
 
 
 
-/* JESTLI V TYHLE FUNKCI BUDE NEJAKA BUGA, tak za to muze PerM, Clock a pan GNU, 
+/* JESTLI V TYHLE FUNKCI BUDE NEJAKA BUGA, tak za to muze PerM, Clock a pan GNU,
  * ktery tady kolem rusili, ze jsem se nemohl soustredit. Takze se s
  * pripadnejma reklamacema obratte na ne! 
  *
  *  Brain
  */
 
-
+/* prototypes */
+int jsint_create(struct f_data_c *);
+void jsint_done_execution(struct f_data_c *);
+int jsint_can_access(struct f_data_c *, struct f_data_c *);
+struct f_data_c *jsint_find_recursive(struct f_data_c *, long);  /* line 89 */
+void *jsint_find_object(struct f_data_c *, long);
+long *__add_id(long *, int *, long );
+long *__add_fd_id(long *, int *, long, long, unsigned char *);
+void send_vodevri_v_novym_vokne(struct terminal *, void (*)(struct terminal *, unsigned char *, unsigned char *), struct session *);
+void __add_all_recursive_in_fd(long **, int *, struct f_data_c *, struct f_data_c *);
 
 
 void jsint_set_cookies(struct f_data_c *fd, int final_flush)
@@ -125,6 +134,7 @@ a_znova:
 
 	/* ted by to mela bejt regulerni susenka */
 	
+	next_par:
 	eq2=NULL,semic2=NULL;
 	if (semic1!=NULL)
 	{
@@ -135,15 +145,27 @@ a_znova:
 	if (eq2&&semic1&&(final_flush||semic2))
 	{
 		unsigned char *p=strstr(semic1+1,"expires");
+		if (!p)p=strstr(semic1+1,"Expires");
 		if (!p)p=strstr(semic1+1,"EXPIRES");
+		if (!p)p=strstr(semic1+1,"domain");
+		if (!p)p=strstr(semic1+1,"Domain");
+		if (!p)p=strstr(semic1+1,"DOMAIN");
+		if (!p)p=strstr(semic1+1,"path");
+		if (!p)p=strstr(semic1+1,"Path");
+		if (!p)p=strstr(semic1+1,"PATH");
 		if (p&&p>semic1&&p<eq2)  /* za 1. prirazenim nasleduje "expires=", takze to je porad jedna susenka */
-			next=semic2?semic2+1:str+strlen(str);
+			{
+				next=semic2?semic2+1:str+strlen(str);
+				semic1=semic2;
+				goto next_par;
+			}
 	}
 
 	if (*next)next[-1]=0;
 	
 	for (;*str&&WHITECHAR(*str);str++); /* skip whitechars */
 
+	/*debug("set_cookie: \"%s\"", str);*/
 	set_cookie(fd->ses->term, fd->rq->url, str);
 
 	str=next;
@@ -162,7 +184,7 @@ int jsint_create(struct f_data_c *fd)
 	struct js_state *js;
 
 	if (fd->js) internal("javascript state present");
-	if (!(js = mem_calloc(sizeof(struct js_state)))) return 1;
+	js = mem_calloc(sizeof(struct js_state));
 	if (!(js->ctx = js_create_context(fd, ((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT))) {
 		mem_free(js);
 		return 1;
@@ -218,7 +240,8 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 #endif
 
 	if (!fd->js && jsint_create(fd)) return;
-	if (!(r = mem_calloc(sizeof(struct js_request) + len))) return;
+	if ((unsigned)len > MAXINT - sizeof(struct js_request)) overalloc();
+	r = mem_calloc(sizeof(struct js_request) + len);
 	r->write_pos = write_pos;
 	r->len = len;
 	r->onclick_submit=onclick_submit;
@@ -324,7 +347,7 @@ void jsint_run_queue(struct f_data_c *fd)
 	fprintf(stderr, "Executing: ^^%.*s^^\n", r->len, r->code);
 
 #endif
-	pr(js_execute_code(js->ctx, r->code, r->len, (void (*)(void *))jsint_done_execution));
+	pr(js_execute_code(js->ctx, r->code, r->len, (void (*)(void *))jsint_done_execution)) {};
 }
 
 /* returns: 1 - source is modified by document.write
@@ -540,7 +563,6 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 	
 			if (obj_id<0||obj_id>=n)return NULL;
 			hopla=mem_alloc(sizeof(struct hopla_mladej));
-			if (!hopla)return NULL;
 
 			if (!(document->f_data)){mem_free(hopla);return NULL;};
 
@@ -646,8 +668,8 @@ long *__add_id(long *field,int *len,long id)
 		if (field[a]==id)return field;
 	
 	(*len)++;
+	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	p=mem_realloc(field,(*len)*sizeof(long));
-	if (!p){mem_free(field);return NULL;}
 
 	p[(*len)-1]=id;
 	return p;
@@ -662,8 +684,8 @@ long *__add_fd_id(long *field,int *len,long fd,long id, unsigned char *name)
 	
 	
 	(*len)+=3;
+	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	p=mem_realloc(field,(*len)*sizeof(long));
-	if (!p){mem_free(field);return NULL;}
 
 	p[(*len)-3]=fd;
 	p[(*len)-2]=id;
@@ -761,7 +783,6 @@ long *jsint_resolve(void *context, long obj_id, char *takhle_tomu_u_nas_nadavame
 
 	if (!takhle_tomu_u_nas_nadavame||!(*takhle_tomu_u_nas_nadavame))return NULL;
 	pole_vole=mem_alloc(sizeof(long));
-	if (!pole_vole)return NULL;
 	switch(jsint_object_type(obj_id))
 	{
 		/* searched object can be a frame, image, form or a form element */
@@ -858,7 +879,7 @@ struct js_document_description *js_upcall_get_document_description(void *p, long
 	if (!fd || !fd->f_data || !jsint_can_access(pfd, fd)) return NULL;
 	f = fd->f_data;
 	if (f->js_doc) return f->js_doc;
-	if (!(js_doc = mem_calloc(sizeof(struct js_document_description)))) return NULL;
+	js_doc = mem_calloc(sizeof(struct js_document_description));
 	/* Pro Martina: pridat sem prohlizeni f_data a vytvoreni struktury */
 	/* -------------- */
 	return f->js_doc = js_doc;
@@ -909,7 +930,9 @@ void js_upcall_document_write(void *p, unsigned char *str, int len)
 		if (!(js->src = memacpy(s, eof - s))) return;
 		js->srclen = eof - s;
 	}
-	if (!(s = mem_realloc(js->src, js->srclen + len))) return;
+	if ((unsigned)js->srclen + (unsigned)len > MAXINT) overalloc();
+	if ((unsigned)js->srclen + (unsigned)len < (unsigned)len) overalloc();
+	s = mem_realloc(js->src, js->srclen + len);
 	js->src = s;
 	if ((pos = js->srclen - js->active->write_pos) < 0) pos = 0;
 	memmove(s + pos + len, s + pos, js->srclen - pos);
@@ -932,7 +955,6 @@ unsigned char *js_upcall_get_title(void *data)
 	fd=(struct f_data_c *)data;
 
 	title=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!title)internal("Cannot allocate memory in js_upcall_get_title");
 	
 	if (!(get_current_title(fd->ses,title,MAX_STR_LEN))){mem_free(title);return NULL;}
 	if (fd->f_data)
@@ -986,7 +1008,6 @@ unsigned char *js_upcall_get_location(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!loc)internal("Cannot allocate memory in js_upcall_get_location.\n");
 	
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 	return loc;	
@@ -1093,7 +1114,6 @@ unsigned char *js_upcall_get_referrer(void *data)
 		
 		case REFERER_SAME_URL:
 		loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-		if (!loc)break;
 		if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);break;}
 		add_to_str(&retval, &l, loc);
 		mem_free(loc);
@@ -1184,7 +1204,6 @@ void js_upcall_confirm(void *data)
 
 	if (!fd->js)return;
 	jsid=mem_alloc(sizeof(struct gimme_js_id));
-	if (!jsid)internal("Cannot allocate memory in js_upcall_confirm.\n");
 	
 	/* kill timer, that called me */
 	js_spec_vykill_timer(fd->js->ctx,0);
@@ -1255,7 +1274,6 @@ void js_upcall_alert(void * data)
 
 	if (!fd->js) return;
 	jsid=mem_alloc(sizeof(struct gimme_js_id));
-	if (!jsid)internal("Cannot allocate memory in js_upcall_alert.\n");
 	
 	/* kill timer, that called me */
 	js_spec_vykill_timer(fd->js->ctx,0);
@@ -1331,7 +1349,6 @@ void js_upcall_close_window(void *data)
 		struct gimme_js_id* jsid;
 
 		jsid=mem_alloc(sizeof(struct gimme_js_id));
-		if (!jsid)internal("Cannot allocate memory in js_upcall_close_window\n");
 	
 		/* fill in jsid */
 		jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
@@ -1412,7 +1429,6 @@ void js_upcall_get_string(void *data)
 
 	if (!fd->js) return;
 	jsid=mem_alloc(sizeof(struct gimme_js_id));
-	if (!jsid)internal("Cannot allocate memory in js_upcall_get_string\n");
 	
 	/* kill timer, that called me */
 	js_spec_vykill_timer(fd->js->ctx,0);
@@ -1497,8 +1513,8 @@ long *js_upcall_get_links(void *data, long document_id, int *len)
 	*len=fd->f_data->nlinks;
 	if (!(*len))return NULL;
 	l=fd->f_data->links;
+	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	to_je_Ono=mem_alloc((*len)*sizeof(long));
-	if (!to_je_Ono)internal("Cannot allocate memory in js_upcall_get_links\n");
 
 	for (a=0;a<(*len);a++)
 		/*to_je_Ono[a]=JS_OBJ_T_LINK+(((l+a)->num)<<JS_OBJ_MASK_SIZE);*/
@@ -1550,7 +1566,6 @@ long *js_upcall_get_forms(void *data, long document_id, int *len)
 	if (!(fd->f_data))return NULL;
 
 	to_je_Ono=mem_alloc(sizeof(long));
-	if (!to_je_Ono)internal("Cannot allocate memory in js_upcall_get_forms\n");
 
 	*len=0;
 
@@ -1564,8 +1579,8 @@ long *js_upcall_get_forms(void *data, long document_id, int *len)
 			if ((to_je_Ono[a]>>JS_OBJ_MASK_SIZE)==(fc->form_num))goto already_have;  /* we already have this number */
 		
 		(*len)++;
+		if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 		p=mem_realloc(to_je_Ono,(*len)*sizeof(long));
-		if (!p)internal("Cannot reallocate memoru in js_upcall_get_forms\n");
 		to_je_Ono=p;
 		to_je_Ono[(*len)-1]=JS_OBJ_T_FORM|((fc->form_num)<<JS_OBJ_MASK_SIZE);
 		last=fc->form_num;
@@ -1707,7 +1722,6 @@ unsigned char *js_upcall_get_location_protocol(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!loc)internal("Cannot allocate memory in js_upcall_get_location_protocol\n");
 	
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1731,7 +1745,6 @@ unsigned char *js_upcall_get_location_port(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!loc)internal("Cannot allocate memory in js_upcall_get_location_port\n");
 	
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1754,7 +1767,6 @@ unsigned char *js_upcall_get_location_hostname(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!loc)internal("Cannot allocate memory in js_upcall_get_location_hostname\n");
 	
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1778,7 +1790,6 @@ unsigned char *js_upcall_get_location_host(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!loc)internal("Cannot allocate memory in js_upcall_get_location_host\n");
 	
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1802,7 +1813,6 @@ unsigned char *js_upcall_get_location_pathname(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!loc)internal("Cannot allocate memory in js_upcall_get_location_pathname\n");
 	
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1827,7 +1837,6 @@ unsigned char *js_upcall_get_location_search(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!loc)internal("Canot allocate memory in js_upcall_get_location_search\n");
 	
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1852,7 +1861,6 @@ unsigned char *js_upcall_get_location_hash(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!loc)internal("Cannot allocate memory in js_upcall_get_location_hash.");
 	
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1894,8 +1902,8 @@ long *js_upcall_get_form_elements(void *data, long document_id, long form_id, in
 
 	if (!(*len))return NULL;
 	
+	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	pole_Premysla_Zavorace=mem_alloc((*len)*sizeof(long));
-	if (!pole_Premysla_Zavorace)internal("Cannot allocate memory in js_upcall_get_form_elements.");
 	
 	b=0;
 	foreach (fc2, fd->f_data->forms)
@@ -1946,8 +1954,8 @@ long *js_upcall_get_anchors(void *hej_Hombre, long document_id, int *len)
 	if (!(fd->f_data))return NULL;
 	foreach(t,fd->f_data->tags)(*len)++;
 	if (!(*len))return NULL;
+	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	to_je_Ono=mem_alloc((*len)*sizeof(long));
-	if (!to_je_Ono)internal("Cannot allocate memory in js_upcall_get_anchors\n");
 
 	a=0;
 	foreach(t,fd->f_data->tags)
@@ -2315,10 +2323,10 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 	ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
 	hopla->fs->value=convert_string(ct,name,strlen(name),NULL);
 
-	if (hopla->fs->state > strlen(hopla->fs->value))
+	if ((size_t)hopla->fs->state > strlen(hopla->fs->value))
 		hopla->fs->state = strlen(hopla->fs->value);
 	if ((ksunt_id&JS_OBJ_MASK) != JS_OBJ_T_TEXTAREA) {
-		if (hopla->fs->vpos > strlen(hopla->fs->value))
+		if ((size_t)hopla->fs->vpos > strlen(hopla->fs->value))
 			hopla->fs->vpos = strlen(hopla->fs->value);
 	}
 	mem_free(hopla);
@@ -2414,6 +2422,9 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 				l=&(fd->f_data->links[a]);
 				if (l->form&&l->form==hopla->fc)	/* to je on! */
 				{
+					struct session *ses = fd->ses;
+					int x = 0;
+					while (fd != current_frame(ses)) next_frame(ses, 1), x = 1;
 					fd->vs->current_link=a;
 					if (fd->ses->term->spec->braille) {
 						if (fd->f_data->links[a].n) {
@@ -2436,7 +2447,8 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 					if (l->js_event&&l->js_event->focus_code)
 						jsint_execute_code(fd,l->js_event->focus_code,strlen(l->js_event->focus_code),-1,-1,-1);
 
-					draw_fd(fd);
+					/*draw_fd(fd);*/
+					draw_formatted(ses);
 					change_screen_status(fd->ses);
 					print_screen_status(fd->ses);
 					break;
@@ -2516,8 +2528,10 @@ void js_upcall_submit(void *bidak, long document_id, long form_id)
 	if (!form)return;
 
 	u=get_form_url(fd->ses,fd,form,&has_onsubmit);
-	goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0,0);
-	mem_free(u);
+	if (u) {
+		goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0,0);
+		mem_free(u);
+	}
 	draw_fd(fd);
 	change_screen_status(fd->ses);
 	print_screen_status(fd->ses);
@@ -2617,8 +2631,8 @@ struct js_select_item* js_upcall_get_select_options(void *p, long document_id, l
 	if (!hopla)return NULL;
 
 	*n=hopla->fc->nvalues;
+	if ((unsigned)*n > MAXINT / sizeof(struct js_select_item)) overalloc();
 	elektricke_pole=mem_alloc((*n)*sizeof(struct js_select_item));
-	if (!elektricke_pole)internal("Cannot allocate memory in js_upcall_get_select_options\n");
 
 	for (ukazme_si_na_nej=0;ukazme_si_na_nej<(*n);ukazme_si_na_nej++)
 	{
@@ -2760,7 +2774,6 @@ void js_upcall_goto_url(void * data)
 		}
 	
 		jsid=mem_alloc(sizeof(struct gimme_js_id_string));
-		if (!jsid)internal("Cannot allocate memory in js_upcall_goto_url.\n");
 		
 		/* context must be a valid pointer ! */
 		/* fill in jsid */
@@ -2836,7 +2849,7 @@ static void __js_upcall_goto_history_ok_pressed(void *data)
 
 	if (a<jsid->n&&(fd->js)&&jsid->js_id==fd->js->ctx->js_id){js_downcall_vezmi_null(fd->js->ctx);return;}   /* call downcall */
 
-	go_backwards(fd->ses->term,(void*)(jsid->n),fd->ses);
+	go_backwards(fd->ses->term,(void*)(jsid->n),fd->ses); /* 2848: warning: cast to pointer from integer of different size */
 }
 
 
@@ -2865,7 +2878,7 @@ void js_upcall_goto_history(void * data)
 	struct terminal *term;
 	unsigned char *url=NULL;
 	unsigned char txt[16];
-	int history_num=0;
+	long history_num=0;
 
 	/* context must be a valid pointer ! */
 	fd=(struct f_data_c*)(s->ident);
@@ -2917,7 +2930,6 @@ void js_upcall_goto_history(void * data)
 		struct gimme_js_id_string* jsid;
 
 		jsid=mem_alloc(sizeof(struct gimme_js_id_string));
-		if (!jsid)internal("Can't allocate memory in js_upcall_goto_history\n");
 	
 		/* fill in jsid */
 		jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
@@ -3138,6 +3150,7 @@ ty_uz_se_nevratis:
 		if (!s)s=stracpy(fd->js->ctx->cookies);
 		else {add_to_str(&s,&l,"; ");add_to_str(&s,&l,fd->js->ctx->cookies);}
 	}
+	/*debug("get_cookies: \"%s\"", s);*/
 	return s;
 }
 
@@ -3229,7 +3242,6 @@ long * js_upcall_get_all(void *chuligane, long document_id, int *len)
 	*len=0;
 
 	pole_neorane=mem_alloc(sizeof(long));
-	if (!pole_neorane)return NULL;
 
 	__add_all_recursive_in_fd(&pole_neorane,len,fd,js_ctx);
 
@@ -3267,8 +3279,8 @@ long *js_upcall_get_images(void *chuligane, long document_id, int *len)
 	
 		if (!(*len))return NULL;
 		
+		if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 		pole_Premysla_Zavorace=mem_alloc((*len)*sizeof(long));
-		if (!pole_Premysla_Zavorace)internal("Cannot allocate memory in js_upcall_get_images.");
 		
 		a=0;
 		foreachback(fi,fd->f_data->images)
@@ -3763,8 +3775,8 @@ long * js_upcall_get_subframes(void *chuligane, long frame_id, int *count)
 		if (jsint_can_access(fd,f))(*count)++;
 
 	if (!*count)return NULL;
+	if ((unsigned)*count > MAXINT / sizeof(long)) overalloc();
 	pole=mem_alloc((*count)*sizeof(long));
-	if (!pole)return NULL;
 	
 	a=0;
 	foreach(f,fd->subframes)

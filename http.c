@@ -15,6 +15,15 @@ struct http_connection_info {
 	int chunk_remaining;
 };
 
+/* prototypes */
+int check_http_server_bugs(unsigned char *, struct http_connection_info *, unsigned char *);
+void http_end_request(struct connection *, int);
+int is_line_in_buffer(struct read_buffer *);
+void read_http_data(struct connection *, struct read_buffer *);
+int get_header(struct read_buffer *);
+void http_got_header(struct connection *, struct read_buffer *);
+
+
 /* Returns a string pointer with value of the item.
  * The string must be destroyed after usage with mem_free.
  */
@@ -34,15 +43,14 @@ unsigned char *parse_http_header(unsigned char *head, unsigned char *item, unsig
 			for (g = ++f; *g >= ' '; g++) ;
 			while (g > f && g[-1] == ' ') g--;
 			if (h) mem_free(h);
-			if ((h = mem_alloc(g - f + 1))) {
-				memcpy(h, f, g - f);
-				h[g - f] = 0;
-				if (ptr) {
-					*ptr = f;
-					break;
-				}
-				return h;
+			h = mem_alloc(g - f + 1);
+			memcpy(h, f, g - f);
+			h[g - f] = 0;
+			if (ptr) {
+				*ptr = f;
+				break;
 			}
+			return h;
 		}
 		cont:;
 		f--;
@@ -52,7 +60,7 @@ unsigned char *parse_http_header(unsigned char *head, unsigned char *item, unsig
 
 unsigned char *parse_header_param(unsigned char *x, unsigned char *e)
 {
-	int le = strlen(e);
+	size_t le = strlen(e);
 	int lp;
 	unsigned char *y = x;
 	a:
@@ -64,7 +72,10 @@ unsigned char *parse_header_param(unsigned char *x, unsigned char *e)
 	while (*y && (*y <= ' ' || *y == '=')) y++;
 	if (!*y) return stracpy("");
 	lp = 0;
-	while (y[lp] >= ' ' && y[lp] != ';') lp++;
+	while (y[lp] >= ' ' && y[lp] != ';') {
+		lp++;
+		if (lp == MAXINT) overalloc();
+	}
 	return memacpy(y, lp);
 }
 
@@ -163,12 +174,7 @@ void http_send_header(struct connection *c)
 
 	host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
 	set_timeout(c);
-	if (!(info = mem_alloc(sizeof(struct http_connection_info)))) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
-	}
-	memset(info, 0, sizeof(struct http_connection_info));
+	info = mem_calloc(sizeof(struct http_connection_info));
 	c->info = info;
 	if ((h = get_host_name(host))) {
 		info->bl_flags = get_blacklist_flags(h);
@@ -178,11 +184,7 @@ void http_send_header(struct connection *c)
 	info->http10 = http10;
 	post = strchr(c->url, POST_CHAR);
 	if (post) post++;
-	if (!(hdr = init_str())) {
-		setcstate(c, S_OUT_OF_MEM);
-		http_end_request(c, 0);
-		return;
-	}
+	hdr = init_str();
 	if (!post) add_to_str(&hdr, &l, "GET ");
 	else {
 		add_to_str(&hdr, &l, "POST ");
@@ -206,7 +208,6 @@ void http_send_header(struct connection *c)
 	a:
 	for (sp = uu; *sp; sp++) if (*sp <= ' ') {
 		unsigned char *nu = mem_alloc(strlen(uu) + 3);
-		if (!nu) break;
 		memcpy(nu, uu, sp - uu);
 		sprintf(nu + (sp - uu), "%%%02X", (int)*sp);
 		strcat(nu, sp + 1);
@@ -305,6 +306,9 @@ void http_send_header(struct connection *c)
 		mem_free(ac);
 	}
 	if (!(info->bl_flags & BL_NO_CHARSET) && !http_bugs.no_accept_charset) add_to_str(&hdr, &l, accept_charset);
+	add_to_str(&hdr, &l, "Accept-Language: ");
+	add_to_str(&hdr, &l, _(TEXT(T__ACCEPT_LANGUAGE), NULL));
+	add_to_str(&hdr, &l, ", en;q=0.2, *;q=0.1\r\n");
 	if (!http10) {
 		if (upcase(c->url[0]) != 'P') add_to_str(&hdr, &l, "Connection: ");
 		else add_to_str(&hdr, &l, "Proxy-Connection: ");
@@ -352,9 +356,9 @@ void http_send_header(struct connection *c)
 	if (post) {
 		while (post[0] && post[1]) {
 			int h1, h2;
-			h1 = post[0] <= '9' ? post[0] - '0' : post[0] >= 'A' ? upcase(post[0]) - 'A' + 10 : 0;
+			h1 = post[0] <= '9' ? (unsigned)post[0] - '0' : post[0] >= 'A' ? upcase(post[0]) - 'A' + 10 : 0;
 			if (h1 < 0 || h1 >= 16) h1 = 0;
-			h2 = post[1] <= '9' ? post[1] - '0' : post[1] >= 'A' ? upcase(post[1]) - 'A' + 10 : 0;
+			h2 = post[1] <= '9' ? (unsigned)post[1] - '0' : post[1] >= 'A' ? upcase(post[1]) - 'A' + 10 : 0;
 			if (h2 < 0 || h2 >= 16) h2 = 0;
 			add_chr_to_str(&hdr, &l, h1 * 16 + h2);
 			post += 2;
@@ -421,9 +425,9 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 			int l;
 			if ((l = is_line_in_buffer(rb))) {
 				unsigned char *de;
-				int n = 0;	/* warning, go away */
+				long n = 0;	/* warning, go away */
 				if (l != -1) n = strtol(rb->data, (char **)(void *)&de, 16);
-				if (l == -1 || de == rb->data) {
+				if (l == -1 || n < 0 || n >= MAXINT || de == rb->data) {
 					setcstate(c, S_HTTP_ERROR);
 					abort_connection(c);
 					return;
@@ -525,11 +529,7 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		abort_connection(c);
 		return;
 	}
-	if (!(head = mem_alloc(a + 1))) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
-	}
+	head = mem_alloc(a + 1);
 	memcpy(head, rb->data, a); head[a] = 0;
 	if (check_http_server_bugs(host, c->info, head)) {
 		mem_free(head);
@@ -563,7 +563,7 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if (h == 204) {
 		mem_free(head);
-		setcstate(c, S_OK);
+		setcstate(c, S_HTTP_204);
 		http_end_request(c, 0);
 		return;
 	}
@@ -614,6 +614,7 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 			e->redirect_get = h == 303;
 		}
 	}
+	if (!e->expire_time && strchr(c->url, POST_CHAR)) e->expire_time = 1;
 	kill_buffer_data(rb, a);
 	info->close = 0;
 	info->length = -1;
@@ -628,8 +629,8 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		if (strlen(d) > 6) {
 			d[5] = 0;
 			if (!(strcasecmp(d, "bytes")) && d[6] >= '0' && d[6] <= '9') {
-				int f = strtol(d + 6, NULL, 10);
-				if (f >= 0) c->from = f;
+				long f = strtol(d + 6, NULL, 10);
+				if (f >= 0 && f < MAXINT) c->from = f;
 			}
 		}
 		mem_free(d);
@@ -642,10 +643,10 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if ((d = parse_http_header(e->head, "Content-Length", NULL))) {
 		unsigned char *ep;
-		int l = strtol(d, (char **)(void *)&ep, 10);
-		if (!*ep && l >= 0) {
+		long l = strtol(d, (char **)(void *)&ep, 10);
+		if (!*ep && l >= 0 && l < MAXINT) {
 			if (!info->close || version >= 11) info->length = l;
-			c->est_length = c->from + l;
+			if ((unsigned)c->from + (unsigned)l < MAXINT) c->est_length = c->from + l;
 		}
 		mem_free(d);
 	}
@@ -689,4 +690,3 @@ void http_get_header(struct connection *c)
 	rb->close = 1;
 	read_from_socket(c, c->sock1, rb, http_got_header);
 }
-

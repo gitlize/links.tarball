@@ -42,6 +42,9 @@ void ftp_retr_file(struct connection *, struct read_buffer *);
 void ftp_got_final_response(struct connection *, struct read_buffer *);
 void got_something_from_data_connection(struct connection *);
 void ftp_end_request(struct connection *);
+int get_ftp_response(struct connection *, struct read_buffer *, int);
+int ftp_process_dirlist(struct cache_entry *, int *, int *, unsigned char *, int, int, int *);
+
 
 int get_ftp_response(struct connection *c, struct read_buffer *rb, int part)
 {
@@ -50,8 +53,8 @@ int get_ftp_response(struct connection *c, struct read_buffer *rb, int part)
 	again:
 	for (l = 0; l < rb->len; l++) if (rb->data[l] == 10) {
 		unsigned char *e;
-		int k = strtoul(rb->data, (char **)(void *)&e, 10);
-		if (e != rb->data + 3 || k < 100) return -1;
+		long k = strtoul(rb->data, (char **)(void *)&e, 10);
+		if (e != rb->data + 3 || k < 100 || k >= 1000) return -1;
 		if (*e == '-') {
 			int i;
 			for (i = 0; i < rb->len - 5; i++) {
@@ -114,11 +117,7 @@ void ftp_login(struct connection *c)
 	unsigned char *u;
 	int logl = 0;
 	set_timeout(c);
-	if (!(login = init_str())) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
-	}
+	login = init_str();
 	add_to_str(&login, &logl, "USER ");
 	if ((u = get_user_name(c->url)) && *u) add_to_str(&login, &logl, u);
 	else add_to_str(&login, &logl, "anonymous");
@@ -177,11 +176,7 @@ void ftp_got_user_info(struct connection *c, struct read_buffer *rb)
 			unsigned char *login;
 			unsigned char *u;
 			int logl = 0;
-			if (!(login = init_str())) {
-				setcstate(c, S_OUT_OF_MEM);
-				abort_connection(c);
-				return;
-			}
+			login = init_str();
 			add_to_str(&login, &logl, "PASS ");
 			if ((u = get_pass(c->url)) && *u) add_to_str(&login, &logl, u);
 			else add_to_str(&login, &logl, default_anon_pass);
@@ -224,30 +219,29 @@ struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 {
 	unsigned char *d = get_url_data(c->url);
 	unsigned char *de;
+	int del;
 	unsigned char pc[6];
 	int ps;
 	struct ftp_connection_info *inf, *inf2;
 	unsigned char *s;
 	int l;
-	if (!(inf = mem_alloc(sizeof(struct ftp_connection_info)))) {
-		oom:
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return NULL;
-	}
-	memset(inf, 0, sizeof(struct ftp_connection_info));
-	l = 0;
-	if (!(s = init_str())) {
-		mem_free(inf);
-		goto oom;
-	}
-	inf->pasv = passive_ftp;
-	c->info = inf;
-	if (!inf->pasv) if ((ps = get_pasv_socket(c, c->sock1, &c->sock2, pc))) return NULL;
 	if (!d) {
 		internal("get_url_data failed");
 		setcstate(c, S_INTERNAL);
 		abort_connection(c);
+		return NULL;
+	}
+	de = init_str(), del = 0;
+	add_conv_str(&de, &del, d, strlen(d), -2);
+	d = de;
+	inf = mem_alloc(sizeof(struct ftp_connection_info));
+	memset(inf, 0, sizeof(struct ftp_connection_info));
+	l = 0;
+	s = init_str();
+	inf->pasv = passive_ftp;
+	c->info = inf;
+	if (!inf->pasv) if ((ps = get_pasv_socket(c, c->sock1, &c->sock2, pc))) {
+		mem_free(d);
 		return NULL;
 	}
 	if (!(de = strchr(d, POST_CHAR))) de = d + strlen(d);
@@ -309,10 +303,12 @@ struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 		add_to_str(&s, &l, "\r\n");
 	}
 	inf->opc = inf->pending_commands;
-	if ((inf2 = mem_realloc(inf, sizeof(struct ftp_connection_info) + l + 1)))
-		strcpy((inf = inf2)->cmdbuf, s);
+	if ((unsigned)l > MAXINT - sizeof(struct ftp_connection_info) - 1) overalloc();
+	inf2 = mem_realloc(inf, sizeof(struct ftp_connection_info) + l + 1);
+	strcpy((inf = inf2)->cmdbuf, s);
 	mem_free(s);
 	c->info = inf;
+	mem_free(d);
 	return inf;
 }
 
@@ -323,11 +319,7 @@ void ftp_send_retr_req(struct connection *c, int state)
 	unsigned char *login;
 	int logl = 0;
 	set_timeout(c);
-	if (!(login = init_str())) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
-	}
+	login = init_str();
 	if (!c->info && !(fi = add_file_cmd_to_str(c))) {
 		mem_free(login);
 		return;
@@ -464,7 +456,7 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 	g = get_ftp_response(c, rb, 2);
 	if (!g) { read_from_socket(c, c->sock1, rb, ftp_retr_file); setcstate(c, S_GETH); return; }
 	if (g >= 100 && g < 200) {
-		int est;
+		long est;
 		unsigned char *d = rb->data;
 		int i, p = 0;
 		for (i = 0; i < rb->len && d[i] != 10; i++) if (d[i] == '(') p = i;
@@ -478,6 +470,7 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 		if (i + 4 > rb->len) goto nol;
 		if (casecmp(&d[i], "byte", 4)) goto nol;
 		est = strtol(&d[p], NULL, 10);
+		if (est < 0 || est >= MAXINT) est = 0;
 		if (est && !c->from) c->est_length = est; /* !!! FIXME: when I add appedning to downloaded file */
 		nol:;
 	}
@@ -494,6 +487,7 @@ void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 	if (g == -1) { setcstate(c, S_FTP_ERROR); abort_connection(c); return; }
 	if (!g) { read_from_socket(c, c->sock1, rb, ftp_got_final_response); if (c->state != S_TRANS) setcstate(c, S_GETH); return; }
 	if (g == 425 || g == 500 || g == 501 || g == 550) {
+		if (c->url[strlen(c->url) - 1] == '/') goto skip_redir;
 		if (!c->cache && get_cache_entry(c->url, &c->cache)) {
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c);
@@ -509,6 +503,7 @@ void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 		abort_connection(c);
 		return;
 	}
+	skip_redir:
 	if (g >= 400) { setcstate(c, S_FTP_FILE_ERROR); abort_connection(c); return; }
 	if (inf->conn_st == 2) {
 		setcstate(c, S_OK);
@@ -516,20 +511,6 @@ void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 	} else {
 		inf->conn_st = 1;
 		if (c->state != S_TRANS) setcstate(c, S_GETH);
-	}
-}
-
-#define accept_char(x) ((upcase((x)) >= 'A' && upcase((x)) <= 'Z') || ((x) >= '0' && (x) <= '9') || (x) == ' ' || (x) == '-' || (x) == '_' || (x) == '.' || (x) == ':' || (x) == ';')
-
-void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll)
-{
-	for (; ll; ll--, b++) {
-		if (accept_char(*b)) add_chr_to_str(s, l, *b);
-		else {
-			add_to_str(s, l, "&#");
-			add_num_to_str(s, l, (int)*b);
-			add_chr_to_str(s, l, ';');
-		}
 	}
 }
 
@@ -570,19 +551,20 @@ int ftp_process_dirlist(struct cache_entry *ce, int *pos, int *d, unsigned char 
 			    (ee - *d != 2 || buf[*d] != '.' || buf[*d + 1] != '.')) {
 				int i;
 				for (i = 0; i < *d; i++) add_chr_to_str(&str, &sl, ' ');
-				add_to_str(&str, &sl, "<a href=\"..\"/>..</a>\n");
+				add_to_str(&str, &sl, "<a href=\"../\">..</a>\n");
 			}
 		}
-		add_conv_str(&str, &sl, buf, *d);
+		add_conv_str(&str, &sl, buf, *d, 0);
 		add_to_str(&str, &sl, "<a href=\"");
-		add_conv_str(&str, &sl, buf + *d, ee - *d);
+		add_conv_str(&str, &sl, buf + *d, ee - *d, 1);
 		if (buf[0] == 'd') add_chr_to_str(&str, &sl, '/');
 		add_to_str(&str, &sl, "\">");
-		add_conv_str(&str, &sl, buf + *d, ee - *d);
+		add_conv_str(&str, &sl, buf + *d, ee - *d, 0);
 		add_to_str(&str, &sl, "</a>");
-		add_conv_str(&str, &sl, buf + ee, p - ee);
+		add_conv_str(&str, &sl, buf + ee, p - ee, 0);
 	} else {
 		int pp;
+		int bp, bn;
 		if (p > 5 && !casecmp(buf, "total", 5)) goto raw;
 		for (pp = p - 1; pp >= 0; pp--) if (!WHITECHAR(buf[pp])) break;
 		if (pp < 0) goto raw;
@@ -593,12 +575,50 @@ int ftp_process_dirlist(struct cache_entry *ce, int *pos, int *d, unsigned char 
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '9' &&
 			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') goto done;
 			if (buf[pp - 6] == ' ' &&
+			    ((buf[pp - 5] == '2' && buf[pp - 4] == '0') ||
+			     (buf[pp - 5] == '1' && buf[pp - 4] == '9')) &&
+			    buf[pp - 3] >= '0' && buf[pp - 3] <= '9' &&
+			    buf[pp - 2] >= '0' && buf[pp - 2] <= '9' &&
+			    buf[pp - 1] == ' ') goto done;
+			if (buf[pp - 6] == ' ' &&
 			    ((buf[pp - 5] >= '0' && buf[pp - 5] <= '2') || buf[pp - 5] == ' ') &&
 			    buf[pp - 4] >= '0' && buf[pp - 4] <= '9' &&
 			    buf[pp - 3] == ':' &&
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '5' &&
 			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') goto done;
 		}
+
+		for (pp = 0; pp + 5 <= p; pp++)
+			if (!casecmp(&buf[pp], "<DIR>", 5)) {
+				pp += 4;
+				while (pp + 1 < p && WHITECHAR(buf[pp + 1])) pp++;
+				if (pp + 1 < p) goto done;
+			}
+		
+		bn = -1;
+		bp = 0;		/* warning, go away */
+		for (pp = 0; pp < p; ) {
+			if (buf[pp] >= '0' && buf[pp] <= '9') {
+				int i;
+				for (i = pp; i < p; i++)
+					if (buf[i] < '0' || buf[i] > '9') break;
+				if (i < p && WHITECHAR(buf[i])) {
+					if (i - pp > bn) {
+						bn = i - pp;
+						bp = pp;
+					}
+				}
+				pp = i;
+			}
+			while (pp < p && !WHITECHAR(buf[pp])) pp++;
+			while (pp < p && WHITECHAR(buf[pp])) pp++;
+		}
+		if (bn >= 0) {
+			pp = bp + bn;
+			while (pp + 1 < p && WHITECHAR(buf[pp + 1])) pp++;
+			if (pp + 1 < p) goto done;
+		}
+
 		for (pp = p - 1; pp >= 0; pp--) if (!WHITECHAR(buf[pp])) break;
 		if (pp < 0) goto raw;
 		for (; pp >= 0; pp--) if (WHITECHAR(buf[pp]) && (pp < 3 || memcmp(buf + pp - 3, " -> ", 4)) && (pp > p - 4 || memcmp(buf + pp, " -> ", 4))) break;
@@ -606,7 +626,7 @@ int ftp_process_dirlist(struct cache_entry *ce, int *pos, int *d, unsigned char 
 		*d = pp + 1;
 		goto ppp;
 		raw:
-		add_conv_str(&str, &sl, buf, p);
+		add_conv_str(&str, &sl, buf, p, 0);
 	}
 	add_chr_to_str(&str, &sl, '\n');
 	if (add_fragment(ce, *pos, str, sl)) *tr = 0;
@@ -637,6 +657,8 @@ void got_something_from_data_connection(struct connection *c)
 	}
 	if (inf->dir && !c->from) {
 		unsigned char *ud;
+		unsigned char *s0;
+		int s0l;
 		static unsigned char ftp_head[] = "<html><head><title>/";
 		static unsigned char ftp_head2[] = "</title></head><body><h2>Directory /";
 		static unsigned char ftp_head3[] = "</h2><pre>";
@@ -644,11 +666,15 @@ void got_something_from_data_connection(struct connection *c)
 		A(ftp_head);
 		ud = stracpy(get_url_data(c->url));
 		if (strchr(ud, POST_CHAR)) *strchr(ud, POST_CHAR) = 0;
-		if (ud) A(ud);
+		s0 = init_str();
+		s0l = 0;
+		add_conv_str(&s0, &s0l, ud, strlen(ud), -1);
+		mem_free(ud);
+		A(s0);
 		A(ftp_head2);
-		if (ud) A(ud);
+		A(s0);
 		A(ftp_head3);
-		if (ud) mem_free(ud);
+		mem_free(s0);
 		if (!c->cache->head) c->cache->head = stracpy("\r\n");
 		add_to_strn(&c->cache->head, "Content-Type: text/html\r\n");
 #undef A

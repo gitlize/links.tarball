@@ -182,7 +182,25 @@ long last_mouse_y;
 	#define sirka_scrollovadla 0
 #endif
 
-
+/* prototypes */
+int draw_bfu_element(struct terminal *, int, int, unsigned, long, long, unsigned char, unsigned char);
+struct list *next_in_tree(struct list_description *, struct list *);
+struct list *prev_in_tree(struct list_description *, struct list *);
+void list_insert_behind_item(struct dialog_data *, void *, void *, struct list_description *);
+void list_copy_item(struct dialog_data *, void *, void *, struct list_description *);
+int list_item_add(struct dialog_data *, struct dialog_item_data *);
+int list_folder_add(struct dialog_data *, struct dialog_item_data *);
+int list_item_edit(struct dialog_data *, struct dialog_item_data *);
+int list_item_move(struct dialog_data *, struct dialog_item_data *);
+int list_item_unselect(struct dialog_data *, struct dialog_item_data *);
+int list_item_button(struct dialog_data *, struct dialog_item_data *);
+int is_empty_dir(struct list_description *, struct list *);
+int list_item_delete(struct dialog_data *, struct dialog_item_data *);
+void redraw_list_line(struct terminal *, void *);
+void scroll_list(struct terminal *, void *);
+int list_event_handler(struct dialog_data *, struct event *);
+void create_list_window_fn(struct dialog_data *);
+void close_list_window(struct dialog_data *);
 
 
 /* This function uses these defines from setup.h:
@@ -367,6 +385,9 @@ struct redraw_data
 
 
 void redraw_list(struct terminal *term, void *bla);
+void list_find_next(struct redraw_data *, int);
+void list_search_for_back(struct redraw_data *, unsigned char *);
+void list_search_for(struct redraw_data *, unsigned char *);
 
 
 /* returns next visible item in tree list */
@@ -891,14 +912,12 @@ int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *useless)
 	if (item==(ld->list)||list_empty(*item))return 0;  /* head or empty list */
 	
 	narez=mem_alloc(sizeof(struct ve_skodarne_je_jeste_vetsi_narez));
-	if (!narez)return 1;
 	narez->ld=ld;narez->item=item;narez->dlg=dlg;
 
 	txt=ld->type_item(term, item,0);
 	if (!txt)
 	{
 		txt=mem_alloc(sizeof(unsigned char));
-		if (!txt)internal("Cannot allocate memory.\n");
 		*txt=0;
 	}
 
@@ -983,7 +1002,6 @@ void redraw_list(struct terminal *term, void *bla)
 			if (!txt)
 			{
 				txt=mem_alloc(sizeof(unsigned char));
-				if (!txt)internal("Cannot allocate memory.\n");
 				*txt=0;
 			}
 
@@ -1060,7 +1078,6 @@ void redraw_list(struct terminal *term, void *bla)
 			if (!txt)
 			{
 				txt=mem_alloc(sizeof(unsigned char));
-				if (!txt)internal("Cannot allocate memory.\n");
 				*txt=0;
 			}
 
@@ -1161,7 +1178,6 @@ void redraw_list_line(struct terminal *term, void *bla)
 			if (!txt)
 			{
 				txt=mem_alloc(sizeof(unsigned char));
-				if (!txt)internal("Cannot allocate memory.\n");
 				*txt=0;
 			}
 
@@ -1202,7 +1218,6 @@ void redraw_list_line(struct terminal *term, void *bla)
 			if (!txt)
 			{
 				txt=mem_alloc(sizeof(unsigned char));
-				if (!txt)internal("Cannot allocate memory.\n");
 				*txt=0;
 			}
 			if (!term->spec->block_cursor || term->spec->braille) set_cursor(term, dlg->x + DIALOG_LB + x, y, dlg->x + DIALOG_LB + x, y);
@@ -1234,7 +1249,6 @@ void redraw_list_line(struct terminal *term, void *bla)
 			if (!txt)
 			{
 				txt=mem_alloc(sizeof(unsigned char));
-				if (!txt)internal("Cannot allocate memory.\n");
 				*txt=0;
 			}
 
@@ -1278,7 +1292,6 @@ void redraw_list_line(struct terminal *term, void *bla)
 			if (!txt)
 			{
 				txt=mem_alloc(sizeof(unsigned char));
-				if (!txt)internal("Cannot allocate memory.\n");
 				*txt=0;
 			}
 
@@ -1313,7 +1326,6 @@ void redraw_list_line(struct terminal *term, void *bla)
 		if (!txt)
 		{
 			txt=mem_alloc(sizeof(unsigned char));
-			if (!txt)internal("Cannot allocate memory.\n");
 			*txt=0;
 		}
 
@@ -1383,7 +1395,6 @@ void redraw_list_line(struct terminal *term, void *bla)
 		if (!txt)
 		{
 			txt=mem_alloc(sizeof(unsigned char));
-			if (!txt)internal("Cannot allocate memory.\n");
 			*txt=0;
 		}
 
@@ -1584,7 +1595,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		{
 			struct redraw_data *r;
 
-			if (!(r=mem_alloc(sizeof(struct redraw_data)))) return EVENT_NOT_PROCESSED;
+			r=mem_alloc(sizeof(struct redraw_data));
 			r->ld=ld;
 			r->dlg=dlg;
 
@@ -1595,7 +1606,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		{
 			struct redraw_data *r;
 
-			if (!(r=mem_alloc(sizeof(struct redraw_data)))) return EVENT_NOT_PROCESSED;
+			r=mem_alloc(sizeof(struct redraw_data));
 			r->ld=ld;
 			r->dlg=dlg;
 
@@ -2034,8 +2045,7 @@ int create_list_window(
 	if (ld->button_fn)a++;
 	if (ld->type==1)a++;
 
-	if (!(d = mem_alloc(sizeof(struct dialog) + a * sizeof(struct dialog_item)))) return 1;
-	memset(d, 0, sizeof(struct dialog) + a * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + a * sizeof(struct dialog_item));
 	
 	d->title=TEXT(ld->window_title);
 	d->fn=create_list_window_fn;

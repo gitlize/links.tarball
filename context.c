@@ -32,6 +32,11 @@ extern int js_durchfall;
  *                  int lock; ns*namespace[HASHNUM]; }js_context;
  */ 
 
+/* prototypes */
+void vymaz(js_id_name*namespace[]);
+void total_clearvar(lns *, js_context *, plns * );
+
+
 js_context* js_create_context(void*p,long id)/*nevim co budu delat s tim p*/
 {	int i=0;
 	lns** pomlns;
@@ -297,7 +302,9 @@ void js_destroy_context(js_context* context)
         }
 
 	if(context->code)js_mem_free(context->code);
-	else	idebug("Strange things happen!\n");
+	else {
+		idebug("Strange things happen!\n");
+	}
 	vymaz(context->namespace);
 	for(timerno=0;timerno<TIMERNO;timerno++)
 		if(context->t[timerno]!=-1)
@@ -308,8 +315,12 @@ void js_destroy_context(js_context* context)
 		}
 	if(context->upcall_timer!=-1)
 		js_spec_vykill_timer(context,1);
-	if(context->depth)idebug("Za jizdy z vlaku NE-SE-SKA-KO-VAT!\n");
-	if(context->depth1)idebug("Za jizdy z vlaku NESESKAKOVAT!\n");
+	if(context->depth) {
+		idebug("Za jizdy z vlaku NE-SE-SKA-KO-VAT!\n");
+	}
+	if(context->depth1) {
+		idebug("Za jizdy z vlaku NESESKAKOVAT!\n");
+	}
 	if (context->cookies)js_mem_free(context->cookies);
 	js_mem_free(context); /* A je to*/
 }

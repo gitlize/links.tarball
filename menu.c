@@ -5,6 +5,75 @@
 
 #include "links.h"
 
+/* prototypes */
+void menu_about(struct terminal *, void *, struct session *);
+void menu_keys(struct terminal *, void *, struct session *);
+void menu_copying(struct terminal *, void *, struct session *);
+void menu_manual(struct terminal *, void *, struct session *);
+void menu_homepage(struct terminal *, void *, struct session *);
+void menu_calibration(struct terminal *, void *, struct session *);
+void menu_for_frame(struct terminal *, void (*)(struct session *, struct f_data_c *, int), struct session *);
+void menu_goto_url(struct terminal *, void *, struct session *);
+void menu_save_url_as(struct terminal *, void *, struct session *);
+void menu_save_bookmarks(struct terminal *, void *, struct session *);
+void menu_go_back(struct terminal *, void *, struct session *);
+void menu_reload(struct terminal *, void *, struct session *);
+void dont_exit_prog(struct session *);
+void refresh_abort(struct dialog_data *);
+void cache_inf(struct terminal *, void *, struct session *);
+void list_cache(struct terminal *, void *, struct session *);
+void memory_cld(struct terminal *, void *);
+void memory_info(struct terminal *, void *, struct session *);
+void flush_caches(struct terminal *, void *, void *);
+void history_menu(struct terminal *, void *, struct session *);
+void downloads_menu(struct terminal *, void *, struct session *);
+void menu_doc_info(struct terminal *, void *, struct session *);
+void menu_head_info(struct terminal *, void *, struct session *);
+void menu_toggle(struct terminal *, void *, struct session *);
+void display_codepage(struct terminal *, void *, struct session *);
+void assumed_codepage(struct terminal *, void *, struct session *);
+void charset_list(struct terminal *, void *, struct session *);
+void set_val(struct terminal *, void *, int *);
+void charset_sel_list(struct terminal *, struct session *, int *, int);
+void terminal_options_ok(void *);
+void terminal_options(struct terminal *, void *, struct session *);
+void refresh_javascript(struct session *);
+void javascript_options(struct terminal *, void *, struct session *);
+void httpopt_fn(struct dialog_data *);
+int dlg_http_options(struct dialog_data *, struct dialog_item_data *);
+void ftpopt_fn(struct dialog_data *);
+int dlg_ftp_options(struct dialog_data *, struct dialog_item_data *);
+void refresh_video(struct session *);
+void videoopt_fn(struct dialog_data *);
+void remove_zeroes(unsigned char *);
+void video_options(struct terminal *, void *, struct session *);
+void refresh_net(void *);
+void netopt_fn(struct dialog_data *);
+void net_options(struct terminal *, void *, void *);
+void netprog_fn(struct dialog_data *);
+void net_programs(struct terminal *, void *, void *);
+void cache_refresh(void *);
+void cache_opt(struct terminal *, void *, void *);
+void menu_shell(struct terminal *, void *, void *);
+void menu_kill_background_connections(struct terminal *, void *, void *);
+void menu_kill_all_connections(struct terminal *, void *, void *);
+void menu_save_html_options(struct terminal *, void *, struct session *);
+void html_refresh(struct session *);
+int dlg_assume_cp(struct dialog_data *, struct dialog_item_data *);
+int dlg_kb_cp(struct dialog_data *, struct dialog_item_data *);
+void menu_html_options(struct terminal *, void *, struct session *);
+void refresh_misc(void *);
+void miscopt_fn(struct dialog_data *);
+void miscelaneous_options(struct terminal *, void *, struct session *);
+void menu_set_language(struct terminal *, void *, struct session *);
+void menu_language_list(struct terminal *, void *, struct session *);
+void do_resize_terminal(struct terminal *);
+void dlg_resize_terminal(struct terminal *, void *, struct session *);
+void do_file_menu(struct terminal *, void *, struct session *);
+void do_view_menu(struct terminal *, void *, struct session *);
+void do_setup_menu(struct terminal *, void *, struct session *);
+
+
 /*static inline struct session *get_term_session(struct terminal *term)
 {
 	if ((void *)term->windows.prev == &term->windows) {
@@ -87,7 +156,7 @@ void dont_exit_prog(struct session *ses)
 void query_exit(struct session *ses)
 {
 	ses->exit_query = 1;
-	msg_box(ses->term, NULL, TEXT(T_EXIT_LINKS), AL_CENTER, (ses->term->next == ses->term->prev && are_there_downloads()) ? TEXT(T_DO_YOU_REALLY_WANT_TO_EXIT_LINKS_AND_TERMINATE_ALL_DOWNLOADS) : TEXT(T_DO_YOU_REALLY_WANT_TO_EXIT_LINKS), ses, 2, TEXT(T_YES), (void (*)(void *))really_exit_prog, B_ENTER, TEXT(T_NO), dont_exit_prog, B_ESC);
+	msg_box(ses->term, NULL, TEXT(T_EXIT_LINKS), AL_CENTER, (ses->term->next == ses->term->prev && are_there_downloads()) ? TEXT(T_DO_YOU_REALLY_WANT_TO_EXIT_LINKS_AND_TERMINATE_ALL_DOWNLOADS) : (!F || ses->term->next == ses->term->prev) ? TEXT(T_DO_YOU_REALLY_WANT_TO_EXIT_LINKS) : TEXT(T_DO_YOU_REALLY_WANT_TO_CLOSE_WINDOW), ses, 2, TEXT(T_YES), (void (*)(void *))really_exit_prog, B_ENTER, TEXT(T_NO), dont_exit_prog, B_ESC);
 }
 
 void exit_prog(struct terminal *term, void *d, struct session *ses)
@@ -111,6 +180,11 @@ struct refresh {
 	void *data;
 	int timer;
 };
+
+/* prototypes */
+void refresh(struct refresh *);
+void end_refresh(struct refresh *);
+
 
 void refresh(struct refresh *r)
 {
@@ -141,7 +215,7 @@ void cache_inf(struct terminal *term, void *d, struct session *ses)
 #endif
 	int l = 0;
 	struct refresh *r;
-	if (!(r = mem_alloc(sizeof(struct refresh)))) return;
+	r = mem_alloc(sizeof(struct refresh));
 	r->term = term;
 	r->win = NULL;
 	r->ses = ses;
@@ -239,11 +313,8 @@ void list_cache(struct terminal *term, void *d, struct session *ses)
 	int l = 0;
 	struct refresh *r;
 	struct cache_entry *ce, *cache;
-	if (!(a = init_str())) return;
-	if (!(r = mem_alloc(sizeof(struct refresh)))) {
-		mem_free(a);
-		return;
-	}
+	a = init_str();
+	r = mem_alloc(sizeof(struct refresh));
 	r->term = term;
 	r->win = NULL;
 	r->ses = ses;
@@ -279,7 +350,7 @@ void memory_info(struct terminal *term, void *d, struct session *ses)
 	char message[MSG_BUF];
 	char *p;
 	struct refresh *r;
-	if (!(r = mem_alloc(sizeof(struct refresh)))) return;
+	r = mem_alloc(sizeof(struct refresh));
 	r->term = term;
 	r->win = NULL;
 	r->ses = ses;
@@ -309,10 +380,7 @@ void memory_info(struct terminal *term, void *d, struct session *ses)
 		sprintf(p, "."), p += strlen(p);
 	}
 #endif
-	if (!(p = stracpy(message))) {
-		mem_free(r);
-		return;
-	}
+	p = stracpy(message);
 	msg_box(term, getml(p, NULL), TEXT(T_MEMORY_INFO), AL_CENTER, p, r, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
 	r->win = term->windows.next;
 	((struct dialog_data *)r->win->data)->dlg->abort = refresh_abort;
@@ -329,7 +397,7 @@ void flush_caches(struct terminal *term, void *d, void *e)
 /* jde v historii o psteps polozek dozadu */
 void go_backwards(struct terminal *term, void *psteps, struct session *ses)
 {
-	int steps = (int) psteps;
+	long steps = (long) psteps;
 
 	/*if (ses->tq_goto_position)
 		--steps;
@@ -359,11 +427,14 @@ void history_menu(struct terminal *term, void *ddd, struct session *ses)
 {
 	struct location *l;
 	struct menu_item *mi = NULL;
-	int n = 0;
+	long n = 0;
 	foreach(l, ses->history) {
-		if (n/* || ses->tq_goto_position*/) {
+		if (n) {
+			unsigned char *url;
 			if (!mi && !(mi = new_menu(3))) return;
-			add_to_menu(&mi, stracpy(l->url), "", "", MENU_FUNC go_backwards, (void *) n, 0);
+			url = stracpy(l->url);
+			if (strchr(url, POST_CHAR)) *strchr(url, POST_CHAR) = 0;
+			add_to_menu(&mi, url, "", "", MENU_FUNC go_backwards, (void *) n, 0, n - 1);
 		}
 		n++;
 	}
@@ -386,7 +457,7 @@ void downloads_menu(struct terminal *term, void *ddd, struct session *ses)
 		if (!mi) if (!(mi = new_menu(3))) return;
 		u = stracpy(d->url);
 		if (strchr(u, POST_CHAR)) *strchr(u, POST_CHAR) = 0;
-		add_to_menu(&mi, u, "", "", MENU_FUNC display_download, d, 0);
+		add_to_menu(&mi, u, "", "", MENU_FUNC display_download, d, 0, n);
 		n++;
 	}
 	if (!n) do_menu(term, no_downloads_menu, ses);
@@ -410,7 +481,7 @@ void menu_toggle(struct terminal *term, void *ddd, struct session *ses)
 
 void display_codepage(struct terminal *term, void *pcp, struct session *ses)
 {
-	int cp = (int)pcp;
+	long cp = (long)pcp;
 	struct term_spec *t = new_term_spec(term->term);
 	if (t) t->charset = cp;
 	cls_redraw_all_terminals();
@@ -418,20 +489,20 @@ void display_codepage(struct terminal *term, void *pcp, struct session *ses)
 
 void assumed_codepage(struct terminal *term, void *pcp, struct session *ses)
 {
-	int cp = (int)pcp;
+	long cp = (long)pcp;
 	ses->ds.assume_cp = cp;
 	redraw_terminal_cls(term);
 }
 
 void charset_list(struct terminal *term, void *xxx, struct session *ses)
 {
-	int i, sel;
+	long i; int sel;
 	unsigned char *n;
 	struct menu_item *mi;
 	if (!(mi = new_menu(1))) return;
 	for (i = 0; (n = get_cp_name(i)); i++) {
 		if (is_cp_special(i)) continue;
-		add_to_menu(&mi, get_cp_name(i), "", "", MENU_FUNC display_codepage, (void *)i, 0);
+		add_to_menu(&mi, get_cp_name(i), "", "", MENU_FUNC display_codepage, (void *)i, 0, i);
 	}
 	sel = ses->term->spec->charset;
 	if (sel < 0) sel = 0;
@@ -440,17 +511,18 @@ void charset_list(struct terminal *term, void *xxx, struct session *ses)
 
 void set_val(struct terminal *term, void *ip, int *d)
 {
-	*d = (int)ip;
+	*d = (long)ip;
 }
 
-void charset_sel_list(struct terminal *term, struct session *ses, int *ptr)
+void charset_sel_list(struct terminal *term, struct session *ses, int *ptr, int noutf8)
 {
-	int i, sel;
+	long i; int sel;
 	unsigned char *n;
 	struct menu_item *mi;
 	if (!(mi = new_menu(1))) return;
 	for (i = 0; (n = get_cp_name(i)); i++) {
-		add_to_menu(&mi, get_cp_name(i), "", "", MENU_FUNC set_val, (void *)i, 0);
+		if (noutf8 && is_cp_special(i)) continue;
+		add_to_menu(&mi, get_cp_name(i), "", "", MENU_FUNC set_val, (void *)i, 0, i);
 	}
 	sel = *ptr;
 	if (sel < 0) sel = 0;
@@ -469,8 +541,7 @@ void terminal_options(struct terminal *term, void *xxx, struct session *ses)
 	struct dialog *d;
 	struct term_spec *ts = new_term_spec(term->term);
 	if (!ts) return;
-	if (!(d = mem_alloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item)))) return;
-	memset(d, 0, sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 	d->title = TEXT(T_TERMINAL_OPTIONS);
 	d->fn = checkbox_list_fn;
 	d->udata = td_labels;
@@ -529,7 +600,7 @@ void terminal_options(struct terminal *term, void *xxx, struct session *ses)
 	d->items[11].fn = cancel_dialog;
 	d->items[11].text = TEXT(T_CANCEL);
 	d->items[12].type = D_END;
- 	do_dialog(term, d, getml(d, NULL));
+	do_dialog(term, d, getml(d, NULL));
 }
 
 #ifdef JS
@@ -541,7 +612,7 @@ static unsigned char js_fun_depth_str[7];
 static unsigned char js_memory_limit_str[7];
 
 
-static void inline __kill_js_recursively(struct f_data_c *fd)
+static inline void __kill_js_recursively(struct f_data_c *fd)
 {
 	struct f_data_c *f;
 
@@ -550,7 +621,7 @@ static void inline __kill_js_recursively(struct f_data_c *fd)
 }
 
 
-static void inline __quiet_kill_js_recursively(struct f_data_c *fd)
+static inline void __quiet_kill_js_recursively(struct f_data_c *fd)
 {
 	struct f_data_c *f;
 
@@ -585,8 +656,7 @@ void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 	__kill_script_opt=0;
 	snprintf(js_fun_depth_str,7,"%d",js_fun_depth);
 	snprintf(js_memory_limit_str,7,"%d",js_memory_limit);
-	if (!(d = mem_alloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item)))) return;
-	memset(d, 0, sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 	d->title = TEXT(T_JAVASCRIPT_OPTIONS);
 	d->fn = group_fn;
 	d->refresh = (void (*)(void *))refresh_javascript;
@@ -641,7 +711,7 @@ void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 	d->items[10].fn = cancel_dialog;
 	d->items[10].text = TEXT(T_CANCEL);
 	d->items[11].type = D_END;
- 	do_dialog(term, d, getml(d, NULL));
+	do_dialog(term, d, getml(d, NULL));
 }
 
 #endif
@@ -693,8 +763,7 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	struct http_bugs *bugs = (struct http_bugs *)di->cdata;
 	struct dialog *d;
-	if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return 0;
-	memset(d, 0, sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
 	d->title = TEXT(T_HTTP_BUG_WORKAROUNDS);
 	d->fn = httpopt_fn;
 	d->udata = http_labels;
@@ -753,7 +822,7 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[12].fn = cancel_dialog;
 	d->items[12].text = TEXT(T_CANCEL);
 	d->items[13].type = D_END;
- 	do_dialog(dlg->win->term, d, getml(d, NULL));
+	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
 
@@ -800,8 +869,7 @@ void ftpopt_fn(struct dialog_data *dlg)
 int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	struct dialog *d;
-	if (!(d = mem_alloc(sizeof(struct dialog) + 6 * sizeof(struct dialog_item)))) return 0;
-	memset(d, 0, sizeof(struct dialog) + 6 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 6 * sizeof(struct dialog_item));
 	d->title = TEXT(T_FTP_OPTIONS);
 	d->fn = ftpopt_fn;
 	d->items[0].type = D_FIELD;
@@ -823,7 +891,7 @@ int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[4].fn = cancel_dialog;
 	d->items[4].text = TEXT(T_CANCEL);
 	d->items[5].type = D_END;
- 	do_dialog(dlg->win->term, d, getml(d, NULL));
+	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
 
@@ -956,8 +1024,7 @@ void video_options(struct terminal *term, void *xxx, struct session *ses)
 	remove_zeroes(user_g);
 	snprintf(aspect_str, VO_GAMMA_LEN, "%f", bfu_aspect);
 	remove_zeroes(aspect_str);
-	if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return;
-	memset(d, 0, sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
 	d->title = TEXT(T_VIDEO_OPTIONS);
 	d->fn = videoopt_fn;
 	d->refresh = (void (*)(void *))refresh_video;
@@ -1120,8 +1187,7 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	snprint(max_t_str, 3, max_tries);
 	snprint(time_str, 5, receive_timeout);
 	snprint(unrtime_str, 5, unrestartable_receive_timeout);
-	if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return;
-	memset(d, 0, sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
 	d->title = TEXT(T_NETWORK_OPTIONS);
 	d->fn = netopt_fn;
 	d->refresh = (void (*)(void *))refresh_net;
@@ -1193,9 +1259,10 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 
 unsigned char *prg_msg[] = {
 	TEXT(T_MAILTO_PROG),
-	TEXT(T_SHELL_PROG),
 	TEXT(T_TELNET_PROG),
 	TEXT(T_TN3270_PROG),
+	TEXT(T_MMS_PROG),
+	TEXT(T_SHELL_PROG),
 	""
 };
 
@@ -1206,66 +1273,52 @@ void netprog_fn(struct dialog_data *dlg)
 	int w, rw;
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
 	int a;
-	max_text_width(term, prg_msg[0], &max, AL_LEFT);
-	min_text_width(term, prg_msg[0], &min, AL_LEFT);
-	a=2;
+	a=0;
+	max_text_width(term, prg_msg[a], &max, AL_LEFT);
+	min_text_width(term, prg_msg[a++], &min, AL_LEFT);
+	max_text_width(term, prg_msg[a], &max, AL_LEFT);
+	min_text_width(term, prg_msg[a++], &min, AL_LEFT);
+	max_text_width(term, prg_msg[a], &max, AL_LEFT);
+	min_text_width(term, prg_msg[a++], &min, AL_LEFT);
+	max_text_width(term, prg_msg[a], &max, AL_LEFT);
+	min_text_width(term, prg_msg[a++], &min, AL_LEFT);
 #ifdef G
-	if (F)
-	{
-		a=1;
+	if (F && drv->exec) {
 		max_text_width(term, prg_msg[a], &max, AL_LEFT);
 		min_text_width(term, prg_msg[a++], &min, AL_LEFT);
-		max_text_width(term, prg_msg[a], &max, AL_LEFT);
-		min_text_width(term, prg_msg[a++], &min, AL_LEFT);
-		max_text_width(term, prg_msg[a], &max, AL_LEFT);
-		min_text_width(term, prg_msg[a++], &min, AL_LEFT);
-		max_buttons_width(term, dlg->items + 4, 2, &max);
-		min_buttons_width(term, dlg->items + 4, 2, &min);
 	}
-	else
 #endif
-	{
-		max_text_width(term, prg_msg[a], &max, AL_LEFT);
-		min_text_width(term, prg_msg[a++], &min, AL_LEFT);
-		max_text_width(term, prg_msg[a], &max, AL_LEFT);
-		min_text_width(term, prg_msg[a++], &min, AL_LEFT);
-		max_buttons_width(term, dlg->items + 3, 2, &max);
-		min_buttons_width(term, dlg->items + 3, 2, &min);
-	}
+	max_buttons_width(term, dlg->items + a, 2, &max);
+	min_buttons_width(term, dlg->items + a, 2, &min);
 	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
 	if (w > max) w = max;
 	if (w < min) w = min;
 	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
 	rw = 0;
+	a=0;
 	if (term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text_and_field(dlg, NULL, prg_msg[0], &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	a=2;
+	dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
 	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef G
-	if (F)
-	{
-		a=1;
+	if (F && drv->exec) {
 		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 		a++;
 		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		a++;
-		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_buttons(dlg, NULL, dlg->items + 4, 2, 0, &y, w, &rw, AL_CENTER);
 	}
-	else
 #endif
-	{
-		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a-1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		a++;
-		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a-1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_buttons(dlg, NULL, dlg->items + 3, 2, 0, &y, w, &rw, AL_CENTER);
-	}
+	if (term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, NULL, dlg->items + a, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
 	dlg->xw = w + 2 * DIALOG_LB;
 	dlg->yw = y + 2 * DIALOG_TB;
@@ -1273,43 +1326,37 @@ void netprog_fn(struct dialog_data *dlg)
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
 	if (term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text_and_field(dlg, term, prg_msg[0], &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	a=2;
+	a=0;
+	dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
 	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef G
-	if (F)
-	{	
-		a=1;
+	if (F && drv->exec) {	
 		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 		a++;
 		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		a++;
-		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_buttons(dlg, term, &dlg->items[4], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 	}
-	else
 #endif
-	{
-		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a-1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		a++;
-		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a-1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		a++;
-		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_buttons(dlg, term, &dlg->items[3], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
-	}
+	if (term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, term, &dlg->items[a], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
+
 void net_programs(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
 	int a;
-	if (!(d = mem_alloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item)))) return;
-	memset(d, 0, sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
 #ifdef G
-	if (F) d->title = TEXT(T_MAIL_TELNET_AND_SHELL_PROGRAMS);
+	if (F && drv->exec) d->title = TEXT(T_MAIL_TELNET_AND_SHELL_PROGRAMS);
 	else
 #endif
 		d->title = TEXT(T_MAIL_AND_TELNET_PROGRAMS);
@@ -1318,20 +1365,22 @@ void net_programs(struct terminal *term, void *xxx, void *yyy)
 	d->items[a=0].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
 	d->items[a++].data = get_prog(&mailto_prog);
-#ifdef G
-	if (F)
-	{
-		d->items[a].type = D_FIELD;
-		d->items[a].dlen = MAX_STR_LEN;
-		d->items[a++].data = drv->shell;
-	}
-#endif
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
 	d->items[a++].data = get_prog(&telnet_prog);
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
 	d->items[a++].data = get_prog(&tn3270_prog);
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a++].data = get_prog(&mms_prog);
+#ifdef G
+	if (F && drv->exec) {
+		d->items[a].type = D_FIELD;
+		d->items[a].dlen = MAX_STR_LEN;
+		d->items[a++].data = drv->shell;
+	}
+#endif
 	d->items[a].type = D_BUTTON;
 	d->items[a].gid = B_ENTER;
 	d->items[a].fn = ok_dialog;
@@ -1363,7 +1412,7 @@ void cache_refresh(void *xxx)
 {
 	memory_cache_size = atoi(mc_str) * 1024;
 #ifdef G
-	if (F)image_cache_size = atoi(ic_str) * 1024;
+	if (F) image_cache_size = atoi(ic_str) * 1024;
 #endif
 	max_format_cache_entries = atoi(doc_str);
 	shrink_memory(SH_CHECK_QUOTA);
@@ -1386,13 +1435,11 @@ void cache_opt(struct terminal *term, void *xxx, void *yyy)
 #ifdef G
 	if (F)
 	{
-		if (!(d = mem_alloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
 	}else
 #endif
 	{
-		if (!(d = mem_alloc(sizeof(struct dialog) + 6 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 6 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 6 * sizeof(struct dialog_item));
 	}
 	a=0;
 	d->title = TEXT(T_CACHE_OPTIONS);
@@ -1499,7 +1546,13 @@ unsigned char *html_texts[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), 
 
 int dlg_assume_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	charset_sel_list(dlg->win->term, dlg->dlg->udata2, (int *)di->cdata);
+	charset_sel_list(dlg->win->term, dlg->dlg->udata2, (int *)di->cdata, 0);
+	return 0;
+}
+
+int dlg_kb_cp(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	charset_sel_list(dlg->win->term, dlg->dlg->udata2, (int *)di->cdata, 1);
 	return 0;
 }
 
@@ -1510,12 +1563,10 @@ void menu_html_options(struct terminal *term, void *xxx, struct session *ses)
 	
 	snprint(marg_str, 2, ses->ds.margin);
 	if (!F){
-		if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
 #ifdef G
 	}else{
-		if (!(d = mem_alloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 16 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item));
 		snprintf(html_font_str,4,"%d",ses->ds.font_size);
 		snprintf(image_scale_str,6,"%d",ses->ds.image_scale);
 #endif
@@ -1777,14 +1828,12 @@ void miscelaneous_options(struct terminal *term, void *xxx, struct session *ses)
 	new_bookmarks_codepage=bookmarks_codepage;
 	if (!F)
 	{
-		if (!(d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
 #ifdef G
 	}
 	else
 	{
-		if (!(d = mem_alloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 		snprintf(menu_font_str,4,"%d",menu_font_size);
 		snprintf(fg_color_str,7,"%06x",(unsigned) G_BFU_FG_COLOR);
 		snprintf(bg_color_str,7,"%06x",(unsigned) G_BFU_BG_COLOR);
@@ -1871,7 +1920,7 @@ void miscelaneous_options(struct terminal *term, void *xxx, struct session *ses)
 		{
 			d->items[a].type = D_BUTTON;
 			d->items[a].gid = 0;
-			d->items[a].fn = dlg_assume_cp;
+			d->items[a].fn = dlg_kb_cp;
 			d->items[a].text = TEXT(T_KEYBOARD_CODEPAGE);
 			d->items[a].data = (unsigned char *) &(drv->codepage);
 			d->items[a].dlen = sizeof(int);
@@ -1889,24 +1938,24 @@ void miscelaneous_options(struct terminal *term, void *xxx, struct session *ses)
 	d->items[a].text = TEXT(T_CANCEL);
 	a++;
 	d->items[a].type = D_END;
- 	do_dialog(term, d, getml(d, NULL));
+	do_dialog(term, d, getml(d, NULL));
 }
 
 void menu_set_language(struct terminal *term, void *pcp, struct session *ses)
 {
-	set_language((int)pcp);
+	set_language((long)pcp);
 	cls_redraw_all_terminals();
 }
 
 void menu_language_list(struct terminal *term, void *xxx, struct session *ses)
 {
-	int i, sel;
+	long i; int sel;
 	unsigned char *n;
 	struct menu_item *mi;
 	if (!(mi = new_menu(1))) return;
 	for (i = 0; i < n_languages(); i++) {
 		n = language_name(i);
-		add_to_menu(&mi, n, "", "", MENU_FUNC menu_set_language, (void *)i, 0);
+		add_to_menu(&mi, n, "", "", MENU_FUNC menu_set_language, (void *)i, 0, i);
 	}
 	sel = current_language;
 	do_menu_selected(term, mi, ses, sel);
@@ -1933,8 +1982,7 @@ void dlg_resize_terminal(struct terminal *term, void *xxx, struct session *ses)
 	int y = term->y > 999 ? 999 : term->y;
 	sprintf(x_str, "%d", x);
 	sprintf(y_str, "%d", y);
-	if (!(d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item)))) return;
-	memset(d, 0, sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
 	d->title = TEXT(T_RESIZE_TERMINAL);
 	d->fn = group_fn;
 	d->udata = resize_texts;
@@ -2037,7 +2085,7 @@ void do_file_menu(struct terminal *term, void *xxx, struct session *ses)
 	int x;
 	int o;
 	struct menu_item *file_menu, *e, *f;
-	if (!(file_menu = mem_alloc(sizeof(file_menu11) + sizeof(file_menu12) + sizeof(file_menu21) + sizeof(file_menu22) + sizeof(file_menu3) + 3 * sizeof(struct menu_item)))) return;
+	file_menu = mem_alloc(sizeof(file_menu11) + sizeof(file_menu12) + sizeof(file_menu21) + sizeof(file_menu22) + sizeof(file_menu3) + 3 * sizeof(struct menu_item));
 	e = file_menu;
 	if (!F) {
 		memcpy(e, file_menu11, sizeof(file_menu11));
@@ -2068,7 +2116,7 @@ void do_file_menu(struct terminal *term, void *xxx, struct session *ses)
 			e += sizeof(file_menu21) / sizeof(struct menu_item);
 #ifdef G
 		} else {
-			if(F && term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) 
+			if(clipboard_support(term))
 			{
 				memcpy(e, file_menu211_clipb, sizeof(file_menu211_clipb));
 				e += sizeof(file_menu211_clipb) / sizeof(struct menu_item);
@@ -2198,6 +2246,7 @@ struct menu_item setup_menu_g[] = {
 	{ TEXT(T_MAIL_TELNET_AND_SHELL), "", TEXT(T_HK_MAIL_AND_TELNEL), MENU_FUNC net_programs, NULL, 0, 0 },
 	{ TEXT(T_ASSOCIATIONS), "", TEXT(T_HK_ASSOCIATIONS), MENU_FUNC menu_assoc_manager, NULL, 0, 0 },
 	{ TEXT(T_FILE_EXTENSIONS), "", TEXT(T_HK_FILE_EXTENSIONS), MENU_FUNC menu_ext_manager, NULL, 0, 0 },
+	{ TEXT(T_BLOCK_LIST), "", TEXT(T_HK_BLOCK_LIST), MENU_FUNC block_manager, NULL, 0, 0 },
 	{ "", "", M_BAR, NULL, NULL, 0, 0 },
 	{ TEXT(T_SAVE_OPTIONS), "", TEXT(T_HK_SAVE_OPTIONS), MENU_FUNC write_config, NULL, 0, 0 },
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
@@ -2285,6 +2334,8 @@ struct does_file_exist_s{
 	unsigned char *url;
 };
 
+void does_file_exist(struct does_file_exist_s *, unsigned char *);  /* prototype */
+
 static void does_file_exist_ok(void *data)
 {
 	struct does_file_exist_s *h=(struct does_file_exist_s *)data;
@@ -2311,11 +2362,7 @@ void does_file_exist(struct does_file_exist_s *d, unsigned char *file)
 	struct download *down;
 	struct does_file_exist_s *h;
 
-	if (!(h=mem_alloc(sizeof(struct does_file_exist_s))))
-	{
-		if (d->cancel) d->cancel(ses);
-		return;
-	}
+	h=mem_alloc(sizeof(struct does_file_exist_s));
 	h->fn=d->fn;
 	h->cancel=d->cancel;
 	h->ses=ses;
@@ -2379,11 +2426,7 @@ void query_file(struct session *ses, unsigned char *url, void (*std)(struct sess
 	int l;
 	struct does_file_exist_s *h;
 
-	if (!(h=mem_alloc(sizeof(struct does_file_exist_s))))
-	{
-		if (cancel) cancel(ses);
-		return;
-	}
+	h=mem_alloc(sizeof(struct does_file_exist_s));
 
 	get_filename_from_url(url, &file, &l);
 	def = init_str();

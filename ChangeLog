@@ -1,3 +1,233 @@
+Sat Jan 22 20:27:41 cet 2005 mikulas:
+
+	Fixed empty lines in lists in graphics mode
+
+Sat Jan 22 04:40:28 cet 2005 mikulas:
+
+	On OS/2 use 8.3 temp names, allowing DOS viewers
+
+Sat Jan 22 03:55:08 cet 2005 mikulas:
+
+	Send Accept-Language
+
+Sat Jan 22 02:05:47 MET 2005 user:
+
+	Display is scrolled to see the whole textarea when modifying it
+
+Wed Jan 19 02:57:56 MET 2005 Jakub Bogusz <qboosh@pld-linux.org>:
+
+	Updated Polish translation
+
+Wed Jan 19 01:39:44 MET 2005 mikulas:
+
+	-dump url
+	Completed option documentation in links -h
+
+Sun Jan 16 23:57:58 MET 2005 user:
+
+	Fixed bug in svgalib accelerator (tested for different operations)
+
+Mon Jan 10 23:04:22 MET 2005 mikulas:
+
+	Support for border on framebuffer (use -mode left,top,right,bottom)
+	to set screen border
+
+Sun Jan  2 20:46:18 MET 2005 Dieter <netbsd@sopwith.solgatos.com>:
+
+	Fix warnings on 64-bit machines
+
+Sun Jan  2 20:39:51 MET 2005 Edward Rosten <er258@hermes.cam.ac.uk>:
+
+	Block ad images
+
+Sun Jan  2 18:51:15 cet 2005 mikulas:
+
+	Do not cache redirects if redirect loop is going to happen
+
+Wed Nov 17 15:16:01 MET 2004 user:
+
+	Support for mms:// urls
+
+Tue Nov 16 15:18:55 MET 2004 mikulas:
+
+	Send content-type when uploading files
+
+Tue Nov  9 00:12:05 MET 2004 user:
+
+	^O to go to next form field in braill mode
+
+Sun Oct 31 17:17:53 MET 2004 mikulas:
+
+	Correct jump at tag if it points to position, that moves during loading
+
+Sat Oct 23 22:14:03 MET 2004 user:
+
+	Disallow opening new windows in anonymous mode
+
+Fri Oct 22 22:31:20 MET DST 2004 mikulas:
+
+	Fixed bugs discovered with mangleme:
+	http://lcamtuf.coredump.cx/mangleme/mangle2.cgi
+	memory leak with nested <select multiple name=n> tags
+	integer overflow in frame widths causes an internal error
+	internal error with base url only containing //
+	internal error with base url containing javascript:
+	fixed incorrect generating of title (does not cause crash, but excessive
+		memory allocation)
+	fixed some quadratic algorithms in title displaying
+	internal error with invalid codebase attribute in OBJECT tag
+	fixed quadratic algorithm in menu creating
+
+Fri Oct 22 20:12:05 MET DST 2004 mikulas:
+
+	Cleaned up configure script, wrote some more replacements of non-present
+	functions
+
+Fri Oct 22 20:11:56 MET DST 2004 mikulas:
+
+	Fixed a lot of cases where overflowed integer arithmetic could cause
+	memory allocation corruption
+
+Sat Oct 16 21:38:00 MET 2004 user:
+
+	Allow browsing local and ftp files with '#' in filename
+
+Mon Oct 11 01:26:54 CEST 2004 Karel Karlik <kkar8447@ss1000.ms.mff.cuni.cz>:
+
+	Fixed framebuffer in 15 and 16-bit modes
+
+Wed Oct  6 00:39:27 MET 2004 user:
+
+	Improved parsing of ftp directories in Windows NT format
+
+Sun Oct  3 17:37:32 MET 2004 user:
+
+	Correct reporting of error on ftp directories
+
+Sat Oct  2 04:29:40 MET 2004 user:
+
+	Ctrl-U cuts into clipboard
+
+Fri Oct  1 15:51:37 MET 2004 user:
+
+	Display the whole page when connection to an image stucks
+
+Thu Sep 23 18:47:11 MET 2004 user:
+
+	Resolving of double '..' in references
+
+Fri Sep 10 04:23:24 cet 2004 mikulas:
+
+	Correctly find file extension if '?' and ';' is in ftp file
+
+Fri Sep  3 03:07:52 MET DST 2004 Wojciech Puchar <wojtek@tensor.3miasto.net>:
+
+	Portability fixes for SunOS
+
+Fri Sep  3 02:47:18 MET DST 2004 mikulas:
+
+	Fixed memory leak in http authentication
+
+Wed Sep  1 19:08:46 MET DST 2004 Strahinya Radich <mr99164@alas.matf.bg.ac.yu>:
+
+	Updated Serbian translation
+
+Sun Aug 29 17:43:39 MET DST 2004 mikulas:
+
+	Fix crash when saving options in svgalib due to missing shell
+
+Thu Jul 29 13:03:07 MET 2004 user:
+
+	Allowed dots in extensions (for example "ps.gz")
+
+Sun Jul 25 00:34:04 MET DST 2004 mikulas:
+
+	Allow Ctrl-Z in framebuffer driver
+
+Sat Jul 24 14:56:13 MET DST 2004 mikulas:
+
+	Fixed an error when signal interrupted another syscall
+
+Sat Jul 24 02:15:35 MET 2004 user:
+
+	Fixed bad error codes because of errno modified by signal handler
+
+Fri Jul 23 21:29:22 MET 2004 user:
+
+	Fixed links stuck after Ctrl-Z when one code path lasted more than
+	1 second (because of pagefault, too high cpu load or similar)
+
+Fri Jul 23 20:15:29 MET 2004 user:
+
+	Fixed incorrectly displayed character entities (&) in attributes (img
+	alt, etc.)
+
+Tue Jun 29 03:35:32 MET 2004 user:
+
+	Fixed overflow when accessing local files >= 2G
+
+Mon Jun 28 01:34:45 MET 2004 user:
+
+	Ctrl-K cuts current line
+
+Sat Jun 26 13:54:53 MET DST 2004 mikulas:
+
+	Send Content-Type when uploading files
+
+Sat Jun 26 02:24:32 MET 2004 user:
+
+	y and t move word forward and backward in braille terminal
+
+Sat Jun 26 00:35:17 MET 2004 user:
+
+	Resolve dot-number IP address on systems when gethostbyname and
+	gethostbyaddr can't resolve it
+
+Mon Jun 21 15:02:25 MDT 2004 mpat7421:
+
+	Fixed compilation problems on Irix
+
+Sun Jun 20 18:49:53 MET DST 2004 mikulas:
+
+	Posting of <option> fields in correct charset
+
+Sun Jun 20 15:58:08 MET DST 2004 Sam <sam@frida.fri.utc.sk>:
+
+	SDL graphics driver
+
+Sat Jun 19 18:10:05 MET 2004 user:
+
+	Fixed case when '&' entities or special characters were in ftp or disk
+	filenames
+
+Sat Jun 19 18:09:50 MET 2004 user:
+
+	Fixed compilation problem on AIX
+
+Thu Jun 17 20:32:59 MET DST 2004 mikulas:
+
+	Correct handling of Ctrl-Z when executing user viewer
+
+Fri Jun 11 03:17:20 MET 2004 user:
+
+	Fixed incorrect error handling in smb
+
+Sun Jun  6 03:12:00 MET 2004 user:
+
+	Allow '@' in ftp password in url
+
+Thu Jun  3 22:39:24 MET 2004 user:
+
+	Allow characters >= 128 in ftp filenames
+
+Fri May 28 15:40:35 CEST 2004 mikulas
+
+	Handling URLs in form http://host?params
+
+Mon May 17 17:10:22 MET DST 2004 Serge Winitzki <serge at cosmos dot phy dot tufts dot edu>:
+
+	Updated German and Russian localization
+
 === Release 2.1pre15
 
 Wed Apr 28 17:08:38 CEST 2004 BRain

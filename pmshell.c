@@ -35,7 +35,7 @@ _fmutex pm_mutex;
 unsigned char *pm_class_name = "links";
 unsigned char *pm_msg_class_name = "links.msg";
 
-ULONG pm_frame = (FCF_TITLEBAR | FCF_SYSMENU | FCF_SIZEBORDER | FCF_MINMAX | FCF_SHELLPOSITION | FCF_TASKLIST);
+ULONG pm_frame = (FCF_TITLEBAR | FCF_SYSMENU | FCF_SIZEBORDER | FCF_MINMAX | FCF_SHELLPOSITION | FCF_TASKLIST | FCF_NOBYTEALIGN);
 
 ULONG pm_msg_frame = 0;
 
@@ -524,15 +524,15 @@ BITMAPINFO *pm_bitmapinfo;
 
 int pm_bitmap_count;
 
-int pm_child_pid;
+pid_t pm_child_pid;
 
 void pm_sigcld(void *p)
 {
 	int st;
-	int w;
+	pid_t w;
 	if (!(w = waitpid(pm_child_pid, &st, WNOHANG))) return;
 	if (w > 0) exit(st);
-	else exit(1);
+	else exit(RET_FATAL);
 }
 
 int pm_sin, pm_sout, pm_serr, pm_ip[2], pm_op[2], pm_ep[2];
@@ -634,10 +634,11 @@ unsigned char *pm_init_driver(unsigned char *param, unsigned char *display)
 	}
 	pm_wait;
 	if (pm_status) {
-		int pid;
+		pid_t pid;
 		char **arg;
 		if (pm_status != pm_not_ses) goto f;
-		if (!(arg = mem_alloc((g_argc + 1) * sizeof(char *)))) goto f;
+		if ((unsigned)g_argc > MAXINT / sizeof(char *) - 1) overalloc();
+		arg = mem_alloc((g_argc + 1) * sizeof(char *));
 		memcpy(arg, g_argv, g_argc * sizeof(char *));
 		arg[g_argc] = NULL;
 		pm_child_pid = -1;
@@ -682,11 +683,10 @@ unsigned char *pm_init_driver(unsigned char *param, unsigned char *display)
 		}
 		goto std_form;
 		e:;
-		if ((pm_bitmapinfo = mem_calloc(sizeof(BITMAPINFOHEADER)))) {
-			pm_bitmapinfo->cbFix = sizeof(BITMAPINFOHEADER);
-			pm_bitmapinfo->cPlanes = 1;
-			pm_bitmapinfo->cBitCount = pm_bitcount;
-		}
+		pm_bitmapinfo = mem_calloc(sizeof(BITMAPINFOHEADER));
+		pm_bitmapinfo->cbFix = sizeof(BITMAPINFOHEADER);
+		pm_bitmapinfo->cPlanes = 1;
+		pm_bitmapinfo->cBitCount = pm_bitcount;
 	}
 	{
 		SIZEL sizl = { 0, 0 };
@@ -712,14 +712,14 @@ struct graphics_device *pm_init_device()
 	RECTL rect;
 	struct graphics_device *dev;
 	struct pm_window *win;
-	if (!(win = mem_alloc(sizeof(struct pm_window)))) goto r1;
+	win = mem_alloc(sizeof(struct pm_window));
 	win->button = 0;
 	init_list(win->queue);
 	win->in = 0;
 	pm_send_msg(MSG_CREATE_WINDOW, win);
 	if (win->h == NULLHANDLE) goto r2;
 	if ((win->ps = WinGetPS(win->hc)) == NULLHANDLE) goto r3;
-	if (!(dev = mem_calloc(sizeof(struct graphics_device)))) goto r4;
+	dev = mem_calloc(sizeof(struct graphics_device));
 	dev->driver_data = win;
 	win->dev = dev;
 	if (WinQueryWindowRect(win->hc, &rect) == TRUE) {
@@ -735,13 +735,11 @@ struct graphics_device *pm_init_device()
 	pm_unlock;
 	return dev;
 
-	r4:	WinReleasePS(win->ps);
 	r3:	pm_unlock;
 		pm_send_msg(MSG_DELETE_WINDOW, win);
 	r2:	if (win->in) del_from_list(win);
 		pm_unlock;
 		mem_free(win);
-	r1:
 	return NULL;
 	
 }
@@ -790,20 +788,24 @@ void pm_set_window_title(struct graphics_device *dev, unsigned char *title)
 	mem_free(w.text);
 }
 
+/*
 int pm_get_filled_bitmap(struct bitmap *bmp, long color)
 {
-	/* Mikulas jestlize plati ze get_color u pmshell nic nedela (jen oanduje
+	 * Mikulas jestlize plati ze get_color u pmshell nic nedela (jen oanduje
 	 * 0xffffff), tak tady zavolej (*get_color_fn)(color) z dither.c a ta
 	 * vrati long a, a ty udelas (void *)(&a) a budes mit ty bajty co chces
-	 */
+	 * 
 	internal("nedopsano");
 	return 0;
-}
+}*/
 
 int pm_get_empty_bitmap(struct bitmap *bmp)
 {
 	debug_call(("get_empty_bitmap (%dx%d)\n", bmp->x, bmp->y));
+	if ((unsigned)bmp->x > MAXINT / (pmshell_driver.depth & 7) - 4) overalloc();
 	bmp->skip = -((bmp->x * (pmshell_driver.depth & 7) + 3) & ~3);
+	if (-bmp->skip && (unsigned)-bmp->skip * (unsigned)bmp->y / (unsigned)-bmp->skip != (unsigned)bmp->y) overalloc();
+	if ((unsigned)-bmp->skip * (unsigned)bmp->y > MAXINT) overalloc();
 	bmp->data = (char *)(bmp->flags = mem_alloc(-bmp->skip * bmp->y)) - bmp->skip * (bmp->y - 1);
 	debug_call(("done\n"));
 	return 1;
@@ -824,6 +826,8 @@ void pm_register_bitmap(struct bitmap *bmp)
 
 void *pm_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
+	if (-bmp->skip && (unsigned)-bmp->skip * (unsigned)lines / (unsigned)-bmp->skip != (unsigned)lines) overalloc();
+	if ((unsigned)-bmp->skip * (unsigned)lines > MAXINT) overalloc();
 	bmp->data = mem_alloc(-bmp->skip * lines);
 	return (char *)bmp->data - bmp->skip * (lines - 1);
 }
@@ -1025,7 +1029,7 @@ struct graphics_driver pmshell_driver = {
 	pm_shutdown_driver,
 	pm_get_driver_param,
 	pm_get_empty_bitmap,
-	pm_get_filled_bitmap,
+	/*pm_get_filled_bitmap,*/
 	pm_register_bitmap,
 	pm_prepare_strip,
 	pm_commit_strip,
@@ -1046,6 +1050,8 @@ struct graphics_driver pmshell_driver = {
 	0,			/* depth */
 	0, 0,			/* x, y */
 	0,			/* flags */
+	0,			/* codepage */
+	NULL,			/* shell */
 };
 
 #endif

@@ -27,6 +27,15 @@ void bookmark_goto_item(struct session *, void *);
 void *bookmark_default_value(struct session*, unsigned char);
 void *bookmark_find_item(void *start, unsigned char *str, int direction);
 void save_bookmarks(void);
+void free_bookmarks(void);
+void bookmark_edit_item_fn(struct dialog_data *);
+void bookmark_edit_done(void *);
+void bookmark_edit_abort(struct dialog_data *);
+struct bookmark_list *previous_on_this_level(struct bookmark_list *);
+void add_bookmark(unsigned char *, unsigned char *, int);
+void create_initial_bookmarks(void);
+void load_bookmarks(void);
+
 
 struct list bookmarks={&bookmarks,&bookmarks,0,-1,NULL};
 
@@ -78,7 +87,10 @@ struct list_description bookmark_ld=
 	bookmark_goto_item,	/* FIXME: should work (URL in UTF8), but who knows? */
 
 	0,0,0,0,  /* internal vars */
-	0 /* modified */
+	0, /* modified */
+	NULL,
+	NULL,
+	0,
 };
 
 
@@ -121,11 +133,9 @@ void *bookmark_default_value(struct session *ses, unsigned char type)
 	struct kawasaki *zelena;
 	unsigned char *txt;
 
-	txt=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	if (!txt)return NULL;
+	txt=mem_alloc(MAX_STR_LEN);
 	
 	zelena=mem_alloc(sizeof(struct kawasaki));
-	if (!zelena){mem_free(txt);return NULL;}
 
 	zelena->url=NULL;
 	zelena->title=NULL;
@@ -301,7 +311,7 @@ void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(struct 
 	int a;
 	
 	/* Create the dialog */
-	if (!(s=mem_alloc(sizeof(struct bookmark_ok_struct))))return;
+	s=mem_alloc(sizeof(struct bookmark_ok_struct));
 	s->fn=ok_fn;
 	s->data=ok_arg;
 	s->dlg=dlg;
@@ -309,8 +319,7 @@ void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(struct 
 
 	if ((item->type)&1)a=4; /* folder */
 	else a=5;
-	if (!(d = mem_alloc(sizeof(struct dialog) + a * sizeof(struct dialog_item) + 2 * MAX_STR_LEN))){mem_free(s);return;}
-	memset(d, 0, sizeof(struct dialog) + a * sizeof(struct dialog_item) + 2 * MAX_STR_LEN);
+	d = mem_calloc(sizeof(struct dialog) + a * sizeof(struct dialog_item) + 2 * MAX_STR_LEN);
 
 
 	title = (unsigned char *)&d->items[a];
@@ -393,12 +402,9 @@ void *bookmark_new_item(void * data)
 	struct kawasaki *zelena=(struct kawasaki *)data;
 
 	b=mem_alloc(sizeof(struct bookmark_list));
-	if (!b)return 0;
 	
-	b->url=mem_alloc(sizeof(unsigned char));
-	if (!(b->url)){mem_free(b);return 0;}
-	b->title=mem_alloc(sizeof(unsigned char));
-	if (!(b->title)){mem_free(b->url);mem_free(b);return 0;}
+	b->url=mem_alloc(1);
+	b->title=mem_alloc(1);
 	
 	*(b->url)=0;  /* empty strings */
 	*(b->title)=0;
@@ -535,10 +541,8 @@ void add_bookmark(unsigned char *title, unsigned char *url, int depth)
 	if (!title) return;
 	
 	b=mem_alloc(sizeof(struct bookmark_list));
-	if (!b)return;
 	
 	dop=mem_calloc(sizeof(struct document_options));
-	if (!dop){mem_free(b);return;}
 	dop->cp=bookmarks_codepage;
 	
 	{
@@ -563,8 +567,7 @@ void add_bookmark(unsigned char *title, unsigned char *url, int depth)
 	}
 	else 
 	{
-		b->url=mem_alloc(sizeof(unsigned char));
-		if (!(b->url)){mem_free(b->title);mem_free(b);mem_free(dop);return;}
+		b->url=mem_alloc(1);
 		*(b->url)=0;
 		b->type=1;
 	}
@@ -603,7 +606,7 @@ void load_bookmarks(void)
 {
 	FILE *f;
 	unsigned char *buf;
-	int len;
+	long len;
 	
 	unsigned char *p, *end;
 	unsigned char *name, *attr;
@@ -627,7 +630,11 @@ void load_bookmarks(void)
 	 *		pointer behind leading <h3> element
 	 */
 
-	f=fopen(bookmarks_file,"r");
+	f=fopen(bookmarks_file,"r"
+#if defined(OS2) || defined(WIN32)
+	"b"
+#endif
+	);
 	can_write_bookmarks=1;
 	if (!f){
 		can_write_bookmarks=(errno==ENOENT); /* if open failed and the file exists, don't write initial bookmarks when finishing */
@@ -638,9 +645,20 @@ void load_bookmarks(void)
 
 	fseek(f,0,SEEK_END);
 	len=ftell(f);
+	if (len == -1 || len >= MAXINT) {
+		file_err:
+		fclose(f);
+		can_write_bookmarks=0;
+		create_initial_bookmarks();
+		bookmark_ld.modified=1;
+		return;
+	}
 	fseek(f,0,SEEK_SET);
-	if (!(buf=mem_alloc(len))){fclose(f);return;}
-	fread(buf,len,1,f);
+	buf=mem_calloc(len);
+	if (fread(buf,len,1,f) != 1) {
+		mem_free(buf);
+		goto file_err;
+	}
 	fclose(f);
 
 	p=buf;
@@ -714,7 +732,7 @@ smitec:
 void init_bookmarks(void)
 {
 	if (!*bookmarks_file)
-		snprintf(bookmarks_file,MAX_STR_LEN,"%sbookmarks.html",links_home);
+		snprintf(bookmarks_file,MAX_STR_LEN,"%sbookmarks.html",links_home?links_home:(unsigned char*)"");
 
 	bookmark_ld.codepage=get_cp_index("utf-8");
 	load_bookmarks();
@@ -743,8 +761,7 @@ static unsigned char *convert_to_entity_string(unsigned char *str)
 	
 	for (size=1,p=str;*p;size+=*p=='&'?5:*p=='<'||*p=='>'||*p=='='?4:1,p++);
 
-	dst=mem_alloc(size*sizeof(unsigned char));
-	if (!dst) internal("Cannot allocate memory.\n");
+	dst=mem_alloc(size);
 	
 	for (p=str,q=dst;*p;p++,q++)
 	{
@@ -783,7 +800,11 @@ void save_bookmarks(void)
 
 	if (!bookmark_ld.modified||!can_write_bookmarks)return;
 	ct=get_translation_table(bookmark_ld.codepage,bookmarks_codepage);
-	f=fopen(bookmarks_file,"w");
+	f=fopen(bookmarks_file,"w"
+#if defined(OS2) || defined(WIN32)
+	"b"
+#endif
+	);
 	if (!f)return;
 	fputs(
 	"<HTML>\n"

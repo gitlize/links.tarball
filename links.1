@@ -117,6 +117,9 @@ version number and exit.
 \f3-help\f1
 Printf a help screen
 
+.PP
+More options can be seen with links -h
+
 .SH NAVIGATION KEYS
 The keys you may use while navigating are
 .TP
@@ -264,17 +267,11 @@ jump at the end
 .B ^E
 jump at the end
 .TP
-.B ^INS
-copy to clipboard
-.TP
-.B ^B
-copy to clipboard
-.TP
 .B ^X
-cut to clipboard (text mode only)
+cut to clipboard
 .TP
 .B ^V
-paste from clipboard (text mode only)
+paste from clipboard
 .TP
 .B ENTER
 enter line
@@ -295,7 +292,7 @@ delete character
 delete from beginning of the line
 .TP
 .B ^K
-delete to the end of the line
+delete to the end of the line or delete line (in textarea)
 .TP
 .B ^W
 auto complete line
@@ -306,7 +303,7 @@ auto complete line
 
 .SH FILES
 .TP
-.IP "~/.links/.links.cfg"
+.IP "~/.links/links.cfg"
 Per-user configfile, automatically created by
 .B links.
 .SH PLATFORMS
@@ -315,15 +312,7 @@ is known to work on Linux, FreeBSD, Solaris, IRIX, HPUX, Digital Unix, AIX,
 OS/2 and BeOS.
 Port for Win32 is in state of beta testing.
 .SH BUGS
-Can't connect to some FTP servers (Novell, NT). Connection stays in "Request
-sent" state.
-.PP
-Frames don't work if there's more frames with same name. Turn them off in such
-case.
-.PP
 You can't upload large files; it takes _lots_ of memory.
-.PP
-You shoudn't press '^Z' when you are in a viewer
 .PP
 Please report any other bugs you find to Mikulas Patocka
 <mikulas@artax.karlin.mff.cuni.cz>

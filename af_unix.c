@@ -31,21 +31,18 @@ int s_unix_fd = -1;
 
 #ifdef USE_AF_UNIX
 
+/* prototypes */
+int get_address(void);
+void unlink_unix(void);
+
 int get_address(void)
 {
 	struct sockaddr_un *su;
 	unsigned char *path;
 	if (!links_home) return -1;
 	path = stracpy(links_home);
-	if (!(su = mem_alloc(sizeof(struct sockaddr_un) + strlen(path) + 1))) {
-		mem_free(path);
-		return -1;
-	}
-	if (!(s_unix_acc = mem_alloc(sizeof(struct sockaddr_un) + strlen(path) + 1))) {
-		mem_free(su);
-		mem_free(path);
-		return -1;
-	}
+	su = mem_alloc(sizeof(struct sockaddr_un) + strlen(path) + 1);
+	s_unix_acc = mem_alloc(sizeof(struct sockaddr_un) + strlen(path) + 1);
 	memset(su, 0, sizeof(struct sockaddr_un) + strlen(path) + 1);
 	su->sun_family = AF_UNIX;
 	add_to_strn(&path, LINKS_SOCK_NAME);
@@ -69,11 +66,8 @@ void unlink_unix(void)
 int get_address(void)
 {
 	struct sockaddr_in *sin;
-	if (!(sin = mem_alloc(sizeof(struct sockaddr_in)))) return -1;
-	if (!(s_unix_acc = mem_alloc(sizeof(struct sockaddr_in)))) {
-		mem_free(sin);
-		return -1;
-	}
+	sin = mem_alloc(sizeof(struct sockaddr_in));
+	s_unix_acc = mem_alloc(sizeof(struct sockaddr_in));
 	memset(sin, 0, sizeof(struct sockaddr_in));
 	sin->sin_family = AF_INET;
 	sin->sin_port = htons(LINKS_PORT);

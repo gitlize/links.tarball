@@ -21,4 +21,9 @@ Braille terminal support in Links
 - key '}' (right bracket with shift) moves cursor to the end of a line
 - to go to previous page: use 'z' key
 - key 'a' moves cursor to status bar
-- key 't' moves cursor to title bar
+- key 'w' moves cursor to title bar
+- key 't' moves to the previous word
+- key 'y' moves to the next word
+- key Ctrl-T moves to the previous link
+- key Ctrl-Y moves to the next link
+- key Ctrl-O moves to the next form field

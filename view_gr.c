@@ -18,6 +18,23 @@ static int root_y = 0;
 
 void g_get_search_data(struct f_data *f);
 struct g_object_text * g_find_nearest_object(struct f_data *f, int x, int y);
+int g_find_text_pos(struct g_object_text *, int);
+void g_get_search(struct f_data *, unsigned char *);
+void get_parents_sub(struct g_object *, struct g_object *);
+void g_set_current_link(struct f_data_c *, struct g_object_text *, int, int, int);
+void process_sb_event(struct f_data_c *, int, int);
+void process_sb_move(struct f_data_c *, int);
+inline int ev_in_rect(struct event *, int, int, int, int);
+int is_link_in_view(struct f_data_c *, int);
+int skip_link(struct f_data_c *, int);
+int lr_link(struct f_data_c *, int);
+int g_next_link(struct f_data_c *, int);
+void unset_link(struct f_data_c *);
+void get_searched_sub(struct g_object *, struct g_object *);
+void find_nearest_sub(struct g_object *, struct g_object *);
+void find_next_sub(struct g_object *, struct g_object *);
+void g_find_next_str(struct f_data *);
+
 
 static int previous_link=-1;	/* for mouse event handlers */
 
@@ -141,7 +158,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				if (fs->state >= fs->vpos + form->size) fs->vpos = fs->state - form->size + 1;
 				if (fs->state < fs->vpos) fs->vpos = fs->state;
 				*/
-				while (fs->vpos < strlen(fs->value) && utf8_diff(fs->value + fs->state, fs->value + fs->vpos) >= form->size) {
+				while ((size_t)fs->vpos < strlen(fs->value) && utf8_diff(fs->value + fs->state, fs->value + fs->vpos) >= form->size) {
 					unsigned char *p = fs->value + fs->vpos;
 					FWD_UTF_8(p);
 					fs->vpos = p - fs->value;
@@ -248,7 +265,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		prn:
 		g_print_text(drv, fd->ses->term->dev, x, y, t->style, t->text, NULL);
 	} else {
-		int tlen = strlen(t->text);
+		size_t tlen = strlen(t->text);
 		int found;
 		int start = t->srch_pos;
 		int end = t->srch_pos + tlen;
@@ -257,7 +274,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		unsigned char *tx;
 		int txl;
 		int pmask;
-		int ii;
+		size_t ii;
 		struct style *inv;
 
 		intersect(fd->f_data->hlt_pos, fd->f_data->hlt_len, start, tlen, &hl_start, &hl_len);
@@ -265,7 +282,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 #define B_EQUAL(t, m) ((t) + highlight_position_size > start && (t) < end)
 #define B_ABOVE(t, m) ((t) >= end)
 		BIN_SEARCH(highlight_positions, n_highlight_positions, B_EQUAL, B_ABOVE, *, found);
-		if (!(mask = mem_calloc(tlen))) goto prn;
+		mask = mem_calloc(tlen);
 		if (found != -1)
 		{
 			while (found > 0 && B_EQUAL(highlight_positions[found - 1], *)) found--;
@@ -273,7 +290,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				int pos = highlight_positions[found] - t->srch_pos;
 				int ii = 0;
 				for (ii = 0; ii < highlight_position_size; ii++) {
-					if (pos >= 0 && pos < tlen) mask[pos] = 1;
+					if (pos >= 0 && (size_t)pos < tlen) mask[pos] = 1;
 					pos++;
 				}
 				found++;
@@ -493,7 +510,8 @@ void g_get_search(struct f_data *f, unsigned char *s)
 		for (ii = 1; ii < f->last_search_len; ii++)
 			if (srch_cmp(f->srch_string[i + ii], s[ii])) goto aiee__killing_interrupt_handler;
 		if (!(f->n_search_positions & (ALLOC_GR - 1))) {
-			if (!(f->search_positions = mem_realloc(f->search_positions, (f->n_search_positions + ALLOC_GR) * sizeof(int)))) return;
+			if ((unsigned)f->n_search_positions > MAXINT / sizeof(int) - ALLOC_GR) overalloc();
+			f->search_positions = mem_realloc(f->search_positions, (f->n_search_positions + ALLOC_GR) * sizeof(int));
 		}
 		f->search_positions[f->n_search_positions++] = i;
 	}
@@ -614,6 +632,8 @@ struct draw_data {
 	struct f_data_c *fd;
 	struct g_object *o;
 };
+
+void draw_one_object_fn(struct terminal *, struct draw_data *);  /* prototype */
 
 void draw_one_object_fn(struct terminal *t, struct draw_data *d)
 {
@@ -747,7 +767,7 @@ void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int x, int
 			if (g_char_width(a->style,' ')) {
 				xx=x/g_char_width(a->style,' ');
 			} else xx=x;
-			fs->state=utf8_add(fs->value + (fs->vpos > strlen(fs->value) ? strlen(fs->value) : fs->vpos), (xx<0?0:xx)) - fs->value;
+			fs->state=utf8_add(fs->value + ((size_t)fs->vpos > strlen(fs->value) ? strlen(fs->value) : (size_t)fs->vpos), (xx<0?0:xx)) - fs->value;
 		}
 	}
 }
@@ -950,6 +970,9 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				fd->vs->view_posx = -ev->x + ses->scrolltype;
 				fd->vs->view_pos = -ev->y + ses->scrolloff;
 				draw_graphical_doc(fd->ses->term, fd, 1);
+				if ((ev->b & BM_ACT) == B_UP) {
+					ses->scrolling = 0;
+				}
 				break;
 			}
 			if (ses->scrolling) {

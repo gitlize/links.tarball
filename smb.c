@@ -10,8 +10,7 @@ struct smb_connection_info {
 void smb_got_data(struct connection *c);
 void smb_got_text(struct connection *c);
 void end_smb_connection(struct connection *c);
-
-#define READ_SIZE	4096
+void smb_read_text(struct connection *, int);
 
 void smb_func(struct connection *c)
 {
@@ -19,13 +18,9 @@ void smb_func(struct connection *c)
 	int pe[2];
 	unsigned char *host, *user, *pass, *port, *data, *share, *dir;
 	unsigned char *p;
-	int r;
+	pid_t r;
 	struct smb_connection_info *si;
-	if (!(si = mem_alloc(sizeof(struct smb_connection_info) + 2))) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
-	}
+	si = mem_alloc(sizeof(struct smb_connection_info) + 2);
 	memset(si, 0, sizeof(struct smb_connection_info));
 	c->info = si;
 	host = get_host_name(c->url);
@@ -188,14 +183,9 @@ void smb_read_text(struct connection *c, int sock)
 {
 	int r;
 	struct smb_connection_info *si = c->info;
-	si = mem_realloc(si, sizeof(struct smb_connection_info) + si->ntext + READ_SIZE + 2);
-	if (!si) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
-	}
+	si = mem_realloc(si, sizeof(struct smb_connection_info) + si->ntext + page_size + 2);
 	c->info = si;
-	r = read(sock, si->text + si->ntext, READ_SIZE);
+	r = read(sock, si->text + si->ntext, page_size);
 	if (r == -1) {
 		setcstate(c, -errno);
 		retry_connection(c);
@@ -204,7 +194,7 @@ void smb_read_text(struct connection *c, int sock)
 	if (r == 0) {
 		if (!si->cl) {
 			si->cl = 1;
-			set_handlers(c->sock2, NULL, NULL, NULL, NULL);
+			set_handlers(sock, NULL, NULL, NULL, NULL);
 			return;
 		}
 		end_smb_connection(c);
@@ -217,19 +207,22 @@ void smb_read_text(struct connection *c, int sock)
 void smb_got_data(struct connection *c)
 {
 	struct smb_connection_info *si = c->info;
-	char buffer[READ_SIZE];
+	char *buffer = mem_alloc(page_size);
 	int r;
 	if (si->list) {
 		smb_read_text(c, c->sock1);
+		mem_free(buffer);
 		return;
 	}
-	r = read(c->sock1, buffer, READ_SIZE);
+	r = read(c->sock1, buffer, page_size);
 	if (r == -1) {
 		setcstate(c, -errno);
 		retry_connection(c);
+		mem_free(buffer);
 		return;
 	}
 	if (r == 0) {
+		mem_free(buffer);
 		if (!si->cl) {
 			si->cl = 1;
 			set_handlers(c->sock1, NULL, NULL, NULL, NULL);
@@ -242,11 +235,13 @@ void smb_got_data(struct connection *c)
 	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
 		setcstate(c, S_OUT_OF_MEM);
 		abort_connection(c);
+		mem_free(buffer);
 		return;
 	}
 	c->received += r;
 	if (add_fragment(c->cache, c->from, buffer, r) == 1) c->tries = 0;
 	c->from += r;
+	mem_free(buffer);
 }
 
 void smb_got_text(struct connection *c)
@@ -317,7 +312,7 @@ void end_smb_connection(struct connection *c)
 					if (type == 1) {
 						unsigned char *llll;
 						if (!strstr(lll, "Disk")) goto af;
-						if (pos && pos < strlen(lx) && WHITECHAR(*(llll = lx + pos - 1)) && llll > ll) {
+						if (pos && (size_t)pos < strlen(lx) && WHITECHAR(*(llll = lx + pos - 1)) && llll > ll) {
 							while (llll > ll && WHITECHAR(*llll)) llll--;
 							if (!WHITECHAR(*llll)) lll = llll + 1;
 						}
@@ -338,7 +333,7 @@ void end_smb_connection(struct connection *c)
 						add_to_str(&t, &l, "</a>");
 						add_to_str(&t, &l, lll);
 					} else if (type == 3) {
-						if (pos < strlen(lx) && pos && WHITECHAR(lx[pos - 1]) && !WHITECHAR(lx[pos])) ll = lx + pos;
+						if ((size_t)pos < strlen(lx) && pos && WHITECHAR(lx[pos - 1]) && !WHITECHAR(lx[pos])) ll = lx + pos;
 						else for (ll = lll; *ll; ll++) if (!WHITECHAR(*ll)) break;
 						for (lll = ll; *lll; lll++) if (WHITECHAR(*lll)) break;
 						goto sss;

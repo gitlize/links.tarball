@@ -8,11 +8,21 @@
 #ifdef HAVE_MATH_H
 #include <math.h>
 #endif
+#ifndef __USE_XOPEN
+#define U_X
 #define __USE_XOPEN
-#define _XOPEN_SOURCE
+#endif
+#ifndef _XOPEN_SOURCE
+#define X_S
+#define _XOPEN_SOURCE	5	/* The 5 is a kludge to get a strptime() prototype in NetBSD */
+#endif
 #include <time.h>
+#ifdef X_S
 #undef _XOPEN_SOURCE
+#endif
+#ifdef U_X
 #undef __USE_XOPEN
+#endif
 #include <ctype.h>
 
 #ifdef JS
@@ -125,6 +135,16 @@ long CStoString,CSvalueOf,CSMIN_VALUE,CSMAX_VALUE,CSNaN,CSlength,
 long MIN1KEY;
 
 extern int js_durchfall;
+
+/* prototypes */
+void js_volej_danka(js_bordylek*bordylek);
+void buildin_document(js_context *, long);
+abuf* force_getarg(abuf**);
+void sezer_zizalu(char *, js_context *);
+char* iatostring(long , long , js_context *);
+int iato32int(long, long, js_context *);
+int iatobool(long, long, js_context *);
+
 
 void js_volej_danka(js_bordylek*bordylek)
 {	js_context*context=(js_context*)bordylek->context;
@@ -775,7 +795,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				pomarg->typ=NULLOVY;
 			pomint=to32int(pomarg,context);
 			if(!strcmp(pomstr,"undefined"))
-			{	zrusargy(argy,context);
+			{	/* zrusargy(argy,context); argy nelze rusit vickrat!*/
 				if(!js_all_conversions)
 					js_error("Parsing undefined value!\n",context);
 				else
@@ -799,7 +819,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			idebug("ParseFloat called ");
 			pomstr=tostring(force_getarg(&argy),context);
 			if(!strcmp(pomstr,"undefined"))
-			{	zrusargy(argy,context);
+			{/*	zrusargy(argy,context); argy nelze rusit vickrat!*/
 /*				js_mem_free(vysl);*/
 				if(!js_all_conversions)
 				{	js_mem_free(pomstr);
@@ -841,6 +861,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 		case Cescape:
 			idebug("Escape called\n ");
 			pomstr=tostring(force_getarg(&argy),context);
+			if (strlen(pomstr) > MAXINT / 3 - 1) overalloc();
 			pomstr1=js_mem_alloc((1+strlen(pomstr))*3);
 			i=j=0;
 			while(pomstr[i])
@@ -1686,8 +1707,9 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 					}
 					pomint++;
 				}
+			} else {
+				idebug("Wrong name length!! ");
 			}
-			else idebug("Wrong name length!! ");
 			js_mem_free(pomstr);	
 			idebug("and exited\n");
 		break;
@@ -1767,7 +1789,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				if((pomarg=getarg(&argy)))
 					pomint=to32int(pomarg,context);
 				else	pomint=0;
-				if((pomint>=strlen(pomstr))||(pomint<0))
+				if(((size_t)pomint>=strlen(pomstr))||(pomint<0))
 				{	if(js_all_conversions)
 					{	if(pomint<0)
 							pomint=0;
@@ -1816,7 +1838,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				pomarg=getarg(&argy);
 				if(!pomarg) pomint=0;
 				else {	pomint=to32int(pomarg,context);
-					if((pomint>strlen(pomstr1))||(pomint<0))
+					if(((size_t)pomint>strlen(pomstr1))||(pomint<0))
 					{	if(!js_all_conversions)
 							js_error("Index out of range!",context);
 						if(pomint<0)
@@ -1825,9 +1847,10 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 					}
 				}
 				pomarg=getarg(&argy);
-				if(!pomarg) pomint1=0;
+				if(!pomarg) pomint1=strlen(pomstr1);
+				/* Tak nevim, kdyz je druha mez prazdna, pry se ma kopirovat do konce stringu 8-( */
 				else {	pomint1=to32int(pomarg,context);
-					if((pomint1>strlen(pomstr1))||(pomint<0))
+					if(((size_t)pomint1>strlen(pomstr1))||(pomint<0))
 					{	if(!js_all_conversions)
 							js_error("Index out of range!",context);
 						if(pomint1<0)
@@ -1859,7 +1882,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 					if(!strlen(pomstr1))/* Zabraneni moduleni nulou pripadne bezhlaveho nacitani nuly */
 						pomint=0; 
 					else {	pomint=to32int(pomarg,context);
-						if(pomint>strlen(pomstr1))
+						if((size_t)pomint>strlen(pomstr1))
 							pomint=pomint%strlen(pomstr1);
 						else while(pomint<0)
 							pomint+=strlen(pomstr1);
@@ -1872,7 +1895,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 					{	if(!js_all_conversions)
 							js_error("Index out of range!",context); /* Uplne mimo - jako fyzici B-( */
 						pomint1=0;
-					}else{	if(pomint1>strlen(pomstr1))
+					}else{	if((size_t)pomint1>strlen(pomstr1))
 						{	if(!js_all_conversions)
 								js_error("Index out of range!",context);
 							pomint1=strlen(pomstr1);
@@ -1891,11 +1914,12 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				pomstr1=tostring(pomarg,context);
 				pomstr=js_mem_alloc(2);
 				pomarg=getarg(&argy);
+				pomstr[0]='\0';
 				pomstr[1]='\0';
 				if(!pomarg)
 					js_error("Argument required by method charAt ",context);
 				else {	pomint=to32int(pomarg,context);
-					if((pomint>=strlen(pomstr1))||(pomint<0))
+					if(((size_t)pomint>=strlen(pomstr1))||(pomint<0))
 					{	if(!js_all_conversions)
 							js_error("Argument out of range ",context);
 						pomint=0;
@@ -2267,7 +2291,10 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			}
 			rettype=STRING;
 			retval=(long)js_mem_alloc(DELKACASU);
-			strftime((char*)retval,DELKACASU,"%D %T",casek);
+			{
+			unsigned char *fm = "%D %T";	/* warning, go away */
+			strftime((char*)retval,DELKACASU,fm,casek);
+			}
 			idebug("but not written\n");
 		break;
 		case CUTC:
@@ -2834,6 +2861,8 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			pomvar->value=0;
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",CdefaultValue,pna->mid,pna->handler);
+/*			BUILDSFCE("focus",Cfocus,pna->mid);
+			pomvar->handler=pna->handler; */
 			BUILDSFCE("click",Cclick,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDFCE("toString",CtoString);
@@ -2860,6 +2889,8 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("value",CdefaultValue,pna->mid,pna->handler);
 			BUILDSFCE("click",Cclick,pna->mid);
 			pomvar->handler=pna->handler;
+/*			BUILDSFCE("focus",Cfocus,pna->mid);
+			pomvar->handler=pna->handler;*/
 			BUILDFCE("toString",CtoString);
 			pomvar->handler=C_OBJ_reset;
 
@@ -3490,6 +3521,8 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			pomvar->value=0; /* Bezprizorny namespace */
 			BUILDFCE("click",Cclick);
 			pomvar->handler=pna->handler;
+/*			BUILDSFCE("focus",Cfocus,pna->mid);
+			pomvar->handler=pna->handler;*/
 			BUILDFCE("toString",CtoString);
 			pomvar->handler=C_OBJ_form;
 			context->lnamespace=context->lnamespace->next;

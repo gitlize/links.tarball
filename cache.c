@@ -11,6 +11,11 @@ long cache_size;
 
 tcount cache_count = 1;
 
+/* prototypes */
+unsigned char *extract_proxy(unsigned char *);
+int shrink_file_cache(int);
+
+
 long cache_info(int type)
 {
 	int i = 0;
@@ -62,12 +67,8 @@ int get_cache_entry(unsigned char *url, struct cache_entry **f)
 	if (!find_in_cache(url, f)) return 0;
 	shrink_memory(SH_CHECK_QUOTA);
 	url = extract_proxy(url);
-	if (!(e = mem_alloc(sizeof(struct cache_entry)))) return -1;
-	memset(e, 0, sizeof(struct cache_entry));
-	if (!(e->url = mem_alloc(strlen(url)+1))) {
-		mem_free(e);
-		return -1;
-	}
+	e = mem_calloc(sizeof(struct cache_entry));
+	e->url = mem_alloc(strlen(url)+1);
 	strcpy(e->url, url);
 	e->length = 0;
 	e->incomplete = 1;
@@ -92,9 +93,11 @@ int get_cache_data(struct cache_entry *e, unsigned char **d, int *l)
 	return 0;
 }
 
-#define sf(x) e->data_size += x, cache_size += x
+#define sf(x) e->data_size += (x), cache_size += (x)
 
-#define C_ALIGN(x) (((x) | 0x3fff) + 1)
+int page_size = 4096;
+
+#define C_ALIGN(x) ((((x) + sizeof(struct fragment) + 64) | (page_size - 1)) - sizeof(struct fragment) - 64)
 
 int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int length)
 {
@@ -103,6 +106,8 @@ int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int len
 	int a = 0;
 	int trunc = 0;
 	if (!length) return 0;
+	if ((unsigned)offset + (unsigned)length > MAXINT) overalloc();
+	if ((unsigned)offset + C_ALIGN((unsigned)length) > MAXINT) overalloc();
 	if (e->length < offset + length) e->length = offset + length;
 	e->count = cache_count++;
 	if (list_empty(e->frag)) e->count2 = cache_count++;
@@ -121,6 +126,7 @@ int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int len
 					f->length = offset-f->offset+length;
 				}
 				else {
+					sf(-(f->offset+f->length-offset));
 					f->length = offset-f->offset;
 					f = f->next;
 					break;
@@ -132,7 +138,8 @@ int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int len
 			goto ch_o;
 		}
 	}
-	if (!(nf = mem_alloc(sizeof(struct fragment)+C_ALIGN(length)))) return -1;
+	if (C_ALIGN((unsigned)length) > MAXINT - sizeof(struct fragment)) overalloc();
+	nf = mem_alloc(sizeof(struct fragment)+C_ALIGN(length));
 	a = 1;
 	sf(length);
 	nf->offset = offset;
@@ -144,7 +151,7 @@ int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int len
 	ch_o:
 	while ((void *)f->next != &e->frag && f->offset+f->length > f->next->offset) {
 		if (f->offset+f->length < f->next->offset+f->next->length) {
-			if (!(nf = mem_realloc(f, sizeof(struct fragment)+f->next->offset-f->offset+f->next->length))) goto ff;
+			nf = mem_realloc(f, sizeof(struct fragment)+f->next->offset-f->offset+f->next->length);
 			nf->prev->next = nf;
 			nf->next->prev = nf;
 			f = nf;
@@ -152,7 +159,6 @@ int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int len
 			memcpy(f->data+f->length, f->next->data+f->offset+f->length-f->next->offset, f->next->offset+f->next->length-f->offset-f->length);
 			sf(f->next->offset+f->next->length-f->offset-f->length);
 			f->length = f->real_length = f->next->offset+f->next->length-f->offset;
-			ff:;
 		} else {
 			if (memcmp(f->data+f->next->offset-f->offset, f->next->data, f->next->length)) trunc = 1;
 		}
@@ -182,7 +188,8 @@ void defrag_entry(struct cache_entry *e)
 	}
 	if (g == f->next) return;
 	for (l = 0, h = f; h != g; h = h->next) l += h->length;
-	if (!(n = mem_alloc(sizeof(struct fragment) + l))) return;
+	if ((unsigned)l > MAXINT - sizeof(struct fragment)) overalloc();
+	n = mem_alloc(sizeof(struct fragment) + l);
 	n->offset = 0;
 	n->length = l;
 	n->real_length = l;
@@ -223,9 +230,10 @@ void truncate_entry(struct cache_entry *e, int off, int final)
 			return;
 		}
 		if (f->offset + f->length > off) {
-			f->length = off - f->offset;
 			sf(-(f->offset + f->length - off));
-			if (final && (g = mem_realloc(f, sizeof(struct fragment) + f->length))) {
+			f->length = off - f->offset;
+			if (final) {
+				g = mem_realloc(f, sizeof(struct fragment) + f->length);
 				g->next->prev = g;
 				g->prev->next = g;
 				f = g;
@@ -355,5 +363,8 @@ int shrink_file_cache(int u)
 
 void init_cache(void)
 {
+#ifdef HAVE_GETPAGESIZE
+	if (getpagesize() && getpagesize() < 0x10000 && !(getpagesize() & (getpagesize() - 1))) page_size = getpagesize();
+#endif
 	register_cache_upcall(shrink_file_cache, "file");
 }

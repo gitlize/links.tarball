@@ -26,6 +26,9 @@
 #define RED_ZONE_INC	0
 #endif
 
+void er(int, unsigned char *, va_list); /* prototype */
+
+
 void do_not_optimize_here(void *p)
 {
 	/* stop GCC optimization - avoid bugs in it */
@@ -39,7 +42,7 @@ struct list_head memory_list = { &memory_list, &memory_list };
 #endif
 #endif
 
-static inline void force_dump()
+static inline void force_dump(void)
 {
 	fprintf(stderr, "\n\033[1m%s\033[0m\n", "Forcing core dump");
 	fflush(stdout);
@@ -76,7 +79,11 @@ void check_memory_leaks(void)
 void er(int b, unsigned char *m, va_list l)
 {
 	if (b) fprintf(stderr, "%c", (char)7);
+#ifdef HAVE_VPRINTF
 	vfprintf(stderr, m, l);
+#else
+	fprintf(stderr, "%s", m);
+#endif
 	fprintf(stderr, "\n");
 	sleep(1);
 }
@@ -128,13 +135,14 @@ void *debug_mem_alloc(unsigned char *file, int line, size_t size)
 	struct alloc_header *ah;
 #endif
 	if (!size) return DUMMY;
+	if (size > MAXINT) overalloc();
 #ifdef LEAK_DEBUG
 	mem_amount += size;
 	size += L_D_S;
 #endif
 	if (!(p = malloc(size + RED_ZONE_INC))) {
-		error("ERROR: out of memory (malloc returned NULL)\n");
-		exit(1);
+		error("ERROR: out of memory (malloc returned NULL)");
+		exit(RET_FATAL);
 		return NULL;
 	}
 #ifdef RED_ZONE
@@ -165,13 +173,14 @@ void *debug_mem_calloc(unsigned char *file, int line, size_t size)
 	struct alloc_header *ah;
 #endif
 	if (!size) return DUMMY;
+	if (size > MAXINT) overalloc();
 #ifdef LEAK_DEBUG
 	mem_amount += size;
 	size += L_D_S;
 #endif
 	if (!(p = x_calloc(size + RED_ZONE_INC))) {
-		error("ERROR: out of memory (calloc returned NULL)\n");
-		exit(1);
+		error("ERROR: out of memory (calloc returned NULL)");
+		exit(RET_FATAL);
 		return NULL;
 	}
 #ifdef RED_ZONE
@@ -247,6 +256,7 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size)
 		debug_mem_free(file, line, p);
 		return DUMMY;
 	}
+	if (size > MAXINT) overalloc();
 #ifdef LEAK_DEBUG
 	p = (char *)p - L_D_S;
 	ah = p;
@@ -256,7 +266,7 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size)
 	}
 	ah->magic = ALLOC_REALLOC_MAGIC;
 #ifdef REALLOC_FILL
-	if (size < ah->size) memset((char *)p + L_D_S + size, REALLOC_FILL, ah->size - size);
+	if (size < (size_t)ah->size) memset((char *)p + L_D_S + size, REALLOC_FILL, ah->size - size);
 #endif
 #endif
 #ifdef RED_ZONE
@@ -271,8 +281,8 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size)
 	}
 #endif
 	if (!(p = realloc(p, size + L_D_S + RED_ZONE_INC))) {
-		error("ERROR: out of memory (realloc returned NULL)\n");
-		exit(1);
+		error("ERROR: out of memory (realloc returned NULL)");
+		exit(RET_FATAL);
 		return NULL;
 	}
 #ifdef RED_ZONE

@@ -35,6 +35,9 @@
 #undef HAVE_CFMAKERAW
 
 /* */
+#undef HAVE_DHCP_OPTION
+
+/* */
 #undef HAVE_HERROR
 
 /* */
@@ -57,6 +60,9 @@
 
 /* */
 #undef X2
+
+/* */
+#undef DEBUGLEVEL
 
 /* */
 #undef JS
@@ -84,6 +90,9 @@
 
 /* */
 #undef GRDRV_X
+
+/* */
+#undef GRDRV_SDL
 
 /* */
 #undef GRDRV_ATHEOS

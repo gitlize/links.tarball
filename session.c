@@ -7,6 +7,62 @@
 
 struct list_head downloads = {&downloads, &downloads};
 
+/* prototypes */
+void add_xnum_to_str(unsigned char **, int *, int);
+void add_time_to_str(unsigned char **, int *, ttime);
+unsigned char *get_stat_msg(struct status *, struct terminal *);
+void _print_screen_status(struct terminal *, struct session *);
+struct session *get_download_ses(struct download *);
+void abort_download(struct download *);
+void abort_and_delete_download(struct download *);
+void kill_downloads_to_file(unsigned char *);
+void undisplay_download(struct download *);
+int dlg_abort_download(struct dialog_data *, struct dialog_item_data *);
+int dlg_abort_and_delete_download(struct dialog_data *, struct dialog_item_data *);
+int dlg_undisplay_download(struct dialog_data *, struct dialog_item_data *);
+void download_abort_function(struct dialog_data *);
+void download_data(struct status *, struct download *);
+unsigned char *get_temp_name(unsigned char *);
+int f_need_reparse(struct f_data *);
+struct f_data *format_html(struct f_data_c *, struct object_request *, unsigned char *, struct document_options *, int *);
+void count_frames(struct f_data_c *, int *);
+void f_data_attach(struct f_data_c *, struct f_data *);
+void detach_f_data(struct f_data **);
+int shrink_format_cache(int);
+void create_new_frames(struct f_data_c *, struct frameset_desc *, struct document_options *);
+void image_timer(struct f_data_c *);
+int plain_type(struct session *, struct object_request *, unsigned char **);
+void refresh_timer(struct f_data_c *);
+void subst_location(struct f_data_c *, struct location *, struct location *);
+struct location *copy_sublocations(struct session *, struct location *, struct location *, struct location *);
+struct location *copy_location(struct session *, struct location *);
+struct f_data_c *new_main_location(struct session *);
+struct f_data_c *copy_location_and_replace_frame(struct session *, struct f_data_c *);
+void ses_go_forward(struct session *, int, int);
+void ses_go_backward(struct session *);
+void tp_cancel(struct session *);
+void continue_download(struct session *, unsigned char *);
+void tp_save(struct session *);
+void tp_open(struct session *);
+int ses_abort_1st_state_loading(struct session *);
+void tp_display(struct session *);
+int prog_sel_save(struct dialog_data *, struct dialog_item_data*);
+int prog_sel_display(struct dialog_data *, struct dialog_item_data*);
+int prog_sel_cancel(struct dialog_data *, struct dialog_item_data*);
+int prog_sel_open(struct dialog_data *, struct dialog_item_data*);
+void vysad_dvere(struct dialog_data *);
+void vysad_okno(struct session *, unsigned char *, struct assoc *, int);
+void type_query(struct session *, unsigned char *, struct assoc *, int);
+void ses_go_to_2nd_state(struct session *);
+void ses_go_back_to_2nd_state(struct session *);
+void ses_finished_1st_state(struct object_request *, struct session *);
+void ses_imgmap(struct session *);
+void reload_frame(struct f_data_c *, int);
+void set_doc_view(struct session *);
+struct session *create_session(struct window *);
+int read_session_info(struct session *, void *, int);
+
+
 int are_there_downloads(void)
 {
 	int d = 0;
@@ -43,7 +99,7 @@ unsigned char *get_err_msg(int state)
 	}
 	if (!(e = strerror(-state)) || !*e) goto unk;
 	foreach(s, strerror_buf) if (!strcmp(s->msg, e)) return s->msg;
-	if (!(s = mem_alloc(sizeof(struct strerror_val) + strlen(e) + 1))) goto unk;
+	s = mem_alloc(sizeof(struct strerror_val) + strlen(e) + 1);
 	strcpy(s->msg, e);
 	add_to_list(strerror_buf, s);
 	return s->msg;
@@ -89,7 +145,7 @@ unsigned char *get_stat_msg(struct status *stat, struct terminal *term)
 			add_to_str(&m, &l, _(TEXT(T_AVG), term)), add_to_str(&m, &l, " ");
 		add_xnum_to_str(&m, &l, stat->prg->loaded * 10 / (stat->prg->elapsed / 100));
 		add_to_str(&m, &l, "/s");
-		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME) 
+		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
 			add_to_str(&m, &l, ", "), add_to_str(&m, &l, _(TEXT(T_CUR), term)), add_to_str(&m, &l, " "),
 			add_xnum_to_str(&m, &l, stat->prg->cur_loaded / (CURRENT_SPD_SEC * SPD_DISP_TIME / 1000)),
 			add_to_str(&m, &l, "/s");
@@ -114,9 +170,9 @@ void change_screen_status(struct session *ses)
 	}
 	if (ses->st) mem_free(ses->st);
 
-	/* default status se ukazuje, kdyz 
-	 * 			a) by se jinak ukazovalo prazdno
-	 * 			b) neni NULL a ukazovalo by se OK
+	/* default status se ukazuje, kdyz
+	 *			a) by se jinak ukazovalo prazdno
+	 *			b) neni NULL a ukazovalo by se OK
 	 */
 	ses->st = NULL;
 	if (stat) {
@@ -308,7 +364,7 @@ void download_window_function(struct dialog_data *dlg)
 		add_to_str(&m, &l, " ");
 		add_xnum_to_str(&m, &l, (longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100));
 		add_to_str(&m, &l, "/s");
-		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME) 
+		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
 			add_to_str(&m, &l, ", "), add_to_str(&m, &l, _(TEXT(T_CURRENT_SPEED), term)), add_to_str(&m, &l, " "),
 			add_xnum_to_str(&m, &l, stat->prg->cur_loaded / (CURRENT_SPD_SEC * SPD_DISP_TIME / 1000)),
 			add_to_str(&m, &l, "/s");
@@ -324,7 +380,6 @@ void download_window_function(struct dialog_data *dlg)
 			add_time_to_str(&m, &l, (stat->prg->size - stat->prg->pos) / ((longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100)) * 1000);
 		}
 	} else m = stracpy(_(get_err_msg(stat->state), term));
-	if (!m) return;
 	u = stracpy(down->url);
 	if (strchr(u, POST_CHAR)) *strchr(u, POST_CHAR) = 0;
 	max_text_width(term, u, &max, AL_LEFT);
@@ -403,8 +458,7 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	foreach(dd, downloads) if (dd == down) goto found;
 	return;
 	found:
-	if (!(dlg = mem_alloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item)))) return;
-	memset(dlg, 0, sizeof(struct dialog) + 4 * sizeof(struct dialog_item));
+	dlg = mem_calloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item));
 	undisplay_download(down);
 	down->ses = ses;
 	dlg->title = TEXT(T_DOWNLOAD);
@@ -646,10 +700,9 @@ int create_download_file(struct terminal *term, unsigned char *fi, int safe)
 		unsigned char *h = getenv("HOME");
 		if (h) {
 			int fl = 0;
-			if ((file = init_str())) {
-				add_to_str(&file, &fl, h);
-				add_to_str(&file, &fl, fi + 1);
-			}
+			file = init_str();
+			add_to_str(&file, &fl, h);
+			add_to_str(&file, &fl, fi + 1);
 		}
 	}
 	h = open(file, O_CREAT|O_WRONLY|O_TRUNC|(sf?O_EXCL:0), sf ? 0600 : 0666);
@@ -691,6 +744,9 @@ unsigned char *get_temp_name(unsigned char *url)
 	unsigned char *name, *fn, *fnn, *fnnn, *s;
 	unsigned char *nm = tempnam(NULL, "links");
 	if (!nm) return NULL;
+#ifdef OS2
+	if (strlen(nm) > 4 && !strcasecmp(nm + strlen(nm) - 4, ".tmp")) nm[strlen(nm) - 4] = 0;
+#endif
 	name = init_str();
 	nl = 0;
 	add_to_str(&name, &nl, nm);
@@ -706,7 +762,7 @@ unsigned char *get_temp_name(unsigned char *url)
 	return name;
 }
 
-unsigned char *subst_file(unsigned char *prog, unsigned char *file)
+unsigned char *subst_file(unsigned char *prog, unsigned char *file, int cyg_subst)
 {
 	unsigned char *n = init_str();
 	int l = 0;
@@ -717,16 +773,17 @@ unsigned char *subst_file(unsigned char *prog, unsigned char *file)
 		prog += p;
 		if (*prog == '%') {
 #if defined(HAVE_CYGWIN_CONV_TO_FULL_WIN32_PATH)
+			if (cyg_subst) {
 #ifdef MAX_PATH
-			unsigned char new_path[MAX_PATH];
+				unsigned char new_path[MAX_PATH];
 #else
-			unsigned char new_path[1024];
+				unsigned char new_path[1024];
 #endif
-			cygwin_conv_to_full_win32_path(file, new_path);
-			add_to_str(&n, &l, new_path);
-#else
+				cygwin_conv_to_full_win32_path(file, new_path);
+				add_to_str(&n, &l, new_path);
+			} else
+#endif
 			add_to_str(&n, &l, file);
-#endif
 			prog++;
 		}
 	}
@@ -741,8 +798,7 @@ void start_download(struct session *ses, unsigned char *file)
 	if (!url) return;
 	kill_downloads_to_file(file);
 	if ((h = create_download_file(ses->term, file, 0)) == -1) return;
-	if (!(down = mem_alloc(sizeof(struct download)))) return;
-	memset(down, 0, sizeof(struct download));
+	down = mem_calloc(sizeof(struct download));
 	down->url = stracpy(url);
 	down->stat.end = (void (*)(struct status *, void *))download_data;
 	down->stat.data = down;
@@ -805,7 +861,7 @@ struct f_data *format_html(struct f_data_c *fd, struct object_request *rq, unsig
 			add_to_str(&start, &stl, "\">");
 			end = start + stl;
 		}
-		really_format_html(f->rq->ce, start, end, f, fd != fd->ses->screen);
+		really_format_html(f->rq->ce, start, end, f, fd->ses ? fd != fd->ses->screen : 0);
 		if (stl != -1) mem_free(start);
 		f->use_tag = f->rq->ce->count;
 		if (f->af) foreach(af, f->af->af) if (af->rq->ce) af->use_tag = af->rq->ce->count;
@@ -874,7 +930,7 @@ void detach_f_data(struct f_data **ff)
 	f->locked_on = NULL;
 	free_list(f->image_refresh);
 #endif
-	if (f->uncacheable || !f_is_finished(f)) destroy_formatted(f);
+	if (f->uncacheable || !f_is_finished(f) || !f->ses) destroy_formatted(f);
 	else add_to_list(f->ses->format_cache, f);
 }
 
@@ -945,10 +1001,10 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 	}
 	if (opt->plain == 2) opt->margin = 0, opt->display_images = 1;
 	pr(
-	if (!jsint_get_source(fd, NULL, NULL)) 
-		foreach(f, fd->ses->format_cache) 
+	if (!jsint_get_source(fd, NULL, NULL) && fd->ses)
+		foreach(f, fd->ses->format_cache)
 			if (!strcmp(f->rq->url, url) && !compare_opt(&f->opt, opt)) {
-				if (!is_format_cache_entry_uptodate(f)) { 
+				if (!is_format_cache_entry_uptodate(f)) {
 					struct f_data *ff = f;
 					f = f->prev;
 					del_from_list(ff);
@@ -962,15 +1018,13 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 				xpr();
 				return f;
 			}
-	);
+	) {};
 	f = format_html(fd, rq, url, opt, cch);
 	if (f) f->fd = fd;
 	shrink_memory(SH_CHECK_QUOTA);
 	return f;
 }
 
-struct f_data_c *create_f_data_c(struct session *, struct f_data_c *);
-void reinit_f_data_c(struct f_data_c *);
 struct location *new_location(void);
 
 void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, struct document_options *o)
@@ -1147,10 +1201,7 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 	if ((u = extract_position(url))) mem_free(u);
 	if (!f->af) {
 		if (!(f->af = f->fd->af)) {
-			if (!(f->af = f->fd->af = mem_calloc(sizeof(struct additional_files)))) {
-				mem_free(url);
-				return NULL;
-			}
+			f->af = f->fd->af = mem_calloc(sizeof(struct additional_files));
 			f->af->refcount = 1;
 			init_list(f->af->af);
 		}
@@ -1160,7 +1211,7 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 		mem_free(url);
 		return af;
 	}
-	if (!(af = mem_alloc(sizeof(struct additional_file) + strlen(url) + 1))) return NULL;
+	af = mem_alloc(sizeof(struct additional_file) + strlen(url) + 1);
 	af->use_tag = 0;
 	strcpy(af->url, url);
 	request_object(f->ses->term, url, f->rq->url, PRI_IMG, NC_CACHE, f->rq->upcall, f->rq->data, &af->rq);
@@ -1204,7 +1255,7 @@ void refresh_image(struct f_data_c *fd, struct g_object *img, ttime tm)
 		if (ir->t > tm) ir->t = tm;
 		return;
 	}
-	if (!(ir = mem_alloc(sizeof(struct image_refresh)))) return;
+	ir = mem_alloc(sizeof(struct image_refresh));
 	ir->img = img;
 	ir->t = tm;
 	add_to_list(fd->f_data->image_refresh, ir);
@@ -1236,6 +1287,7 @@ void reinit_f_data_c(struct f_data_c *fd)
 	if (fd->link_bg) mem_free(fd->link_bg), fd->link_bg = NULL;
 	fd->link_bg_n = 0;
 	if (fd->goto_position) mem_free(fd->goto_position), fd->goto_position = NULL;
+	if (fd->went_to_position) mem_free(fd->went_to_position), fd->went_to_position = NULL;
 	release_object(&fd->rq);
 	free_additional_files(&fd->af);
 	fd->next_update = get_time();
@@ -1249,7 +1301,7 @@ struct f_data_c *create_f_data_c(struct session *ses, struct f_data_c *parent)
 {
 	static long id = 1;
 	struct f_data_c *fd;
-	if (!(fd = mem_calloc(sizeof(struct f_data_c)))) return NULL;
+	fd = mem_calloc(sizeof(struct f_data_c));
 	fd->parent = parent;
 	fd->ses = ses;
 	fd->depth = parent ? parent->depth + 1 : 1;
@@ -1341,7 +1393,13 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		fd->vs->plain = plain_type(fd->ses, fd->rq, NULL);
 	}
 	if (fd->rq->state < 0 && (f_is_finished(fd->f_data) || !fd->f_data)) {
-		if (!fd->parsed_done) html_interpret(fd);
+		if (!fd->parsed_done) {
+			html_interpret(fd);
+			if (fd->went_to_position) {
+				if (!fd->goto_position) fd->goto_position = fd->went_to_position, fd->went_to_position = NULL;
+				else mem_free(fd->went_to_position), fd->went_to_position = NULL;
+			}
+		}
 		draw_fd(fd);
 		/* it may happen that html_interpret requests load of additional file */
 		if (!f_is_finished(fd->f_data)) goto more_data;
@@ -1364,7 +1422,13 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		int first = !fd->f_data;
 		if (!fd->parsed_done) {
 			html_interpret(fd);
-			if (fd->rq->state < 0 && !f_need_reparse(fd->f_data)) fd->parsed_done = 1;
+			if (fd->rq->state < 0 && !f_need_reparse(fd->f_data)) {
+				if (fd->went_to_position) {
+					if (!fd->goto_position) fd->goto_position = fd->went_to_position, fd->went_to_position = NULL;
+					else mem_free(fd->went_to_position), fd->went_to_position = NULL;
+				}
+				fd->parsed_done = 1;
+			}
 		}
 		draw_fd(fd);
 		if (fd->rq->state < 0 && f_is_finished(fd->f_data)) goto fn;
@@ -1400,7 +1464,7 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 struct location *new_location(void)
 {
 	struct location *loc;
-	if (!(loc = mem_calloc(sizeof(struct location)))) return NULL;
+	loc = mem_calloc(sizeof(struct location));
 	init_list(loc->subframes);
 	loc->vs = create_vs();
 	return loc;
@@ -1543,6 +1607,7 @@ void ses_go_forward(struct session *ses, int plain, int refresh)
 	fd->rq->data = fd;
 	/*ses->locked_link = 0;*/
 	fd->rq->upcall(fd->rq, fd);
+	draw_formatted(ses);
 }
 
 void ses_go_backward(struct session *ses)
@@ -1584,12 +1649,7 @@ void continue_download(struct session *ses, unsigned char *file)
 		if (ses->tq_prog) mem_free(file);
 		return;
 	}
-	if (!(down = mem_alloc(sizeof(struct download)))) {
-		tp_cancel(ses);
-		if (ses->tq_prog) mem_free(file);
-		return;
-	}
-	memset(down, 0, sizeof(struct download));
+	down = mem_calloc(sizeof(struct download));
 	down->url = stracpy(url);
 	down->stat.end = (void (*)(struct status *, void *))download_data;
 	down->stat.data = down;
@@ -1598,7 +1658,7 @@ void continue_download(struct session *ses, unsigned char *file)
 	down->handle = h;
 	down->ses = ses;
 	if (ses->tq_prog) {
-		down->prog = subst_file(ses->tq_prog, file);
+		down->prog = subst_file(ses->tq_prog, file, 1);
 		mem_free(file);
 		mem_free(ses->tq_prog);
 		ses->tq_prog = NULL;
@@ -1750,12 +1810,8 @@ void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 	struct dialog *d;
 	struct memory_list *ml;
 
-	if (!(d = mem_alloc(sizeof(struct dialog) + (n+3+(!anonymous)) * sizeof(struct dialog_item)))) {
-		mem_free(a);
-		mem_free(ct);
-		return;
-	}
-	memset(d, 0, sizeof(struct dialog) + (n+3+(!anonymous)) * sizeof(struct dialog_item));
+	if ((unsigned)n > (MAXINT - sizeof(struct dialog)) / sizeof(struct dialog_item) - 4) overalloc();
+	d = mem_calloc(sizeof(struct dialog) + (n+3+(!anonymous)) * sizeof(struct dialog_item));
 	d->title = TEXT(T_WHAT_TO_DO);
 	d->fn = vysad_dvere;
 	d->udata = ct;
@@ -1790,7 +1846,7 @@ void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 	d->items[i].gid = B_ESC;
 	d->items[i].text = TEXT(T_CANCEL);
 	d->items[i+1].type = D_END;
- 	do_dialog(ses->term, d, ml);
+	do_dialog(ses->term, d, ml);
 }
 
 
@@ -1911,7 +1967,7 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	}
 	ses->reloadlevel = NC_CACHE;
 	if (!(u = translate_url(url, ses->term->cwd))) {
-		struct status stat = { NULL, NULL, NULL, NULL, S_BAD_URL, PRI_CANCEL, 0, NULL, NULL };
+		struct status stat = { NULL, NULL, NULL, NULL, S_BAD_URL, PRI_CANCEL, 0, NULL, NULL, NULL };
 		print_error_dialog(ses, &stat, url);
 		return;
 	}
@@ -1941,7 +1997,11 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
 	if (!from_goto_dialog&&df&&(df->rq))prev_url=df->rq->url;
 	else prev_url=NULL;   /* previous page is empty - this probably never happens, but for sure */
-	request_object(ses->term, u, prev_url, PRI_MAIN, NC_CACHE, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);
+	if (refresh && ses->wtd == ses_go_to_2nd_state) {
+		struct f_data_c *fr = find_frame(ses, ses->wtd_target, ses->wtd_target_base);
+		if (fr && fr->loc) if (!strcmp(fr->loc->url, u)) ses->reloadlevel = NC_RELOAD;
+	}
+	request_object(ses->term, u, prev_url, PRI_MAIN, ses->reloadlevel, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);
 	mem_free(u);
 }
 
@@ -2058,19 +2118,18 @@ struct session *create_session(struct window *win)
 	static int session_id = 1;
 	struct terminal *term = win->term;
 	struct session *ses;
-	if ((ses = mem_calloc(sizeof(struct session)))) {
-		init_list(ses->history);
-		ses->term = term;
-		ses->win = win;
-		ses->id = session_id++;
-		ses->screen = create_f_data_c(ses, NULL);
-		ses->screen->xp = 0; ses->screen->xw = term->x;
-		ses->screen->yp = gf_val(1, G_BFU_FONT_SIZE);
-		ses->screen->yw = term->y - gf_val(2, 2 * G_BFU_FONT_SIZE);
-		memcpy(&ses->ds, &dds, sizeof(struct document_setup));
-		init_list(ses->format_cache);
-		add_to_list(sessions, ses);
-	}
+	ses = mem_calloc(sizeof(struct session));
+	init_list(ses->history);
+	ses->term = term;
+	ses->win = win;
+	ses->id = session_id++;
+	ses->screen = create_f_data_c(ses, NULL);
+	ses->screen->xp = 0; ses->screen->xw = term->x;
+	ses->screen->yp = gf_val(1, G_BFU_FONT_SIZE);
+	ses->screen->yw = term->y - gf_val(2, 2 * G_BFU_FONT_SIZE);
+	memcpy(&ses->ds, &dds, sizeof(struct document_setup));
+	init_list(ses->format_cache);
+	add_to_list(sessions, ses);
 	if (first_use) {
 		first_use = 0;
 		msg_box(term, NULL, TEXT(T_WELCOME), AL_CENTER | AL_EXTD_TEXT, TEXT(T_WELCOME_TO_LINKS), "\n\n", TEXT(T_BASIC_HELP), NULL, NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
@@ -2078,7 +2137,7 @@ struct session *create_session(struct window *win)
 	return ses;
 }
 
-/* vyrobi retezec znaku, ktery se posilaj skrz unix domain socket hlavni instanci 
+/*vyrobi retezec znaku, ktery se posilaj skrz unix domain socket hlavni instanci
    prohlizece
    cp=cislo session odkud se ma kopirovat (kdyz se klikne na "open new window")
    url=url kam se ma jit (v pripade kliknuti na "open link in new window" nebo pusteni linksu z prikazove radky s url)
@@ -2088,12 +2147,13 @@ struct session *create_session(struct window *win)
  */
 void *create_session_info(int cp, unsigned char *url, unsigned char *framename, int *ll)
 {
-	int l = strlen(url);
-	int l1 = framename?strlen(framename):0;
+	size_t l = strlen(url);
+	size_t l1 = framename?strlen(framename):0;
 	int *i;
+	if (l > MAXINT || l1 > MAXINT) overalloc();
 	if (framename&&!strcmp(framename,"_blank")) l1=0;
 	*ll = 3 * sizeof(int) + l + l1;
-	if (!(i = mem_alloc(3 * sizeof(int) + l + l1))) return NULL;
+	i = mem_alloc(3 * sizeof(int) + l + l1);
 	i[0] = cp;
 	i[1] = l;
 	i[2] = l1;
@@ -2110,7 +2170,7 @@ int read_session_info(struct session *ses, void *data, int len)
 	unsigned char *h;
 	int cpfrom, sz, sz1;
 	struct session *s;
-	if (len < 3 * sizeof(int)) return -1;
+	if (len < 3 * (int)sizeof(int)) return -1;
 	cpfrom = *(int *)data;
 	sz = *((int *)data + 1);
 	sz1= *((int *)data + 2);
@@ -2123,27 +2183,39 @@ int read_session_info(struct session *ses, void *data, int len)
 	}
 	if (sz1) {
 		unsigned char *tgt;
-		if (len<3*sizeof(int)+sz+sz1) goto bla;
-		if ((tgt=mem_alloc(sz1+1))) {
-			memcpy(tgt, (unsigned char*)((int*)data+3)+sz,sz1);
-			tgt[sz1]=0;
-			if (ses->wanted_framename) mem_free(ses->wanted_framename), ses->wanted_framename=NULL;
-			ses->wanted_framename=tgt;
-		}
+		if (len<3*(int)sizeof(int)+sz+sz1) goto bla;
+		if ((unsigned)sz1 >= MAXINT) overalloc();
+		tgt=mem_alloc(sz1+1);
+		memcpy(tgt, (unsigned char*)((int*)data+3)+sz,sz1);
+		tgt[sz1]=0;
+		if (ses->wanted_framename) mem_free(ses->wanted_framename), ses->wanted_framename=NULL;
+		ses->wanted_framename=tgt;
 	}
 	bla:
 	if (sz) {
 		char *u, *uu;
-		if (len < 3 * sizeof(int) + sz) return 0;
-		if ((u = mem_alloc(sz + 1))) {
-			memcpy(u, (int *)data + 3, sz);
-			u[sz] = 0;
-			uu = decode_url(u);
-			goto_url(ses, uu);
-			mem_free(u);
-			mem_free(uu);
+		if (len < 3 * (int)sizeof(int) + sz) return 0;
+		if ((unsigned)sz >= MAXINT) overalloc();
+		u = mem_alloc(sz + 1);
+		memcpy(u, (int *)data + 3, sz);
+		u[sz] = 0;
+		uu = decode_url(u);
+		goto_url(ses, uu);
+		mem_free(u);
+		mem_free(uu);
+	} else if ((h = getenv("WWW_HOME")) && *h) {
+		goto_url(ses, h);
+	}
+#if defined(HAVE_NETINET_DHCP_H) && defined(HAVE_DHCP_OPTION)
+	else {
+		unsigned char b[4];
+		if (dhcp_option(PF_INET, BOOTP_WWW_SERVERS, b, 4) == 4) {
+			unsigned char s[16];
+			sprintf(s, "%d.%d.%d.%d", b[0], b[1], b[2], b[3]);
+			goto_url(ses, s);
 		}
-	} else if ((h = getenv("WWW_HOME")) && *h) goto_url(ses, h);
+	}
+#endif
 	return 0;
 }
 
@@ -2214,10 +2286,10 @@ void win_func(struct window *win, struct event *ev, int fw)
 	}
 }
 
-/* 
+/*
   Gets the url being viewed by this session. Writes it into str.
   A maximum of str_size bytes (including null) will be written.
-*/  
+*/
 unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t str_size) {
 	unsigned char *here, *end_of_url;
 	size_t url_len = 0;
@@ -2235,7 +2307,7 @@ unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t s
 		url_len = strlen(here);
 	}
 
-	/* Ensure that the url size is not greater than str_size */ 
+	/* Ensure that the url size is not greater than str_size */
 	if (url_len >= str_size)
 			url_len = str_size - 1;
 
@@ -2248,10 +2320,10 @@ unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t s
 }
 
 
-/* 
+/*
   Gets the title of the page being viewed by this session. Writes it into str.
   A maximum of str_size bytes (including null) will be written.
-*/  
+*/
 unsigned char *get_current_title(struct session *ses, unsigned char *str, size_t str_size) {
 	struct f_data_c *fd;
 	fd = (struct f_data_c *)current_frame(ses);
@@ -2263,10 +2335,10 @@ unsigned char *get_current_title(struct session *ses, unsigned char *str, size_t
 	return safe_strncpy(str, fd->f_data->title, str_size);
 }
 
-/* 
+/*
   Gets the url of the link currently selected. Writes it into str.
   A maximum of str_size bytes (including null) will be written.
-*/  
+*/
 unsigned char *get_current_link_url(struct session *ses, unsigned char *str, size_t str_size) {
 	struct f_data_c *fd;
     struct link *l;
@@ -2277,12 +2349,12 @@ unsigned char *get_current_link_url(struct session *ses, unsigned char *str, siz
 		return NULL;
 	
 	/* Nothing selected? */
-    if (fd->vs->current_link == -1 || fd->vs->current_link >= fd->f_data->nlinks) 
+    if (fd->vs->current_link == -1 || fd->vs->current_link >= fd->f_data->nlinks)
 		return NULL;
 
     l = &fd->f_data->links[fd->vs->current_link];
 	/* Only write a link */
-    if (l->type != L_LINK) 
+    if (l->type != L_LINK)
 		return NULL;
 	
 	return safe_strncpy(str, l->where, str_size);

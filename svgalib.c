@@ -47,7 +47,9 @@ static int mouse_aggregate_flag, mouse_aggregate_action;
 static int flags = 0; /* OR-ed 1: running in background
 		*       2: vga_block()-ed
 		*/
+#ifndef __SPAD__
 static int svgalib_timer_id;
+#endif
 
 /*---------------------------LIMITATIONS---------------------------------------*/
 /* pixel_set_paged works only for <=8 bytes per pixel.
@@ -243,6 +245,13 @@ struct modeline modes[]={
 	{"512x480x16M32", G512x480x16M32 },
 #endif
 
+#ifdef G640x200x16
+	{"640x200x16", G640x200x16 },
+#endif
+#ifdef G640x350x16
+	{"640x350x16", G640x350x16 },
+#endif
+
 #ifdef G640x400x256
 	{"640x400x256", G640x400x256 },
 #endif
@@ -257,13 +266,6 @@ struct modeline modes[]={
 #endif
 #ifdef G640x400x16M32
 	{"640x400x16M32", G640x400x16M32 },
-#endif
-
-#ifdef G640x200x16
-	{"640x200x16", G640x200x16 },
-#endif
-#ifdef G640x350x16
-	{"640x350x16", G640x350x16 },
 #endif
 
 #ifdef G640x480x16
@@ -575,6 +577,7 @@ struct modeline modes[]={
 
 static void show_mouse(void);
 static void hide_mouse(void);
+static void redraw_mouse(void);
 
 /* We must perform a quirkafleg
  * This is an empiric magic that ensures
@@ -652,7 +655,9 @@ void svga_shutdown_driver(void)
 	}
 	shutdown_virtual_devices();
 	vga_unlockvc();
+#ifndef __SPAD__
 	kill_timer(svgalib_timer_id);
+#endif
 	vga_setmode(TEXT);
 	svgalib_free_trm(ditrm);
 	if (svga_driver_param)mem_free(svga_driver_param);
@@ -840,7 +845,7 @@ static void fill_area_accel_lines(struct graphics_device *dev, int left, int top
  * if bmpixelsize is 7, no alignment is required.
  * if bmpixelsize is 8, dest must be aligned to 8 bytes.
  */
-static void inline pixel_set(unsigned char *dest, int n,void * pattern)
+static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 {
 	int a;
 
@@ -1137,7 +1142,7 @@ static void draw_vline_paged_1(struct graphics_device *dev, int x, int top, int 
 static void draw_vline_paged_2(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
 	int dest,page,n,paga,remains;
-	int word=*(t2c *)&color;
+	int word=*(t2c *)(void *)&color;
 	VLINE_CLIP_PREFACE;
 	SYNC
 	dest=top*vga_linewidth+(x<<1);
@@ -1173,7 +1178,7 @@ static void draw_vline_paged_2(struct graphics_device *dev, int x, int top, int 
 static void draw_vline_paged_4(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
 	unsigned long dest,page,paga,remains,n;
-	t4c val=*(t4c *)&color;
+	t4c val=*(t4c *)(void *)&color;
 
 	VLINE_CLIP_PREFACE;
 	SYNC
@@ -1664,7 +1669,10 @@ static void svga_draw_bitmaps(struct graphics_device *dev, struct bitmap **hndls
 
 static void alloc_scroll_buffer(void)
 {
-	if (!scroll_buffer) scroll_buffer=mem_alloc(xsize*bmpixelsize);
+	if (!scroll_buffer) {
+		if ((unsigned)xsize > (unsigned)MAXINT / bmpixelsize) overalloc();
+		scroll_buffer=mem_alloc(xsize*bmpixelsize);
+	}
 }
 
 static void setup_functions(void)
@@ -1713,10 +1721,10 @@ static void setup_functions(void)
 		else if (mode_x) svga_driver.fill_area=fill_area_drawscansegment;
 		else svga_driver.fill_area=fill_area_paged;
 		
-		if (accel_avail&ACCEL_DRAWLINE){
+		if (accel_avail&ACCELFLAG_DRAWLINE){
 			svga_driver.draw_hline=draw_hline_accel_line;
 			svga_driver.draw_vline=draw_vline_accel_line;
-		}else if (accel_avail&ACCEL_FILLBOX){
+		}else if (accel_avail&ACCELFLAG_FILLBOX){
 			svga_driver.draw_hline=draw_hline_accel_box;
 			svga_driver.draw_vline=draw_vline_accel_box;
 		}else if (vga_linear){
@@ -1764,7 +1772,7 @@ static void setup_functions(void)
 			}
 		}
 
-		if (accel_avail&ACCEL_SCREENCOPY){
+		if (accel_avail&ACCELFLAG_SCREENCOPY){
 			svga_driver.hscroll=hscroll_accel;
 			svga_driver.vscroll=vscroll_accel;
 		}else if (vga_linear){
@@ -1862,6 +1870,8 @@ static void mouse_event_handler(int button, int dx, int dy, int dz, int drx, int
 	mouse_y+=dy;
 	if (mouse_y>=ysize) mouse_y=ysize-1;
 	else if (mouse_y<0) mouse_y=0;
+
+	redraw_mouse();
 
 	moved=(old_mouse_x!=mouse_x||old_mouse_y!=mouse_y);
 	
@@ -2313,6 +2323,7 @@ void setup_mode(int mode)
 	generate_palette_outer();
 }
 
+#ifndef __SPAD__
 void vtswitch_handler(void * nothing)
 {
 	int oktowrite;
@@ -2329,6 +2340,7 @@ void vtswitch_handler(void * nothing)
 	flags=(flags&~1)|!oktowrite;
 	svgalib_timer_id=install_timer(100,vtswitch_handler, NULL);
 }
+#endif
 
 void svga_ctrl_c(struct itrm *i)
 {
@@ -2357,7 +2369,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	svga_driver_param=NULL;
 	if (!param || !*param) goto not_found;
 	svga_driver_param=stracpy(param);
-	for (j=0;j<sizeof(modes)/sizeof(*modes);j++)
+	for (j=0;(size_t)j<sizeof(modes)/sizeof(*modes);j++)
 		if (!strcasecmp(modes[j].name,param)) goto found;
 	j = 1;
 	not_found:
@@ -2372,7 +2384,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 			add_to_str(&m, &l, j == 2 ? "your video card" : "svgalib");
 			add_to_str(&m, &l, ".\n");
 		} else add_to_str(&m, &l, "There is no default video mode.\n");
-		for (j=0;j<sizeof(modes)/sizeof(*modes);j++) if (vga_hasmode(modes[j].number)) {
+		for (j=0;(size_t)j<sizeof(modes)/sizeof(*modes);j++) if (vga_hasmode(modes[j].number)) {
 			if (f) add_to_str(&m, &l, ", ");
 			else f = 1, add_to_str(&m, &l, "The following modes are supported:\n");
 			add_to_str(&m, &l, modes[j].name);
@@ -2402,13 +2414,16 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 			mouse_works=1;
 		}
 	vga_lockvc();
+#ifndef __SPAD__
 	svgalib_timer_id=install_timer(100,vtswitch_handler,NULL);
 	if (vga_runinbackground_version()>=1) vga_runinbackground(1);
+#endif
 	vga_setmode(vga_mode=modes[j].number);
 	setup_mode(modes[j].number);
 	handle_svgalib_keyboard((void (*)(void *, unsigned char *, int))svgalib_key_in);
 
 	if (mouse_works){
+		if ((unsigned)arrow_area > (unsigned)MAXINT / bmpixelsize) overalloc();
 		mouse_buffer=mem_alloc(bmpixelsize*arrow_area);
 		background_buffer=mem_alloc(bmpixelsize*arrow_area);
 		new_background_buffer=mem_alloc(bmpixelsize*arrow_area);
@@ -2434,16 +2449,21 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
  *			1 alloced in vidram
  *			2 alloced in X server shm
  */
+/*
 static int svga_get_filled_bitmap(struct bitmap *dest, long color)
 {
-	int n=dest->x*dest->y*bmpixelsize;
-
+	int n;
+	
+	if (dest->x && (unsigned)dest->x * (unsigned)dest->y / (unsigned)dest->x != (unsigned)dest->y) overalloc();
+	if ((unsigned)dest->x * (unsigned)dest->y > MAXINT / bmpixelsize) overalloc();
+	n=dest->x*dest->y*bmpixelsize;
 	dest->data=mem_alloc(n);
 	pixel_set(dest->data,n,&color);
 	dest->skip=dest->x*bmpixelsize;
 	dest->flags=0;
 	return 0;
 }
+*/
 
 /* Return value:	0 alloced on heap
  *			1 alloced in vidram
@@ -2451,6 +2471,8 @@ static int svga_get_filled_bitmap(struct bitmap *dest, long color)
  */
 static int svga_get_empty_bitmap(struct bitmap *dest)
 {
+	if (dest->x && (unsigned)dest->x * (unsigned)dest->y / (unsigned)dest->x != (unsigned)dest->y) overalloc();
+	if ((unsigned)dest->x * (unsigned)dest->y > (unsigned)MAXINT / bmpixelsize) overalloc();
 	dest->data=mem_alloc(dest->x*dest->y*bmpixelsize);
 	dest->skip=dest->x*bmpixelsize;
 	dest->flags=0;
@@ -2520,27 +2542,39 @@ int vga_select(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 {
 	int retval,i;
 
-	if (mouse_works&&!(flags&2)){
-		/* The second flag here is to suppress mouse wait
-		 * in blocked state */
-		retval=vga_waitevent(VGA_MOUSEEVENT,readfds, writefds,
-				exceptfds, timeout);
-		if (retval<0) return retval;
-		if (retval&VGA_MOUSEEVENT){
-			mouse_aggregate_flush();
-			redraw_mouse();
-			check_bottom_halves();
-		}
-		retval=0;
-		for (i=0;i<n;i++){
-			if (readfds&&FD_ISSET(i,readfds)) retval++;
-			if (writefds&&FD_ISSET(i,writefds)) retval++;
-			if (exceptfds&&FD_ISSET(i,exceptfds)) retval++;
-		}
-		return retval;
-	}else{
-		return select(n,readfds, writefds, exceptfds, timeout);
+	/* The second flag here is to suppress mouse wait
+	 * in blocked state */
+	retval=vga_waitevent((mouse_works&&!(flags&2) ? VGA_MOUSEEVENT : 0)
+#ifdef VGA_REDRAWEVENT
+		| VGA_REDRAWEVENT
+#endif
+			,readfds, writefds,
+			exceptfds, timeout);
+	if (retval<0) return retval;
+#ifdef VGA_REDRAWEVENT
+	if (retval&VGA_REDRAWEVENT) {
+		struct rect r;
+		r.x1 = 0;
+		r.y1 = 0;
+		r.x2 = svga_driver.x;
+		r.y2 = svga_driver.y;
+		if (current_virtual_device) current_virtual_device->redraw_handler(current_virtual_device,&r);
+		check_bottom_halves();
 	}
+#endif
+	if (retval&VGA_MOUSEEVENT){
+		mouse_aggregate_flush();
+		/*redraw_mouse(); mikulas: dal jsem to do mouse_event_handler,
+		  aby ukazatel mysi nezustaval pozadu za scrollbarem */
+		check_bottom_halves();
+	}
+	retval=0;
+	for (i=0;i<n;i++){
+		if (readfds&&FD_ISSET(i,readfds)) retval++;
+		if (writefds&&FD_ISSET(i,writefds)) retval++;
+		if (exceptfds&&FD_ISSET(i,exceptfds)) retval++;
+	}
+	return retval;
 }
 
 struct graphics_driver svga_driver={
@@ -2551,7 +2585,7 @@ struct graphics_driver svga_driver={
 	svga_shutdown_driver,
 	svga_get_driver_param,
 	svga_get_empty_bitmap,
-	svga_get_filled_bitmap,
+	/*svga_get_filled_bitmap,*/
 	svga_register_bitmap,
 	svga_prepare_strip,
 	svga_commit_strip,
@@ -2572,8 +2606,8 @@ struct graphics_driver svga_driver={
 	0,				/* depth */
 	0, 0,				/* size */
 	0,				/* flags */
+	0,				/* codepage */
+	NULL,				/* shell */
 };
-
-#define select vga_select
 
 #endif /* GRDRV_SVGALIB */

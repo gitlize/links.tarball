@@ -111,6 +111,7 @@ int x_default_window_height;
 
 long (*x_get_color_function)(int);
 
+void selection_request(XEvent *event);
 
 int x_fd;    /* x socket */
 Display *x_display;   /* display */
@@ -171,6 +172,17 @@ static unsigned char * x_my_clipboard=NULL;
  */
 
 static int flush_in_progress=0;
+
+/* prototypes */
+unsigned char * x_set_palette(void);
+int x_hscroll(struct graphics_device *, struct rect_set **, int);
+int x_vscroll(struct graphics_device *, struct rect_set **, int);
+void *x_prepare_strip(struct bitmap *, int, int);
+void x_commit_strip(struct bitmap *, int, int);
+void x_set_window_title(struct graphics_device *, unsigned char *);
+int x_exec(unsigned char *, int);
+void x_clear_clipboard(void);
+
 
 static void x_wait_for_event(void)
 {
@@ -386,10 +398,10 @@ static int x_translate_key(XKeyEvent *e,int *key,int *flag)
 
 		default:		
 					if (ks&0x8000)return 0;
-					*key=((*flag)&KBD_CTRL)?ks&255:trans_key(str,table);
+					*key=((*flag)&KBD_CTRL)?(int)ks&255:trans_key(str,table);
 					break;
 					/*
-		default:		*key=((*flag)&KBD_CTRL)?ks&255:trans_key(str,table);(*flag)&=~KBD_SHIFT;break;
+		default:		*key=((*flag)&KBD_CTRL)?(int)ks&255:trans_key(str,table);(*flag)&=~KBD_SHIFT;break;
 		*/
 	}
 	return 1;
@@ -461,10 +473,12 @@ static int x_add_to_table(struct graphics_device* gd)
 	int a=(*((Window*)(gd->driver_data)))&(X_HASH_TABLE_SIZE-1);
 	int c=x_hash_table[a].count;
 
-	if (!c)
+	if (!c) {
 		x_hash_table[a].pointer=mem_alloc(sizeof(struct graphics_device *));
-	else 
+	} else {
+		if ((unsigned)c > MAXINT / sizeof(struct graphics_device *) - 1) overalloc();
 		x_hash_table[a].pointer=mem_realloc(x_hash_table[a].pointer,(c+1)*sizeof(struct graphics_device *));
+	}
 
 	x_hash_table[a].pointer[c]=gd;
 	x_hash_table[a].count++;
@@ -488,7 +502,7 @@ static void x_remove_from_table(Window *win)
 }
 
 
-void x_clear_clipboard()
+void x_clear_clipboard(void)
 {
     if(x_my_clipboard)
     {
@@ -637,7 +651,7 @@ static void x_process_events(void *data)
 			if (
 				event.xclient.format!=32||
 				event.xclient.message_type!=x_wm_protocols_atom||
-				event.xclient.data.l[0]!=x_delete_window_atom
+				(Atom)event.xclient.data.l[0]!=x_delete_window_atom
 			)break;
 			
 			/* This event is destroy window event from window manager */
@@ -772,61 +786,7 @@ static void x_process_events(void *data)
 /* This long code must be here in order to implement copying of stuff into the clipboard */
                         case SelectionRequest:
                         {
-                            XSelectionRequestEvent *req;
-			    XSelectionEvent sel;
-
-                            req = &(event.xselectionrequest);
-			    sel.type = SelectionNotify;
-			    sel.requestor = req->requestor;
-			    sel.selection = XA_PRIMARY;
-			    sel.target = req->target;
-			    sel.property = req->property;
-			    sel.time = req->time;
-			    sel.display = req->display;
-#ifdef X_DEBUG
-                            {
-                                unsigned char txt[256];
-                                sprintf (txt,"xselectionrequest from %i\n",(int)event.xselection.requestor);
-                                MESSAGE(txt);
-                                sprintf (txt,"property:%i target:%i selection:%i\n", req->property,req->target, req->selection);
-                                MESSAGE(txt);
-                            }
-#endif
-                            if (req->target == XA_STRING) {
-				XChangeProperty (x_display,
-                                                 sel.requestor,
-                                                 sel.property,
-                                                 XA_STRING,
-                                                 8,
-                                                 PropModeReplace,
-                                                 x_my_clipboard,
-                                                 x_my_clipboard?strlen(x_my_clipboard):0
-				);
-                            }
-			    else if (req->target == x_targets_atom) {
-				Atom tgt_atoms[] = {x_targets_atom, XA_STRING };
-				XChangeProperty (x_display,
-                                                 sel.requestor,
-                                                 sel.property,
-                                                 XA_ATOM,
-                                                 sizeof(Atom)*8,
-                                                 PropModeReplace,
-                                                 (char*)&tgt_atoms,
-                                                 2
-				);
-                            }
-                            else {
-#ifdef X_DEBUG
-                                {
-                                    unsigned char txt[256];
-                                    sprintf (txt,"Non-String wanted: %i\n",(int)req->target);
-                                    MESSAGE(txt);
-                                }
-#endif
-				sel.property= None;
-                            }
-                            XSendEvent (x_display, sel.requestor,0,0,(XEvent*)&sel);
-                            XFlush (x_display);                    
+			    selection_request(&event);
                         }
                         break;
                		
@@ -991,7 +951,7 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 		*p=0;
 		w=strtoul(x_driver_param,&e,10);
 		h=strtoul(p+1,&f,10);
-		if (!(*e)&&!(*f)){x_default_window_width=w;x_default_window_height=h;}
+		if (!(*e)&&!(*f)&&w&&h){x_default_window_width=w;x_default_window_height=h;}
 		*p='x';
 		done:;
 	}
@@ -1344,7 +1304,7 @@ static void x_shutdown_device(struct graphics_device *gd)
 /* n is in bytes. dest must begin on pixel boundary. If n is not a whole number
  * of pixels, rounding is performed downwards.
  */
-static void inline pixel_set(unsigned char *dest, int n,void * pattern)
+static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 {
 	int a;
 
@@ -1400,6 +1360,7 @@ static void inline pixel_set(unsigned char *dest, int n,void * pattern)
 	
 }
 
+/*
 static int x_get_filled_bitmap(struct bitmap *bmp, long color)
 {
 	struct x_pixmapa *p;
@@ -1412,7 +1373,6 @@ static int x_get_filled_bitmap(struct bitmap *bmp, long color)
 #endif
 	if (!bmp||!bmp->x||!bmp->y)internal("x_get_filled_bitmap called with strange arguments.\n");
 
-	/* alloc struct x_bitmapa */
 	p=mem_alloc(sizeof(struct x_pixmapa));
 
 	bmp->flags=p;
@@ -1457,6 +1417,7 @@ static int x_get_filled_bitmap(struct bitmap *bmp, long color)
 		return 2;
 	}
 }
+*/
 
 static int x_get_empty_bitmap(struct bitmap *bmp)
 {
@@ -1512,9 +1473,9 @@ static inline long _host_to_server(long num)
 			/* je to sice VODPORNE POMALY, ale prenositelny */
 			unsigned char bla[sizeof(long)];
 			int a;
-			for (a=0;a<sizeof(long);a++) bla[a]=num&255,num>>=8;
+			for (a=0;a<(int)sizeof(long);a++) bla[a]=num&255,num>>=8;
 			num=0;
-			for (a=0;a<sizeof(long);a++) num<<=8,num+=bla[a];
+			for (a=0;a<(int)sizeof(long);a++) num<<=8,num+=bla[a];
 			return num;
 			
 		}
@@ -1886,7 +1847,7 @@ void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 		return p->data.image->data+(bmp->skip*top);
 	}
 	internal("Unknown pixmap type found in x_prepare_strip. SOMETHING IS REALLY STRANGE!!!!\n");
-	exit(1);	/* never called */
+	exit(RET_FATAL);	/* never called */
 }
 
 
@@ -1950,6 +1911,64 @@ void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text)
 	}
 }
 
+void selection_request(XEvent *event)
+{
+	XSelectionRequestEvent *req;
+	XSelectionEvent sel;
+
+	req = &(event->xselectionrequest);
+	sel.type = SelectionNotify;
+	sel.requestor = req->requestor;
+	sel.selection = XA_PRIMARY;
+	sel.target = req->target;
+	sel.property = req->property;
+	sel.time = req->time;
+	sel.display = req->display;
+	#ifdef X_DEBUG
+	{
+	unsigned char txt[256];
+	sprintf (txt,"xselectionrequest from %i\n",(int)event.xselection.requestor);
+	MESSAGE(txt);
+	sprintf (txt,"property:%i target:%i selection:%i\n", req->property,req->target, req->selection);
+	MESSAGE(txt);
+	}
+	#endif
+	if (req->target == XA_STRING) {
+	XChangeProperty (x_display,
+			 sel.requestor,
+			 sel.property,
+			 XA_STRING,
+			 8,
+			 PropModeReplace,
+			 x_my_clipboard,
+			 x_my_clipboard?strlen(x_my_clipboard):0
+	);
+	}
+	else if (req->target == x_targets_atom) {
+	Atom tgt_atoms[] = {x_targets_atom, XA_STRING };
+	XChangeProperty (x_display,
+			 sel.requestor,
+			 sel.property,
+			 XA_ATOM,
+			 sizeof(Atom)*8,
+			 PropModeReplace,
+			 (char*)&tgt_atoms,
+			 2
+	);
+	}
+	else {
+	#ifdef X_DEBUG
+	{
+	    unsigned char txt[256];
+	    sprintf (txt,"Non-String wanted: %i\n",(int)req->target);
+	    MESSAGE(txt);
+	}
+	#endif
+	sel.property= None;
+	}
+	XSendEvent (x_display, sel.requestor,0,0,(XEvent*)&sel);
+	XFlush (x_display);                    
+}
 
 unsigned char *x_get_clipboard_text(void)
 {
@@ -1958,9 +1977,16 @@ unsigned char *x_get_clipboard_text(void)
 
 	XConvertSelection(x_display, XA_PRIMARY, XA_STRING, x_sel_atom, fake_window, CurrentTime);
 
-	XSync(x_display, False);
-	x_wait_for_event();
-	if (XCheckTypedEvent(x_display,SelectionNotify, &event) && event.xselection.property)
+	while (1) {
+		XSync(x_display, False);
+		if (XCheckTypedEvent(x_display,SelectionRequest, &event)) {
+			selection_request(&event);
+			continue;
+		}
+		if (XCheckTypedEvent(x_display,SelectionNotify, &event)) break;
+		x_wait_for_event();
+	}
+	if (event.xselection.property)
 	{
 		unsigned char *buffer;
 		unsigned long pty_size, pty_items;
@@ -2026,7 +2052,7 @@ int x_exec(unsigned char *command, int fg)
 
 	if (!fg) return system(command);
 
-	run=subst_file(*x_driver.shell?x_driver.shell:(unsigned char *)"xterm -e %",command);
+	run=subst_file(*x_driver.shell?x_driver.shell:(unsigned char *)"xterm -e \"%\"",command, 0);
 	retval=system(run);
 	mem_free(run);
 	return retval;
@@ -2040,7 +2066,7 @@ struct graphics_driver x_driver={
 	x_shutdown_driver,
 	x_get_driver_param,
 	x_get_empty_bitmap,
-	x_get_filled_bitmap,
+	/*x_get_filled_bitmap,*/
 	x_register_bitmap,
 	x_prepare_strip,
 	x_commit_strip,
@@ -2061,6 +2087,8 @@ struct graphics_driver x_driver={
 	0,				/* depth (filled in x_init_driver function) */
 	0, 0,				/* size (in X is empty) */
 	0,				/* flags */
+	0,				/* codepage */
+	NULL,				/* shell */
 };
 
 #endif /* GRDRV_X */

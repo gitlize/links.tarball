@@ -6,6 +6,11 @@
 
 #include "links.h"
 
+/* prototypes */
+void prog_func(struct terminal *, struct list_head *, unsigned char *, unsigned char *);
+void tn_func(struct session *, unsigned char *, struct list_head *, unsigned char *, unsigned char *);
+
+
 void prog_func(struct terminal *term, struct list_head *list, unsigned char *param, unsigned char *name)
 {
 	unsigned char *prog, *cmd;
@@ -13,7 +18,7 @@ void prog_func(struct terminal *term, struct list_head *list, unsigned char *par
 		msg_box(term, NULL, TEXT(T_NO_PROGRAM), AL_CENTER | AL_EXTD_TEXT, TEXT(T_NO_PROGRAM_SPECIFIED_FOR), " ", name, ".", NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return;
 	}
-	if ((cmd = subst_file(prog, param))) {
+	if ((cmd = subst_file(prog, param, 0))) {
 		exec_on_terminal(term, cmd, "", 1);
 		mem_free(cmd);
 	}
@@ -25,7 +30,7 @@ void mailto_func(struct session *ses, unsigned char *url)
 	int f = 1;
 	if (!(user = get_user_name(url))) goto fail;
 	if (!(host = get_host_name(url))) goto fail1;
-	if (!(m = mem_alloc(strlen(user) + strlen(host) + 2))) goto fail2;
+	m = mem_alloc(strlen(user) + strlen(host) + 2);
 	f = 0;
 	strcpy(m, user);
 	strcat(m, "@");
@@ -33,7 +38,6 @@ void mailto_func(struct session *ses, unsigned char *url)
 	check_shell_security(&m);
 	prog_func(ses->term, &mailto_prog, m, TEXT(T_MAIL));
 	mem_free(m);
-	fail2:
 	mem_free(host);
 	fail1:
 	mem_free(user);
@@ -53,7 +57,7 @@ void tn_func(struct session *ses, unsigned char *url, struct list_head *prog, un
 	if (pl && !(pp = memacpy(p, pl))) goto fail1;
 	check_shell_security(&hh);
 	if (pl) check_shell_security(&pp);
-	if (!(m = mem_alloc(strlen(hh) + (pl ? strlen(pp) : 0) + 2))) goto fail2;
+	m = mem_alloc(strlen(hh) + (pl ? strlen(pp) : 0) + 2);
 	f = 0;
 	strcpy(m, hh);
 	if (pl) {
@@ -63,7 +67,6 @@ void tn_func(struct session *ses, unsigned char *url, struct list_head *prog, un
 	}
 	prog_func(ses->term, prog, m, t1);
 	mem_free(m);
-	fail2:
 	if (pl) mem_free(pp);
 	fail1:
 	mem_free(hh);
@@ -80,4 +83,13 @@ void telnet_func(struct session *ses, unsigned char *url)
 void tn3270_func(struct session *ses, unsigned char *url)
 {
 	tn_func(ses, url, &tn3270_prog, TEXT(T_TN3270), TEXT(T_BAD_TN3270_URL));
+}
+
+void mms_func(struct session *ses, unsigned char *url)
+{
+	if (check_shell_url(url)) {
+		msg_box(ses->term, NULL, TEXT(T_MMS_URL_CONTAINS_INACCEPTABLE_CHARACTERS), AL_CENTER, TEXT(T_MMS), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		return;
+	}
+	prog_func(ses->term, &mms_prog, url, TEXT(T_MMS));
 }

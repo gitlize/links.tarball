@@ -57,7 +57,7 @@ static IDirectFBDisplayLayer *layer       = NULL;
 static IDirectFBSurface      *arrow       = NULL;
 static IDirectFBEventBuffer  *events      = NULL;
 static DFBSurfacePixelFormat  pixelformat = DSPF_UNKNOWN;
-static int                    event_timer = 0;
+static int                    event_timer = -1;
 
 
 static inline void directfb_set_color  (IDirectFBSurface *surface, long color);
@@ -251,6 +251,7 @@ directfb_get_empty_bitmap (struct bitmap *bmp)
   return 0;
 }
 
+/*
 static int
 directfb_get_filled_bitmap (struct bitmap *bmp, long color)
 {
@@ -274,6 +275,7 @@ directfb_get_filled_bitmap (struct bitmap *bmp, long color)
 
   return 0;
 }
+*/
 
 static void
 directfb_register_bitmap (struct bitmap *bmp)
@@ -467,7 +469,7 @@ struct graphics_driver directfb_driver =
   directfb_shutdown_driver,
   directfb_get_driver_param,
   directfb_get_empty_bitmap,
-  directfb_get_filled_bitmap,
+  /*directfb_get_filled_bitmap,*/
   directfb_register_bitmap,
   directfb_prepare_strip,
   directfb_commit_strip,
@@ -488,7 +490,8 @@ struct graphics_driver directfb_driver =
   0,	 /*  depth      */
   0, 0,	 /*  size       */
   0,     /*  flags      */
-  0      /*  codepage   */
+  0,     /*  codepage   */
+  NULL,	 /*  shell	*/
 };
 
 
@@ -779,8 +782,9 @@ directfb_add_to_table (struct graphics_device *gd)
       int c = 0;
 
       while (devices[c++])
-        ;
+        if (c == MAXINT) overalloc();
 
+      if ((unsigned)c > MAXINT / sizeof(void *) - 1) overalloc();
       devices = mem_realloc (devices, (c + 1) * sizeof (void *));
       devices[c-1] = gd;
       devices[c]   = NULL;

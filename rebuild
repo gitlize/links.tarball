@@ -20,6 +20,9 @@ if [ "$1" = reconf ]; then
 		rm -f autoh* &&
 		aclocal &&
 		automake --add-missing &&
+		sed 's%sed '\''s/\\\.am\$/\.in/'\''%sed '\''s/\\\.[aA][mM]\$/\.in/'\''%' <missing >missing.tmp &&
+		mv -f missing.tmp missing &&
+		chmod a+x missing &&
 		autoconf
 	else
 		exit
@@ -40,5 +43,8 @@ make &&
 if [ "$1" = reconf ]; then
 	autoheader &&
 	automake --add-missing --include-deps --build-dir=. --srcdir-name=. --output-dir=. &&
+	sed 's%sed '\''s/\\\.am\$/\.in/'\''%sed '\''s/\\\.[aA][mM]\$/\.in/'\''%' <missing >missing.tmp &&
+	mv -f missing.tmp missing &&
+	chmod a+x missing &&
 	./configure --enable-graphics --enable-javascript
 fi

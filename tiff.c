@@ -19,7 +19,6 @@ void tiff_start(struct cached_image *cimg)
 	struct tiff_decoder * deco;
 
 	deco=mem_alloc(sizeof(struct tiff_decoder));
-	if (!deco){img_end(cimg);return;}
 
 	cimg->decoder=deco;
 	deco->tiff_size=0;
@@ -34,9 +33,14 @@ void tiff_restart(struct cached_image *cimg, unsigned char *data, int length)
 	struct tiff_decoder * deco=(struct tiff_decoder*)cimg->decoder;
 	unsigned char *p;
 
-	if (!deco->tiff_data)p=mem_alloc(length);
-	else p=mem_realloc(deco->tiff_data,deco->tiff_size+length);
-	if (!p){img_end(cimg);return;}
+	if (!deco->tiff_data) {
+		if ((unsigned)length > MAXINT) overalloc();
+		p=mem_alloc(length);
+	} else {
+		if ((unsigned)length + (unsigned)deco->tiff_size > MAXINT) overalloc();
+		if ((unsigned)length + (unsigned)deco->tiff_size < (unsigned)length) overalloc();
+		p=mem_realloc(deco->tiff_data,deco->tiff_size+length);
+	}
 	deco->tiff_data=p;
 	memcpy(deco->tiff_data+deco->tiff_size,data,length);
 	deco->tiff_size+=length;
@@ -85,13 +89,13 @@ static toff_t __tiff_seek(thandle_t data, toff_t offset, int whence)
 	switch(whence)
 	{
 		case SEEK_SET:
-		deco->tiff_pos=(offset>deco->tiff_size)?deco->tiff_size:offset;
+		deco->tiff_pos=(offset>(toff_t)deco->tiff_size)?(toff_t)deco->tiff_size:offset;
 		break;
 		case SEEK_CUR:
-		deco->tiff_pos+=(deco->tiff_pos+offset>deco->tiff_size)?deco->tiff_size-deco->tiff_pos:offset;
+		deco->tiff_pos+=((toff_t)deco->tiff_pos+offset>(toff_t)deco->tiff_size)?(toff_t)deco->tiff_size-(toff_t)deco->tiff_pos:offset;
 		break;
 		case SEEK_END:
-		deco->tiff_pos=(offset>deco->tiff_size)?0:deco->tiff_size-offset;
+		deco->tiff_pos=(offset>(toff_t)deco->tiff_size)?0:(toff_t)deco->tiff_size-offset;
 		break;
 	}
 	return deco->tiff_pos;
@@ -154,8 +158,8 @@ static void flip_buffer(void *buf,int width,int height)
 		unsigned char *tmp;
 		int w=4*width;
 		
+		if ((unsigned)w > MAXINT) overalloc();
 		tmp=mem_alloc(w*sizeof(unsigned char));
-		if (!tmp)internal("Cannot allocate memory.\n");
 		
 		/* tohle je pomalejsi, protoze se kopiruje pamet->pamet, pamet->pamet */
 		/* kdyz mame 4B typek, tak se kopiruje pamet->reg, reg->pamet */
@@ -228,7 +232,8 @@ void tiff_finish(struct cached_image *cimg)
 	cimg->red_gamma=cimg->green_gamma=cimg->blue_gamma=sRGB_gamma;
 	cimg->strip_optimized=0;
 	header_dimensions_known(cimg);
-	TIFFReadRGBAImage(t,cimg->width,cimg->height,(unsigned long*)(cimg->buffer),1);
+/* int TIFFReadRGBAImage(TIFF* tif, u_long width, u_long height, u_long* raster, int stopOnError) from man page */
+	TIFFReadRGBAImage(t,cimg->width,cimg->height,(unsigned long*)(cimg->buffer),1); /* 231: warning: passing arg 4 of `TIFFReadRGBAImage' from incompatible pointer type */
 	TIFFClose(t);
 
 	/* For some reason the TIFFReadRGBAImage() function chooses the lower

@@ -8,6 +8,13 @@
 
 void objreq_end(struct status *, struct object_request *);
 void object_timer(struct object_request *);
+void auth_fn(struct dialog_data *);
+int auth_cancel(struct dialog_data *, struct dialog_item_data *);
+int auth_ok(struct dialog_data *, struct dialog_item_data *);
+int auth_window(struct object_request *, unsigned char *);
+
+
+
 
 struct list_head requests = {&requests, &requests};
 tcount obj_req_count = 1;
@@ -75,7 +82,7 @@ void auth_fn(struct dialog_data *dlg)
 
 int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 {
-	struct object_request *rq = find_rq((int)dlg->dlg->udata2);
+	struct object_request *rq = find_rq((long)dlg->dlg->udata2);
 	if (rq) {
 		rq->state = O_OK;
 		if (rq->timer != -1) kill_timer(rq->timer);
@@ -88,7 +95,7 @@ int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 
 int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 {
-	struct object_request *rq = find_rq((int)dlg->dlg->udata2);
+	struct object_request *rq = find_rq((long)dlg->dlg->udata2);
 	if (rq) {
 		struct auth_dialog *a = dlg->dlg->udata;
 		struct session *ses;
@@ -136,11 +143,7 @@ int auth_window(struct object_request *rq, unsigned char *realm)
 		}
 	}
 	urealm = convert_string(ct, realm, strlen(realm), NULL);
-	if (!(d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog) + strlen(_(TEXT(T_ENTER_USERNAME), term)) + strlen(urealm) + 1 + strlen(_(TEXT(T_AT), term)) + strlen(host) + + 1))) {
-		mem_free(host);
-		mem_free(urealm);
-		return -1;
-	}
+	d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog) + strlen(_(TEXT(T_ENTER_USERNAME), term)) + strlen(urealm) + 1 + strlen(_(TEXT(T_AT), term)) + strlen(host) + + 1);
 	memset(d, 0, sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog));
 	a = (struct auth_dialog *)((unsigned char *)d + sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
 	strcpy(a->msg, _(TEXT(T_ENTER_USERNAME), term));
@@ -153,7 +156,7 @@ int auth_window(struct object_request *rq, unsigned char *realm)
 	a->proxy = rq->stat.ce->http_code == 407;
 	a->realm = stracpy(realm);
 	d->udata = a;
-	d->udata2 = (void *)rq->count;
+	d->udata2 = (void *)rq->count; /* 163: warning: cast to pointer from integer of different size */
 	if (rq->stat.ce->http_code == 401) d->title = TEXT(T_AUTHORIZATION_REQUIRED);
 	else d->title = TEXT(T_PROXY_AUTHORIZATION_REQUIRED);
 	d->fn = auth_fn;
@@ -184,21 +187,14 @@ int auth_window(struct object_request *rq, unsigned char *realm)
 void request_object(struct terminal *term, unsigned char *url, unsigned char *prev_url, int pri, int cache, void (*upcall)(struct object_request *, void *), void *data, struct object_request **rqp)
 {
 	struct object_request *rq;
-	if (!(rq = mem_calloc(sizeof(struct object_request)))) return;
+	rq = mem_calloc(sizeof(struct object_request));
 	rq->state = O_WAITING;
 	rq->refcount = 1;
 	rq->term = term ? term->count : 0;
 	rq->stat.end = (void (*)(struct status *, void *))objreq_end;
 	rq->stat.data = rq;
-	if (!(rq->orig_url = stracpy(url))) {
-		mem_free(rq);
-		return;
-	}
-	if (!(rq->url = stracpy(url))) {
-		mem_free(rq->orig_url);
-		mem_free(rq);
-		return;
-	}
+	rq->orig_url = stracpy(url);
+	rq->url = stracpy(url);
 	rq->pri = pri;
 	rq->cache = cache;
 	rq->upcall = upcall;
@@ -220,13 +216,16 @@ void objreq_end(struct status *stat, struct object_request *rq)
 	if (stat->state < 0) {
 		if (stat->ce && rq->state == O_WAITING && stat->ce->redirect) {
 			if (rq->redirect_cnt++ < MAX_REDIRECTS) {
+				int cache;
 				unsigned char *u, *p;
 				change_connection(stat, NULL, PRI_CANCEL);
 				u = join_urls(rq->url, stat->ce->redirect);
 				if (!http_bugs.bug_302_redirect && !stat->ce->redirect_get && (p = strchr(u, POST_CHAR))) add_to_strn(&u, p);
+				cache = rq->cache;
+				if (cache < NC_RELOAD && (!strcmp(u, rq->url) || rq->redirect_cnt >= MAX_CACHED_REDIRECTS)) cache = NC_RELOAD;
 				mem_free(rq->url);
 				rq->url = u;
-				load_url(u, rq->prev_url, &rq->stat, rq->pri, rq->cache);
+				load_url(u, rq->prev_url, &rq->stat, rq->pri, cache);
 				return;
 			} else {
 				maxrd:

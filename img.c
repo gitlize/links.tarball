@@ -43,6 +43,24 @@ int end_callback_hit;
 int dither_images=1;
 #ifdef G
 
+/* prototypes */
+void destroy_decoder (struct cached_image *);
+void img_destruct_image(struct g_object *);
+int img_scale_h(unsigned scale, int);
+int img_scale_v(unsigned scale, int);
+unsigned short *buffer_to_16(unsigned short *, struct cached_image *, unsigned char *, int);
+void buffer_to_bitmap_incremental(struct cached_image *, unsigned char *, int, int, int *, int);
+void r3l0ad(struct cached_image *, struct g_object_image *);
+void type(struct cached_image *, unsigned char *);
+int img_process_download(struct g_object_image *, struct f_data_c *);
+int get_foreground(int);
+void draw_frame_mark (struct graphics_driver *, struct graphics_device *, int, int, int, int, int, int, int);
+void update_bitmap(struct cached_image *);
+void img_draw_image (struct f_data_c *, struct g_object_image *, int, int);
+void find_or_make_cached_image(struct g_object_image *, unsigned char *, int);
+void buffer_to_bitmap(struct cached_image *);
+
+
 /* This is a dummy */
 void img_draw_decoded_image(struct graphics_device *dev, struct decoded_image *d, int x, int y, int xw, int yw, int xo, int yo)
 {
@@ -289,6 +307,7 @@ void header_dimensions_known(struct cached_image *cimg)
 		cimg->bmp.x=cimg->width;
 		cimg->bmp.y=cimg->height;
 		drv->get_empty_bitmap(&(cimg->bmp));
+		if ((unsigned)cimg->width > MAXINT / sizeof(*buf_16) / 3) overalloc();
 		buf_16=mem_alloc(sizeof(*buf_16)*3*cimg->width);
 		round_color_sRGB_to_48(&red, &green, &blue
 			, cimg->background_color);
@@ -328,6 +347,8 @@ void header_dimensions_known(struct cached_image *cimg)
 	}else {
 		cimg->rows_added=1;
 		cimg->bmp.user=NULL;
+		if (cimg->width && (unsigned)cimg->width * (unsigned)cimg->height / (unsigned)cimg->width != (unsigned)cimg->height) overalloc();
+		if ((unsigned)cimg->width * (unsigned)cimg->height > (unsigned)MAXINT / cimg->buffer_bytes_per_pixel) overalloc();
 		cimg->buffer=mem_alloc(cimg->width*cimg->height
 			*cimg->buffer_bytes_per_pixel);
 		if (cimg->buffer_bytes_per_pixel==4
@@ -507,6 +528,7 @@ void buffer_to_bitmap_incremental(struct cached_image *cimg
 buffer_to_bitmap_incremental");
 	}
 #endif /* #ifdef DEBUG */
+	if ((unsigned)cimg->width > MAXINT / max_height / 3 / sizeof(*tmp)) overalloc();
 	tmp=mem_alloc(cimg->width*(height<max_height?height:max_height)*3*sizeof(*tmp));
 	/* Prepare a fake bitmap for dithering */
 	tmpbmp.x=cimg->width;
@@ -582,6 +604,8 @@ buffer_to_bitmap");
 	if (ix==ox&&iy==oy) gonna_be_smart=1;
 	else{
 		gonna_be_smart=0;
+		if (ix && (unsigned)ix * (unsigned)iy / (unsigned)ix != (unsigned)iy) overalloc();
+		if ((unsigned)ix * (unsigned)iy > MAXINT / sizeof(*tmp) / 3) overalloc();
 		tmp=mem_alloc(ix*iy*3*sizeof(*tmp));
 		buffer_to_16(tmp,cimg,cimg->buffer,iy);
 		if (!cimg->decoder){
@@ -606,7 +630,12 @@ buffer_to_bitmap");
 	cimg->bmp.y=oy;
 	drv->get_empty_bitmap(&(cimg->bmp));
 	if (gonna_be_smart){
-		dregs=dither_images?mem_calloc(sizeof(*dregs)*3*cimg->width):NULL;
+		if (dither_images) {
+			if ((unsigned)cimg->width > MAXINT / 3 / sizeof(*dregs)) overalloc();
+			dregs = mem_calloc(sizeof(*dregs)*3*cimg->width);
+		} else {
+			dregs = 0;
+		}
 		buffer_to_bitmap_incremental(cimg, cimg->buffer, cimg->height,
 			0, dregs, 0);
 		if (dregs) mem_free(dregs);
@@ -1082,11 +1111,11 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 		fprintf(stderr,"cimg->state\%d\n",cimg->state);
 		internal("Invalid state in img_draw_image");
 	}
+#endif /* #ifdef DEBUG */
 	if (fdatac->vs->g_display_link && fdatac->active && fdatac->vs->current_link != -1 && fdatac->vs->current_link == goi->link_num) {
 		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
 			goi->yw,color_bg,color_fg,2);
 	}
-#endif /* #ifdef DEBUG */
 }
 
 /* Prior to calling this function you have to fill out

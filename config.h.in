@@ -65,9 +65,6 @@
 /* The number of bytes in a unsigned short.  */
 #undef SIZEOF_UNSIGNED_SHORT
 
-/* Define if you have the alarm function.  */
-#undef HAVE_ALARM
-
 /* Define if you have the calloc function.  */
 #undef HAVE_CALLOC
 
@@ -77,17 +74,17 @@
 /* Define if you have the cygwin_conv_to_full_win32_path function.  */
 #undef HAVE_CYGWIN_CONV_TO_FULL_WIN32_PATH
 
-/* Define if you have the getpgid function.  */
-#undef HAVE_GETPGID
-
-/* Define if you have the getpgrp function.  */
-#undef HAVE_GETPGRP
+/* Define if you have the getpagesize function.  */
+#undef HAVE_GETPAGESIZE
 
 /* Define if you have the getpid function.  */
 #undef HAVE_GETPID
 
 /* Define if you have the gettimeofday function.  */
 #undef HAVE_GETTIMEOFDAY
+
+/* Define if you have the memmove function.  */
+#undef HAVE_MEMMOVE
 
 /* Define if you have the mkdir function.  */
 #undef HAVE_MKDIR
@@ -101,6 +98,9 @@
 /* Define if you have the popen function.  */
 #undef HAVE_POPEN
 
+/* Define if you have the raise function.  */
+#undef HAVE_RAISE
+
 /* Define if you have the resume_thread function.  */
 #undef HAVE_RESUME_THREAD
 
@@ -112,9 +112,6 @@
 
 /* Define if you have the setpgid function.  */
 #undef HAVE_SETPGID
-
-/* Define if you have the setpgrp function.  */
-#undef HAVE_SETPGRP
 
 /* Define if you have the snprintf function.  */
 #undef HAVE_SNPRINTF
@@ -215,6 +212,9 @@
 /* Define if you have the <ndir.h> header file.  */
 #undef HAVE_NDIR_H
 
+/* Define if you have the <netinet/dhcp.h> header file.  */
+#undef HAVE_NETINET_DHCP_H
+
 /* Define if you have the <netinet/in_system.h> header file.  */
 #undef HAVE_NETINET_IN_SYSTEM_H
 
@@ -286,6 +286,9 @@
 
 /* Define if you have the X11 library (-lX11).  */
 #undef HAVE_LIBX11
+
+/* Define if you have the Xext library (-lXext).  */
+#undef HAVE_LIBXEXT
 
 /* Define if you have the atheos library (-latheos).  */
 #undef HAVE_LIBATHEOS
@@ -361,6 +364,9 @@
 #undef HAVE_CFMAKERAW
 
 /* */
+#undef HAVE_DHCP_OPTION
+
+/* */
 #undef HAVE_HERROR
 
 /* */
@@ -383,6 +389,9 @@
 
 /* */
 #undef X2
+
+/* */
+#undef DEBUGLEVEL
 
 /* */
 #undef JS
@@ -410,6 +419,9 @@
 
 /* */
 #undef GRDRV_X
+
+/* */
+#undef GRDRV_SDL
 
 /* */
 #undef GRDRV_ATHEOS
