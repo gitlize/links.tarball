@@ -1,0 +1,33 @@
+#!/bin/bash
+# rebuild
+# (c) 2002 Karel 'Clock' Kulhavy, Mikulas Patocka, Petr 'Brain' Kulhavy
+# This file is a part of the Links program, released under GPL.
+
+rm -f config.h Makefile config.cache
+if [ "$1" = reconf ]; then
+	echo NEPOUZIVAT !!!
+	rm -rf .deps
+	autoheader
+	rm -f autoh*
+	aclocal
+	automake
+	autoconf
+fi
+if [ "$1" = reconf_aby_to_brain_nepouzival ]; then
+	echo "Mikulasi, vyser si voko!"
+	exit
+fi
+#cd Unicode;./gen; cd ..
+#cd intl; ./synclang; cd ..
+export CFLAGS="-Wall -g -O2 -pipe -ansi -U__STRICT_ANSI__ -fno-common"
+#export CFLAGS="-Wall -g -O2 -pipe"
+export CXXFLAGS="-Wall -g -O2 -pipe"
+./configure --enable-graphics --enable-javascript
+#make dist  # kdo to sem dal???
+make clean
+make
+if [ "$1" = reconf ]; then
+	autoheader
+	automake --include-deps --build-dir=. --srcdir-name=. --output-dir=.
+	./configure --enable-graphics --enable-javascript
+fi
