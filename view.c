@@ -1592,7 +1592,7 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 #else
 				0
 #endif
-				,0
+				,0,0
 			);
 			mem_free(u);
 			return 2;
@@ -2533,6 +2533,10 @@ void send_event(struct session *ses, struct event *ev)
 			state_msg(ses);
 			goto x;
 		}
+		if (ev->x == '|') {
+			head_msg(ses);
+			goto x;
+		}
 		if (ev->x == '\\') {
 			toggle(ses, ses->screen, 0);
 			goto x;
@@ -2638,7 +2642,7 @@ void send_submit(struct terminal *term, void *xxx, struct session *ses)
 	if (fd->vs->current_link == -1) return;
 	if (!(form=(fd->f_data->links[fd->vs->current_link]).form)) return;
 	u=get_form_url(ses,fd,form,&has_onsubmit);
-	goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0);
+	goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0,0);
 	mem_free(u);
 	draw_fd(fd);
 }
@@ -3077,3 +3081,23 @@ void state_msg(struct session *ses)
 	else loc_msg(ses->term, cur_loc(ses), ses->screen);
 }
 
+void head_msg(struct session *ses)
+{
+	struct cache_entry *ce;
+	unsigned char *s, *ss;
+	int len;
+	if (list_empty(ses->history)) {
+		msg_box(ses->term, NULL, TEXT(T_HEADER_INFO), AL_LEFT, TEXT(T_YOU_ARE_NOWHERE), NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+		return;
+	}
+	if (!find_in_cache(cur_loc(ses)->url, &ce)) {
+		if (ce->head) ss = s = stracpy(ce->head);
+		else s = ss = stracpy("");
+		len = strlen(s) - 1;
+		if (len > 0) {
+			while ((ss = strstr(s, "\r\n"))) memmove(ss, ss + 1, strlen(ss));
+			while (*s && s[strlen(s) - 1] == '\n') s[strlen(s) - 1] = 0;
+		}
+		msg_box(ses->term, getml(s, NULL), TEXT(T_HEADER_INFO), AL_LEFT, s, NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+	}
+}

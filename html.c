@@ -2299,10 +2299,19 @@ unsigned char *skip_comment(unsigned char *html, unsigned char *eof)
 void process_head(unsigned char *head)
 {
 	unsigned char *r, *p;
+	struct refresh_param rp;
 	if ((r = parse_http_header(head, "Refresh", NULL))) {
-		if ((p = parse_header_param(r, "URL"))) {
-			put_link_line("Refresh: ", p, p, d_opt->framename);
-			mem_free(p);
+		if (!d_opt->auto_refresh) {
+			if ((p = parse_header_param(r, "URL"))) {
+				put_link_line("Refresh: ", p, p, d_opt->framename);
+				mem_free(p);
+			}
+		} else {
+			rp.url = parse_header_param(r, "URL");
+			rp.time = atoi(r);
+			if (rp.time < 1) rp.time = 1;
+			special_f(ff, SP_REFRESH, &rp);
+			if (rp.url) mem_free(rp.url);
 		}
 		mem_free(r);
 	}

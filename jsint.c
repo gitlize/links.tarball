@@ -294,7 +294,7 @@ void jsint_done_execution(struct f_data_c *fd)
 		url=stracpy(fd->ses->defered_url);
 		target=stracpy(fd->ses->defered_url);
 		
-		goto_url_f(fd->ses,NULL,url,target,fd->ses->defered_target_base,fd->ses->defered_data,0,0);
+		goto_url_f(fd->ses,NULL,url,target,fd->ses->defered_target_base,fd->ses->defered_data,0,0,0);
 		mem_free(url);
 		mem_free(target);
 	}
@@ -2485,7 +2485,7 @@ void js_upcall_submit(void *bidak, long document_id, long form_id)
 	if (!form)return;
 
 	u=get_form_url(fd->ses,fd,form,&has_onsubmit);
-	goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0);
+	goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0,0);
 	mem_free(u);
 	draw_fd(fd);
 	change_screen_status(fd->ses);
@@ -2834,7 +2834,7 @@ void js_upcall_goto_history(void * data)
 	struct terminal *term;
 	unsigned char *url=NULL;
 	unsigned char txt[16];
-	int history_num;
+	int history_num=0;
 
 	/* context must be a valid pointer ! */
 	fd=(struct f_data_c*)(s->ident);

@@ -823,6 +823,7 @@ struct cache_entry {
 	int incomplete;
 	int tgc;
 	unsigned char *last_modified;
+	time_t expire_time;	/* 0 never, 1 always */
 	int data_size;
 	struct list_head frag;	/* struct fragment */
 	tcount count;
@@ -2072,6 +2073,7 @@ struct document_setup {
 	int tables, frames, images;
 	int margin;
 	int num_links, table_order;
+	int auto_refresh;
 	int font_size;
 	int display_images;
 	int image_scale;
@@ -2091,6 +2093,7 @@ struct document_options {
 	int js_enable;
 	int plain;
 	int num_links, table_order;
+	int auto_refresh;
 	struct rgb default_fg;
 	struct rgb default_bg;
 	struct rgb default_link;
@@ -2113,6 +2116,7 @@ static inline void ds2do(struct document_setup *ds, struct document_options *doo
 	doo->margin = ds->margin;
 	doo->num_links = ds->num_links;
 	doo->table_order = ds->table_order;
+	doo->auto_refresh = ds->auto_refresh;
 	doo->font_size = ds->font_size;
 	doo->display_images = ds->display_images;
 	doo->image_scale = ds->image_scale;
@@ -2477,6 +2481,9 @@ struct f_data {
 	int are_there_scripts;
 	unsigned char *script_href_base;
 
+	unsigned char *refresh;
+	int refresh_seconds;
+
 	struct js_document_description *js_doc;
 	int uncacheable;	/* cannot be cached - either created from source modified by document.write or modified by javascript */
 
@@ -2555,6 +2562,9 @@ struct f_data_c {
 	struct js_state *js;
 
 	int image_timer;
+
+	int refresh_timer;
+
 #ifdef JS
 	unsigned char *onload_frameset_code;
 #endif
@@ -2618,6 +2628,7 @@ struct session {
 	void (*wtd)(struct session *);
 	unsigned char *wtd_target;
 	struct f_data_c *wtd_target_base;
+	int wtd_refresh;
 	unsigned char *goto_position;
 	struct document_setup ds;
 	struct kbdprefix kbdprefix;
@@ -2663,7 +2674,7 @@ void fd_loaded(struct object_request *, struct f_data_c *);
 
 extern struct list_head sessions;
 
-time_t parse_http_date(const char *);
+time_t parse_http_date(char *);
 unsigned char *encode_url(unsigned char *);
 unsigned char *decode_url(unsigned char *);
 unsigned char *subst_file(unsigned char *, unsigned char *);
@@ -2679,7 +2690,7 @@ void display_download(struct terminal *, struct download *, struct session *);
 int create_download_file(struct terminal *, unsigned char *, int);
 void *create_session_info(int, unsigned char *, int *);
 void win_func(struct window *, struct event *, int);
-void goto_url_f(struct session *, void (*)(struct session *), unsigned char *, unsigned char *, struct f_data_c *, int, int, int);
+void goto_url_f(struct session *, void (*)(struct session *), unsigned char *, unsigned char *, struct f_data_c *, int, int, int, int);
 void goto_url(struct session *, unsigned char *);
 void goto_url_not_from_dialog(struct session *, unsigned char *);
 void goto_imgmap(struct session *ses, unsigned char *url, unsigned char *href, unsigned char *target);
@@ -3119,6 +3130,7 @@ void search_dlg(struct session *, struct f_data_c *, int);
 void search_back_dlg(struct session *, struct f_data_c *, int);
 void exit_prog(struct terminal *, void *, struct session *);
 void really_exit_prog(struct session *ses);
+void query_exit(struct session *ses);
 
 #ifdef G
 
@@ -3209,6 +3221,7 @@ unsigned char *print_current_link(struct session *);
 unsigned char *print_current_title(struct session *);
 void loc_msg(struct terminal *, struct location *, struct f_data_c *);
 void state_msg(struct session *);
+void head_msg(struct session *);
 void search_for(struct session *, unsigned char *);
 void search_for_back(struct session *, unsigned char *);
 void find_next(struct session *, struct f_data_c *, int);
@@ -3590,6 +3603,7 @@ int decode_color(unsigned char *, struct rgb *);
 #define SP_SCRIPT	6
 #define SP_IMAGE	7
 #define SP_NOWRAP	8
+#define SP_REFRESH	9
 
 struct frameset_param {
 	struct frameset_desc *parent;
@@ -3603,6 +3617,11 @@ struct frame_param {
 	unsigned char *url;
 	int marginwidth;
 	int marginheight;
+};
+
+struct refresh_param {
+	unsigned char *url;
+	int time;
 };
 
 void free_menu(struct menu_item *);
@@ -3674,7 +3693,8 @@ void xset_hchar(struct part *, int, int, unsigned);
 void xset_hchars(struct part *, int, int, int, unsigned);
 void align_line(struct part *, int);
 void html_tag(struct f_data *, unsigned char *, int, int);
-void process_script(struct f_data *f, unsigned char *t);
+void process_script(struct f_data *, unsigned char *);
+void html_process_refresh(struct f_data *, unsigned char *, int );
 
 void free_table_cache(void);
 
@@ -3818,6 +3838,7 @@ struct http_bugs {
 	int bug_302_redirect;
 	int bug_post_no_keepalive;
 	int no_accept_charset;
+	int aggressive_cache;
 };
 
 extern struct http_bugs http_bugs;

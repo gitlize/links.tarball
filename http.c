@@ -156,7 +156,11 @@ void http_send_header(struct connection *c)
 	unsigned char *h, *u, *uu, *sp;
 	int l = 0;
 	unsigned char *post;
-	unsigned char *host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
+	unsigned char *host;
+
+	find_in_cache(c->url, &c->cache);
+
+	host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
 	set_timeout(c);
 	if (!(info = mem_alloc(sizeof(struct http_connection_info)))) {
 		setcstate(c, S_OUT_OF_MEM);
@@ -293,12 +297,18 @@ void http_send_header(struct connection *c)
 		else add_to_str(&hdr, &l, "close\r\n");
 	}
 	if ((e = c->cache)) {
-		if (!e->incomplete && e->head && c->no_cache <= NC_IF_MOD &&
-		    e->last_modified) {
+		if (!e->incomplete && e->head && c->no_cache <= NC_IF_MOD) {
+			unsigned char *m;
+			if (e->last_modified) m = stracpy(e->last_modified);
+			else if ((m = parse_http_header(e->head, "Date", NULL))) ;
+			else if ((m = parse_http_header(e->head, "Expires", NULL))) ;
+			else goto skip;
 			add_to_str(&hdr, &l, "If-Modified-Since: ");
-			add_to_str(&hdr, &l, e->last_modified);
+			add_to_str(&hdr, &l, m);
 			add_to_str(&hdr, &l, "\r\n");
+			mem_free(m);
 		}
+		skip:;
 	}
 	if (c->no_cache >= NC_PR_NO_CACHE) add_to_str(&hdr, &l, "Pragma: no-cache\r\nCache-Control: no-cache\r\n");
 	if (c->from) {
@@ -540,6 +550,22 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if (e->head) mem_free(e->head);
 	e->head = head;
+	if ((d = parse_http_header(head, "Expires", NULL))) {
+		time_t t = parse_http_date(d);
+		if (t && e->expire_time != 1) e->expire_time = t;
+		mem_free(d);
+	}
+	if ((d = parse_http_header(head, "Pragma", NULL))) {
+		if (!casecmp(d, "no-cache", 8)) e->expire_time = 1;
+		mem_free(d);
+	}
+	if ((d = parse_http_header(head, "Cache-Control", NULL))) {
+		if (!casecmp(d, "no-cache", 8)) e->expire_time = 1;
+		if (!casecmp(d, "max-age=", 8)) {
+			if (e->expire_time != 1) e->expire_time = time(NULL) + atoi(d + 8);
+		}
+		mem_free(d);
+	}
 #ifdef HAVE_SSL
 	if (c->ssl) {
 		int l = 0;

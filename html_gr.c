@@ -589,6 +589,7 @@ void *g_html_special(struct g_part *p, int c, ...)
 	struct frame_param *fp;
 	struct image_description *im;
 	struct g_object_tag *tag;
+	struct refresh_param *rp;
 	va_start(l, c);
 	switch (c) {
 		case SP_TAG:
@@ -636,6 +637,11 @@ void *g_html_special(struct g_part *p, int c, ...)
 			break;
 		case SP_NOWRAP:
 			va_end(l);
+			break;
+		case SP_REFRESH:
+			rp = va_arg(l, struct refresh_param *);
+			va_end(l);
+			html_process_refresh(p->data, rp->url, rp->time);
 			break;
 		default:
 			va_end(l);

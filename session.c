@@ -426,32 +426,107 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	do_dialog(term, dlg, getml(dlg, NULL));
 }
 
-time_t parse_http_date(const char *date)	/* this functions is bad !!! */
+time_t parse_http_date(char *date)	/* this functions is bad !!! */
 {
-	const char *months[12] =
+	static char *months[12] =
 		{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 	time_t t = 0;
 	/* Mon, 03 Jan 2000 21:29:33 GMT */
+	int y;
 	struct tm tm;
-	if (!date || strlen(date) < 28) return 0;
-	date += 5;
-	tm.tm_mday = (date[0] - '0') * 10 + date[1] - '0';
-	date += 3;
-	for (tm.tm_mon = 0; tm.tm_mon < 12; tm.tm_mon++)
-		if (!strncmp(date, months[tm.tm_mon], 3)) break;
-	date += 4;
-	tm.tm_year = (date[0] - '0') * 1000 + (date[1] - '0') * 100 + (date[2] - '0') * 10 + date[3] - '0' - 1900;
-	date += 5;
+	memset(&tm, 0, sizeof(struct tm));
+
+	date = strchr(date, ' ');
+	if (!date) return 0;
+	date++;
+	if (*date >= '0' && *date <= '9') {
+			/* Sun, 06 Nov 1994 08:49:37 GMT */
+			/* Sunday, 06-Nov-94 08:49:37 GMT */
+		y = 0;
+		if (date[0] < '0' || date[0] > '9') return 0;
+		if (date[1] < '0' || date[1] > '9') return 0;
+		tm.tm_mday = (date[0] - '0') * 10 + date[1] - '0';
+		date += 2;
+		if (*date != ' ' && *date != '-') return 0;
+		date += 1;
+		for (tm.tm_mon = 0; tm.tm_mon < 12; tm.tm_mon++)
+			if (!casecmp(date, months[tm.tm_mon], 3)) goto f1;
+		return 0;
+		f1:
+		date += 3;
+		if (*date == ' ') {
+				/* Sun, 06 Nov 1994 08:49:37 GMT */
+			date++;
+			if (date[0] < '0' || date[0] > '9') return 0;
+			if (date[1] < '0' || date[1] > '9') return 0;
+			if (date[2] < '0' || date[2] > '9') return 0;
+			if (date[3] < '0' || date[3] > '9') return 0;
+			tm.tm_year = (date[0] - '0') * 1000 + (date[1] - '0') * 100 + (date[2] - '0') * 10 + date[3] - '0' - 1900;
+			date += 4;
+		} else if (*date == '-') {
+				/* Sunday, 06-Nov-94 08:49:37 GMT */
+			date++;
+			if (date[0] < '0' || date[0] > '9') return 0;
+			if (date[1] < '0' || date[1] > '9') return 0;
+			tm.tm_year = (date[0] >= '7' ? 1900 : 2000) + (date[0] - '0') * 10 + date[1] - '0' - 1900;
+			date += 2;
+		} else return 0;
+		if (*date != ' ') return 0;
+		date++;
+	} else {
+			/* Sun Nov  6 08:49:37 1994 */
+		y = 1;
+		for (tm.tm_mon = 0; tm.tm_mon < 12; tm.tm_mon++)
+			if (!casecmp(date, months[tm.tm_mon], 3)) goto f2;
+		return 0;
+		f2:
+		date += 3;
+		while (*date == ' ') date++;
+		if (date[0] < '0' || date[0] > '9') return 0;
+		tm.tm_mday = date[0] - '0';
+		date++;
+		if (*date != ' ') {
+			if (date[0] < '0' || date[0] > '9') return 0;
+			tm.tm_mday = tm.tm_mday * 10 + date[0] - '0';
+			date++;
+		}
+		if (*date != ' ') return 0;
+		date++;
+	}
+
+	if (date[0] < '0' || date[0] > '9') return 0;
+	if (date[1] < '0' || date[1] > '9') return 0;
 	tm.tm_hour = (date[0] - '0') * 10 + date[1] - '0';
-	date += 3;
+	date += 2;
+	if (*date != ':') return 0;
+	date++;
+	if (date[0] < '0' || date[0] > '9') return 0;
+	if (date[1] < '0' || date[1] > '9') return 0;
 	tm.tm_min = (date[0] - '0') * 10 + date[1] - '0';
-	date += 3;
+	date += 2;
+	if (*date != ':') return 0;
+	date++;
+	if (date[0] < '0' || date[0] > '9') return 0;
+	if (date[1] < '0' || date[1] > '9') return 0;
 	tm.tm_sec = (date[0] - '0') * 10 + date[1] - '0';
+	date += 2;
+	if (y) {
+		if (*date != ' ') return 0;
+		date++;
+		if (date[0] < '0' || date[0] > '9') return 0;
+		if (date[1] < '0' || date[1] > '9') return 0;
+		if (date[2] < '0' || date[2] > '9') return 0;
+		if (date[3] < '0' || date[3] > '9') return 0;
+		tm.tm_year = (date[0] - '0') * 1000 + (date[1] - '0') * 100 + (date[2] - '0') * 10 + date[3] - '0' - 1900;
+		date += 4;
+	}
+	if (*date != ' ' && *date) return 0;
+
 	t = mktime(&tm);
-	if (t == (time_t) - 1) return 0;
-	else return t;
+	if (t == (time_t) -1) return 0;
+	return t;
 }
 
 void download_data(struct status *stat, struct download *down)
@@ -1148,6 +1223,7 @@ void reinit_f_data_c(struct f_data_c *fd)
 	fd->done = 0;
 	fd->parsed_done = 0;
 	if (fd->image_timer != -1) kill_timer(fd->image_timer), fd->image_timer = -1;
+	if (fd->refresh_timer != -1) kill_timer(fd->refresh_timer), fd->refresh_timer = -1;
 }
 
 struct f_data_c *create_f_data_c(struct session *ses, struct f_data_c *parent)
@@ -1166,6 +1242,7 @@ struct f_data_c *create_f_data_c(struct session *ses, struct f_data_c *parent)
 	fd->id = id++;
 	fd->marginwidth = fd->marginheight = -1;
 	fd->image_timer = -1;
+	fd->refresh_timer = -1;
 	return fd;
 }
 
@@ -1209,6 +1286,18 @@ int get_file(struct object_request *o, unsigned char **start, unsigned char **en
 	return 0;
 }
 
+void refresh_timer(struct f_data_c *fd)
+{
+	if (fd->ses->rq) {
+		fd->refresh_timer = install_timer(500, (void (*)(void *))refresh_timer, fd);
+		return;
+	}
+	fd->refresh_timer = -1;
+	if (fd->f_data && fd->f_data->refresh) {
+		fd->refresh_timer = install_timer(fd->f_data->refresh_seconds * 1000, (void (*)(void *))refresh_timer, fd);
+		goto_url_f(fd->ses, NULL, fd->f_data->refresh, "_self", fd, -1, 0, 0, 1);
+	}
+}
 
 static int __frame_and_all_subframes_loaded(struct f_data_c *fd)
 {
@@ -1233,7 +1322,7 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 	if (fd->vs->plain == -1 && rq->state != O_WAITING) {
 		fd->vs->plain = plain_type(fd->ses, fd->rq, NULL);
 	}
-	if (f_is_finished(fd->f_data) || (!fd->f_data && fd->rq->state < 0)) {
+	if (fd->rq->state < 0 && (f_is_finished(fd->f_data) || !fd->f_data)) {
 		if (!fd->parsed_done) html_interpret(fd);
 		draw_fd(fd);
 		/* it may happen that html_interpret requests load of additional file */
@@ -1245,6 +1334,10 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		}
 		fd->done = 1;
 		fd->parsed_done = 0;
+		if (fd->f_data->refresh) {
+			if (fd->refresh_timer != -1) kill_timer(fd->refresh_timer);
+			fd->refresh_timer = install_timer(fd->f_data->refresh_seconds * 1000, (void (*)(void *))refresh_timer, fd);
+		}
 #ifdef JS
 		jsint_run_queue(fd);
 #endif
@@ -1253,10 +1346,10 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		int first = !fd->f_data;
 		if (!fd->parsed_done) {
 			html_interpret(fd);
-			if (!f_need_reparse(fd->f_data)) fd->parsed_done = 1;
+			if (fd->rq->state < 0 && !f_need_reparse(fd->f_data)) fd->parsed_done = 1;
 		}
 		draw_fd(fd);
-		if (f_is_finished(fd->f_data)) goto fn;
+		if (fd->rq->state < 0 && f_is_finished(fd->f_data)) goto fn;
 		t = fd->f_data ? ((fd->parsed_done ? 0 : fd->f_data->time_to_get * DISPLAY_TIME) + fd->f_data->time_to_draw * IMG_DISPLAY_TIME) : 0;
 		if (t < DISPLAY_TIME_MIN) t = DISPLAY_TIME_MIN;
 		if (first && t > DISPLAY_TIME_MAX_FIRST) t = DISPLAY_TIME_MAX_FIRST;
@@ -1404,12 +1497,17 @@ void destroy_location(struct location *loc)
 	mem_free(loc);
 }
 
-void ses_go_forward(struct session *ses, int plain)
+void ses_go_forward(struct session *ses, int plain, int refresh)
 {
+	struct location *cl;
 	struct f_data_c *fd;
 	if (ses->search_word) mem_free(ses->search_word), ses->search_word = NULL;
-	if ((fd = find_frame(ses, ses->wtd_target, ses->wtd_target_base))) fd = copy_location_and_replace_frame(ses, fd);
-	else fd = new_main_location(ses);
+	if ((fd = find_frame(ses, ses->wtd_target, ses->wtd_target_base))) {
+		cl = NULL;
+		if (refresh && fd->loc && !strcmp(fd->loc->url, ses->rq->url)) cl = cur_loc(ses);
+		fd = copy_location_and_replace_frame(ses, fd);
+		if (cl) destroy_location(cl);
+	} else fd = new_main_location(ses);
 	if (!fd) return;
 	fd->vs->plain = plain;
 	ses->wtd = NULL;
@@ -1419,7 +1517,7 @@ void ses_go_forward(struct session *ses, int plain)
 	fd->loc->prev_url = stracpy(fd->rq->prev_url);
 	fd->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
 	fd->rq->data = fd;
-	ses->locked_link = 0;
+	/*ses->locked_link = 0;*/
 	fd->rq->upcall(fd->rq, fd);
 }
 
@@ -1517,7 +1615,7 @@ void tp_display(struct session *ses)
 	ses_abort_1st_state_loading(ses);
 	ses->rq = ses->tq;
 	ses->tq = NULL;
-	ses_go_forward(ses, 1);
+	ses_go_forward(ses, 1, 0);
 }
 
 
@@ -1539,7 +1637,7 @@ int prog_sel_display(struct dialog_data *dlg, struct dialog_item_data* idata)
 	ses_abort_1st_state_loading(ses);
 	ses->rq = ses->tq;
 	ses->tq = NULL;
-	ses_go_forward(ses, 1);
+	ses_go_forward(ses, 1, 0);
 
 	cancel_dialog(dlg,idata);
 	return 0;
@@ -1720,7 +1818,7 @@ void ses_go_to_2nd_state(struct session *ses)
 	type_query(ses, ct, a, n);
 	return;
 	go:
-	ses_go_forward(ses, r);
+	ses_go_forward(ses, r, ses->wtd_refresh);
 	if (ct) mem_free(ct);
 }
 
@@ -1731,6 +1829,12 @@ void ses_go_back_to_2nd_state(struct session *ses)
 
 void ses_finished_1st_state(struct object_request *rq, struct session *ses)
 {
+	if (rq->state != O_WAITING) {
+		if (ses->wtd_refresh && ses->wtd_target_base && ses->wtd_target_base->refresh_timer != -1) {
+			kill_timer(ses->wtd_target_base->refresh_timer);
+			ses->wtd_target_base->refresh_timer = -1;
+		}
+	}
 	switch (rq->state) {
 		case O_WAITING:
 			change_screen_status(ses);
@@ -1765,7 +1869,7 @@ static inline int __any_running_scripts(struct f_data_c *fd)
 #endif
 
 /* if from_goto_dialog is 1, set prev_url to NULL */
-void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned char *url, unsigned char *target, struct f_data_c *df, int data, int defer, int from_goto_dialog)
+void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned char *url, unsigned char *target, struct f_data_c *df, int data, int defer, int from_goto_dialog, int refresh)
 {
 	unsigned char *u, *pos;
 	unsigned char *prev_url;
@@ -1802,6 +1906,7 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	ses->wtd = state2;
 	ses->wtd_target = stracpy(target);
 	ses->wtd_target_base = df;
+	ses->wtd_refresh = refresh;
 	if (ses->goto_position) mem_free(ses->goto_position);
 	ses->goto_position = pos;
 	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
@@ -1814,13 +1919,13 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 /* this doesn't send rederer */
 void goto_url(struct session *ses, unsigned char *url)
 {
-	goto_url_f(ses, NULL, url, NULL, NULL, -1, 0, 1);
+	goto_url_f(ses, NULL, url, NULL, NULL, -1, 0, 1, 0);
 }
 
 /* this one sends referer */
 void goto_url_not_from_dialog(struct session *ses, unsigned char *url)
 {
-	goto_url_f(ses, NULL, url, NULL, NULL, -1, 0, 0);
+	goto_url_f(ses, NULL, url, NULL, NULL, -1, 0, 0, 0);
 }
 
 void ses_imgmap(struct session *ses)
@@ -1845,7 +1950,7 @@ void goto_imgmap(struct session *ses, unsigned char *url, unsigned char *href, u
 	ses->imgmap_href_base = href;
 	if (ses->imgmap_target_base) mem_free(ses->imgmap_target_base);
 	ses->imgmap_target_base = target;
-	goto_url_f(ses, ses_imgmap, url, NULL, NULL, -1, 0, 0);
+	goto_url_f(ses, ses_imgmap, url, NULL, NULL, -1, 0, 0, 0);
 }
 
 void map_selected(struct terminal *term, struct link_def *ld, struct session *ses)
@@ -1856,7 +1961,7 @@ void map_selected(struct terminal *term, struct link_def *ld, struct session *se
 		jsint_execute_code(fd, ld->onclick, strlen(ld->onclick), -1, -1, -1);
 		x = 1;
 	}
-	goto_url_f(ses, NULL, ld->link, ld->target, current_frame(ses), -1, x, 0);
+	goto_url_f(ses, NULL, ld->link, ld->target, current_frame(ses), -1, x, 0, 0);
 }
 
 void go_back(struct session *ses)

@@ -1,3 +1,24 @@
+=== Release 2.1pre11
+
+Thu May 22 02:58:00 MET DST 2003 mikulas:
+
+	Correct parse_http_date (sponsored by Awite Bioenergie
+	<http://www.awite.com/> )
+
+Thu May 22 02:57:52 MET DST 2003 mikulas:
+
+	Non-aggressive cache (sponsored by Awite Bioenergie
+	<http://www.awite.com/> )
+
+Wed May 21 23:26:08 cet 2003 mikulas:
+
+	Refresh (sponsored by Awite Bioenergie <http://www.awite.com> )
+
+Wed May 21 19:38:29 MET DST 2003 Thomas Klausner <tk@giga.or.at>
+
+	Support for 16-bit 565 RGB big endian
+	Fix for 24-bit RGB big endian
+
 === Release 2.1pre10
 
 Sun May 18 12:20:48 MET DST 2003 Brain:
@@ -6,7 +27,8 @@ Sun May 18 12:20:48 MET DST 2003 Brain:
 
 Sat May 17 21:58:32 MET DST 2003 Brain:
 
-	Manual/automatic javascript action confirmation
+	Manual/automatic javascript action confirmation (sponsored by Awite
+	Bioenergie <http://www.awite.com/> )
 
 Sat May 10 23:15:24 cet 2003 Daniel Berlin <dan@cgsoftware.com>:
 

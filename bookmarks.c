@@ -750,7 +750,7 @@ void save_bookmarks(void)
 		}
 		else
 		{
-			unsigned char *txt1, *txt2, *txt11, *txt22;
+			unsigned char *txt1, *txt2, *txt11;
 			txt1=convert_string(ct,b->title,strlen(b->title),NULL);
 			txt2=convert_string(ct,b->url,strlen(b->url),NULL);
 			txt11=convert_to_entity_string(txt1);

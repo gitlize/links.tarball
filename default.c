@@ -859,119 +859,119 @@ unsigned char *printhelp_cmd(struct option *o, unsigned char ***argv, int *argc)
  */
 fprintf(stdout, "%s%s%s%s%s%s\n", 
 
-("links [options] URL\n\
-Options are:\n\
-\n\
- -g\n\
-  Run in graphics mode.\n\
-\n\
- -no-g\n\
-  Run in text mode (overrides previous -g).\n\
-\n\
- -driver <driver name>\n\
-  Graphics driver to use. Drivers are: x, svgalib, fb, directfb, pmshell,
-  atheos.\n\
-  Available drivers depend on your operating system and available libraries.\n\
-\n\
- -mode <graphics mode>\n\
-  Graphics mode. For SVGALIB it is in format COLUMNSxROWSxCOLORS --\n\
-  for example 640x480x256, 800x600x64k, 1024x768x16M32\n\
-\n\
- -async-dns <0>/<1>\n\
-  Asynchronous DNS resolver on(1)/off(0). \n\
-\n\
- -max-connections <max>\n\
-  Maximum number of concurrent connections.\n\
-  (default: 10)\n\
-\n"),
-(" -max-connections-to-host <max>\n\
-  Maximum number of concurrent connection to a given host.\n\
-  (default: 2)\n\
-\n\
- -retries <retry>\n\
-  Number of retries.\n\
-  (default: 3)\n\
-\n\
- -receive-timeout <sec>\n\
-  Timeout on receive.\n\
-  (default: 120)\n\
-\n"),
-(" -unrestartable-receive-timeout <sec>\n\
-  Timeout on non restartable connections.\n\
-  (default: 600)\n\
-\n\
- -format-cache-size <num>\n\
-  Number of formatted document pages cached.\n\
-  (default: 5)\n\
-\n\
- -memory-cache-size <bytes>\n\
-  Cache memory in bytes.\n\
-  (default: 1048576)\n\
-\n\
- -image-cache-size <bytes>\n\
-  Cache memory in bytes.\n\
-  (default: 1048576)\n\
-\n"),
-(" -http-proxy <host:port>\n\
-  Host and port number of the HTTP proxy, or blank.\n\
-  (default: blank)\n\
-\n\
- -ftp-proxy <host:port>\n\
-  Host and port number of the FTP proxy, or blank.\n\
-  (default: blank)\n\
-\n\
- -download-dir <path>\n\
-  Default download directory.\n\
-  (default: actual dir)\n\
-\n"),
-(" -assume-codepage <codepage>\n\
-  Use the given codepage when the webpage did not specify\n\
-  its codepage. (default: ISO 8859-1)\n\
-\n\
- -anonymous\n\
-  Restrict links so that it can run on an anonymous account.\n\
-  No local file browsing. No downloads. Executing of viewers\n\
-  is allowed, but user can't add or modify entries in\n\
-  association table.\n\
-\n\
- -no-connect\n\
-  Runs links as a separate instance - instead of connecting to\n\
-  existing instance.\n\
-\n\
- -version\n\
-  Prints the links version number and exit.\n\
-\n\
- -help\n\
-  Prints this help screen\n\
-\n\
-\n"),
-("Keys:\n\
- 	ESC	  display menu\n\
-	^C	  quit\n\
-	^P        scroll up (text mode)\n\
-       	^N	  scroll down\n\
-	[, ]	  scroll left, right\n\
-	up, down  select link (text mode)\n\
-	->	  follow link (text mode), scroll right (graphics mode)\n\
-	<-	  go back (text mode), scroll left (graphics mode)\n\
-	z	  go back\n\
-	g	  go to url\n\
-	G	  go to url based on current url\n\
-	^G	  go to url based on current link\n\
-	/	  search\n\
-	?	  search back\n\
-	n	  find next\n\
-	N	  find previous\n\
-	=	  document info\n\
-	\\	  document source\n\
-	d	  download\n\
-	q	  quit or close current window\n\
-	Ctrl-INS  copy to clipboard (OS/2 only)\n\
-	Shift-DEL cut to clipboard (OS/2 only)\n\
-	Shift-INS paste clipboard (OS/2 only)\n\
-	Alt-1 .. Alt-9\n\
-		  switch virtual screens (svgalib and framebuffer)\n\
-"));
+("links [options] URL\n"
+"Options are:\n"
+"\n"
+" -g\n"
+"  Run in graphics mode.\n"
+"\n"
+" -no-g\n"
+"  Run in text mode (overrides previous -g).\n"
+"\n"
+" -driver <driver name>\n"
+"  Graphics driver to use. Drivers are: x, svgalib, fb, directfb, pmshell,"
+"  atheos.\n"
+"  Available drivers depend on your operating system and available libraries.\n"
+"\n"
+" -mode <graphics mode>\n"
+"  Graphics mode. For SVGALIB it is in format COLUMNSxROWSxCOLORS --\n"
+"  for example 640x480x256, 800x600x64k, 1024x768x16M32\n"
+"\n"
+" -async-dns <0>/<1>\n"
+"  Asynchronous DNS resolver on(1)/off(0). \n"
+"\n"
+" -max-connections <max>\n"
+"  Maximum number of concurrent connections.\n"
+"  (default: 10)\n"
+"\n"),
+(" -max-connections-to-host <max>\n"
+"  Maximum number of concurrent connection to a given host.\n"
+"  (default: 2)\n"
+"\n"
+" -retries <retry>\n"
+"  Number of retries.\n"
+"  (default: 3)\n"
+"\n"
+" -receive-timeout <sec>\n"
+"  Timeout on receive.\n"
+"  (default: 120)\n"
+"\n"),
+(" -unrestartable-receive-timeout <sec>\n"
+"  Timeout on non restartable connections.\n"
+"  (default: 600)\n"
+"\n"
+" -format-cache-size <num>\n"
+"  Number of formatted document pages cached.\n"
+"  (default: 5)\n"
+"\n"
+" -memory-cache-size <bytes>\n"
+"  Cache memory in bytes.\n"
+"  (default: 1048576)\n"
+"\n"
+" -image-cache-size <bytes>\n"
+"  Cache memory in bytes.\n"
+"  (default: 1048576)\n"
+"\n"),
+(" -http-proxy <host:port>\n"
+"  Host and port number of the HTTP proxy, or blank.\n"
+"  (default: blank)\n"
+"\n"
+" -ftp-proxy <host:port>\n"
+"  Host and port number of the FTP proxy, or blank.\n"
+"  (default: blank)\n"
+"\n"
+" -download-dir <path>\n"
+"  Default download directory.\n"
+"  (default: actual dir)\n"
+"\n"),
+(" -assume-codepage <codepage>\n"
+"  Use the given codepage when the webpage did not specify\n"
+"  its codepage. (default: ISO 8859-1)\n"
+"\n"
+" -anonymous\n"
+"  Restrict links so that it can run on an anonymous account.\n"
+"  No local file browsing. No downloads. Executing of viewers\n"
+"  is allowed, but user can't add or modify entries in\n"
+"  association table.\n"
+"\n"
+" -no-connect\n"
+"  Runs links as a separate instance - instead of connecting to\n"
+"  existing instance.\n"
+"\n"
+" -version\n"
+"  Prints the links version number and exit.\n"
+"\n"
+" -help\n"
+"  Prints this help screen\n"
+"\n"
+"\n"),
+("Keys:\n"
+" 	ESC	  display menu\n"
+"	^C	  quit\n"
+"	^P        scroll up (text mode)\n"
+"       	^N	  scroll down\n"
+"	[, ]	  scroll left, right\n"
+"	up, down  select link (text mode)\n"
+"	->	  follow link (text mode), scroll right (graphics mode)\n"
+"	<-	  go back (text mode), scroll left (graphics mode)\n"
+"	z	  go back\n"
+"	g	  go to url\n"
+"	G	  go to url based on current url\n"
+"	^G	  go to url based on current link\n"
+"	/	  search\n"
+"	?	  search back\n"
+"	n	  find next\n"
+"	N	  find previous\n"
+"	=	  document info\n"
+"	\\	  document source\n"
+"	d	  download\n"
+"	q	  quit or close current window\n"
+"	Ctrl-INS  copy to clipboard (OS/2 only)\n"
+"	Shift-DEL cut to clipboard (OS/2 only)\n"
+"	Shift-INS paste clipboard (OS/2 only)\n"
+"	Alt-1 .. Alt-9\n"
+"		  switch virtual screens (svgalib and framebuffer)\n"
+));
 
 	fflush(stdout);
 	return "";
@@ -1019,7 +1019,7 @@ long image_cache_size = 1048576;
 int enable_html_tables = 1;
 int enable_html_frames = 1;
 
-struct document_setup dds = { 0, 0, 1, 1, 0, 3, 0, 0, 18, 1, 100 };
+struct document_setup dds = { 0, 0, 1, 1, 0, 3, 0, 0, 0, 18, 1, 100 };
 
 struct rgb default_fg = { 191, 191, 191 };
 struct rgb default_bg = { 0, 0, 0 };
@@ -1055,7 +1055,7 @@ unsigned char download_dir[MAX_STR_LEN] = "";
 unsigned char default_anon_pass[MAX_STR_LEN] = "somebody@host.domain";
 
 /* These are workarounds for some CGI script bugs */
-struct http_bugs http_bugs = { 0, 1, 1, 0, 0 };
+struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 1 };
 /*int bug_302_redirect = 0;*/
 	/* When got 301 or 302 from POST request, change it to GET
 	   - this violates RFC2068, but some buggy message board scripts rely on it */
@@ -1102,6 +1102,7 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_post_no_keepalive, "http_bugs.bug_post_no_keepalive", "http-bugs.bug-post-no-keepalive"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.aggressive_cache, "http_bugs.aggressive_cache", "http-bugs.aggressive-cache"},
 	{1, gen_cmd, num_rd, num_wr, 0, 3, &referer, "http_referer", "http-referer"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, fake_useragent, "fake_useragent", "fake-user-agent"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, fake_referer, "fake_referer", "fake-referer"},
@@ -1153,6 +1154,7 @@ struct option html_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 1, 500, &dds.image_scale, "html_image_scale", "html-image-scale"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.num_links, "html_numbered_links", "html-numbered-links"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.table_order, "html_table_order", "html-table-order"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.auto_refresh, "html_auto_refresh", "html-auto-refresh"},
 	{1, gen_cmd, num_rd, num_wr, 0, 9, &dds.margin, "html_margin", "html-margin"},
 	{1, gen_cmd, num_rd, num_wr, 1, 999, &dds.font_size, "html_font_size", "html-user-font-size"},
 	{0, NULL, NULL, NULL, 0, 0, NULL, NULL, NULL},

@@ -278,3 +278,7 @@ Tamas Gervai <crown@tolna.net>
 Daniel Berlin <dan@cgsoftware.com>
 	Cookies can contain whitespace (fixes bugzilla)
 
+Thomas Klausner <tk@giga.or.at>
+	Support for 16-bit 565 RGB big endian
+	Fix for 24-bit RGB big endian
+

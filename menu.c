@@ -398,6 +398,11 @@ void menu_doc_info(struct terminal *term, void *ddd, struct session *ses)
 	state_msg(ses);
 }
 
+void menu_head_info(struct terminal *term, void *ddd, struct session *ses)
+{
+	head_msg(ses);
+}
+
 void menu_toggle(struct terminal *term, void *ddd, struct session *ses)
 {
 	toggle(ses, ses->screen, 0);
@@ -632,7 +637,7 @@ void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 
 #endif
 
-unsigned char *http_labels[] = { TEXT(T_USE_HTTP_10), TEXT(T_ALLOW_SERVER_BLACKLIST), TEXT(T_BROKEN_302_REDIRECT), TEXT(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT(T_DO_NOT_SEND_ACCEPT_CHARSET), TEXT(T_REFERER_NONE), TEXT(T_REFERER_SAME_URL), TEXT(T_REFERER_REAL), TEXT(T_REFERER_FAKE), TEXT(T_FAKE_USERAGENT), TEXT(T_FAKE_REFERER) };
+unsigned char *http_labels[] = { TEXT(T_USE_HTTP_10), TEXT(T_ALLOW_SERVER_BLACKLIST), TEXT(T_BROKEN_302_REDIRECT), TEXT(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT(T_DO_NOT_SEND_ACCEPT_CHARSET), TEXT(T_AGGRESSIVE_CACHE), TEXT(T_REFERER_NONE), TEXT(T_REFERER_SAME_URL), TEXT(T_REFERER_REAL), TEXT(T_REFERER_FAKE), TEXT(T_FAKE_USERAGENT), TEXT(T_FAKE_REFERER) };
 
 void httpopt_fn(struct dialog_data *dlg)
 {
@@ -669,10 +674,10 @@ void httpopt_fn(struct dialog_data *dlg)
 	y = dlg->y + DIALOG_TB + gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_checkboxes(dlg, term, dlg->items, dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, dlg->dlg->udata);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, http_labels[9], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, dlg->items + 9, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
-	dlg_format_text(dlg, term, http_labels[10], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_field(dlg, term, dlg->items + 10, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text(dlg, term, http_labels[dlg->n - 4], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_field(dlg, term, dlg->items + dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
+	dlg_format_text(dlg, term, http_labels[dlg->n - 3], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_field(dlg, term, dlg->items + dlg->n - 3, dlg->x + DIALOG_LB, &y, w, NULL, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, dlg->items + dlg->n - 2, 2, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
 }
@@ -682,8 +687,8 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	struct http_bugs *bugs = (struct http_bugs *)di->cdata;
 	struct dialog *d;
-	if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return 0;
-	memset(d, 0, sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
+	if (!(d = mem_alloc(sizeof(struct dialog) + 15 * sizeof(struct dialog_item)))) return 0;
+	memset(d, 0, sizeof(struct dialog) + 15 * sizeof(struct dialog_item));
 	d->title = TEXT(T_HTTP_BUG_WORKAROUNDS);
 	d->fn = httpopt_fn;
 	d->udata = http_labels;
@@ -708,40 +713,44 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[4].dlen = sizeof(int);
 	d->items[4].data = (void *)&bugs->no_accept_charset;
 	d->items[5].type = D_CHECKBOX;
-	d->items[5].gid = 1;
-	d->items[5].gnum = REFERER_NONE;
+	d->items[5].gid = 0;
 	d->items[5].dlen = sizeof(int);
-	d->items[5].data = (void *)&referer;
+	d->items[5].data = (void *)&bugs->aggressive_cache;
 	d->items[6].type = D_CHECKBOX;
 	d->items[6].gid = 1;
-	d->items[6].gnum = REFERER_SAME_URL;
+	d->items[6].gnum = REFERER_NONE;
 	d->items[6].dlen = sizeof(int);
 	d->items[6].data = (void *)&referer;
 	d->items[7].type = D_CHECKBOX;
 	d->items[7].gid = 1;
-	d->items[7].gnum = REFERER_REAL;
+	d->items[7].gnum = REFERER_SAME_URL;
 	d->items[7].dlen = sizeof(int);
 	d->items[7].data = (void *)&referer;
 	d->items[8].type = D_CHECKBOX;
 	d->items[8].gid = 1;
-	d->items[8].gnum = REFERER_FAKE;
+	d->items[8].gnum = REFERER_REAL;
 	d->items[8].dlen = sizeof(int);
 	d->items[8].data = (void *)&referer;
-	d->items[9].type = D_FIELD;
-	d->items[9].dlen = MAX_STR_LEN;
-	d->items[9].data = fake_useragent;
+	d->items[9].type = D_CHECKBOX;
+	d->items[9].gid = 1;
+	d->items[9].gnum = REFERER_FAKE;
+	d->items[9].dlen = sizeof(int);
+	d->items[9].data = (void *)&referer;
 	d->items[10].type = D_FIELD;
 	d->items[10].dlen = MAX_STR_LEN;
-	d->items[10].data = fake_referer;
-	d->items[11].type = D_BUTTON;
-	d->items[11].gid = B_ENTER;
-	d->items[11].fn = ok_dialog;
-	d->items[11].text = TEXT(T_OK);
+	d->items[10].data = fake_useragent;
+	d->items[11].type = D_FIELD;
+	d->items[11].dlen = MAX_STR_LEN;
+	d->items[11].data = fake_referer;
 	d->items[12].type = D_BUTTON;
-	d->items[12].gid = B_ESC;
-	d->items[12].fn = cancel_dialog;
-	d->items[12].text = TEXT(T_CANCEL);
-	d->items[13].type = D_END;
+	d->items[12].gid = B_ENTER;
+	d->items[12].fn = ok_dialog;
+	d->items[12].text = TEXT(T_OK);
+	d->items[13].type = D_BUTTON;
+	d->items[13].gid = B_ESC;
+	d->items[13].fn = cancel_dialog;
+	d->items[13].text = TEXT(T_CANCEL);
+	d->items[14].type = D_END;
  	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
@@ -1357,10 +1366,10 @@ void html_refresh(struct session *ses)
 }
 
 #ifdef G
-unsigned char *html_texts_g[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), TEXT(T_DISPLAY_LINKS_TO_IMAGES), TEXT(T_DISPLAY_IMAGES), TEXT(T_TEXT_MARGIN), "", TEXT(T_IGNORE_CHARSET_INFO_SENT_BY_SERVER), TEXT(T_USER_FONT_SIZE), TEXT(T_SCALE_ALL_IMAGES_BY) };
+unsigned char *html_texts_g[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), TEXT(T_DISPLAY_LINKS_TO_IMAGES), TEXT(T_DISPLAY_IMAGES), TEXT(T_AUTO_REFRESH), TEXT(T_TEXT_MARGIN), "", TEXT(T_IGNORE_CHARSET_INFO_SENT_BY_SERVER), TEXT(T_USER_FONT_SIZE), TEXT(T_SCALE_ALL_IMAGES_BY) };
 #endif
 
-unsigned char *html_texts[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), TEXT(T_DISPLAY_LINKS_TO_IMAGES), TEXT(T_LINK_ORDER_BY_COLUMNS), TEXT(T_NUMBERED_LINKS), TEXT(T_TEXT_MARGIN), "", TEXT(T_IGNORE_CHARSET_INFO_SENT_BY_SERVER) };
+unsigned char *html_texts[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), TEXT(T_DISPLAY_LINKS_TO_IMAGES), TEXT(T_LINK_ORDER_BY_COLUMNS), TEXT(T_NUMBERED_LINKS), TEXT(T_AUTO_REFRESH), TEXT(T_TEXT_MARGIN), "", TEXT(T_IGNORE_CHARSET_INFO_SENT_BY_SERVER) };
 
 int dlg_assume_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
@@ -1375,12 +1384,12 @@ void menu_html_options(struct terminal *term, void *xxx, struct session *ses)
 	
 	snprint(marg_str, 2, ses->ds.margin);
 	if (!F){
-		if (!(d = mem_alloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
+		if (!(d = mem_alloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item)))) return;
+		memset(d, 0, sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 #ifdef G
 	}else{
-		if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
+		if (!(d = mem_alloc(sizeof(struct dialog) + 15 * sizeof(struct dialog_item)))) return;
+		memset(d, 0, sizeof(struct dialog) + 15 * sizeof(struct dialog_item));
 		snprintf(html_font_str,4,"%d",ses->ds.font_size);
 		snprintf(image_scale_str,6,"%d",ses->ds.image_scale);
 #endif
@@ -1423,6 +1432,10 @@ void menu_html_options(struct terminal *term, void *xxx, struct session *ses)
 		d->items[a].dlen = sizeof(int);
 		a++;
 	}
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].data = (unsigned char *) &ses->ds.auto_refresh;
+	d->items[a].dlen = sizeof(int);
+	a++;
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = 2;
 	d->items[a].data = marg_str;
@@ -1975,6 +1988,7 @@ struct menu_item view_menu[] = {
 	{ "", "", M_BAR, NULL, NULL, 0, 0 },
 	{ TEXT(T_TOGGLE_HTML_PLAIN), "\\", TEXT(T_HK_TOGGLE_HTML_PLAIN), MENU_FUNC menu_toggle, NULL, 0, 0 },
 	{ TEXT(T_DOCUMENT_INFO), "=", TEXT(T_HK_DOCUMENT_INFO), MENU_FUNC menu_doc_info, NULL, 0, 0 },
+	{ TEXT(T_HEADER_INFO), "|", TEXT(T_HK_HEADER_INFO), MENU_FUNC menu_head_info, NULL, 0, 0 },
 	{ TEXT(T_FRAME_AT_FULL_SCREEN), "f", TEXT(T_HK_FRAME_AT_FULL_SCREEN), MENU_FUNC menu_for_frame, (void *)set_frame, 0, 0 },
 	{ "", "", M_BAR, NULL, NULL, 0, 0 },
 	{ TEXT(T_HTML_OPTIONS), "", TEXT(T_HK_HTML_OPTIONS), MENU_FUNC menu_html_options, (void *)0, 0, 0 },
