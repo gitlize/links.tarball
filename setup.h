@@ -15,7 +15,7 @@
  *		 2=leaky, ruda zona, alloc, realloc a free patterny
  *		-1=tajny level ;-)
  */
-#define DEBUGLEVEL			2
+#define DEBUGLEVEL			1
 
 #if DEBUGLEVEL >= 1
 #define DEBUG

@@ -158,6 +158,7 @@ void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, uns
 		unsigned char *data = stracpy(get_url_data(url));
 		unsigned char *d = strrchr(data, '/');
 		if (d) d[1] = 0;
+		else data[0] = 0;
 		a->directory = data;
 	} else a->directory = NULL;
 	a->proxy = proxy;

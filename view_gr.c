@@ -1064,6 +1064,20 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				set_frame(ses, fd, 0);
 				return 2;
 			}
+			if (ev->x == '#') {
+				ses->ds.images ^= 1;
+				html_interpret_recursive(fd);
+				ses->ds.images ^= 1;
+				return 1;
+			}
+			if (ev->x == 'i' && !(ev->y & KBD_ALT)) {
+				if (!F || fd->f_data->opt.plain != 2) frm_view_image(ses, fd);
+				return 2;
+			}
+			if (ev->x == 'I' && !(ev->y & KBD_ALT)) {
+				if (!anonymous) frm_download_image(ses, fd);
+				return 2;
+			}
 			if (upcase(ev->x) == 'D' && !(ev->y & KBD_ALT)) {
 				if (!anonymous) frm_download(ses, fd);
 				return 2;

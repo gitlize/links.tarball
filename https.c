@@ -6,6 +6,10 @@
 
 #include "links.h"
 
+#ifndef PATH_MAX
+#define PATH_MAX 255
+#endif
+
 #ifdef HAVE_SSL
 
 SSL_CTX *context = 0;

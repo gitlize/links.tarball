@@ -5,9 +5,7 @@
 
 #include "links.h"
 
-/*
-#define LOG_TRANSFER	"/tmp/log"
-*/
+/* #define LOG_TRANSFER	"/tmp/log" */
 
 #ifdef LOG_TRANSFER
 void log_data(unsigned char *data, int len)
@@ -147,7 +145,7 @@ void dns_found(struct connection *c, int state)
 	struct conn_info *b = c->buffer;
 	if (state) {
 		setcstate(c, S_NO_DNS);
-		retry_connection(c);
+		abort_connection(c);
 		return;
 	}
 	if ((s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {

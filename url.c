@@ -20,6 +20,7 @@ struct {
 		{"proxy", 3128, proxy_func, NULL, 0, 1, 1},
 		{"ftp", 21, ftp_func, NULL, 0, 1, 1},
 		{"finger", 79, finger_func, NULL, 0, 1, 1},
+		{"smb", 139, smb_func, NULL, 0, 1, 1},
 		{"mailto", 0, NULL, mailto_func, 0, 0, 0},
 		{"telnet", 0, NULL, telnet_func, 0, 0, 0},
 		{"tn3270", 0, NULL, tn3270_func, 0, 0, 0},
@@ -281,7 +282,9 @@ void translate_directories(unsigned char *url)
 		/*d = d1;
 		goto p;*/
 		b:
-		s += 3;
+		*d++ = *s;
+		if (s[3]) s += 4;
+		else s += 3;
 		goto r;
 	}
 	p:

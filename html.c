@@ -31,7 +31,7 @@ int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, in
 	if (*e == '/') e++;
 	if (!isA(*e)) return -1;
 	goto x1;
-	while (isA(*e)) {
+	while (isA(*e) || *e == '=') {
 		x1:
 		e++;
 		if (e >= eof) return -1;
@@ -863,7 +863,16 @@ void html_img(unsigned char *a)
 		if ((!(al = get_attr_val(a, "alt")) && !(al = get_attr_val(a, "title"))) || !*al) {
 			if (al) mem_free(al);
 			if (!d_opt->images && !format.link) goto ret;
-			if (usemap) al = stracpy("[USEMAP]");
+			if (d_opt->image_names && s) {
+				unsigned char *ss;
+				al = stracpy("[");
+				if (!(ss = strrchr(s, '/'))) ss = s;
+				else ss++;
+				add_to_strn(&al, ss);
+				if ((ss = strchr(al, '?'))) *ss = 0;
+				if ((ss = strchr(al, '&'))) *ss = 0;
+				add_to_strn(&al, "]");
+			} else if (usemap) al = stracpy("[USEMAP]");
 			else if (ismap) al = stracpy("[ISMAP]");
 			else al = stracpy("[IMG]");
 		}

@@ -1,3 +1,62 @@
+=== Release 2.1pre14
+
+Wed Nov  5 03:43:33 MET 2003 Wojciech Puchar <wojtek@tensor.3miasto.net>:
+
+	SunOS 4 portability fixes
+
+Thu Oct 30 11:10:26 MET 2003 Brain:
+
+	Fixed bug with moving bookmark directory into itself
+	Search in bookmarks, extensions and associations
+
+Mon Oct 27 23:28:32 MET 2003 mikulas:
+
+	FTP rest was broken after passive FTP
+
+Mon Oct 27 21:43:55 MET 2003 mikulas:
+
+	Support for smb:// urls. smbclient must be installed
+
+Mon Oct 27 02:51:46 MET 2003 mikulas:
+
+	Support for incomplete pasv addresses
+
+Sun Oct 26 15:37:13 MET 2003 mikulas:
+
+	Fixed blank page instead of directory redirect when using passive ftp
+
+Sat Oct 25 02:53:27 cet 2003 mikulas:
+
+	Do not send first ftp command until head is received
+
+Wed Oct 22 23:41:07 MET DST 2003 Andrei Paskevich <andrei@capet.iut-fbleau.fr>:
+
+	Image view & download with 'i', '*' to change inlined image display
+
+Wed Oct 22 21:00:28 MET DST 2003 mikulas:
+
+	Display image names
+
+Wed Oct 22 17:12:23 MET DST 2003 mikulas:
+
+	Better parsing of ftp directories
+
+Tue Oct 21 13:39:04 MET DST 2003 mikulas:
+
+	Fixed authorization not working when file was in top directory
+
+Mon Oct 20 16:33:47 GMT 2003 Serge Winitzki <serge@cosmos.phy.tufts.edu>:
+
+	Updated Russian translation
+
+Mon Oct 13 21:42:39 MET DST 2003 mikulas:
+
+	Allow broken html tags with '=' inside
+
+Mon Oct 13 03:58:59 MET DST 2003 mikulas:
+
+	Do not retry DNS failures
+
 === Release 2.1pre13
 
 Thu Oct  9 22:37:06 MET DST 2003 mikulas:

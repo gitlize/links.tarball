@@ -680,6 +680,33 @@ static inline int casecmp(unsigned char *c1, unsigned char *c2, int len)
 	return 0;
 }
 
+
+static inline int srch_cmp(unsigned char c1, unsigned char c2)
+{
+	return upcase(c1) != upcase(c2);
+}
+
+static inline int casestrstr(unsigned char *h, unsigned char *n)
+{
+	unsigned char *p;
+
+	for (p=h;*p;p++)
+	{
+		if (!srch_cmp(*p,*n));  /* same */
+		{
+			unsigned char *q, *r;
+			for (q=n, r=p;*r&&*q;)
+			{
+				if (!srch_cmp(*q,*r)) r++,q++;    /* same */
+				else break;
+			}
+			if (!*q) return 1;
+		}
+	}
+
+	return 0;
+}
+
 static inline int can_write(int fd)
 {
 	fd_set fds;
@@ -718,6 +745,7 @@ struct open_in_new {
 	void (*fn)(struct terminal *term, unsigned char *, unsigned char *);
 };
 
+void close_fork_tty();
 int get_system_env(void);
 int is_xterm(void);
 int can_twterm(void);
@@ -895,6 +923,7 @@ struct connection {
 	int sock1;
 	int sock2;
 	void *dnsquery;
+	pid_t pid;
 	int tries;
 	struct list_head statuss;
 	void *info;
@@ -1132,6 +1161,10 @@ void finger_func(struct connection *);
 extern int fast_ftp;
 extern int passive_ftp;
 void ftp_func(struct connection *);
+
+/* smb.c */
+
+void smb_func(struct connection *);
 
 /* mailto.c */
 
@@ -2104,7 +2137,7 @@ struct tag {
  */
 struct document_setup {
 	int assume_cp, hard_assume;
-	int tables, frames, images;
+	int tables, frames, images, image_names;
 	int margin;
 	int num_links, table_order;
 	int auto_refresh;
@@ -2124,7 +2157,7 @@ struct document_options {
 	int xw, yw; /* size of window */
 	int xp, yp; /* pos of window */
 	int col, cp, assume_cp, hard_assume;
-	int tables, frames, images, margin;
+	int tables, frames, images, image_names, margin;
 	int js_enable;
 	int plain;
 	int num_links, table_order;
@@ -2148,6 +2181,7 @@ static inline void ds2do(struct document_setup *ds, struct document_options *doo
 	doo->tables = ds->tables;
 	doo->frames = ds->frames;
 	doo->images = ds->images;
+	doo->image_names = ds->image_names;
 	doo->margin = ds->margin;
 	doo->num_links = ds->num_links;
 	doo->table_order = ds->table_order;
@@ -3216,14 +3250,11 @@ extern int utf8_2_uni_table[0x200];
 unsigned char *utf8_add(unsigned char *t, int i);
 int utf8_diff(unsigned char *t2, unsigned char *t1);
 
-static inline int srch_cmp(unsigned char c1, unsigned char c2)
-{
-	return upcase(c1) != upcase(c2);
-}
-
 extern int ismap_link, ismap_x, ismap_y;
 
 void frm_download(struct session *, struct f_data_c *);
+void frm_download_image(struct session *, struct f_data_c *);
+void frm_view_image(struct session *, struct f_data_c *);
 struct form_state *find_form_state(struct f_data_c *, struct form_control *);
 void fixup_select_state(struct form_control *fc, struct form_state *fs);
 int enter(struct session *ses, struct f_data_c *f, int a);
@@ -3920,6 +3951,8 @@ struct list_description{
 	void (*delete_item)(void *);  /* delete item, if next and prev are not NULL adjusts pointers in the list */
 	void (*copy_item)(void * /* old */, void * /* new */);  /* gets 2 allocated items, copies all item data except pointers from first item to second one, old data (in second item) will be destroyed */
 	unsigned char* (*type_item)(struct terminal *, void*, int /* 0=type whole item (e.g. when deleting item), 1=type only e.g title (in list window )*/);   /* alllocates buffer and writes item into it */
+	void *(*find_item)(void *start_item, unsigned char *string, int direction /* 1 or -1 */); /* returns pointer to the first item matching given string or NULL if failed. Search starts at start_item including. */
+	struct history *search_history;
 	int codepage;	/* codepage of all string */
 	int window_width;     /* main window width */
 	int n_items;   /* number of items in main window */
@@ -3940,6 +3973,8 @@ struct list_description{
 	int open;  /* 0=closed, 1=open */
 	int modified; /* listedit reports 1 when the list was modified by user (and should be e.g. saved) */
 	struct dialog_data *dlg;  /* current dialog, valid only when open==1 */ 
+	unsigned char *search_word;
+	int search_direction;
 };
 
 extern int create_list_window(struct list_description *,struct list *,struct terminal *,struct session *);

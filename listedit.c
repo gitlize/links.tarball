@@ -58,6 +58,7 @@
  * -							zavri adresar
  * mezera						toggle adresar
  * ins, *, 8, i						toggle oznacit
+ * ?, /, N, n						hledani nahoru, dolu, znova, znova na druhou stranu
  */
 
 /* 
@@ -614,6 +615,16 @@ int list_item_edit(struct dialog_data *dlg,struct dialog_item_data *useless)
 }
 
 
+static inline int is_parent(struct list_description *ld, struct list *item, struct list *parent)
+{
+	struct list *l;
+	
+	if (ld->type)
+		for (l=item;l->depth>=0;l=l->fotr) 
+			if (l==parent) return 1;
+	return 0;
+}	
+
 int list_item_move(struct dialog_data *dlg,struct dialog_item_data *useless)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
@@ -624,7 +635,12 @@ int list_item_move(struct dialog_data *dlg,struct dialog_item_data *useless)
 	int count=0;
 	useless=useless;
 	
-	ld->current_pos->type&=~4;  /* odznacime current_pos, kdyby nahodou byla oznacena */
+	if (ld->current_pos->type&4)  /* odznacime current_pos, kdyby nahodou byla oznacena */
+	{
+		count++;
+		ld->current_pos->type&=~4;
+	}
+
 	for (i=ld->list->next;i!=ld->list;)
 	{
 		struct list *next=next_in_tree(ld,i);
@@ -632,6 +648,13 @@ int list_item_move(struct dialog_data *dlg,struct dialog_item_data *useless)
 		struct list *behind_next=next_in_tree(ld,behind);	/* to se musi pocitat pokazdy, protoze by se nam mohlo stat, ze to je taky oznaceny */
 		struct list *item_last=next->prev; /* last item of moved block */
 
+		if (is_parent(ld, ld->current_pos, i)) /* we're moving directory into itself - let's behave like item was not selected */
+		{
+			i->type&=~4;
+			i=next;
+			count++;
+			continue;
+		}
 		if (!(i->type&4)){i=next;continue;}
 
 		if ((i->type&3)==3) /* dirty trick */
@@ -666,7 +689,7 @@ int list_item_move(struct dialog_data *dlg,struct dialog_item_data *useless)
 				do{
 					l=l->next;
 					l->depth+=a;
-				}while(l!=item_last);
+				} while(l!=item_last);
 			}
 		}
 		
@@ -1455,10 +1478,65 @@ void scroll_list(struct terminal *term, void *bla)
 }
 
 
+void list_find_next(struct redraw_data *rd, int direction)
+{
+	struct list_description *ld=rd->ld;
+	struct dialog_data *dlg=rd->dlg;
+	struct session *ses=(struct session *)(dlg->dlg->udata);
+	struct list* item;
+
+	if (!ld->search_word) {msg_box(ses->term, NULL, TEXT(T_SEARCH), AL_CENTER, TEXT(T_NO_PREVIOUS_SEARCH), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC); return;}
+	
+	if ((item=ld->find_item(ld->current_pos,ld->search_word,direction)))
+	{
+		struct list *l;
+		ld->current_pos=item;
+		ld->win_offset=item;
+		ld->win_pos=0;
+		if (ld->type)
+			for (l=item;l->depth>=0;l=l->fotr) 
+				if (l!=item) l->type|=2;
+
+		draw_to_window(dlg->win,redraw_list,rd);
+	}
+	else 
+		msg_box(ses->term, NULL, TEXT(T_SEARCH), AL_CENTER, TEXT(T_SEARCH_STRING_NOT_FOUND), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	
+}
+
+void list_search_for_back(struct redraw_data *rd, unsigned char *str)
+{
+	struct list_description *ld=rd->ld;
+	
+	if (!*str) return;
+	if (!ld->open) return;
+
+	if (ld->search_word) mem_free(ld->search_word);
+	ld->search_word = stracpy(str);
+	ld->search_direction = -1;
+
+	list_find_next(rd, ld->search_direction);
+}
+
+void list_search_for(struct redraw_data *rd, unsigned char *str)
+{
+	struct list_description *ld=rd->ld;
+	
+	if (!*str) return;
+	if (!ld->open) return;
+
+	if (ld->search_word) mem_free(ld->search_word);
+	ld->search_word = stracpy(str);
+	ld->search_direction = 1;
+
+	list_find_next(rd, ld->search_direction);
+}
+
 int list_event_handler(struct dialog_data *dlg, struct event *ev)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
-	struct redraw_data rd;
+	static struct redraw_data rd;
+	struct session *ses=(struct session *)(dlg->dlg->udata);
 
 	rd.ld=ld;
 	rd.dlg=dlg;
@@ -1499,6 +1577,39 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				draw_to_window(dlg->win,redraw_list,&rd);
 				return EVENT_PROCESSED;
 			}
+		}
+		if (ev->x=='/') /* search forward */
+		{
+			struct redraw_data *r;
+
+			if (!(r=mem_alloc(sizeof(struct redraw_data)))) return EVENT_NOT_PROCESSED;
+			r->ld=ld;
+			r->dlg=dlg;
+
+			input_field(ses->term, getml(r,NULL), TEXT(T_SEARCH), TEXT(T_SEARCH_FOR_TEXT), TEXT(T_OK), TEXT(T_CANCEL), r, ld->search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) list_search_for, NULL);
+			return EVENT_PROCESSED;
+		}
+		if (ev->x=='?') /* search back */
+		{
+			struct redraw_data *r;
+
+			if (!(r=mem_alloc(sizeof(struct redraw_data)))) return EVENT_NOT_PROCESSED;
+			r->ld=ld;
+			r->dlg=dlg;
+
+			input_field(ses->term, getml(r,NULL), TEXT(T_SEARCH_BACK), TEXT(T_SEARCH_FOR_TEXT), TEXT(T_OK), TEXT(T_CANCEL), r, ld->search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) list_search_for_back, NULL);
+			return EVENT_PROCESSED;
+		}
+		if (ev->x=='n') /* find next */
+		{
+			
+			list_find_next(&rd, ld->search_direction);
+			return EVENT_PROCESSED;
+		}
+		if (ev->x=='N') /* find prev */
+		{
+			list_find_next(&rd, - ld->search_direction);
+			return EVENT_PROCESSED;
 		}
 		if (ev->x==KBD_UP)
 		{
@@ -1875,6 +1986,8 @@ void close_list_window(struct dialog_data *dlg)
 
 	ld->open=0;
 	ld->dlg=NULL;
+	if (ld->search_word) mem_free(ld->search_word);
+	ld->search_word=NULL;
 }
 
 

@@ -287,26 +287,26 @@ void memory_info(struct terminal *term, void *d, struct session *ses)
 	r->data = d;
 	r->timer = -1;
 	p = message;
-	p += sprintf(p, "%ld %s", mem_amount, _(TEXT(T_MEMORY_ALLOCATED), term));
-	if (last_mem_amount != -1) p += sprintf(p, ", %s %ld, %s %ld", _(TEXT(T_LAST), term), last_mem_amount, _(TEXT(T_DIFFERENCE), term), mem_amount - last_mem_amount);
-	p += sprintf(p, ".");
+	sprintf(p, "%ld %s", mem_amount, _(TEXT(T_MEMORY_ALLOCATED), term)), p += strlen(p);
+	if (last_mem_amount != -1) sprintf(p, ", %s %ld, %s %ld", _(TEXT(T_LAST), term), last_mem_amount, _(TEXT(T_DIFFERENCE), term), mem_amount - last_mem_amount), p += strlen(p);
+	sprintf(p, "."), p += strlen(p);
 #if 0 && defined(MAX_LIST_SIZE)
 	if (last_mem_amount != -1) {
 		long i, j;
 		int l = 0;
 		for (i = 0; i < MAX_LIST_SIZE; i++) if (memory_list[i].p && memory_list[i].p != last_memory_list[i].p) {
 			for (j = 0; j < MAX_LIST_SIZE; j++) if (last_memory_list[j].p == memory_list[i].p) goto b;
-			if (!l) p += sprintf(p, "\n%s: ", _(TEXT(T_NEW_ADDRESSES), term)), l = 1;
-			else p += sprintf(p, ", ");
-			p += sprintf(p, "#%p of %d at %s:%d", memory_list[i].p, (int)memory_list[i].size, memory_list[i].file, memory_list[i].line);
+			if (!l) sprintf(p, "\n%s: ", _(TEXT(T_NEW_ADDRESSES), term)), p += strlen(p), l = 1;
+			else sprintf(p, ", "), p += strlen(p);
+			sprintf(p, "#%p of %d at %s:%d", memory_list[i].p, (int)memory_list[i].size, memory_list[i].file, memory_list[i].line), p += strlen(p);
 			if (p - message >= MSG_BUF - MSG_W) {
-				p += sprintf(p, "..");
+				sprintf(p, ".."), p += strlen(p);
 				break;
 			}
 			b:;
 		}
-		if (!l) p += sprintf(p, "\n%s", _(TEXT(T_NO_NEW_ADDRESSES), term));
-		p += sprintf(p, ".");
+		if (!l) sprintf(p, "\n%s", _(TEXT(T_NO_NEW_ADDRESSES), term)), p += strlen(p);
+		sprintf(p, "."), p += strlen(p);
 	}
 #endif
 	if (!(p = stracpy(message))) {
@@ -1483,10 +1483,10 @@ void html_refresh(struct session *ses)
 }
 
 #ifdef G
-unsigned char *html_texts_g[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), TEXT(T_DISPLAY_LINKS_TO_IMAGES), TEXT(T_DISPLAY_IMAGES), TEXT(T_AUTO_REFRESH), TEXT(T_TARGET_IN_NEW_WINDOW), TEXT(T_TEXT_MARGIN), "", TEXT(T_IGNORE_CHARSET_INFO_SENT_BY_SERVER), TEXT(T_USER_FONT_SIZE), TEXT(T_SCALE_ALL_IMAGES_BY) };
+unsigned char *html_texts_g[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), TEXT(T_DISPLAY_LINKS_TO_IMAGES), TEXT(T_DISPLAY_IMAGE_FILENAMES), TEXT(T_DISPLAY_IMAGES), TEXT(T_AUTO_REFRESH), TEXT(T_TARGET_IN_NEW_WINDOW), TEXT(T_TEXT_MARGIN), "", TEXT(T_IGNORE_CHARSET_INFO_SENT_BY_SERVER), TEXT(T_USER_FONT_SIZE), TEXT(T_SCALE_ALL_IMAGES_BY) };
 #endif
 
-unsigned char *html_texts[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), TEXT(T_DISPLAY_LINKS_TO_IMAGES), TEXT(T_LINK_ORDER_BY_COLUMNS), TEXT(T_NUMBERED_LINKS), TEXT(T_AUTO_REFRESH), TEXT(T_TARGET_IN_NEW_WINDOW), TEXT(T_TEXT_MARGIN), "", TEXT(T_IGNORE_CHARSET_INFO_SENT_BY_SERVER) };
+unsigned char *html_texts[] = { TEXT(T_DISPLAY_TABLES), TEXT(T_DISPLAY_FRAMES), TEXT(T_DISPLAY_LINKS_TO_IMAGES), TEXT(T_DISPLAY_IMAGE_FILENAMES), TEXT(T_LINK_ORDER_BY_COLUMNS), TEXT(T_NUMBERED_LINKS), TEXT(T_AUTO_REFRESH), TEXT(T_TARGET_IN_NEW_WINDOW), TEXT(T_TEXT_MARGIN), "", TEXT(T_IGNORE_CHARSET_INFO_SENT_BY_SERVER) };
 
 int dlg_assume_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
@@ -1501,8 +1501,8 @@ void menu_html_options(struct terminal *term, void *xxx, struct session *ses)
 	
 	snprint(marg_str, 2, ses->ds.margin);
 	if (!F){
-		if (!(d = mem_alloc(sizeof(struct dialog) + 13 * sizeof(struct dialog_item)))) return;
-		memset(d, 0, sizeof(struct dialog) + 13 * sizeof(struct dialog_item));
+		if (!(d = mem_alloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item)))) return;
+		memset(d, 0, sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
 #ifdef G
 	}else{
 		if (!(d = mem_alloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item)))) return;
@@ -1528,6 +1528,10 @@ void menu_html_options(struct terminal *term, void *xxx, struct session *ses)
 	a++;
 	d->items[a].type = D_CHECKBOX;
 	d->items[a].data = (unsigned char *) &ses->ds.images;
+	d->items[a].dlen = sizeof(int);
+	a++;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].data = (unsigned char *) &ses->ds.image_names;
 	d->items[a].dlen = sizeof(int);
 	a++;
 #ifdef G
@@ -2001,7 +2005,7 @@ struct menu_item file_menu211_clipb[] = {
 struct menu_item file_menu22[] = {
 	{ "", "", M_BAR, NULL, NULL, 0, 0} ,
 	{ TEXT(T_KILL_BACKGROUND_CONNECTIONS), "", TEXT(T_HK_KILL_BACKGROUND_CONNECTIONS), MENU_FUNC menu_kill_background_connections, (void *)0, 0, 0 },
-	{ TEXT(T_KILL_ALL_CONNECTIONS), "", TEXT(T_HK_KILL_ALL_CONNECTIONS), MENU_FUNC menu_kill_all_connections, (void *)0, 0, 0 },
+	{ TEXT(T_KILL_ALL_CONNECTIONS), "Ctrl-S", TEXT(T_HK_KILL_ALL_CONNECTIONS), MENU_FUNC menu_kill_all_connections, (void *)0, 0, 0 },
 	{ TEXT(T_FLUSH_ALL_CACHES), "", TEXT(T_HK_FLUSH_ALL_CACHES), MENU_FUNC flush_caches, (void *)0, 0, 0 },
 	{ TEXT(T_RESOURCE_INFO), "", TEXT(T_HK_RESOURCE_INFO), MENU_FUNC cache_inf, (void *)0, 0, 0 },
 #if 0

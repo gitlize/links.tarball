@@ -1295,6 +1295,7 @@ int compare_opt(struct document_options *o1, struct document_options *o2)
 	    o1->tables == o2->tables &&
 	    o1->frames == o2->frames &&
 	    o1->images == o2->images &&
+	    o1->image_names == o2->image_names &&
 	    o1->margin == o2->margin &&
 	    o1->js_enable == o2->js_enable &&
 	    o1->plain == o2->plain &&

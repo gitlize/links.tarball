@@ -187,6 +187,12 @@ void free_connection_data(struct connection *c)
 	if (c->sock1 != -1) set_handlers(c->sock1, NULL, NULL, NULL, NULL);
 	if (c->sock2 != -1) set_handlers(c->sock2, NULL, NULL, NULL, NULL);
 	close_socket(&c->sock2);
+	if (c->pid) {
+		kill(c->pid, SIGINT);
+		kill(c->pid, SIGTERM);
+		kill(c->pid, SIGKILL);
+		c->pid = 0;
+	}
 	if (!c->running) {
 		internal("connection already suspended");
 	}

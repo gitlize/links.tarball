@@ -298,6 +298,12 @@ int is_xterm(void)
 
 tcount resize_count = 0;
 
+void close_fork_tty()
+{
+	struct terminal *t;
+	foreach (t, terminals) if (t->fdin > 0) close(t->fdin);
+}
+
 #if defined(UNIX) || defined(WIN32) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS)
 
 #if defined(BEOS) && defined(HAVE_SETPGID)
@@ -1186,8 +1192,7 @@ int start_thread(void (*fn)(void *, int), void *ptr, int l)
 	fcntl(p[0], F_SETFL, O_NONBLOCK);
 	fcntl(p[1], F_SETFL, O_NONBLOCK);
 	if (!(f = fork())) {
-		struct terminal *t;
-		foreach (t, terminals) if (t->fdin > 0) close(t->fdin);
+		close_fork_tty();
 		close(p[0]);
 		fn(ptr, p[1]);
 		write(p[1], "x", 1);

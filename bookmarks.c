@@ -8,6 +8,12 @@
 
 #include "links.h"
 
+#define SEARCH_IN_URL
+
+#ifdef SEARCH_IN_URL
+#define SHOW_URL
+#endif
+
 int bookmarks_codepage=0;
 int can_write_bookmarks=0;	/* global flag if we can write bookmarks */
 
@@ -19,9 +25,13 @@ void bookmark_edit_item(struct dialog_data *,void *,void (*)(struct dialog_data 
 void bookmark_copy_item(void *, void *);
 void bookmark_goto_item(struct session *, void *);
 void *bookmark_default_value(struct session*, unsigned char);
+void *bookmark_find_item(void *start, unsigned char *str, int direction);
 void save_bookmarks(void);
 
 struct list bookmarks={&bookmarks,&bookmarks,0,-1,NULL};
+
+struct history bookmark_search_history = { 0, { &bookmark_search_history.items, &bookmark_search_history.items } };
+
 /* when you change anything, don't forget to change it in reinit_bookmarks too !*/
 
 struct bookmark_ok_struct{
@@ -55,6 +65,8 @@ struct list_description bookmark_ld=
 	bookmark_delete_item,	/* no codepage translations */
 	bookmark_copy_item,	/* no codepage translations */
 	bookmark_type_item,	/* no codepage translations (bookmarks are internally in UTF8) */
+	bookmark_find_item,
+	&bookmark_search_history,
 	0,		/* this is set in init_bookmarks function */
 	60,  /* width of main window */
 	15,  /* # of items in main window */
@@ -88,6 +100,7 @@ void free_bookmarks(void)
 	}
 
 	free_list(bookmarks);
+	free_list(bookmark_search_history.items);
 }
 
 
@@ -417,9 +430,12 @@ unsigned char *bookmark_type_item(struct terminal *term, void *data, int x)
 		return stracpy(_(TEXT(T_BOOKMARKS),term));
 
 	txt=stracpy(item->title);
+#ifdef SHOW_URL
+	x=0;
+#endif
 	if (!x&&!((item->type)&1))
 	{
-		add_to_strn(&txt," (");
+		add_to_strn(&txt,"   (");
 		if (item->url)add_to_strn(&txt,item->url);
 		add_to_strn(&txt,")");
 	}
@@ -456,6 +472,41 @@ void bookmark_delete_item(void *data)
 	mem_free(item);
 }
 
+
+void * bookmark_find_item(void *start, unsigned char *str, int direction)
+{
+	struct bookmark_list *b,*s=(struct bookmark_list *)start;
+	
+	
+	if (direction==1)
+	{
+		for (b=s->next; b!=s; b=b->next)
+			if (b->depth>-1)
+			{
+				if (b->title && casestrstr(b->title,str)) return b;
+#ifdef SEARCH_IN_URL
+				if (b->url && casestrstr(b->url,str)) return b; 
+#endif
+			}
+	}
+	else
+	{
+		for (b=s->prev; b!=s; b=b->prev)
+			if (b->depth>-1)
+			{
+				if (b->title && casestrstr(b->title,str)) return b;
+#ifdef SEARCH_IN_URL
+				if (b->url && casestrstr(b->url,str)) return b; 
+#endif
+			}
+	}
+	if (b==s&&b->depth>-1&&b->title && casestrstr(b->title,str)) return b;
+#ifdef SEARCH_IN_URL
+	if (b==s&&b->depth>-1&&b->url && casestrstr(b->url,str)) return b; 
+#endif
+
+	return NULL;
+}
 
 
 /* returns previous item in the same folder and with same the depth, or father if there's no previous item */

@@ -29,7 +29,6 @@
 #include "struct.h"
 #include "ipret.h"
 
-extern int js_durchfall;
 /*
 vypisuje to: jaky kod byl zarazen do fronty. jaky kod byl predan interpretu do js_execute_code. jaky kod byl vykonan a ukoncen intepretem jsint_done_execution
 #define TRACE_EXECUTE
@@ -3759,11 +3758,15 @@ void js_downcall_game_over(void *context)
 	 * Tato hlaska me srala. Na to bych neprisel, ze jsem prave zabil
 	 * rucne javascript. */
 	if (fd->ses->default_status)mem_free(fd->ses->default_status),fd->ses->default_status=NULL; /* pekne uklidime bordylek, ktery nam BFU nacintalo do status lajny */
+	jsint_destroy(fd);
+#if 0
 	js_durchfall=0;
 	if(((js_context*)context)->running)
 		js_volej_kolbena(context);
 	/* Kolben - ale nespi mi - co s tim budeme delat? */
 	((js_context*)context)->running=0;
+#endif
+	
 }
 
 

@@ -15,10 +15,12 @@ void assoc_copy_item(void *, void *);
 void *assoc_default_value(struct session*, unsigned char);
 void *assoc_new_item(void *);
 void assoc_delete_item(void *);
+void *assoc_find_item(void *start, unsigned char *str, int direction);
 unsigned char *assoc_type_item(struct terminal *, void *, int);
 
 struct list assoc={&assoc,&assoc,0,-1,NULL};
 
+struct history assoc_search_history = { 0, { &assoc_search_history.items, &assoc_search_history.items } };
 
 struct assoc_ok_struct{
 	void (*fn)(struct dialog_data *,void *,void *,struct list_description *);
@@ -36,6 +38,8 @@ struct list_description assoc_ld={
 	assoc_delete_item,
 	assoc_copy_item,
 	assoc_type_item,
+	assoc_find_item,
+	&assoc_search_history,
 	0,		/* this is set in init_assoc function */
 	50,  /* width of main window */
 	10,  /* # of items in main window */
@@ -345,6 +349,35 @@ void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct d
 	do_dialog(term, d, getml(d, NULL));
 }
 
+void *assoc_find_item(void *start, unsigned char *str, int direction)
+{
+	struct assoc *a,*s=(struct assoc *)start;
+	
+	if (direction==1)
+	{
+		for (a=s->next; a!=s; a=a->next)
+			if (a->depth>-1)
+			{
+				if (a->label && casestrstr(a->label,str)) return a;
+				if (a->ct && casestrstr(a->ct,str)) return a;
+			}
+	}
+	else
+	{
+		for (a=s->prev; a!=s; a=a->prev)
+			if (a->depth>-1)
+			{
+				if (a->label && casestrstr(a->label,str)) return a;
+				if (a->ct && casestrstr(a->ct,str)) return a;
+			}
+	}
+	if (a==s&&a->depth>-1&&a->label && casestrstr(a->label,str)) return a;
+	if (a==s&&a->depth>-1&&a->ct && casestrstr(a->ct,str)) return a;
+
+	return NULL;
+}
+
+
 void update_assoc(struct assoc *new)
 {
 	struct assoc *repl;
@@ -376,9 +409,12 @@ void ext_copy_item(void *, void *);
 void *ext_default_value(struct session*, unsigned char);
 void *ext_new_item(void *);
 void ext_delete_item(void *);
+void *ext_find_item(void *start, unsigned char *str, int direction);
 unsigned char *ext_type_item(struct terminal *, void *, int);
 
 struct list extensions = { &extensions, &extensions, 0, -1, NULL };
+
+struct history ext_search_history = { 0, { &ext_search_history.items, &ext_search_history.items } };
 
 
 struct list_description ext_ld={
@@ -390,6 +426,8 @@ struct list_description ext_ld={
 	ext_delete_item,
 	ext_copy_item,
 	ext_type_item,
+	ext_find_item,
+	&ext_search_history,
 	0,		/* this is set in init_assoc function */
 	40,  /* width of main window */
 	8,  /* # of items in main window */
@@ -456,7 +494,7 @@ unsigned char *ext_type_item(struct terminal *term, void *data, int x)
 	struct conv_table *table;
 	struct extension* item=(struct extension*)data;
 
-	if ((struct list*)item==(&extensions))return stracpy(_(TEXT(T_FILE_EXTENSIONS),term));
+	if ((struct list*)item==(&extensions)) return stracpy(_(TEXT(T_FILE_EXTENSIONS),term));
 	txt=stracpy(item->ext);
 	if (item->ct){add_to_strn(&txt,": ");add_to_strn(&txt,item->ct);}
 	table=get_translation_table(assoc_ld.codepage,term->spec->charset);
@@ -615,6 +653,37 @@ void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dia
 	d->items[4].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
 }
+
+
+void *ext_find_item(void *start, unsigned char *str, int direction)
+{
+	struct extension *e,*s=(struct extension *)start;
+	
+	
+	if (direction==1)
+	{
+		for (e=s->next; e!=s; e=e->next)
+			if (e->depth>-1)
+			{
+				if (e->ext && casestrstr(e->ext,str)) return e;
+				if (e->ct && casestrstr(e->ct,str)) return e;
+			}
+	}
+	else
+	{
+		for (e=s->prev; e!=s; e=e->prev)
+			if (e->depth>-1)
+			{
+				if (e->ext && casestrstr(e->ext,str)) return e;
+				if (e->ct && casestrstr(e->ct,str)) return e;
+			}
+	}
+	if (e==s&&e->depth>-1&&e->ext && casestrstr(e->ext,str)) return e;
+	if (e==s&&e->depth>-1&&e->ct && casestrstr(e->ct,str)) return e;
+
+	return NULL;
+}
+
 
 void update_ext(struct extension *new)
 {
@@ -778,6 +847,9 @@ void free_types(void)
 	free_list(telnet_prog);
 	foreach(p, tn3270_prog) mem_free(p->prog);
 	free_list(tn3270_prog);
+
+	free_list(ext_search_history.items);
+	free_list(assoc_search_history.items);
 }
 
 void update_prog(struct list_head *l, unsigned char *p, int s)

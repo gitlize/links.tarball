@@ -1033,7 +1033,7 @@ long image_cache_size = 1048576;
 int enable_html_tables = 1;
 int enable_html_frames = 1;
 
-struct document_setup dds = { 0, 0, 1, 1, 0, 3, 0, 0, 0, 18, 1, 100, 0 };
+struct document_setup dds = { 0, 0, 1, 1, 0, 0, 3, 0, 0, 0, 18, 1, 100, 0 };
 
 struct rgb default_fg = { 191, 191, 191 };
 struct rgb default_bg = { 0, 0, 0 };
@@ -1167,6 +1167,7 @@ struct option html_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.tables, "html_tables", "html-tables"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.frames, "html_frames", "html-frames"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.images, "html_images", "html-images"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.image_names, "html_image_names", "html-image-names"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.display_images, "html_display_images", "html-display-images"},
 	{1, gen_cmd, num_rd, num_wr, 1, 500, &dds.image_scale, "html_image_scale", "html-image-scale"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.num_links, "html_numbered_links", "html-numbered-links"},

@@ -2221,7 +2221,14 @@ int frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 		else if (ev->x == KBD_HOME) rep_ev(ses, fd, home, 0);
 		else if (ev->x == KBD_END) rep_ev(ses, fd, x_end, 0);
 		else if (ev->x == KBD_RIGHT || ev->x == KBD_ENTER) x = enter(ses, fd, 0);
-		else if (upcase(ev->x) == 'D' && !(ev->y & KBD_ALT)) {
+		else if (ev->x == '*') {
+			ses->ds.images ^= 1; 
+			html_interpret_recursive(fd); 
+		} else if (ev->x == 'i' && !(ev->y & KBD_ALT)) {
+			if (!F || fd->f_data->opt.plain != 2) frm_view_image(ses, fd);
+		} else if (ev->x == 'I' && !(ev->y & KBD_ALT)) {
+			if (!anonymous) frm_download_image(ses, fd);
+		} else if (upcase(ev->x) == 'D' && !(ev->y & KBD_ALT)) {
 			if (!anonymous) frm_download(ses, fd);
 		} else if (ev->x == '/') search_dlg(ses, fd, 0);
 		else if (ev->x == '?') search_back_dlg(ses, fd, 0);
@@ -2626,6 +2633,34 @@ void frm_download(struct session *ses, struct f_data_c *fd)
 	}
 }
 
+void frm_view_image(struct session *ses, struct f_data_c *fd)
+{
+	struct link *link;
+	if (fd->vs->current_link == -1) return;
+	link = &fd->f_data->links[fd->vs->current_link];
+	if (link->type != L_LINK && link->type != L_BUTTON) return;
+	if (!link->where_img) return;
+	goto_url_not_from_dialog(ses, link->where_img);
+}
+
+void frm_download_image(struct session *ses, struct f_data_c *fd)
+{
+	struct link *link;
+	if (fd->vs->current_link == -1) return;
+	if (ses->dn_url) mem_free(ses->dn_url), ses->dn_url = NULL;
+	link = &fd->f_data->links[fd->vs->current_link];
+	if (link->type != L_LINK && link->type != L_BUTTON) return;
+	if (!link->where_img) return;
+	if ((ses->dn_url = stracpy(link->where_img))) {
+		if (!casecmp(ses->dn_url, "MAP@", 4)) {
+			mem_free(ses->dn_url);
+			ses->dn_url = NULL;
+			return;
+		}
+		query_file(ses, ses->dn_url, start_download, NULL);
+	}
+}
+
 void send_download_image(struct terminal *term, void *xxx, struct session *ses)
 {
 	struct f_data_c *fd = current_frame(ses);
@@ -2657,8 +2692,10 @@ void send_submit(struct terminal *term, void *xxx, struct session *ses)
 	if (fd->vs->current_link == -1) return;
 	if (!(form=(fd->f_data->links[fd->vs->current_link]).form)) return;
 	u=get_form_url(ses,fd,form,&has_onsubmit);
-	goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0,0);
-	mem_free(u);
+	if (u) {
+		goto_url_f(fd->ses,NULL,u,NULL,fd,form->form_num, has_onsubmit,0,0);
+		mem_free(u);
+	}
 	draw_fd(fd);
 }
 
@@ -2878,8 +2915,8 @@ void link_menu(struct terminal *term, void *xxx, struct session *ses)
 		}
 	}
 	if (link->where_img) {
-		if (!F || f->f_data->opt.plain != 2) add_to_menu(&mi, TEXT(T_VIEW_IMAGE), "", TEXT(T_HK_VIEW_IMAGE), MENU_FUNC send_image, NULL, 0);
-		if (!anonymous) add_to_menu(&mi, TEXT(T_DOWNLOAD_IMAGE), "", TEXT(T_HK_DOWNLOAD_IMAGE), MENU_FUNC send_download_image, NULL, 0);
+		if (!F || f->f_data->opt.plain != 2) add_to_menu(&mi, TEXT(T_VIEW_IMAGE), "i", TEXT(T_HK_VIEW_IMAGE), MENU_FUNC send_image, NULL, 0);
+		if (!anonymous) add_to_menu(&mi, TEXT(T_DOWNLOAD_IMAGE), "I", TEXT(T_HK_DOWNLOAD_IMAGE), MENU_FUNC send_download_image, NULL, 0);
 	}
 	x:
 	no_l:
