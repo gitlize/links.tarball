@@ -726,14 +726,19 @@ void create_initial_extensions(void)
 	ext.ext="avi",ext.ct="video/x-msvideo",update_ext(&ext);
 	ext.ext="deb",ext.ct="application/x-debian-package",update_ext(&ext);
 	ext.ext="dl",ext.ct="video/dl",update_ext(&ext);
+	ext.ext="dxf",ext.ct="application/dxf",update_ext(&ext);
 	ext.ext="dvi",ext.ct="application/x-dvi",update_ext(&ext);
 	ext.ext="fli",ext.ct="video/fli",update_ext(&ext);
+	ext.ext="g",ext.ct="application/brlcad",update_ext(&ext);
+	ext.ext="gbr",ext.ct="application/gerber",update_ext(&ext);
 	ext.ext="gif",ext.ct="image/gif",update_ext(&ext);
 	ext.ext="gl",ext.ct="video/gl",update_ext(&ext);
+	ext.ext="grb",ext.ct="application/gerber",update_ext(&ext);
 	ext.ext="jpg,jpeg,jpe",ext.ct="image/jpeg",update_ext(&ext);
 	ext.ext="mid,midi",ext.ct="audio/midi",update_ext(&ext);
 	ext.ext="mpeg,mpg,mpe",ext.ct="video/mpeg",update_ext(&ext);
 	ext.ext="pbm",ext.ct="image/x-portable-bitmap",update_ext(&ext);
+	ext.ext="pcb",ext.ct="application/pcb",update_ext(&ext);
 	ext.ext="pdf",ext.ct="application/pdf",update_ext(&ext);
 	ext.ext="pgm",ext.ct="image/x-portable-graymap",update_ext(&ext);
 	ext.ext="pgp",ext.ct="application/pgp-signature",update_ext(&ext);
@@ -745,7 +750,10 @@ void create_initial_extensions(void)
 	ext.ext="qt,mov",ext.ct="video/quicktime",update_ext(&ext);
 	ext.ext="ra,rm,ram",ext.ct="audio/x-pn-realaudio",update_ext(&ext);
 	ext.ext="rtf",ext.ct="application/rtf",update_ext(&ext);
+	ext.ext="sch",ext.ct="application/gschem",update_ext(&ext);
+	ext.ext="svg",ext.ct="image/svg",update_ext(&ext);
 	ext.ext="swf",ext.ct="application/x-shockwave-flash",update_ext(&ext);
+	ext.ext="sxw",ext.ct="application/x-openoffice",update_ext(&ext);
 	ext.ext="tga",ext.ct="image/targa",update_ext(&ext);
 	ext.ext="tiff,tif",ext.ct="image/tiff",update_ext(&ext);
 	ext.ext="wav",ext.ct="audio/x-wav",update_ext(&ext);
@@ -792,7 +800,8 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 		return ct;
 	}
 	ext = NULL, extl = 0;
-	for (ct = url; *ct && !end_of_dir(url, *ct); ct++)
+	if (!(ct = get_url_data(url))) ct = url;
+	for (; *ct && !end_of_dir(url, *ct); ct++)
 		if (*ct == '.') ext = ct + 1;
 		else if (dir_sep(*ct)) ext = NULL;
 	if (ext) while (ext[extl] && !dir_sep(ext[extl]) && !end_of_dir(url, ext[extl])) extl++;
@@ -800,7 +809,8 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 	    (extl == 4 && !casecmp(ext, "html", 4))) return stracpy("text/html");
 	foreach(e, extensions) {
 		unsigned char *fname = NULL;
-		for (ct = url; *ct && !end_of_dir(url, *ct); ct++)
+		if (!(ct = get_url_data(url))) ct = url;
+		for (; *ct && !end_of_dir(url, *ct); ct++)
 			if (dir_sep(*ct)) fname = ct + 1;
 		if (!fname) {
 			if (is_in_list(e->ext, ext, extl)) return stracpy(e->ct);

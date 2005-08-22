@@ -197,7 +197,7 @@ void delete_cookie(struct cookie *c)
 
 struct cookie *find_cookie_id(void *idp)
 {
-	long id = (long)idp;
+	long id = (my_intptr_t)idp;
 	struct cookie *c;
 	foreach(c, cookies) if (c->id == id) return c;
 	return NULL;

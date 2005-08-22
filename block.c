@@ -5,8 +5,12 @@ void block_delete_item(void* data);
 void block_copy_item(void *in, void *out);
 unsigned char *block_type_item(struct terminal *term, void *data, int x);
 extern void *assoc_default_value(struct session* ses, unsigned char type);
+void block_edit_abort(struct dialog_data *data);
+void block_edit_done(void *data);
+void block_edit_item_fn(struct dialog_data *dlg);
 void block_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title);
 void *block_find_item(void *start, unsigned char *str, int direction);
+int simple_glob_match(unsigned char* s, unsigned char* p);
 
 struct history block_search_histroy = { 0, {&block_search_histroy.items, &block_search_histroy.items} };
 
@@ -349,7 +353,7 @@ int is_url_blocked(unsigned char* url)
 	return 0;
 }
 
-void free_blocks()
+void free_blocks(void)
 {
 	/*List destructor */
 	struct block* b;

@@ -362,7 +362,6 @@ unsigned char *get_entity_string(unsigned char *st, int l, int encoding)
 				if (n >= 0x10000) return NULL;
 			} while (--l);
 		}
-		if (n < 32) n = 32;
 	} else {
 		int s = 0, e = N_ENTITIES - 1;
 		while (s <= e) {

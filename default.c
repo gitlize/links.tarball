@@ -107,6 +107,8 @@ unsigned char *force_html_cmd(struct option *, unsigned char ***, int *);
 unsigned char *dump_cmd(struct option *, unsigned char ***, int *);
 unsigned char *printhelp_cmd(struct option *, unsigned char ***, int *);
 unsigned char *_parse_options(int, unsigned char *[], struct option **);
+unsigned char *block_rd(struct option *, unsigned char *);
+void block_wr(struct option *, unsigned char **, int *);
 
 unsigned char *_parse_options(int argc, unsigned char *argv[], struct option **opt)
 {
@@ -1380,9 +1382,6 @@ int default_left_margin = HTML_LEFT_MARGIN;
 unsigned char http_proxy[MAX_STR_LEN] = "";
 unsigned char ftp_proxy[MAX_STR_LEN] = "";
 unsigned char no_proxy_for[MAX_STR_LEN] = "";
-unsigned char fake_useragent[MAX_STR_LEN] = "";
-unsigned char fake_referer[MAX_STR_LEN] = "";
-int referer;   /* values: REFERER_NONE (default), REFERER_SAME_URL, REFERER_FAKE */
 int js_enable=1;   /* 0=disable javascript */
 int js_verbose_errors=0;   /* 1=create dialog on every javascript error, 0=be quiet and continue */
 int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=be quiet and continue */
@@ -1396,10 +1395,10 @@ int aspect_on=1;
 
 unsigned char download_dir[MAX_STR_LEN] = "";
 
-unsigned char default_anon_pass[MAX_STR_LEN] = "somebody@host.domain";
+struct ftp_options ftp_options = { "somebody@host.domain", 0, 0 };
 
 /* These are workarounds for some CGI script bugs */
-struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 1 };
+struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 1, "", "", REFERER_NONE };
 /*int bug_302_redirect = 0;*/
 	/* When got 301 or 302 from POST request, change it to GET
 	   - this violates RFC2068, but some buggy message board scripts rely on it */
@@ -1448,12 +1447,12 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_post_no_keepalive, "http_bugs.bug_post_no_keepalive", "http-bugs.bug-post-no-keepalive"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.aggressive_cache, "http_bugs.aggressive_cache", "http-bugs.aggressive-cache"},
-	{1, gen_cmd, num_rd, num_wr, 0, 3, &referer, "http_referer", "http-referer"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, fake_useragent, "fake_useragent", "fake-user-agent"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, fake_referer, "fake_referer", "fake-referer"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, default_anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &passive_ftp, "ftp.use_passive", "ftp.use-passive"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &fast_ftp, "ftp.fast", "ftp.fast"},
+	{1, gen_cmd, num_rd, num_wr, 0, 3, &http_bugs.referer, "http_referer", "http-referer"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_bugs.fake_useragent, "fake_useragent", "fake-user-agent"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_bugs.fake_referer, "fake_referer", "fake-referer"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, ftp_options.anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.passive_ftp, "ftp.use_passive", "ftp.use-passive"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.fast_ftp, "ftp.fast", "ftp.fast"},
 	{1, gen_cmd, num_rd, num_wr, 1, 999, &menu_font_size, "menu_font_size", "menu-font-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_BG_COLOR, "background_color", "background-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_FG_COLOR, "foreground_color", "foreground-color"},

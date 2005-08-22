@@ -24,6 +24,7 @@ static void smaz(vrchol*v)
 vrchol * terminal(void)
 {	return neterminal();
 /*vrchol * a=js_mem_alloc(sizeof(vrchol));
+	memset(a, 0, sizeof(vrchol));
 //	a->term=TERM;
 	smaz(a);
 	js_last=a;
@@ -31,6 +32,7 @@ vrchol * terminal(void)
 }
 vrchol * neterminal(void)
 {	vrchol * a=js_mem_alloc(sizeof(vrchol));
+	memset(a, 0, sizeof(vrchol));
 /*	a->term=NETERM;*/
 	a->prev=previous;
 	previous=a;

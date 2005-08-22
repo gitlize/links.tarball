@@ -81,6 +81,11 @@ js_context * js_context_ptr;
 extern vrchol*js_strom;
 extern vrchol*js_last;
 
+int mygetc(FILE *);
+int myungetc(int, FILE *);
+long civilize(char*);
+int f(void);
+
 int mygetc(FILE *stream)
 {	int i=EOF;
 	if(js_get_char<=js_get_char_upto)i=*js_get_char++;
@@ -109,7 +114,7 @@ long civilize(char* string)
 	int i=0,j=0,k;
 	while(string[i])
 	{	while(string[i]&&string[i]!='\\') { result[j++]=string[i++];}
-		if(string[i])
+		if(string[i]&&string[i+1])
 		{	switch(string[++i])
 			{	case 'n':
 				case 'r':
@@ -631,7 +636,6 @@ int f(void){return 0;}
 a (f)ungetc, aby to fungovalo. js_create_context a js_destroy_context budou
 jinde.*/
 
-extern vrchol*js_strom;
 static vrchol*pom_js_strom;
 vrchol* previous;/*Tady se bude ukladat pointer na posledni allokovany kus stromu*/
 

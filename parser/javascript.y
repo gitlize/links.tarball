@@ -285,7 +285,7 @@ AssignmentExpression:
 #endif
 	pom_vrchol=neterminal();
 	pom_vrchol->opcode=TFUNCTIONDECL;
-	pom_vrchol->arg[0]=neterminal();
+	/*pom_vrchol->arg[0]=neterminal();*/
 	pom_vrchol->arg[0]=0;
 	pom_vrchol->arg[1]=(void*)$3;
 	pom_vrchol->arg[2]=(void*)$5;

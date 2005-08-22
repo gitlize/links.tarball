@@ -175,8 +175,6 @@ typedef struct _parlist {
 void my_itoa(char*,long);
 vrchol*terminal(void);
 vrchol*neterminal(void);
-extern js_context* js_create_context(void*,long);
-extern void js_destroy_context(js_context*);
 void ipret(js_bordylek*);
 lns*lookup(long,plns*,js_context*);
 lns*create(long,plns*,js_context*);

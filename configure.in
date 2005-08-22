@@ -5,15 +5,7 @@
 
 AC_INIT(main.c)
 
-<<<<<<< configure.in
-<<<<<<< configure.in
-AM_INIT_AUTOMAKE(links, 2.1pre15)
-=======
-AM_INIT_AUTOMAKE(links, 2.1pre16)
->>>>>>> 1.111
-=======
-AM_INIT_AUTOMAKE(links, 2.1pre17)
->>>>>>> 1.116
+AM_INIT_AUTOMAKE(links, 2.1pre18)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -73,6 +65,7 @@ AC_CHECK_HEADERS(sys/cygwin.h)
 AC_CHECK_HEADERS(io.h)
 AC_CHECK_HEADERS(setjmp.h)
 AC_CHECK_HEADERS(langinfo.h)
+AC_CHECK_HEADERS(md5.h)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -163,10 +156,13 @@ fi
 dnl Checks for libraries.
 AC_CHECK_LIB(m, atan)
 
+AC_CHECK_LIB(md, MD5Data)
+AC_HAVE_FUNCS(MD5Init MD5Data)
+
 AC_CHECK_FUNC(socket, cf_result=yes, cf_result=no)
 if test "$cf_result" = no; then
-	AC_CHECK_LIB(socket, socket, cf_result=yes, cf_result=no)
-	if test "$cf_result" = no; then
+	AC_CHECK_LIB(socket, socket)
+	if test "$ac_cv_lib_socket_socket" = no; then
 		AC_ERROR([socket function not present])
 	fi
 fi
@@ -180,16 +176,12 @@ fi
 #AC_MSG_RESULT($cf_result)
 AC_CHECK_FUNC(gethostbyname, cf_result=yes, cf_result=no)
 if test "$cf_result" = no; then
-	AC_CHECK_LIB(socket, gethostbyname, cf_result=yes, cf_result=no)
-	if test "$cf_result" = no; then
-		AC_CHECK_LIB(nsl, gethostbyname, cf_result=yes, cf_result=no)
-		if test "$cf_result" = no; then
+	AC_CHECK_LIB(socket, gethostbyname)
+	if test "$ac_cv_lib_socket_gethostbyname" = no; then
+		AC_CHECK_LIB(nsl, gethostbyname)
+		if test "$ac_cv_lib_nsl_gethostbyname" = no; then
 			AC_ERROR([gethostbyname function not present])
-		else
-			test -z "`echo $LIBS | grep -- -lnsl`" && LIBS="$LIBS -lnsl"
 		fi
-	else
-		test -z "`echo $LIBS | grep -- -lsocket`" && LIBS="$LIBS -lsocket"
 	fi
 fi
 AC_CHECK_FUNC(gethostbyaddr, AC_DEFINE(HAVE_GETHOSTBYADDR))

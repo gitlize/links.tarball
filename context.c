@@ -34,7 +34,7 @@ extern int js_durchfall;
 
 /* prototypes */
 void vymaz(js_id_name*namespace[]);
-void total_clearvar(lns *, js_context *, plns * );
+void total_clearvar(lns *, js_context *);
 
 
 js_context* js_create_context(void*p,long id)/*nevim co budu delat s tim p*/
@@ -121,9 +121,9 @@ void zrus_strom(vrchol*pom_vrchol) /* deletes intercode-tree */
 
 void del_ns(plns*,js_context*);
 
-void total_clearvar(lns*pna,js_context*context,plns*fotri)
+void total_clearvar(lns*pna,js_context*context)
 {	lns*zrusit;
-/*	plns*fotri;*/
+	plns*fotri;
 	switch(pna->type)
 	{	case UNDEFINED:
 		case NULLOVY:
@@ -143,6 +143,7 @@ void total_clearvar(lns*pna,js_context*context,plns*fotri)
 		case ADDRSPACEP:
 		case ARRAY:
 /*			fotri=((plns*)pna->value)->next;*/
+			fotri=context->fotrisko;
 			while(fotri && fotri!=(plns*)pna->value)
 				fotri=fotri->next;
 			if(!fotri /*&& ((plns*)pna->value)->next*/)
@@ -188,7 +189,7 @@ void del_ns(plns*pns,js_context*context) /* deletes table of keys and values of 
 			{	b=a->next;
 				if(a->type==PARLIST) 
 					my_internal("Too many parlists!\n",context) /* ;*/
-				else	total_clearvar(a,context,pns);
+				else	total_clearvar(a,context);
 				js_mem_free(a);
 				a=b;
 			}
@@ -288,7 +289,7 @@ void js_destroy_context(js_context* context)
 	while(ns1){
 		ns2=ns1->next;
 		del_ns(ns1,context);
-		ns1=ns2;
+		context->fotrisko=ns1=ns2;
 	}
 	/* To jsou deallokace promennych */
 	zrus_strom(context->js_tree);

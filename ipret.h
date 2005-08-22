@@ -21,3 +21,7 @@ float tofloat(abuf*,js_context*);
 int to32int(abuf*,js_context*);
 void js_error(char*,js_context*);
 int tobool(abuf*,js_context*);
+
+void mydowhile(js_context*);
+void mythrow(js_context*);
+void mycatch(js_context*);

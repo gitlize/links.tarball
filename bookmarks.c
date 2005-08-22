@@ -26,7 +26,6 @@ void bookmark_copy_item(void *, void *);
 void bookmark_goto_item(struct session *, void *);
 void *bookmark_default_value(struct session*, unsigned char);
 void *bookmark_find_item(void *start, unsigned char *str, int direction);
-void save_bookmarks(void);
 void free_bookmarks(void);
 void bookmark_edit_item_fn(struct dialog_data *);
 void bookmark_edit_done(void *);

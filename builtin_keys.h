@@ -179,6 +179,9 @@
 #define Cparent 88
 #define Cself 89
 #define Call 90
+#define Conkeydown 91
+#define Conkeypress 92
+#define Conkeyup 93
 
 /* Vsechno se udela tak, ze se jen vrati cislicko, ktere se nekde najde */
 

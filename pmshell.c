@@ -211,6 +211,7 @@ struct os2_key pm_vk_table[N_VK] = {
 MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 {
 	int k_usch, k_usvk, k_fsflags;
+	int scancode;
 	int key, flags;
 	struct pm_window *win;
 	RECTL wr, ur;
@@ -241,13 +242,14 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 			return 0;
 		case WM_CHAR:
 			k_fsflags = (int)mp1;
+			scancode = ((unsigned long)mp1 >> 24) & 0xff;
 			if (k_fsflags & (KC_KEYUP | KC_DEADKEY | KC_INVALIDCOMP)) return 0;
 			k_usch = (int)mp2 & 0xffff;
 			k_usvk = ((int)mp2 >> 16) & 0xffff;
 			/*printf("%08x, %08x\n", mp1, mp2);fflush(stdout);*/
 			flags = (k_fsflags & KC_SHIFT ? KBD_SHIFT : 0) | (k_fsflags & KC_CTRL ? KBD_CTRL : 0) | (k_fsflags & KC_ALT ? KBD_ALT : 0);
+			if (k_fsflags & KC_ALT && ((scancode >= 0x47 && scancode <= 0x49) || (scancode >= 0x4b && scancode <= 0x4d) || (scancode >= 0x4f && scancode <= 0x52))) return 0;
 			if ((k_fsflags & (KC_VIRTUALKEY | KC_CHAR)) == KC_VIRTUALKEY) {
-				if (k_fsflags & KC_ALT) return 0;
 				if (k_usvk < N_VK && (key = pm_vk_table[k_usvk].x)) {
 					flags |= pm_vk_table[k_usvk].y;
 					if (key == KBD_CTRL_C) flags &= ~KBD_CTRL;
@@ -267,7 +269,7 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 			if ((key & 0xdf) == 'C' && (flags & KBD_CTRL)) key = KBD_CTRL_C, flags &= ~KBD_CTRL;
 			s:
 			if (!key) return 0;
-			if (key >= 0) flags &= ~KBD_SHIFT;
+			/*if (key >= 0) flags &= ~KBD_SHIFT;*/
 			if (key >= 0x80 && pm_cp) {
 				if ((key = cp2u(key, pm_cp)) < 0) return 0;
 			}

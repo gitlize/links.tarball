@@ -41,6 +41,9 @@
 #define R_ALL		3
 #define R_GROUPS	4
 
+void get_align(char *, int *);
+void get_valign(char *, int *);
+void get_c_width(char *, int *, int);
 
 void get_align(char *attr, int *a)
 {
@@ -162,15 +165,11 @@ struct table {
 };
 
 /* prototype */
-void get_align(char *, int *);
-void get_valign(char *, int *);
-void get_c_width(char *, int *, int);
 void free_table(struct table *);
 void expand_cells(struct table *, int, int);
 struct table_cell *new_cell(struct table *, int, int);
 void new_columns(struct table *, int, int, int, int, int);
 void set_td_width(struct table *, int, int, int);
-unsigned char *skip_element(unsigned char *, unsigned char *, unsigned char *, int);
 void get_cell_widths(struct table *);
 void dst_width(int *, int, int, int *);
 int get_vline_width(struct table *, int);
@@ -587,6 +586,10 @@ struct table *parse_table(unsigned char *html, unsigned char *eof, unsigned char
 	if (!csp) csp = -1;
 	if ((rsp = get_num(t_attr, "rowspan")) == -1) rsp = 1;
 	if (!rsp) rsp = -1;
+	if (csp >= 0 && rsp >= 0 && csp * rsp > 100000) {
+		if (csp > 10) csp = -1;
+		if (rsp > 10) rsp = -1;
+	}
 	cell->colspan = csp;
 	cell->rowspan = rsp;
 	if (csp == 1) {
@@ -1659,13 +1662,25 @@ void table_get_list(struct g_object_table *o, void (*fn)(struct g_object *parent
 	}
 }
 
+void table_bg(struct text_attrib *ta, char bgstr[8])
+{
+	if (ta->bg.r + ta->bg.g * 3 + ta->bg.b * 5 > 9 * 128) strcpy(bgstr, "#000000");
+	else if (ta->fg.r > G_HTML_TABLE_FRAME_COLOR && ta->fg.g > G_HTML_TABLE_FRAME_COLOR && ta->fg.b > G_HTML_TABLE_FRAME_COLOR) {
+		unsigned char max = ta->fg.r;
+		if (ta->fg.g > max) max = ta->fg.g;
+		if (ta->fg.b > max) max = ta->fg.b;
+		max &= 0xff;
+		sprintf(bgstr, "#%02x%02x%02x", max, max, max);
+	} else sprintf(bgstr, "#%02x%02x%02x", G_HTML_TABLE_FRAME_COLOR, G_HTML_TABLE_FRAME_COLOR, G_HTML_TABLE_FRAME_COLOR);
+}
+
 void process_g_table(struct g_part *gp, struct table *t)
 {
 	int i, j;
 	int x, y;
 	struct g_object_table *o;
 	signed char *fv, *fh;
-	unsigned char bgstr[64];
+	unsigned char bgstr[8];
 	struct text_attrib *ta;
 	struct rgb dummy;
 	y = 0;
@@ -1700,15 +1715,7 @@ void process_g_table(struct g_part *gp, struct table *t)
 			return;
 		}
 	} else {
-		if (ta->bg.r + ta->bg.g * 3 + ta->bg.b * 5 > 9 * 128) strcpy(bgstr, "#000000");
-		else if (ta->fg.r > G_HTML_TABLE_FRAME_COLOR && ta->fg.g > G_HTML_TABLE_FRAME_COLOR && ta->fg.b > G_HTML_TABLE_FRAME_COLOR) {
-			unsigned char max = ta->fg.r;
-			if (ta->fg.g > max) max = ta->fg.g;
-			if (ta->fg.b > max) max = ta->fg.b;
-			max &= 0xff;
-			sprintf(bgstr, "#%02x%02x%02x", max, max, max);
-		} else sprintf(bgstr, "#%02x%02x%02x", G_HTML_TABLE_FRAME_COLOR, G_HTML_TABLE_FRAME_COLOR, G_HTML_TABLE_FRAME_COLOR);
-
+		table_bg(ta, bgstr);
 		if (!(t->frame_bg = get_background(NULL, bgstr))) {
 			free_table(t);
 			return;

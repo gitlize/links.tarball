@@ -21,12 +21,16 @@
 #include "ipret.h"
 #include "ns.h"
 #include "typy.h"
-
-extern int js_all_conversions;
+#include "tree.h"
 
 #undef MD5_CTX
 /*#undef MD5_CTX*/
+
+#if !defined(HAVE_MD5INIT) || !defined(HAVE_MD5DATA) || !defined(HAVE_MD5_H)
 #include "md5.h"
+#else
+#include <md5.h>
+#endif
 
 lns fotr_je_lotr;
 long js_lengthid/*=0*/;
@@ -160,7 +164,7 @@ static void schedule_me(void*data)
 	void*fdatac=context->ptr;
 	*(int*)faxoff->string2=-1;
 	js_mem_free(data);
-	jsint_execute_code(fdatac,kod,strlen(kod),-1,-1,-1);
+	jsint_execute_code(fdatac,kod,strlen(kod),-1,-1,-1, NULL);
 	if(!na_bordel)internal("Ztraceny text pri interpretovani!\n");
 	if(na_bordel->binec==kod)
 	{	pom=na_bordel->next;
@@ -422,6 +426,9 @@ void buildin_document(js_context*context,long id)
 	BIVAR("referer",Creferer,id,0);
 	BIVAR("title",Ctitle,id,0);
 	COLORVAR("vlinkColor",0xff0000);
+	BIVAR("onkeydown",Conkeydown,pna->mid,pna->handler);
+	BIVAR("onkeypress",Conkeypress,pna->mid,pna->handler);
+	BIVAR("onkeyup",Conkeyup,pna->mid,pna->handler);
 	/* NetChcip este umi:
 	 * applets, domain, embeds, height, images, width, URL */
 	context->lnamespace=context->lnamespace->next;
@@ -2760,6 +2767,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("defaultValue",CdefaultValue,pna->mid,pna->handler);
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",Cvalue,pna->mid,pna->handler);
+			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
+			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
+			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
 			BUILDSFCE("focus",Cfocus,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDSFCE("blur",Cblur,pna->mid);
@@ -2788,6 +2798,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("defaultValue",CdefaultValue,pna->mid,pna->handler);
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",Cvalue,pna->mid,pna->handler);
+			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
+			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
+			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
 			BUILDSFCE("focus",Cfocus,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDSFCE("blur",Cblur,pna->mid);
@@ -2816,6 +2829,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("defaultValue",CdefaultValue,pna->mid,pna->handler);
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",Cvalue,pna->mid,pna->handler);
+			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
+			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
+			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
 			BUILDSFCE("focus",Cfocus,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDSFCE("blur",Cblur,pna->mid);
@@ -2844,6 +2860,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			pomvar->value=0;
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",CdefaultValue,pna->mid,pna->handler);
+			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
+			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
+			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
 /*			BUILDSFCE("focus",Cfocus,pna->mid);
 			pomvar->handler=pna->handler; */
 			BUILDSFCE("click",Cclick,pna->mid);
@@ -2870,6 +2889,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			pomvar->value=0;
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",CdefaultValue,pna->mid,pna->handler);
+			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
+			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
+			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
 			BUILDSFCE("click",Cclick,pna->mid);
 			pomvar->handler=pna->handler;
 /*			BUILDSFCE("focus",Cfocus,pna->mid);
@@ -2920,6 +2942,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("defaultChecked",CdefaultChecked,pna->mid,pna->handler);
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",CdefaultValue,pna->mid,pna->handler);
+			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
+			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
+			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
 			BUILDSFCE("click",Cclick,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDFCE("toString",CtoString);
@@ -2949,6 +2974,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("length",Cradiolength,pna->mid,pna->handler);
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",CdefaultValue,pna->mid,pna->handler);
+			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
+			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
+			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
 			BUILDSFCE("click",Cclick,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDFCE("toString",CtoString);
@@ -2980,6 +3008,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("selectedIndex",CselectselectedIndex,pna->mid,pna->handler);
 /*			BIVAR1("text",Cselecttext,pna->mid,pna->handler);
 			BIVAR1("value",Cselectvalue,pna->mid,pna->handler);*/
+			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
+			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
+			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
 			BUILDFCE("toString",CtoString);
 			pomvar->handler=C_OBJ_select;
 
@@ -3818,7 +3849,7 @@ int iatobool(long typ, long value, js_context*context)
 void set_var_value(lns*pna,long typ, long value,js_context*context)
 {	abuf*pombuf;
 /*	float*pomfloat;*/
-	char*pomstr;
+	unsigned char*pomstr;
 	int pomint;
 	switch(pna->value)
 	{	case Cmatika:
@@ -3860,6 +3891,19 @@ void set_var_value(lns*pna,long typ, long value,js_context*context)
 			js_upcall_set_form_element_default_value(context->ptr,pna->handler,pna->mid,iatostring(typ,value,context));
 			idebug("Nastavena promenna CdefaultValue\n");
 		break;
+		case Conkeydown:
+		case Conkeypress:
+		case Conkeyup:
+			if (typ == FUNKCE && ((vrchol *)value)->opcode == TFUNCTIONDECL && ((vrchol *)value)->arg[0] && ((vrchol *)((vrchol *)value)->arg[0])->opcode == TIDENTIFIER) {
+				long key = (long)((vrchol *)((vrchol *)value)->arg[0])->arg[0];
+				pomstr = stracpy(key_2_name(key, context));
+				if (!pomstr) pomstr = stracpy("unknown");
+				add_to_strn(&pomstr, "(event)");
+			} else {
+				pomstr=iatostring(typ,value,context);
+			}
+			js_upcall_set_form_element_event_handler(context->ptr, pna->handler, pna->mid, pna->value, pomstr);
+			break;
 		case Chref:
 		case Clocation:
 			pomstr=iatostring(typ,value,context);
@@ -4030,6 +4074,9 @@ void kill_var(lns*pna)
 		case Cself:
 		case Cparent:
 		case Call:
+		case Conkeydown:
+		case Conkeypress:
+		case Conkeyup:
 		break;
 		default:
 			printf("%d - \n",(int)pna->value);

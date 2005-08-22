@@ -8,6 +8,10 @@
 
 #define format format_
 
+#ifdef G
+
+#include "links.h"
+
 /* prototypes */
 int gray (int, int, int);
 int too_near(int, int, int, int, int, int);
@@ -15,21 +19,19 @@ void separate_fg_bg(int *, int *, int *, int, int, int);
 unsigned char *make_html_font_name(int);
 int get_real_font_size(int size);
 
-
-#ifdef G
-
-#include "links.h"
-
-struct style *get_style_by_ta(struct text_attrib *, int *);
+struct style *get_style_by_ta(struct text_attrib *);
 void split_line_object(struct g_part *, struct g_object_text *, unsigned char *);
 void g_line_break(struct g_part *);
 void g_html_form_control(struct g_part *, struct form_control *);
 void do_image(struct g_part *, struct image_description *);
+void g_hr(struct g_part *p, struct hr_param *hr);
 void *g_html_special(struct g_part *, int, ...);
 void g_do_format(char *, char *, struct g_part *, unsigned char *);
 void g_scan_width(struct g_object **, int, int *);
 void g_scan_lines(struct g_object_line **, int, int *);
 void g_put_chars_conv(struct g_part *, unsigned char *, int);
+
+int g_nobreak;
 
 int get_real_font_size(int size)
 {
@@ -183,14 +185,13 @@ unsigned char *make_html_font_name(int attr)
 	return str;
 }
 
-struct style *get_style_by_ta(struct text_attrib *ta, int *font_size)
+struct style *get_style_by_ta(struct text_attrib *ta)
 {
 	int fg_r,fg_g,fg_b; /* sRGB 0-255 values */
 	int fs = get_real_font_size(ta->fontsize);
 	struct style*stl;
 	unsigned char *fontname;
 
-	if (font_size) *font_size = fs;
 	fg_r=ta->fg.r;
 	fg_g=ta->fg.g;
 	fg_b=ta->fg.b;
@@ -224,17 +225,38 @@ static inline int pw2(int a)
 
 void flush_pending_line_to_obj(struct g_part *p, int minheight)
 {
-	int i, pp, pos, w;
+	int i, pp, pos, w, lbl;
 	struct g_object_line *l = p->line;
 	struct g_object_area *a;
 	if (!l) {
 		return;
 	}
+	for (i = l->n_entries - 1; i >= 0; i--) {
+		struct g_object_text *go = (struct g_object_text *)l->entries[i];
+		if (go->draw == g_text_draw) {
+			int l;
+			while ((l = strlen(go->text)) && go->text[l - 1] == ' ') go->text[l - 1] = 0, go->xw -= g_char_width(go->style, ' ');
+			if (go->xw < 0) internal("xw(%d) < 0", go->xw);
+		}
+		if (!go->xw) continue;
+		break;
+	}
+	scan_again:
 	pp = 0;
 	w = minheight;
+	lbl = 0;
 	for (i = 0; i < l->n_entries; i++) {
+		int yy = l->entries[i]->y;
+		if (yy >= G_OBJ_ALIGN_SPECIAL) yy = 0;
 		pp += l->entries[i]->xw;
-		if (l->entries[i]->xw && l->entries[i]->yw > w) w = l->entries[i]->yw;
+		if (l->entries[i]->xw && l->entries[i]->yw + yy > w) w = l->entries[i]->yw + yy;
+		if (yy < lbl) lbl = yy;
+	}
+	if (lbl < 0) {
+		for (i = 0; i < l->n_entries; i++) {
+			if (l->entries[i]->y < G_OBJ_ALIGN_SPECIAL) l->entries[i]->y -= lbl;
+		}
+		goto scan_again;
 	}
 	if (par_format.align == AL_CENTER) pos = (rm(par_format) + par_format.leftmargin * G_HTML_MARGIN - pp) / 2;
 	else if (par_format.align == AL_RIGHT) pos = rm(par_format) - pp;
@@ -244,7 +266,13 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 	for (i = 0; i < l->n_entries; i++) {
 		l->entries[i]->x = pp;
 		pp += l->entries[i]->xw;
-		l->entries[i]->y = w - l->entries[i]->yw;
+		if (l->entries[i]->y < G_OBJ_ALIGN_SPECIAL) {
+			l->entries[i]->y = w - l->entries[i]->yw - l->entries[i]->y;
+		} else if (l->entries[i]->y == G_OBJ_ALIGN_TOP) {
+			l->entries[i]->y = 0;
+		} else if (l->entries[i]->y == G_OBJ_ALIGN_MIDDLE) {
+			l->entries[i]->y = (w - l->entries[i]->yw + 1) / 2;
+		}
 	}
 	l->x = 0;
 	l->xw = par_format.width;
@@ -277,10 +305,10 @@ void add_object_to_line(struct g_part *pp, struct g_object_line **lp, struct g_o
 		l->draw = g_line_draw;
 		l->destruct = g_line_destruct;
 		l->get_list = g_line_get_list;
-		l->x = 0;
+		/*l->x = 0;
 		l->y = 0;
 		l->xw = 0;
-		l->yw = 0;
+		l->yw = 0;*/
 		l->bg = pp->root->bg;
 		if (!go) {
 			*lp = l;
@@ -337,6 +365,7 @@ void split_line_object(struct g_part *p, struct g_object_text *text, unsigned ch
 		ptr[1] = 0;
 		esp = 0;
 	}
+	t2->y = text->y;
 	t2->style = g_clone_style(text->style);
 	t2->bg = text->bg;
 	t2->link_num = text->link_num;
@@ -416,10 +445,14 @@ void add_object(struct g_part *p, struct g_object *o)
 
 void g_line_break(struct g_part *p)
 {
+	if (g_nobreak) {
+		g_nobreak = 0;
+		return;
+	}
 	flush_pending_text_to_line(p);
 	if (!p->line) {
 		add_object_to_line(p, &p->line, NULL);
-		flush_pending_line_to_obj(p, p->current_font_size);
+		flush_pending_line_to_obj(p, get_real_font_size(format.fontsize));
 	} else /*if (p->w.pos || par_format.align == AL_NO)*/ {
 		flush_pending_line_to_obj(p, 0);
 	}
@@ -449,6 +482,13 @@ void g_html_form_control(struct g_part *p, struct form_control *fc)
 			fc->values[i] = dv;
 		}
 		*/
+	}
+	if (fc->type == FC_TEXTAREA) {
+		unsigned char *p;
+		for (p = fc->default_value; p[0]; p++) if (p[0] == '\r') {
+			if (p[1] == '\n') memcpy(p, p + 1, strlen(p)), p--;
+			else p[0] = '\n';
+		}
 	}
 	add_to_list(p->data->forms, fc);
 }
@@ -517,7 +557,7 @@ void do_image(struct g_part *p, struct image_description *im)
 	else {
 		im->link_num = link - p->data->links;
 		im->link_order = link->obj_order++;
-		if (link->img_alt)mem_free(link->img_alt);
+		if (link->img_alt) mem_free(link->img_alt);
 		link->img_alt = stracpy(im->alt);
 	}
 	io = insert_image(p, im);
@@ -581,6 +621,7 @@ void do_image(struct g_part *p, struct image_description *im)
 					link->type = L_LINK;
 					link->where = stracpy(ld->link);
 					link->target = stracpy(ld->target);
+					link->img_alt = stracpy(ld->label);
 					link->where_img = stracpy(im->url);
 #ifdef JS
 					if (ld->onclick || ld->ondblclick || ld->onmousedown || ld->onmouseup || ld->onmouseover || ld->onmouseout || ld->onmousemove) {
@@ -608,6 +649,30 @@ void do_image(struct g_part *p, struct image_description *im)
 	if (im->usemap) mem_free(im->usemap);
 }
 
+void g_hr(struct g_part *gp, struct hr_param *hr)
+{
+	unsigned char bgstr[8];
+	struct g_object_line *o;
+	o = mem_calloc(sizeof(struct g_object_line));
+	o->mouse_event = g_line_mouse;
+	o->draw = g_line_draw;
+	o->destruct = g_line_bg_destruct;
+	o->get_list = g_line_get_list;
+	/*o->x = 0;
+	o->y = 0;*/
+	o->xw = hr->width;
+	o->yw = hr->size;
+	table_bg(&format, bgstr);
+	o->bg = get_background(NULL, bgstr);
+	o->n_entries = 0;
+	flush_pending_text_to_line(gp);
+	/*flush_pending_line_to_obj(gp, get_real_font_size(format.fontsize));*/
+	add_object_to_line(gp, &gp->line, (struct g_object *)o);
+	line_breax = 0;
+	gp->cx = -1;
+}
+
+
 void *g_html_special(struct g_part *p, int c, ...)
 {
 	va_list l;
@@ -618,6 +683,7 @@ void *g_html_special(struct g_part *p, int c, ...)
 	struct image_description *im;
 	struct g_object_tag *tag;
 	struct refresh_param *rp;
+	struct hr_param *hr;
 	va_start(l, c);
 	switch (c) {
 		case SP_TAG:
@@ -642,7 +708,7 @@ void *g_html_special(struct g_part *p, int c, ...)
 			return convert_table;
 		case SP_USED:
 			va_end(l);
-			return (void *)!!p->data; /* cast to pointer from integer of different size */
+			return (void *)(my_intptr_t)!!p->data;
 		case SP_FRAMESET:
 			fsp = va_arg(l, struct frameset_param *);
 			va_end(l);
@@ -670,6 +736,16 @@ void *g_html_special(struct g_part *p, int c, ...)
 			va_end(l);
 			html_process_refresh(p->data, rp->url, rp->time);
 			break;
+		case SP_SET_BASE:
+			t = va_arg(l, unsigned char *);
+			va_end(l);
+			if (p->data) set_base(p->data, t);
+			break;
+		case SP_HR:
+			hr = va_arg(l, struct hr_param *);
+			va_end(l);
+			g_hr(p, hr);
+			break;
 		default:
 			va_end(l);
 			internal("html_special: unknown code %d", c);
@@ -680,7 +756,7 @@ void *g_html_special(struct g_part *p, int c, ...)
 unsigned char to_je_ale_prasarna[] = "";
 
 unsigned char *cached_font_face = to_je_ale_prasarna;
-struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0 };
+struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0, 0 };
 
 void g_put_chars(struct g_part *p, unsigned char *s, int l)
 {
@@ -692,6 +768,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 	}
 	while (par_format.align != AL_NO && p->cx == -1 && l && *s == ' ') s++, l--;
 	if (!l) return;
+	g_nobreak = 0;
 	if (p->cx < par_format.leftmargin * G_HTML_MARGIN) p->cx = par_format.leftmargin * G_HTML_MARGIN;
 	if (html_format_changed) {
 		if (memcmp(&ta_cache, &format, sizeof(struct text_attrib_beginning)) || xstrcmp(cached_font_face, format.fontface) || cached_font_face == to_je_ale_prasarna ||
@@ -706,7 +783,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 			}
 			memcpy(&ta_cache, &format, sizeof(struct text_attrib_beginning));
 			if (p->current_style) g_free_style(p->current_style);
-			p->current_style = get_style_by_ta(&format, &p->current_font_size);
+			p->current_style = get_style_by_ta(&format);
 		}
 		html_format_changed = 0;
 	}
@@ -718,11 +795,16 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 		t->draw = g_text_draw;
 		t->destruct = g_text_destruct;
 		t->get_list = NULL;
-		/*t->style = get_style_by_ta(format, &t->yw);*/
+		/*t->style = get_style_by_ta(format);*/
 		t->style = g_clone_style(p->current_style);
 		t->bg = NULL; /* FIXME!!! */
-		t->yw = p->current_font_size;
-		t->xw = 0;
+		t->yw = t->style->height;
+		/*t->xw = 0;
+		t->y = 0;*/
+		if (format.baseline) {
+			if (format.baseline < 0) t->y = -(t->style->height / 3);
+			if (format.baseline > 0) t->y = get_real_font_size(format.baseline) - (t->style->height / 2);
+		}
 		check_link:
 		if (last_link || last_image || last_form || format.link || format.image || format.form 
 		|| format.js_event || last_js_event
@@ -928,8 +1010,9 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	par_format.list_number = 0;
 	par_format.dd_margin = 0;
 	p->cx = -1;
+	g_nobreak = 1;
 	g_do_format(start, end, p, head);
-	/*nobreak = 0;*/
+	g_nobreak = 0;
 	line_breax = 1;
 	while (&html_top != e) {
 		kill_html_stack_item(&html_top);

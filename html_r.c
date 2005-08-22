@@ -159,6 +159,7 @@ void clear_formatted(struct f_data *scr)
 	if (scr->refresh) mem_free(scr->refresh);
 	jsint_destroy_document_description(scr);
 	if (scr->script_href_base) mem_free(scr->script_href_base);
+	free_js_event_spec(scr->js_event);
 }
 
 void destroy_formatted(struct f_data *scr)
@@ -648,7 +649,7 @@ void put_chars_conv(struct part *p, unsigned char *c, int l)
 
 void put_chars(struct part *p, unsigned char *c, int l)
 {
-	static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0 };
+	static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0, 0 };
 	static int bg_cache;
 	static int fg_cache;
 
@@ -854,6 +855,13 @@ void html_form_control(struct part *p, struct form_control *fc)
 		}
 		*/
 	}
+	if (fc->type == FC_TEXTAREA) {
+		unsigned char *p;
+		for (p = fc->default_value; p[0]; p++) if (p[0] == '\r') {
+			if (p[1] == '\n') memcpy(p, p + 1, strlen(p)), p--;
+			else p[0] = '\n';
+		}
+	}
 	add_to_list(p->data->forms, fc);
 }
 
@@ -899,8 +907,8 @@ void create_frame(struct frame_param *fp)
 
 void process_script(struct f_data *f, unsigned char *t)
 {
-	if (!d_opt->js_enable) return;
 	if (!f->script_href_base) f->script_href_base = stracpy(format.href_base);
+	if (!d_opt->js_enable) return;
 	if (t) {
 		unsigned char *u;
 		u = join_urls(f->script_href_base, t);
@@ -910,6 +918,11 @@ void process_script(struct f_data *f, unsigned char *t)
 		}
 	}
 	f->are_there_scripts = 1;
+}
+
+void set_base(struct f_data *f, unsigned char *t)
+{
+	if (!f->script_href_base) f->script_href_base = stracpy(format.href_base);
 }
 
 void html_process_refresh(struct f_data *f, unsigned char *url, int time)
@@ -944,7 +957,7 @@ void *html_special(struct part *p, int c, ...)
 		case SP_TABLE:
 			return convert_table;
 		case SP_USED:
-			return (void *)!!p->data; /* cast to pointer from integer of different size */
+			return (void *)(my_intptr_t)!!p->data;
 		case SP_FRAMESET:
 			fsp = va_arg(l, struct frameset_param *);
 			va_end(l);
@@ -967,6 +980,11 @@ void *html_special(struct part *p, int c, ...)
 			rp = va_arg(l, struct refresh_param *);
 			va_end(l);
 			html_process_refresh(p->data, rp->url, rp->time);
+			break;
+		case SP_SET_BASE:
+			t = va_arg(l, unsigned char *);
+			va_end(l);
+			if (p->data) set_base(p->data, t);
 			break;
 		default:
 			va_end(l);
@@ -1228,7 +1246,7 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 	eofff = end;
 	head = init_str(), hdl = 0;
 	if (ce->head) add_to_str(&head, &hdl, ce->head);
-	scan_http_equiv(start, end, &head, &hdl, &t, d_opt->plain ? NULL : &bg, d_opt->plain ? NULL : &bgcolor);
+	scan_http_equiv(start, end, &head, &hdl, &t, d_opt->plain ? NULL : &bg, d_opt->plain ? NULL : &bgcolor, &screen->js_event);
 	convert_table = get_convert_table(head, screen->opt.cp, screen->opt.assume_cp, &screen->cp, &screen->ass, screen->opt.hard_assume);
 	screen->opt.real_cp = screen->cp;
 	i = d_opt->plain; d_opt->plain = 0;

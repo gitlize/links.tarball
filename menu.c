@@ -397,7 +397,7 @@ void flush_caches(struct terminal *term, void *d, void *e)
 /* jde v historii o psteps polozek dozadu */
 void go_backwards(struct terminal *term, void *psteps, struct session *ses)
 {
-	long steps = (long) psteps;
+	long steps = (my_intptr_t) psteps;
 
 	/*if (ses->tq_goto_position)
 		--steps;
@@ -481,7 +481,7 @@ void menu_toggle(struct terminal *term, void *ddd, struct session *ses)
 
 void display_codepage(struct terminal *term, void *pcp, struct session *ses)
 {
-	long cp = (long)pcp;
+	long cp = (my_intptr_t)pcp;
 	struct term_spec *t = new_term_spec(term->term);
 	if (t) t->charset = cp;
 	cls_redraw_all_terminals();
@@ -489,7 +489,7 @@ void display_codepage(struct terminal *term, void *pcp, struct session *ses)
 
 void assumed_codepage(struct terminal *term, void *pcp, struct session *ses)
 {
-	long cp = (long)pcp;
+	long cp = (my_intptr_t)pcp;
 	ses->ds.assume_cp = cp;
 	redraw_terminal_cls(term);
 }
@@ -511,7 +511,7 @@ void charset_list(struct terminal *term, void *xxx, struct session *ses)
 
 void set_val(struct terminal *term, void *ip, int *d)
 {
-	*d = (long)ip;
+	*d = (my_intptr_t)ip;
 }
 
 void charset_sel_list(struct terminal *term, struct session *ses, int *ptr, int noutf8)
@@ -791,28 +791,28 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[5].gid = 1;
 	d->items[5].gnum = REFERER_NONE;
 	d->items[5].dlen = sizeof(int);
-	d->items[5].data = (void *)&referer;
+	d->items[5].data = (void *)&bugs->referer;
 	d->items[6].type = D_CHECKBOX;
 	d->items[6].gid = 1;
 	d->items[6].gnum = REFERER_SAME_URL;
 	d->items[6].dlen = sizeof(int);
-	d->items[6].data = (void *)&referer;
+	d->items[6].data = (void *)&bugs->referer;
 	d->items[7].type = D_CHECKBOX;
 	d->items[7].gid = 1;
 	d->items[7].gnum = REFERER_REAL;
 	d->items[7].dlen = sizeof(int);
-	d->items[7].data = (void *)&referer;
+	d->items[7].data = (void *)&bugs->referer;
 	d->items[8].type = D_CHECKBOX;
 	d->items[8].gid = 1;
 	d->items[8].gnum = REFERER_FAKE;
 	d->items[8].dlen = sizeof(int);
-	d->items[8].data = (void *)&referer;
+	d->items[8].data = (void *)&bugs->referer;
 	d->items[9].type = D_FIELD;
 	d->items[9].dlen = MAX_STR_LEN;
-	d->items[9].data = fake_useragent;
+	d->items[9].data = bugs->fake_useragent;
 	d->items[10].type = D_FIELD;
 	d->items[10].dlen = MAX_STR_LEN;
-	d->items[10].data = fake_referer;
+	d->items[10].data = bugs->fake_referer;
 	d->items[11].type = D_BUTTON;
 	d->items[11].gid = B_ENTER;
 	d->items[11].fn = ok_dialog;
@@ -868,20 +868,21 @@ void ftpopt_fn(struct dialog_data *dlg)
 
 int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
+	struct ftp_options *ftp_options = (struct ftp_options *)di->cdata;
 	struct dialog *d;
 	d = mem_calloc(sizeof(struct dialog) + 6 * sizeof(struct dialog_item));
 	d->title = TEXT(T_FTP_OPTIONS);
 	d->fn = ftpopt_fn;
 	d->items[0].type = D_FIELD;
 	d->items[0].dlen = MAX_STR_LEN;
-	d->items[0].data = di->cdata;
+	d->items[0].data = ftp_options->anon_pass;
 	d->items[1].type = D_CHECKBOX;
 	d->items[1].dlen = sizeof(int);
-	d->items[1].data = (void*)&passive_ftp;
+	d->items[1].data = (void*)&ftp_options->passive_ftp;
 	d->items[1].gid = 0;
 	d->items[2].type = D_CHECKBOX;
 	d->items[2].dlen = sizeof(int);
-	d->items[2].data = (void*)&fast_ftp;
+	d->items[2].data = (void*)&ftp_options->fast_ftp;
 	d->items[3].type = D_BUTTON;
 	d->items[3].gid = B_ENTER;
 	d->items[3].fn = ok_dialog;
@@ -904,9 +905,6 @@ unsigned char disp_blue_g[VO_GAMMA_LEN];
 unsigned char user_g[VO_GAMMA_LEN];
 unsigned char aspect_str[VO_GAMMA_LEN];
 int gamma_stamp; /* stamp counter for gamma changes */
-
-extern struct list_head terminals;
-extern void t_redraw(struct graphics_device *, struct rect *);
 
 void refresh_video(struct session *ses)
 {
@@ -1243,8 +1241,8 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	d->items[10].gid = 0;
 	d->items[10].fn = dlg_ftp_options;
 	d->items[10].text = TEXT(T_FTP_OPTIONS);
-	d->items[10].data = default_anon_pass;
-	d->items[10].dlen = MAX_STR_LEN;
+	d->items[10].data = (unsigned char *)&ftp_options;
+	d->items[10].dlen = sizeof(struct ftp_options);
 	d->items[11].type = D_BUTTON;
 	d->items[11].gid = B_ENTER;
 	d->items[11].fn = ok_dialog;
@@ -1943,7 +1941,7 @@ void miscelaneous_options(struct terminal *term, void *xxx, struct session *ses)
 
 void menu_set_language(struct terminal *term, void *pcp, struct session *ses)
 {
-	set_language((long)pcp);
+	set_language((my_intptr_t)pcp);
 	cls_redraw_all_terminals();
 }
 
@@ -2186,7 +2184,7 @@ struct menu_item view_menu_anon[] = {
 	{ "", "", M_BAR, NULL, NULL, 0, 0 },
 	{ TEXT(T_TOGGLE_HTML_PLAIN), "\\", TEXT(T_HK_TOGGLE_HTML_PLAIN), MENU_FUNC menu_toggle, NULL, 0, 0 },
 	{ TEXT(T_DOCUMENT_INFO), "=", TEXT(T_HK_DOCUMENT_INFO), MENU_FUNC menu_doc_info, NULL, 0, 0 },
-	{ TEXT(T_FRAME_AT_FULL_SCREEN), "f", TEXT(T_HK_FRAME_AT_FULL_SCREEN), MENU_FUNC menu_for_frame, (void *)NULL, 0, 0 },
+	{ TEXT(T_FRAME_AT_FULL_SCREEN), "f", TEXT(T_HK_FRAME_AT_FULL_SCREEN), MENU_FUNC menu_for_frame, (void *)set_frame, 0, 0 },
 	{ "", "", M_BAR, NULL, NULL, 0, 0 },
 	{ TEXT(T_HTML_OPTIONS), "", TEXT(T_HK_HTML_OPTIONS), MENU_FUNC menu_html_options, (void *)0, 0, 0 },
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }

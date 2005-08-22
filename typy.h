@@ -3,6 +3,9 @@
  * This file is a part of the Links program, released under GPL.
  */
 
+#ifndef TYPY_H
+#define TYPY_H
+
 #define INTEGER 1
 #define FLOAT 2
 #define UNDEFINED 0
@@ -30,3 +33,4 @@ void delarg(abuf*,js_context*);
 void clearvar(lns*,js_context*);
 void vartoarg(lns*,abuf*,js_context*);
 
+#endif

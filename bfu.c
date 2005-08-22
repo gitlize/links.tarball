@@ -169,10 +169,6 @@ void iinit_bfu(void)
 
 unsigned char m_bar = 0;
 
-void menu_func(struct window *, struct event *, int);
-void mainmenu_func(struct window *, struct event *, int);
-void dialog_func(struct window *, struct event *, int);
-
 void do_menu_selected(struct terminal *term, struct menu_item *items, void *data, int selected)
 {
 	struct menu *menu;
@@ -522,7 +518,7 @@ void menu_func(struct window *win, struct event *ev, int fwd)
 				delete_window(win);
 				break;
 			}
-			if ((ev->x >= KBD_F1 && ev->x <= KBD_F12) || ev->y == KBD_ALT) {
+			if ((ev->x >= KBD_F1 && ev->x <= KBD_F12) || ev->y & KBD_ALT) {
 				mm:
 				delete_window_ev(win, ev);
 				break;
@@ -1212,19 +1208,15 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 				if (dlg->brl_y < dlg->items[0].y - 3) dlg->brl_y++;
 				goto redraw;
 			}
-			if ((ev->x == KBD_HOME || ev->x == KBD_PAGE_UP) && dlg_is_braille_moving(dlg)) {
+			if ((ev->x == KBD_HOME || (upcase(ev->x) == 'A' && ev->y & KBD_CTRL) || ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && ev->y & KBD_CTRL)) && dlg_is_braille_moving(dlg)) {
 				dlg->brl_y = 0;
 				goto redraw;
 			}
-			if ((ev->x == KBD_HOME || ev->x == KBD_PAGE_UP) && dlg_is_braille_moving(dlg)) {
-				dlg->brl_y = 0;
-				goto redraw;
-			}
-			if (ev->x == KBD_END && dlg_is_braille_moving(dlg)) {
+			if ((ev->x == KBD_END || (upcase(ev->x) == 'E' && ev->y & KBD_CTRL)) && dlg_is_braille_moving(dlg)) {
 				dlg->brl_y = dlg->items[0].y - 4;
 				goto redraw;
 			}
-			if (ev->x == KBD_PAGE_DOWN && dlg_is_braille_moving(dlg)) {
+			if ((ev->x == KBD_PAGE_DOWN || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) && dlg_is_braille_moving(dlg)) {
 				dlg->brl_y = dlg->items[0].y - 3;
 				goto redraw;
 			}
@@ -1275,7 +1267,7 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 					di->cpos = strlen(di->cdata);
 					goto dsp_f;
 				}
-				if (ev->x >= ' ' && !ev->y) {
+				if (ev->x >= ' ' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 					unsigned char *u;
 					unsigned char p[2] = { 0, 0 };
 					if (!F) p[0] = ev->x, u = p;
@@ -1311,7 +1303,7 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 					}
 					goto dsp_f;
 				}
-				if (ev->x == KBD_DEL) {
+				if (ev->x == KBD_DEL || (upcase(ev->x) == 'D' && ev->y & KBD_CTRL)) {
 					if ((size_t)di->cpos < strlen(di->cdata)) {
 						int s = 1;
 #ifdef G
@@ -1326,7 +1318,7 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 					}
 					goto dsp_f;
 				}
-				if (upcase(ev->x) == 'U' && ev->y == KBD_CTRL) {
+				if (upcase(ev->x) == 'U' && ev->y & KBD_CTRL) {
 					char *a = memacpy(di->cdata, di->cpos);
 					if (a) {
 						set_clipboard_text(term, a);
@@ -1336,26 +1328,26 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 					di->cpos = 0;
 					goto dsp_f;
 				}
-				if (upcase(ev->x) == 'K' && ev->y == KBD_CTRL) {
+				if (upcase(ev->x) == 'K' && ev->y & KBD_CTRL) {
 					set_clipboard_text(term, di->cdata + di->cpos);
 					di->cdata[di->cpos] = 0;
 					goto dsp_f;
 				}
 				/* Copy to clipboard */
-				if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'Z' && ev->y == KBD_CTRL)) {
+				if ((ev->x == KBD_INS && ev->y & KBD_CTRL) || (upcase(ev->x) == 'Z' && ev->y & KBD_CTRL)) {
 					set_clipboard_text(term, di->cdata);
 					break;	/* We don't need to redraw */
 				}
 				/* FIXME -- why keyboard shortcuts with shift don't works??? */
 				/* Cut to clipboard */
-				if ((ev->x == KBD_DEL && ev->y == KBD_SHIFT) || (upcase(ev->x) == 'X' && ev->y == KBD_CTRL)) {
+				if ((ev->x == KBD_DEL && ev->y & KBD_SHIFT) || (upcase(ev->x) == 'X' && ev->y & KBD_CTRL)) {
 					set_clipboard_text(term, di->cdata);
 					di->cdata[0] = 0;
 					di->cpos = 0;
 					goto dsp_f;
 				}
 				/* Paste from clipboard */
-				if ((ev->x == KBD_INS && ev->y == KBD_SHIFT) || (upcase(ev->x) == 'V' && ev->y == KBD_CTRL)) {
+				if ((ev->x == KBD_INS && ev->y & KBD_SHIFT) || (upcase(ev->x) == 'V' && ev->y & KBD_CTRL)) {
 					unsigned char * clipboard;
 clipbd_paste:
 					clipboard = get_clipboard_text(term);

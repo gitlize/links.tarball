@@ -1233,6 +1233,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 		}
 
 		/* starou radku musim prekreslit celou, protoze ji BFU mohlo oznacit */
+		if (!direction) goto skip_old_1;
 		if (ld->type)	/* tree */
 		{
 			unsigned char *txt;
@@ -1304,6 +1305,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 			set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,COLOR_MENU);
 			mem_free(txt);
 		}
+		skip_old_1:;
 #ifdef G
 	}
 	else
@@ -1367,6 +1369,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 		term->dev->drv->set_clip_area(term->dev,&old_area);
 		mem_free(txt);
 		
+		if (!direction) goto skip_old_2;
 		n=0;
 		x=0;
 		/* previous/next */
@@ -1417,6 +1420,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 		term->dev->drv->fill_area(term->dev,dlg->x+DIALOG_LB+x,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE,bg_color);
 		term->dev->drv->set_clip_area(term->dev,&old_area);
 		mem_free(txt);
+		skip_old_2:;
 #endif
 	}
 }
@@ -1674,7 +1678,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			draw_to_window(dlg->win,redraw_list_line,&rd);
 			return EVENT_PROCESSED;
 		}
-		if (ev->x==KBD_HOME)
+		if (ev->x==KBD_HOME || (upcase(ev->x) == 'A' && ev->y & KBD_CTRL))
 		{
 			if (ld->current_pos==ld->list)return EVENT_PROCESSED;  /* already on the top */
 			ld->win_offset=ld->list;
@@ -1682,9 +1686,10 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			ld->win_pos=0;
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);
 			return EVENT_PROCESSED;
 		}
-		if (ev->x==KBD_END)
+		if (ev->x==KBD_END || (upcase(ev->x) == 'E' && ev->y & KBD_CTRL))
 		{
 			int a;
 
@@ -1696,9 +1701,10 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			ld->win_pos=a-1;
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);
 			return EVENT_PROCESSED;
 		}
-		if (ev->x==KBD_PAGE_UP)
+		if (ev->x==KBD_PAGE_UP || (upcase(ev->x) == 'B' && ev->y & KBD_CTRL))
 		{
 			int a;
 
@@ -1711,9 +1717,10 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			if (a<ld->n_items){ld->current_pos=ld->win_offset;ld->win_pos=0;}
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);
 			return EVENT_PROCESSED;
 		}
-		if (ev->x==KBD_PAGE_DOWN)
+		if (ev->x==KBD_PAGE_DOWN || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL))
 		{
 			int a;
 			struct list*p=ld->win_offset;
@@ -1727,6 +1734,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				ld->win_pos=a;
 				rd.n=0;
 				draw_to_window(dlg->win,redraw_list,&rd);
+				draw_to_window(dlg->win,redraw_list_line,&rd);
 				return EVENT_PROCESSED;
 			}
 			/* here is whole screen only - the window was full before pressing the page-down key */
@@ -1740,6 +1748,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			if (a<ld->n_items){ld->current_pos=prev_in_tree(ld,ld->list);ld->win_pos=ld->n_items-1;}
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);
 			return EVENT_PROCESSED;
 		}
 		break;

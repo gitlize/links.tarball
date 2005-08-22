@@ -6,7 +6,7 @@
  * this stuff is worth it, you can buy me a beer in return.   Poul-Henning Kamp
  * ----------------------------------------------------------------------------
  *
- * $Id: md5hl.c,v 1.8 2004/10/22 18:11:32 mikulas Exp $
+ * $Id: md5hl.c,v 1.9 2005/03/24 00:47:22 mikulas Exp $
  *
  */
 
@@ -22,6 +22,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 */
+
+#include "cfg.h"
+
+#if !defined(HAVE_MD5INIT) || !defined(HAVE_MD5DATA) || !defined(HAVE_MD5_H)
 
 #include "links.h"
 #include "md5.h"
@@ -75,5 +79,7 @@ MD5Data (const unsigned char *data, unsigned int len, char *buf)
     MD5Update(&ctx,data,len);
     return MD5End(&ctx, buf);
 }
+
+#endif
 
 #endif

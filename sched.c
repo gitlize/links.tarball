@@ -40,6 +40,7 @@ struct h_conn *is_host_on_list(struct connection *);
 void stat_timer(struct connection *);
 struct k_conn *is_host_on_keepalive_list(struct connection *);
 void abort_all_keepalive_connections(void);
+void check_keepalive_connections(void);
 void free_connection_data(struct connection *);
 void del_connection(struct connection *);
 void del_keepalive_socket(struct k_conn *);
@@ -49,7 +50,6 @@ void sort_queue(void);
 void interrupt_connection(struct connection *);
 void suspend_connection(struct connection *);
 int try_to_suspend_connection(struct connection *, unsigned char *);
-void retry_connection(struct connection *);
 void connection_timeout_1(struct connection *);
 void reset_timeout(struct connection *);
 int try_connection(struct connection *);
@@ -110,13 +110,13 @@ int st_r = 0;
 
 void stat_timer(struct connection *c)
 {
-	ttime a;
 	struct remaining_info *r = &c->prg;
-	if (c->state == S_TRANS) {
+	ttime a = get_time() - r->last_time;
+	if (c->state > S_WAIT) {
 		r->loaded = c->received;
 		if ((r->size = c->est_length) < (r->pos = c->from) && r->size != -1)
 			r->size = c->from;
-		r->dis_b += a = get_time() - r->last_time;
+		r->dis_b += a;
 		while (r->dis_b >= SPD_DISP_TIME * CURRENT_SPD_SEC) {
 			r->cur_loaded -= r->data_in_secs[0];
 			memmove(r->data_in_secs, r->data_in_secs + 1, sizeof(int) * (CURRENT_SPD_SEC - 1));
@@ -126,9 +126,9 @@ void stat_timer(struct connection *c)
 		r->data_in_secs[CURRENT_SPD_SEC - 1] += r->loaded - r->last_loaded;
 		r->cur_loaded += r->loaded - r->last_loaded;
 		r->last_loaded = r->loaded;
-		r->last_time += a;
 		r->elapsed += a;
 	}
+	r->last_time += a;
 	r->timer = install_timer(SPD_DISP_TIME, (void (*)(void *))stat_timer, c);
 	if (!st_r) send_connection_info(c);
 }
@@ -137,7 +137,7 @@ void setcstate(struct connection *c, int state)
 {
 	struct status *stat;
 	if (c->state < 0 && state >= 0) c->prev_error = c->state;
-	if ((c->state = state) >= 0) {
+	if ((c->state = state) == S_TRANS) {
 		struct remaining_info *r = &c->prg;
 		if (r->timer == -1) {
 			tcount count = c->count;
@@ -193,8 +193,6 @@ int get_keepalive_socket(struct connection *c)
 	c->sock1 = cc;
 	return 0;
 }
-
-void check_keepalive_connections(void);
 
 void abort_all_keepalive_connections(void)
 {
@@ -313,8 +311,6 @@ void del_keepalive_socket(struct k_conn *kc)
 }
 
 int keepalive_timeout = -1;
-
-void check_keepalive_connections(void);
 
 void keepalive_timer(void *x)
 {
@@ -590,7 +586,7 @@ int load_url(unsigned char *url, unsigned char * prev_url, struct status *stat, 
 #endif
 	if (stat) stat->state = S_OUT_OF_MEM, stat->prev_error = 0;
 	if (no_cache <= NC_CACHE && !find_in_cache(url, &e) && !e->incomplete) {
-		if (!http_bugs.aggressive_cache) {
+		if (!http_bugs.aggressive_cache && no_cache > NC_ALWAYS_CACHE) {
 			if (e->expire_time && e->expire_time < time(NULL)) {
 				if (no_cache < NC_IF_MOD) no_cache = NC_IF_MOD;
 				goto skip_cache;
@@ -877,10 +873,10 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_FTP_PORT,		TEXT(T_FTP_PORT_COMMAND_FAILED)},
 	{S_FTP_NO_FILE,		TEXT(T_FILE_NOT_FOUND)},
 	{S_FTP_FILE_ERROR,	TEXT(T_FTP_FILE_ERROR)},
-#ifdef HAVE_SSL
+
 	{S_SSL_ERROR,		TEXT(T_SSL_ERROR)},
-#else
 	{S_NO_SSL,		TEXT(T_NO_SSL)},
-#endif
-	{0,		NULL}
+
+	{S_NO_SMB_CLIENT,	TEXT(T_NO_SMB_CLIENT)},
+	{0,			NULL}
 };

@@ -13,10 +13,12 @@ int html_format_changed = 0;
 
 /* prototypes */
 unsigned char *get_url_val(unsigned char *, unsigned char *);
+unsigned char *get_exact_attr_val(unsigned char *, unsigned char *);
 void roman(char *, unsigned);
 unsigned char *get_target(unsigned char *);
 void debug_stack(void);
 void get_js_event(unsigned char *, unsigned char *, unsigned char **);
+int get_js_events_x(struct js_event_spec **spec, unsigned char *a);
 int get_js_events(unsigned char *);
 void kill_until(int, ...);
 int parse_width(unsigned char *, int);
@@ -27,6 +29,8 @@ void html_italic(unsigned char *);
 void html_underline(unsigned char *);
 void html_fixed(unsigned char *);
 void html_a(unsigned char *);
+void html_sub(unsigned char *);
+void html_sup(unsigned char *);
 void html_font(unsigned char *);
 void html_img(unsigned char *);
 void html_obj(unsigned char *, int);
@@ -219,9 +223,12 @@ unsigned char *get_attr_val(unsigned char *e, unsigned char *name)
 				mem_free(a);
 				return NULL;
 			}
-			if (!f && *e != 13) {
-				if (*e != 9 && *e != 10) add_chr(a, l, *e);
-				else if (!get_attr_val_nl) add_chr(a, l, ' ');
+			if (!f) {
+				if (get_attr_val_nl == 2) goto exact;
+				if (*e != 13) {
+					if (*e != 9 && *e != 10) exact:add_chr(a, l, *e);
+					else if (!get_attr_val_nl) add_chr(a, l, ' ');
+				}
 			}
 			e++;
 		}
@@ -243,9 +250,11 @@ unsigned char *get_attr_val(unsigned char *e, unsigned char *name)
 			d_opt->cp = c;
 			mem_free(aa);
 		}
-		for (b = a; *b == ' '; b++);
-		if (b != a) memmove(a, b, strlen(b) + 1);
-		for (b = a + strlen(a) - 1; b >= a && *b == ' '; b--) *b = 0;
+		if (get_attr_val_nl != 2) {
+			for (b = a; *b == ' '; b++);
+			if (b != a) memmove(a, b, strlen(b) + 1);
+			for (b = a + strlen(a) - 1; b >= a && *b == ' '; b--) *b = 0;
+		}
 		set_mem_comment(a, name, strlen(name));
 		return a;
 	}
@@ -281,6 +290,15 @@ unsigned char *get_url_val(unsigned char *e, unsigned char *name)
 {
 	unsigned char *a;
 	get_attr_val_nl = 1;
+	a = get_attr_val(e, name);
+	get_attr_val_nl = 0;
+	return a;
+}
+
+unsigned char *get_exact_attr_val(unsigned char *e, unsigned char *name)
+{
+	unsigned char *a;
+	get_attr_val_nl = 2;
 	a = get_attr_val(e, name);
 	get_attr_val_nl = 0;
 	return a;
@@ -635,26 +653,35 @@ void get_js_event(unsigned char *a, unsigned char *name, unsigned char **where)
 	}
 }
 
-int get_js_events(unsigned char *a)
+int get_js_events_x(struct js_event_spec **spec, unsigned char *a)
 {
 	if (!has_attr(a, "onkeyup") && !has_attr(a, "onkeydown") && !has_attr(a,"onkeypress") && !has_attr(a,"onchange") && !has_attr(a, "onfocus") && !has_attr(a,"onblur") && !has_attr(a, "onclick") && !has_attr(a, "ondblclick") && !has_attr(a, "onmousedown") && !has_attr(a, "onmousemove") && !has_attr(a, "onmouseout") && !has_attr(a, "onmouseover") && !has_attr(a, "onmouseup")) return 0;
-	create_js_event_spec(&format.js_event);
-	get_js_event(a, "onclick", &format.js_event->click_code);
-	get_js_event(a, "ondblclick", &format.js_event->dbl_code);
-	get_js_event(a, "onmousedown", &format.js_event->down_code);
-	get_js_event(a, "onmouseup", &format.js_event->up_code);
-	get_js_event(a, "onmouseover", &format.js_event->over_code);
-	get_js_event(a, "onmouseout", &format.js_event->out_code);
-	get_js_event(a, "onmousemove", &format.js_event->move_code);
-	get_js_event(a, "onfocus", &format.js_event->focus_code);
-	get_js_event(a, "onblur", &format.js_event->blur_code);
-	get_js_event(a, "onchange", &format.js_event->change_code);
-	get_js_event(a, "onkeypress", &format.js_event->keypress_code);
-	get_js_event(a, "onkeyup", &format.js_event->keyup_code);
-	get_js_event(a, "onkeydown", &format.js_event->keydown_code);
+	create_js_event_spec(spec);
+	get_js_event(a, "onclick", &(*spec)->click_code);
+	get_js_event(a, "ondblclick", &(*spec)->dbl_code);
+	get_js_event(a, "onmousedown", &(*spec)->down_code);
+	get_js_event(a, "onmouseup", &(*spec)->up_code);
+	get_js_event(a, "onmouseover", &(*spec)->over_code);
+	get_js_event(a, "onmouseout", &(*spec)->out_code);
+	get_js_event(a, "onmousemove", &(*spec)->move_code);
+	get_js_event(a, "onfocus", &(*spec)->focus_code);
+	get_js_event(a, "onblur", &(*spec)->blur_code);
+	get_js_event(a, "onchange", &(*spec)->change_code);
+	get_js_event(a, "onkeypress", &(*spec)->keypress_code);
+	get_js_event(a, "onkeyup", &(*spec)->keyup_code);
+	get_js_event(a, "onkeydown", &(*spec)->keydown_code);
 	return 1;
 }
+
+int get_js_events(unsigned char *a)
+{
+	return get_js_events_x(&format.js_event, a);
+}
 #else
+int get_js_events_x(struct js_event_spec **spec, unsigned char *a)
+{
+	return 0;
+}
 int get_js_events(unsigned char *a)
 {
 	return 0;
@@ -683,7 +710,7 @@ void ln_break(int n, void (*line_break)(void *), void *f)
 	if (!n || html_top.invisible) return;
 	while (n > line_breax) line_breax++, line_break(f);
 	pos = 0;
-	putsp = -1; /* ??? */
+	putsp = -1;
 }
 
 void put_chrs(unsigned char *start, int len, void (*put_chars)(void *, unsigned char *, int), void *f)
@@ -890,6 +917,21 @@ void html_a(unsigned char *a)
 	}
 }
 
+void html_sub(unsigned char *a)
+{
+	get_js_events(a);
+	format.fontsize = 1;
+	format.baseline = -1;
+}
+
+void html_sup(unsigned char *a)
+{
+	get_js_events(a);
+	format.fontsize = 1;
+	if (format.baseline <= 0) format.baseline = format.fontsize;
+}
+
+
 void html_font(unsigned char *a)
 {
 	char *al;
@@ -985,10 +1027,13 @@ void html_img(unsigned char *a)
 			if (!strcasecmp(al, "left")) aa = AL_LEFT;
 			if (!strcasecmp(al, "right")) aa = AL_RIGHT;
 			if (!strcasecmp(al, "center")) aa = AL_CENTER;
+			if (!strcasecmp(al, "bottom")) aa = AL_BOTTOM;
+			if (!strcasecmp(al, "middle")) aa = AL_MIDDLE;
+			if (!strcasecmp(al, "top")) aa = AL_TOP;
 			mem_free(al);
 		}
 
-		if (aa != -1) {
+		if (aa == AL_LEFT || aa == AL_RIGHT || aa == AL_CENTER) {
 			ln_break(1, line_break_f, ff);
 			html_stack_dup();
 			par_format.align = aa;
@@ -1020,6 +1065,7 @@ void html_img(unsigned char *a)
 		i.hspace = get_num(a, "hspace");
 		i.vspace = get_num(a, "vspace");
 		i.border = get_num(a, "border");
+		i.align = aa;
 		i.name = get_attr_val(a, "id");
 		if (!i.name) i.name = get_attr_val(a, "name");
 		i.alt = get_attr_val(a, "alt");
@@ -1035,7 +1081,7 @@ void html_img(unsigned char *a)
 		if (i.src) mem_free(i.src);
 		line_breax = 0;
 		if (ismap) kill_html_stack_item(&html_top);
-		if (aa != -1) {
+		if (aa == AL_LEFT || aa == AL_RIGHT || aa == AL_CENTER) {
 			ln_break(1, line_break_f, ff);
 			kill_html_stack_item(&html_top);
 		}
@@ -1220,9 +1266,7 @@ void html_pre(unsigned char *a)
 void html_hr(unsigned char *a)
 {
 	int i/* = par_format.width - 10*/;
-	char r = 205;
 	int q = get_num(a, "size");
-	if (q >= 0 && q < 2) r = 196;
 	html_stack_dup();
 	par_format.align = AL_CENTER;
 	if (format.link) mem_free(format.link), format.link = NULL;
@@ -1231,12 +1275,26 @@ void html_hr(unsigned char *a)
 	if (par_format.align == AL_BLOCK) par_format.align = AL_CENTER;
 	par_format.leftmargin = margin;
 	par_format.rightmargin = margin;
-	if ((i = get_width(a, "width", 1)) == -1) i = par_format.width - 2 * margin - 4;
-	if (!F) format.attr = AT_GRAPHICS;
-	else r = 0xa0, i = 1;
-	special_f(ff, SP_NOWRAP, 1);
-	while (i-- > 0) put_chrs(&r, 1, put_chars_f, ff);
-	special_f(ff, SP_NOWRAP, 0);
+	i = get_width(a, "width", 1);
+	if (!F) {
+		unsigned char r = 205;
+		if (q >= 0 && q < 2) r = 196;
+		if (i < 0) i = par_format.width - 2 * margin - 4;
+		format.attr = AT_GRAPHICS;
+		special_f(ff, SP_NOWRAP, 1);
+		while (i-- > 0) put_chrs(&r, 1, put_chars_f, ff);
+		special_f(ff, SP_NOWRAP, 0);
+	}
+#ifdef G
+	else {
+		struct hr_param hr;
+		if (q < 0) q = 2;
+		if (i < 0) i = par_format.width - 2 * margin * G_HTML_MARGIN - 6 * G_HTML_MARGIN;
+		hr.size = q;
+		hr.width = i;
+		if (i >= 0) special_f(ff, SP_HR, &hr);
+	}
+#endif
 	ln_break(2, line_break_f, ff);
 	kill_html_stack_item(&html_top);
 }
@@ -1277,6 +1335,7 @@ void html_base(unsigned char *a)
 	if ((al = get_url_val(a, "href"))) {
 		if (format.href_base) mem_free(format.href_base);
 		format.href_base = join_urls(((struct html_element *)html_stack.prev)->attr.href_base, al);
+		special_f(ff, SP_SET_BASE, format.href_base);
 		mem_free(al);
 	}
 	if ((al = get_target(a))) {
@@ -1514,7 +1573,7 @@ void html_button(unsigned char *a)
 	fc->form_name = stracpy(form.form_name);
 	fc->onsubmit = stracpy(form.onsubmit);
 	fc->name = get_attr_val(a, "name");
-	fc->default_value = get_attr_val(a, "value");
+	fc->default_value = get_exact_attr_val(a, "value");
 	fc->ro = has_attr(a, "disabled") ? 2 : has_attr(a, "readonly") ? 1 : 0;
 	if (fc->type == FC_IMAGE) fc->alt = get_attr_val(a, "alt");
 	if (fc->type == FC_SUBMIT && !fc->default_value) fc->default_value = stracpy("Submit");
@@ -1564,7 +1623,8 @@ void html_input(unsigned char *a)
 	fc->onsubmit = stracpy(form.onsubmit);
 	fc->target = stracpy(form.target);
 	fc->name = get_attr_val(a, "name");
-	if (fc->type != FC_FILE) fc->default_value = get_attr_val(a, "value");
+	if (fc->type == FC_TEXT || fc->type == FC_PASSWORD) fc->default_value = get_attr_val(a, "value");
+	else if (fc->type != FC_FILE) fc->default_value = get_exact_attr_val(a, "value");
 	if (fc->type == FC_CHECKBOX && !fc->default_value) fc->default_value = stracpy("on");
 	if ((fc->size = get_num(a, "size")) == -1) fc->size = HTML_DEFAULT_INPUT_SIZE;
 	fc->size++;
@@ -1585,7 +1645,6 @@ void html_input(unsigned char *a)
 		case FC_TEXT:
 		case FC_PASSWORD:
 		case FC_FILE:
-			skip_nonprintable(fc->default_value);
 			format.attr |= AT_BOLD | AT_FIXED;
 			format.fontsize = 3;
 			for (i = 0; i < fc->size; i++) put_chrs("_", 1, put_chars_f, ff);
@@ -1657,7 +1716,7 @@ void html_option(unsigned char *a)
 	find_form_for_input(a);
 	if (!format.select) return;
 	fc = mem_calloc(sizeof(struct form_control));
-	if (!(val = get_attr_val(a, "value"))) {
+	if (!(val = get_exact_attr_val(a, "value"))) {
 		unsigned char *p, *r;
 		unsigned char *name;
 		int namelen;
@@ -1730,7 +1789,7 @@ void clr_spaces(unsigned char *name)
 			memmove(nm, nm + 1, strlen(nm));*/
 	if (!strchr(name, ' ')) return;
 	for (n1 = name, n2 = name; *n1; n1++)
-		if (!(n1[0] == ' ' && (n1 == name || n1[1] == ' ' || !n1[1])))
+		if (!(n1[0] == ' ' && (n2 == name || n1[1] == ' ' || !n1[1])))
 			*n2++ = *n1;
 	*n2 = 0;
 }
@@ -1767,7 +1826,7 @@ void new_menu_item(unsigned char *name, long data, int fullname)
 		item->rtext = data == -1 ? ">" : "";
 		item->hotkey = fullname ? "\000\001" : "\000\000"; /* dirty */
 		item->func = data == -1 ? MENU_FUNC do_select_submenu : MENU_FUNC selected_item;
-		item->data = data == -1 ? nmenu : (void *)data;
+		item->data = data == -1 ? nmenu : (void *)(my_intptr_t)data;
 		item->in_m = data == -1 ? 1 : 0;
 		item->free_i = 0;
 		item++;
@@ -1826,14 +1885,14 @@ void menu_labels(struct menu_item *m, unsigned char *base, unsigned char **lbls)
 			}
 		} else {
 			if ((bs = stracpy(m->hotkey[1] ? (unsigned char *)"" : base))) add_to_strn(&bs, m->text);
-			lbls[(long)m->data] = bs;
+			lbls[(my_intptr_t)m->data] = bs;
 		}
 	}
 }
 
 int menu_contains(struct menu_item *m, int f)
 {
-	if (m->func != MENU_FUNC do_select_submenu) return (long)m->data == f;
+	if (m->func != MENU_FUNC do_select_submenu) return (my_intptr_t)m->data == f;
 	for (m = m->data; m->text; m++) if (menu_contains(m, f)) return 1;
 	return 0;
 }
@@ -1935,7 +1994,7 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 		}
 		if (has_attr(t_attr, "disabled")) goto see;
 		if (preselect == -1 && has_attr(t_attr, "selected")) preselect = order;
-		v = get_attr_val(t_attr, "value");
+		v = get_exact_attr_val(t_attr, "value");
 		if (!(order & (ALLOC_GR - 1))) {
 			if ((unsigned)order > MAXINT / sizeof(unsigned char *) - ALLOC_GR) overalloc();
 			if ((unsigned)order > MAXINT / sizeof(char *) - ALLOC_GR) overalloc();
@@ -2045,11 +2104,6 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	fc->type = FC_TEXTAREA;;
 	fc->ro = has_attr(attr, "disabled") ? 2 : has_attr(attr, "readonly") ? 1 : 0;
 	fc->default_value = memacpy(html, p - html);
-	skip_nonprintable(fc->default_value);
-	for (p = fc->default_value; p && p[0]; p++) if (p[0] == '\r') {
-		if (p[1] == '\n' || (p > fc->default_value && p[-1] == '\n')) memcpy(p, p + 1, strlen(p)), p--;
-		else p[0] = '\n';
-	}
 	if ((cols = get_num(attr, "cols")) <= 0) cols = HTML_DEFAULT_INPUT_SIZE;
 	cols++;
 	if ((rows = get_num(attr, "rows")) <= 0) rows = 1;
@@ -2330,6 +2384,7 @@ struct element_info elements[] = {
 	{"DFN",		html_bold,	0, 0},
 	{"I",		html_italic,	0, 0},
 	{"Q",		html_italic,	0, 0},
+	{"CITE",	html_italic,	0, 0},
 	{"EM",		html_italic,	0, 0},
 	{"ABBR",	html_italic,	0, 0},
 	{"U",		html_underline,	0, 0},
@@ -2337,6 +2392,8 @@ struct element_info elements[] = {
 	{"STRIKE",	html_underline,	0, 0},
 	{"FIXED",	html_fixed,	0, 0},
 	{"CODE",	html_fixed,	0, 0},
+	{"SUB",		html_sub,	0, 0},
+	{"SUP",		html_sup,	0, 0},
 	{"FONT",	html_font,	0, 0},
 	{"A",		html_a,		0, 2},
 	{"IMG",		html_img,	0, 1},
@@ -2482,7 +2539,7 @@ void parse_html(unsigned char *html, unsigned char *eof, void (*put_chars)(void 
 				if (!parse_element(h, eof, &name, &namelen, &attr, &end)) {
 					put_chrs(lt, html - lt, put_chars, f);
 					lt = html = h;
-					putsp = 1;
+					if (!html_top.invisible) putsp = 1;
 					goto element;
 				}
 			}
@@ -2635,6 +2692,7 @@ void parse_html(unsigned char *html, unsigned char *eof, void (*put_chars)(void 
 					}
 					for (ff = e; ff != (void *)&html_stack; ff = ff->prev)
 						if (ff->linebreak > lnb) lnb = ff->linebreak;
+					format.fontsize = e->next->attr.fontsize;
 					ln_break(lnb, line_break, f);
 					while (e->prev != (void *)&html_stack) kill_html_stack_item(e->prev);
 					kill_html_stack_item(e);
@@ -2675,7 +2733,7 @@ int get_image_map(unsigned char *head, unsigned char *s, unsigned char *eof, uns
 	int hdl = 0;
 	struct conv_table *ct;
 	if (head) add_to_str(&hd, &hdl, head);
-	scan_http_equiv(s, eof, &hd, &hdl, NULL, NULL, NULL);
+	scan_http_equiv(s, eof, &hd, &hdl, NULL, NULL, NULL, NULL);
 	if (!gfx) ct = get_convert_table(hd, to, def, NULL, NULL, hdef);
 	else ct = convert_table;
 	mem_free(hd);
@@ -2750,41 +2808,64 @@ int get_image_map(unsigned char *head, unsigned char *s, unsigned char *eof, uns
 		}
 	} else if (namelen == 4 && !casecmp(name, "AREA", 4)) {
 		unsigned char *l = get_attr_val(attr, "alt");
-		if (l) label = convert_string(ct, l, strlen(l), d_opt), mem_free(l);
+		if (l) label = !gfx ? convert_string(ct, l, strlen(l), d_opt) : stracpy(l), mem_free(l);
 		else label = NULL;
 	} else if (namelen == 4 && !casecmp(name, "/MAP", 4)) goto done;
 	else goto se2;
-	if (!(href = get_url_val(attr, "href"))) {
-		if (label) mem_free(label);
-		goto se2;
-	}
+	href = get_url_val(attr, "href");
 	if (!(target = get_target(attr)) && !(target = stracpy(target_base)))
 		target = stracpy("");
 	ld = mem_calloc(sizeof(struct link_def));
-	if (!(ld->link = join_urls(href_base, href))) {
+	if (href) if (!(ld->link = join_urls(href_base, href))) {
 		mem_free(href);
 		mem_free(target);
-		f:
 		mem_free(ld);
 		if (label) mem_free(label);
 		goto se2;
 	}
-	mem_free(href);
+	if (href) mem_free(href);
 	ld->target = target;
-	if (!gfx) for (i = 0; i < nmenu; i++) {
-		struct link_def *ll = (*menu)[i].data;
-		if (!strcmp(ll->link, ld->link) && !strcmp(ll->target, ld->target)) {
-			mem_free(ld->link);
-			mem_free(ld->target);
-			goto f;
-		}
-	}
+
+	add_to_ml(ml, ld, ld->target, NULL);
+	if (ld->link) add_to_ml(ml, ld->link, NULL);
+	scan_area_tag(attr, "shape", &ld->shape, ml);
+	scan_area_tag(attr, "coords", &ld->coords, ml);
+	scan_area_tag(attr, "onclick", &ld->onclick, ml);
+	scan_area_tag(attr, "ondblclick", &ld->ondblclick, ml);
+	scan_area_tag(attr, "onmousedown", &ld->onmousedown, ml);
+	scan_area_tag(attr, "onmouseup", &ld->onmouseup, ml);
+	scan_area_tag(attr, "onmouseover", &ld->onmouseover, ml);
+	scan_area_tag(attr, "onmouseout", &ld->onmouseout, ml);
+	scan_area_tag(attr, "onmousemove", &ld->onmousemove, ml);
+
 	if (label) clr_spaces(label);
 	if (label && !*label) mem_free(label), label = NULL;
-	if (!label) if (!(label = stracpy(ld->link))) {
-		mem_free(href);
-		mem_free(target);
-		goto se2;
+	ld->label = label;
+	if (!label) label = stracpy(ld->link);
+	if (label && !*label) mem_free(label), label = NULL;
+	if (!label) label = stracpy(ld->onclick);
+	if (label && !*label) mem_free(label), label = NULL;
+	if (!label && !gfx) goto se2;
+	if (!label) label = stracpy(ld->onmousedown);
+	if (label && !*label) mem_free(label), label = NULL;
+	if (!label) label = stracpy(ld->onmouseup);
+	if (label && !*label) mem_free(label), label = NULL;
+	if (!label) label = stracpy(ld->ondblclick);
+	if (label && !*label) mem_free(label), label = NULL;
+	if (!label) label = stracpy(ld->onmouseover);
+	if (label && !*label) mem_free(label), label = NULL;
+	if (!label) label = stracpy(ld->onmouseout);
+	if (label && !*label) mem_free(label), label = NULL;
+	if (!label) label = stracpy(ld->onmousemove);
+	if (label && !*label) mem_free(label), label = NULL;
+	if (!label) goto se2;
+	add_to_ml(ml, label, NULL);
+
+	if (!gfx) for (i = 0; i < nmenu; i++) {
+		struct link_def *ll = (*menu)[i].data;
+		if (!xstrcmp(ll->link, ld->link) && !xstrcmp(ll->target, ld->target) && !xstrcmp(ll->onclick, ld->onclick)) {
+			goto se2;
+		}
 	}
 	if ((unsigned)nmenu > MAXINT / sizeof(struct menu_item) - 2) overalloc();
 	nm = mem_realloc(*menu, (nmenu + 2) * sizeof(struct menu_item));
@@ -2796,23 +2877,13 @@ int get_image_map(unsigned char *head, unsigned char *s, unsigned char *eof, uns
 	nm[nmenu].func = MENU_FUNC map_selected;
 	nm[nmenu].data = ld;
 	nm[++nmenu].text = NULL;
-	add_to_ml(ml, ld, ld->link, ld->target, label, NULL);
-	scan_area_tag(attr, "shape", &ld->shape, ml);
-	scan_area_tag(attr, "coords", &ld->coords, ml);
-	scan_area_tag(attr, "onclick", &ld->onclick, ml);
-	scan_area_tag(attr, "ondblclick", &ld->ondblclick, ml);
-	scan_area_tag(attr, "onmousedown", &ld->onmousedown, ml);
-	scan_area_tag(attr, "onmouseup", &ld->onmouseup, ml);
-	scan_area_tag(attr, "onmouseover", &ld->onmouseover, ml);
-	scan_area_tag(attr, "onmouseout", &ld->onmouseout, ml);
-	scan_area_tag(attr, "onmousemove", &ld->onmousemove, ml);
 	goto se2;
 	done:
 	add_to_ml(ml, *menu, NULL);
 	return 0;
 }
 
-void scan_http_equiv(unsigned char *s, unsigned char *eof, unsigned char **head, int *hdl, unsigned char **title, unsigned char **background, unsigned char **bgcolor)
+void scan_http_equiv(unsigned char *s, unsigned char *eof, unsigned char **head, int *hdl, unsigned char **title, unsigned char **background, unsigned char **bgcolor, struct js_event_spec **j)
 {
 	unsigned char *name, *attr, *he, *c;
 	int namelen;
@@ -2830,9 +2901,14 @@ void scan_http_equiv(unsigned char *s, unsigned char *eof, unsigned char **head,
 	}
 	if (parse_element(s, eof, &name, &namelen, &attr, &s)) goto sp;
 	ps:
+	if (namelen == 6 && !casecmp(name, "SCRIPT", 6)) {
+		s = skip_element(s, eof, "SCRIPT", 0);
+		goto se;
+	}
 	if (namelen == 4 && !casecmp(name, "BODY", 4)) {
 		if (background) *background = get_attr_val(attr, "background");
 		if (bgcolor) *bgcolor = get_attr_val(attr, "bgcolor");
+		if (j) get_js_events_x(j, attr);
 		return;
 	}
 	if (title && !tlen && namelen == 5 && !casecmp(name, "TITLE", 5)) {

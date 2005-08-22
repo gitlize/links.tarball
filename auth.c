@@ -63,6 +63,7 @@ unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy
 		if (h) return h;
 		return stracpy("");
 	}
+	if (casecmp(h, "Basic", 5)) return NULL;
 	q = strchr(h, '"');
 	if (!q) {
 		mem_free(h);

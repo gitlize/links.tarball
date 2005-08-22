@@ -49,7 +49,6 @@ void img_destruct_image(struct g_object *);
 int img_scale_h(unsigned scale, int);
 int img_scale_v(unsigned scale, int);
 unsigned short *buffer_to_16(unsigned short *, struct cached_image *, unsigned char *, int);
-void buffer_to_bitmap_incremental(struct cached_image *, unsigned char *, int, int, int *, int);
 void r3l0ad(struct cached_image *, struct g_object_image *);
 void type(struct cached_image *, unsigned char *);
 int img_process_download(struct g_object_image *, struct f_data_c *);
@@ -881,7 +880,7 @@ int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 			/* No fragments */
 		data=(*(struct fragment *)(goi->af->rq->ce->frag.next)).data;
 		length=(*(struct fragment *)(goi->af->rq->ce->frag.next)).length;
-		if (length==cimg->last_length) goto end; /* No new data */
+		if (length<=cimg->last_length) goto end; /* No new data */
 
 		data+=cimg->last_length;
 		length-=cimg->last_length;
@@ -929,10 +928,10 @@ img_process_download.\n");
 		/* We must not perform end with chopped because some
 		 * unprocessed data still wait for us :)
 		 */
-		if (goi->af->rq->state==O_FAILED
+		if (!is_entry_used(goi->af->rq->ce) && (goi->af->rq->state==O_FAILED
 			||goi->af->rq->state==O_OK
 			||goi->af->rq->state==O_INCOMPLETE
-			||(goi->af->rq->ce&&goi->af->rq->stat.state<0)){
+			||(goi->af->rq->ce&&goi->af->rq->stat.state<0))){
 #ifdef HAVE_TIFF
 			if (!((cimg->state^8)&9)&&cimg->image_type==IM_TIFF)
 				tiff_finish(cimg);
@@ -1169,7 +1168,7 @@ struct g_object_image *insert_image(struct g_part *p, struct image_description *
 	struct cached_image *cimg;
 	int retval;
 
-	image=mem_alloc(sizeof(*image));
+	image=mem_calloc(sizeof(struct g_object_image));
 	global_goi=image;
 	image->mouse_event=&g_text_mouse;
 	image->draw=&img_draw_image;
@@ -1182,6 +1181,8 @@ struct g_object_image *insert_image(struct g_part *p, struct image_description *
 	image->x is already filled
 	image->y is already filled
 	*/
+	if (im->align == AL_MIDDLE) image->y = G_OBJ_ALIGN_MIDDLE;
+	if (im->align == AL_TOP) image->y = G_OBJ_ALIGN_TOP;
 	image->xw=img_scale_h(d_opt->image_scale, im->xsize);
 	image->yw=img_scale_v(d_opt->image_scale, im->ysize);
 
@@ -1218,7 +1219,7 @@ next_chunk:
 	if (retval&&!(cimg->state&4)) goto next_chunk;
 	image->xw=image->cimg->xww;
 	image->yw=image->cimg->yww;
-	if (cimg->state==0||cimg->state==8) image->af->need_reparse=1;
+	if (cimg->state==0||cimg->state==8) if (image->af->need_reparse != -1) image->af->need_reparse=1;
 	if (im->insert_flag)add_to_list(current_f_data->images,&image->image_list);
 	else image->image_list.prev=NULL,image->image_list.next=NULL;
 	return image;
@@ -1237,6 +1238,7 @@ void change_image (struct g_object_image *goi, unsigned char *url, unsigned char
 	if (!(goi->xw&&goi->yw)) return;
 	goi->cimg->refcount--;
 	goi->af=request_additional_file(fdata,url);
+	goi->af->need_reparse = -1;
 
 	find_or_make_cached_image(goi, url, fdata->opt.image_scale);
 	/* Automatically sets up global_cimg */

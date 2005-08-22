@@ -82,7 +82,7 @@ void auth_fn(struct dialog_data *dlg)
 
 int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 {
-	struct object_request *rq = find_rq((long)dlg->dlg->udata2);
+	struct object_request *rq = find_rq((my_intptr_t)dlg->dlg->udata2);
 	if (rq) {
 		rq->state = O_OK;
 		if (rq->timer != -1) kill_timer(rq->timer);
@@ -95,7 +95,7 @@ int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 
 int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 {
-	struct object_request *rq = find_rq((long)dlg->dlg->udata2);
+	struct object_request *rq = find_rq((my_intptr_t)dlg->dlg->udata2);
 	if (rq) {
 		struct auth_dialog *a = dlg->dlg->udata;
 		struct session *ses;
@@ -156,7 +156,7 @@ int auth_window(struct object_request *rq, unsigned char *realm)
 	a->proxy = rq->stat.ce->http_code == 407;
 	a->realm = stracpy(realm);
 	d->udata = a;
-	d->udata2 = (void *)rq->count; /* 163: warning: cast to pointer from integer of different size */
+	d->udata2 = (void *)(my_intptr_t)rq->count;
 	if (rq->stat.ce->http_code == 401) d->title = TEXT(T_AUTHORIZATION_REQUIRED);
 	else d->title = TEXT(T_PROXY_AUTHORIZATION_REQUIRED);
 	d->fn = auth_fn;
@@ -234,6 +234,7 @@ void objreq_end(struct status *stat, struct object_request *rq)
 		}
 		if (stat->ce && rq->state == O_WAITING && (stat->ce->http_code == 401 || stat->ce->http_code == 407)) {
 			unsigned char *realm = get_auth_realm(rq->url, stat->ce->head, stat->ce->http_code == 407);
+			if (!realm) goto xx;
 			if (stat->ce->http_code == 401 && !find_auth(rq->url, realm)) {
 				mem_free(realm);
 				if (rq->redirect_cnt++ >= MAX_REDIRECTS) goto maxrd;

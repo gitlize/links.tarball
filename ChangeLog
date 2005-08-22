@@ -1,3 +1,91 @@
+=== Release 2.1pre18
+
+Sat Jul 30 00:01:55 MET DST 2005 mikulas:
+
+	Fixed reverse numbering of form fields in javascript
+
+Fri Jul 29 22:45:30 MET 2005 user:
+
+	Fixed cursor position in bookmarks after HOME, END, PAGE UP, PAGE DOWN
+
+Thu Jun 23 04:05:45 cet 2005 mikulas:
+
+	<sub>, <sup> and alignment images to top and middle of line
+
+Wed Jun 22 18:15:11 MET 2005 user:
+
+	Implemented <hr> in graphics mode
+
+Mon Jun 20 15:57:00 cet 2005 mikulas:
+
+	Do not make whitechar-elimination on invisible form entries
+
+Sat Jun 18 18:16:24 MET 2005 user:
+
+	Allow '#' in smb files and directories
+
+Fri Jun 17 23:10:24 MET 2005 Simen Graaten <simeng@slarkware.com>:
+
+	Updated Norwegian translation
+
+Mon Jun  6 18:47:37 MET 2005 user:
+
+	Do not respond to unknown authentication methods with basic response
+
+Sun May 29 05:43:58 cet 2005 mikulas:
+
+	Do always use cache when going back
+
+Sun May 22 21:03:16 MET 2005 user:
+
+	Allow '#' in ftp password
+
+Wed May 18 01:18:58 cet 2005 mikulas:
+
+	Allow image map elements without href and only with javascript
+
+Thu May 12 04:15:43 MET 2005 user:
+
+	Fixed crash with -anonymous and "frame at full-screen" in menu
+
+Sun May  8 15:37:22 cet 2005 mikulas:
+
+	Fix lockup with terminal height only 1 or 2 characters
+
+Fri May  6 20:06:50 MET 2005 user:
+
+	Make '*' work in graphics mode too
+	Fixed badly displayed images when image displaying was toggled
+
+Thu Apr 21 21:52:28 cet 2005 mikulas:
+
+	Do not count time that connection waits in queue
+
+Fri Apr 15 17:37:51 MET 2005 user:
+
+	Do not parse <TITLE> inside <SCRIPT>
+
+Sat Apr  2 20:32:01 MET DST 2005 mikulas:
+
+	Workaround for bug in Sun C compiler
+
+Fri Apr  1 00:21:39 MET DST 2005 mikulas:
+
+	Accept &#13; as line break in textarea (fixes bugzilla)
+
+Thu Mar 24 04:06:53 MET 2005 Federico G. Schwindt <fgsch@lodoss.net>:
+
+	Use MD5 functions from libc when available
+
+Mon Mar  7 22:36:45 MET 2005 user:
+
+	Support for another smb client --- smbc by Martin Zlomek
+
+Wed Mar  2 23:39:30 CET 2005 mikulas:
+
+	Fixed crash of javascript with debuglevel<2 (uninitialized memory)
+	Fixed possible touching of data beyond allocated space in javascript
+
 === Release 2.1pre17
 
 Wed Feb 23 19:46:01 MET 2005 mikulas:

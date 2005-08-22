@@ -5,7 +5,6 @@
 
 #include "links.h"
 
-void open_in_new_window(struct terminal *term, void (*xxx)(struct terminal *, void (*)(struct terminal *, unsigned char *, unsigned char *), struct session *ses), struct session *ses);
 void send_open_in_new_xterm_target(struct terminal *term, void (*open_window)(struct terminal *term, unsigned char *, unsigned char *), struct session *ses);
 
 void copy_vs(struct view_state *, struct view_state *);
@@ -45,6 +44,9 @@ void up(struct session *, struct f_data_c *, int);
 void hscroll(struct session *, struct f_data_c *, int);
 void right(struct session *, struct f_data_c *, int);
 void left(struct session *, struct f_data_c *, int);
+int get_at_pos(struct f_data *, int, int);
+void cursor_word(struct session *, struct f_data_c *, int);
+void cursor_word_back(struct session *, struct f_data_c *, int);
 void cursor_home(struct session *, struct f_data_c *, int);
 void cursor_end(struct session *, struct f_data_c *, int);
 void br_next_link(struct session *, struct f_data_c *, int);
@@ -72,6 +74,8 @@ void rep_ev(struct session *, struct f_data_c *, void (*)(struct session *, stru
 struct link *choose_mouse_link(struct f_data_c *, struct event *);
 void goto_link_number(struct session *, unsigned char *);
 int frame_ev(struct session *, struct f_data_c *, struct event *);
+int event_catchable(struct event *ev);
+int call_keyboard_event(struct f_data_c *fd, unsigned char *code, struct event *ev);
 int send_to_frame(struct session *, struct event *);
 void do_mouse_event(struct session *, struct event *);
 void send_enter(struct terminal *, void *, struct session *);
@@ -988,7 +992,7 @@ void draw_doc(struct terminal *t, struct f_data_c *scr)
 		scr->yl = vy;
 		fill_area(t, xp, yp, xw, yw, scr->f_data->y ? scr->f_data->bg : ' ');
 		if (!scr->f_data->y) return;
-		while (vs->view_pos >= scr->f_data->y) vs->view_pos -= yw;
+		while (vs->view_pos >= scr->f_data->y) vs->view_pos -= yw ? yw : 1;
 		if (vs->view_pos < 0) vs->view_pos = 0;
 		if (vy != vs->view_pos) vy = vs->view_pos, check_vs(scr);
 		for (y = vy <= 0 ? 0 : vy; y < (-vy + scr->f_data->y <= yw ? scr->f_data->y : yw + vy); y++) {
@@ -1459,7 +1463,7 @@ void br_next_link(struct session *ses, struct f_data_c *f, int a)
 		vs->brl_x = ol->pos[0].x;
 		vs->brl_y = ol->pos[0].y;
 		while (vs->brl_y >= vs->view_pos + f->yw) {
-			vs->view_pos += f->yw;
+			vs->view_pos += f->yw ? f->yw : 1;
 			if (vs->view_pos >= f_data->y) vs->view_pos = f_data->y - !!f_data->y;
 		}
 		set_pos_x(f, ol);
@@ -1494,7 +1498,7 @@ void br_prev_link(struct session *ses, struct f_data_c *f, int a)
 		vs->brl_x = ol->pos[0].x;
 		vs->brl_y = ol->pos[0].y;
 		while (vs->brl_y < vs->view_pos) {
-			vs->view_pos -= f->yw;
+			vs->view_pos -= f->yw ? f->yw : 1;
 			if (vs->view_pos < 0) vs->view_pos = 0;
 		}
 		set_pos_x(f, ol);
@@ -1840,7 +1844,7 @@ unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form
 #ifdef JS
 	if (form->onsubmit)
 	{
-		jsint_execute_code(f,form->onsubmit,strlen(form->onsubmit),-1,form->form_num,form->form_num);
+		jsint_execute_code(f,form->onsubmit,strlen(form->onsubmit),-1,form->form_num,form->form_num, NULL);
 		if (onsubmit)*onsubmit=1;
 	}
 #endif
@@ -1859,16 +1863,13 @@ unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form
 		goto x;
 	}
 	if (form->method == FM_GET) {
-		unsigned char *pos;
+		unsigned char *pos, *da;
 		if (strlen(form->action) + 2 + len < (unsigned)len) overalloc();
 		go = mem_alloc(strlen(form->action) + 1 + len + 1);
 		strcpy(go, form->action);
-		if ((pos = strchr(go, '#'))) {
-			unsigned char *poss = pos;
-			pos = stracpy(pos);
-			*poss = 0;
-		}
-		if (strchr(go, '?')) strcat(go, "&");
+		pos = extract_position(go);
+		if (!(da = get_url_data(go))) da = go;
+		if (strchr(da, '?')) strcat(go, "&");
 		else strcat(go, "?");
 		strcat(go, data);
 		if (pos) strcat(go, pos), mem_free(pos);
@@ -1971,7 +1972,7 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 	link = &f->f_data->links[f->vs->current_link];
 #ifdef JS
 	if (link->js_event&&link->js_event->click_code)
-		jsint_execute_code(f,link->js_event->click_code,strlen(link->js_event->click_code),-1,(link->type==L_BUTTON&&link->form&&link->form->type==FC_SUBMIT)?link->form->form_num:-1,-1);
+		jsint_execute_code(f,link->js_event->click_code,strlen(link->js_event->click_code),-1,(link->type==L_BUTTON&&link->form&&link->form->type==FC_SUBMIT)?link->form->form_num:-1,-1, NULL);
 #endif
 	if (link->type == L_LINK || link->type == L_BUTTON) {
 		int has_onsubmit;
@@ -2042,7 +2043,7 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 #ifdef JS
 		if (link->js_event&&link->js_event->focus_code)
 		{
-			jsint_execute_code(f,link->js_event->focus_code,strlen(link->js_event->focus_code),-1,-1,-1);
+			jsint_execute_code(f,link->js_event->focus_code,strlen(link->js_event->focus_code),-1,-1,-1, NULL);
 		}
 #endif
 		add_empty_window(ses->term, (void (*)(void *))free_select_menu, m);
@@ -2058,7 +2059,7 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 		{
 			struct link *lnk=&(f->f_data->links[f->vs->current_link]);
 			if (lnk->js_event&&lnk->js_event->focus_code)
-				jsint_execute_code(f,lnk->js_event->focus_code,strlen(lnk->js_event->focus_code),-1,-1,-1);
+				jsint_execute_code(f,lnk->js_event->focus_code,strlen(lnk->js_event->focus_code),-1,-1,-1, NULL);
 		}
 #endif
 #ifdef G
@@ -2105,7 +2106,7 @@ void back(struct session *ses, struct f_data_c *f, int a)
 
 void selected_item(struct terminal *term, void *pitem, struct session *ses)
 {
-	long item = (long)pitem;
+	long item = (my_intptr_t)pitem;
 	long old_item=item;
 	struct f_data_c *f = current_frame(ses);
 	struct link *l;
@@ -2134,12 +2135,12 @@ void selected_item(struct terminal *term, void *pitem, struct session *ses)
 	/* execute onchange handler */
 #ifdef JS
 	if (old_item!=item&&l->js_event&&l->js_event->change_code)
-		jsint_execute_code(f,l->js_event->change_code,strlen(l->js_event->change_code),-1,-1,-1);
+		jsint_execute_code(f,l->js_event->change_code,strlen(l->js_event->change_code),-1,-1,-1, NULL);
 #endif
 	/* execute onblur handler */
 #ifdef JS
 	if (l->js_event&&l->js_event->blur_code)
-		jsint_execute_code(f,l->js_event->blur_code,strlen(l->js_event->blur_code),-1,-1,-1);
+		jsint_execute_code(f,l->js_event->blur_code,strlen(l->js_event->blur_code),-1,-1,-1, NULL);
 #endif
 	draw_to_window(ses->win, (void (*)(struct terminal *, void *))draw_doc, f);
 	change_screen_status(ses);
@@ -2239,12 +2240,14 @@ void set_br_pos(struct f_data_c *fd, struct link *l)
 /* executes onkey-press/up/down handler */
 static void field_op_changed(struct f_data_c *f, struct link *lnk)
 {
+	/*
 	if (lnk->js_event&&lnk->js_event->keydown_code)
-		jsint_execute_code(f,lnk->js_event->keydown_code,strlen(lnk->js_event->keydown_code),-1,-1,-1);
+		jsint_execute_code(f,lnk->js_event->keydown_code,strlen(lnk->js_event->keydown_code),-1,-1,-1, NULL);
 	if (lnk->js_event&&lnk->js_event->keypress_code)
-		jsint_execute_code(f,lnk->js_event->keypress_code,strlen(lnk->js_event->keypress_code),-1,-1,-1);
+		jsint_execute_code(f,lnk->js_event->keypress_code,strlen(lnk->js_event->keypress_code),-1,-1,-1, NULL);
 	if (lnk->js_event&&lnk->js_event->keyup_code)
-		jsint_execute_code(f,lnk->js_event->keyup_code,strlen(lnk->js_event->keyup_code),-1,-1,-1);
+		jsint_execute_code(f,lnk->js_event->keyup_code,strlen(lnk->js_event->keyup_code),-1,-1,-1, NULL);
+	*/
 }
 #endif
 
@@ -2362,7 +2365,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 					mem_free(ln);
 				}
 			} else fs->state = strlen(fs->value);
-		} else if (!ev->y && (ev->x >= 32 && ev->x < gf_val(256, MAXINT) && gf_val(cp2u(ev->x, ses->term->spec->charset) != -1, 1))) {
+		} else if (!(ev->y & (KBD_CTRL | KBD_ALT)) && (ev->x >= 32 && ev->x < gf_val(256, MAXINT) && gf_val(cp2u(ev->x, ses->term->spec->charset) != -1, 1))) {
 			set_br_pos(f, l);
 			if (!form->ro && utf8len(fs->value) < form->maxlength) {
 				unsigned char *v;
@@ -2391,10 +2394,10 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 #endif
 				bad:;
 			}
-		} else if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'Z' && ev->y == KBD_CTRL)) {
+		} else if ((ev->x == KBD_INS && ev->y & KBD_CTRL) || (upcase(ev->x) == 'Z' && ev->y & KBD_CTRL)) {
 			set_br_pos(f, l);
 			set_clipboard_text(ses->term, fs->value);
-		} else if ((ev->x == KBD_DEL && ev->y == KBD_SHIFT) || (upcase(ev->x) == 'X' && ev->y == KBD_CTRL)) {
+		} else if ((ev->x == KBD_DEL && ev->y & KBD_SHIFT) || (upcase(ev->x) == 'X' && ev->y & KBD_CTRL)) {
 			set_br_pos(f, l);
 			set_clipboard_text(ses->term, fs->value);
 			if (!form->ro) fs->value[0] = 0;
@@ -2403,7 +2406,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 			fs->changed=1;
 			field_op_changed(f,l);
 #endif
-		} else if ((ev->x == KBD_INS && ev->y == KBD_SHIFT) || (upcase(ev->x) == 'V' && ev->y == KBD_CTRL)) {
+		} else if ((ev->x == KBD_INS && ev->y & KBD_SHIFT) || (upcase(ev->x) == 'V' && ev->y & KBD_CTRL)) {
 			char * clipboard;
 			set_br_pos(f, l);
 			clipboard = get_clipboard_text(ses->term);
@@ -2453,7 +2456,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 #endif
 				;
 			}
-		} else if (ev->x == KBD_DEL) {
+		} else if (ev->x == KBD_DEL || (upcase(ev->x) == 'D' && ev->y & KBD_CTRL)) {
 			int ll = 1;
 			set_br_pos(f, l);
 #ifdef G
@@ -2468,7 +2471,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 				, fs->changed=1, field_op_changed(f,l)
 #endif
 				;
-		} else if (upcase(ev->x) == 'U' && ev->y == KBD_CTRL) {
+		} else if (upcase(ev->x) == 'U' && ev->y & KBD_CTRL) {
 			set_br_pos(f, l);
 			if (!form->ro) {
 				char *a = memacpy(fs->value, fs->state);
@@ -2483,7 +2486,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 			fs->changed=1;
 			field_op_changed(f,l);
 #endif
-		} else if (upcase(ev->x) == 'K' && ev->y == KBD_CTRL) {
+		} else if (upcase(ev->x) == 'K' && ev->y & KBD_CTRL) {
 			set_br_pos(f, l);
 			if (!form->ro) {
 				if (form->type == FC_TEXTAREA) {
@@ -2672,10 +2675,10 @@ void find_next(struct session *ses, struct f_data_c *f, int a)
 		if ((p += ses->search_direction * f->yw) > f->f_data->y) p = 0;
 		if (p < 0) {
 			p = 0;
-			while (p < f->f_data->y) p += f->yw;
+			while (p < f->f_data->y) p += f->yw ? f->yw : 1;
 			p -= f->yw;
 		}
-	} while ((c += f->yw) < f->f_data->y + f->yw);
+	} while ((c += f->yw ? f->yw : 1) < f->f_data->y + f->yw);
 	msg_box(ses->term, NULL, TEXT(T_SEARCH), AL_CENTER, TEXT(T_SEARCH_STRING_NOT_FOUND), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
@@ -2763,40 +2766,40 @@ int frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			fd->vs->brl_in_field = 1;
 			return 1;
 		}
-	if (ev->ev == EV_KBD && ev->x >= '0'+!ses->kbdprefix.rep && ev->x <= '9' && (!fd->f_data->opt.num_links || ev->y)) {
+	if (ev->ev == EV_KBD && ev->x >= '0'+!ses->kbdprefix.rep && ev->x <= '9' && (!fd->f_data->opt.num_links || (ev->y & (KBD_CTRL | KBD_ALT)))) {
 		if (!ses->kbdprefix.rep) ses->kbdprefix.rep_num = 0;
 		if ((ses->kbdprefix.rep_num = ses->kbdprefix.rep_num * 10 + ev->x - '0') > 65536) ses->kbdprefix.rep_num = 65536;
 		ses->kbdprefix.rep = 1;
 		return 1;
 	}
 	if (ev->ev == EV_KBD) {
-		if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && (!ev->y || ev->y == KBD_CTRL))) rep_ev(ses, fd, page_down, 0);
-		else if (ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && (!ev->y || ev->y == KBD_CTRL))) rep_ev(ses, fd, page_up, 0);
+		if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && (!(ev->y & KBD_ALT))) || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) rep_ev(ses, fd, page_down, 0);
+		else if (ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && (!(ev->y & KBD_ALT)))) rep_ev(ses, fd, page_up, 0);
 		else if (ev->x == KBD_DOWN) rep_ev(ses, fd, down, 0);
 		else if (ev->x == KBD_UP) rep_ev(ses, fd, up, 0);
 		else if (ev->x == KBD_LEFT && ses->term->spec->braille) rep_ev(ses, fd, left, 0);
 		else if (ev->x == KBD_RIGHT && ses->term->spec->braille) rep_ev(ses, fd, right, 0);
 		else if (ev->x == '{' && ses->term->spec->braille) rep_ev(ses, fd, cursor_home, 0);
 		else if (ev->x == '}' && ses->term->spec->braille) rep_ev(ses, fd, cursor_end, 0);
-		else if (upcase(ev->x) == 'Y' && !ev->y && ses->term->spec->braille) rep_ev(ses, fd, cursor_word, 0);
-		else if (upcase(ev->x) == 'T' && !ev->y && ses->term->spec->braille) rep_ev(ses, fd, cursor_word_back, 0);
-		else if (((ev->x == KBD_TAB && !(ev->y & (KBD_SHIFT | KBD_CTRL | KBD_ALT)) && fd == ses->screen) || (upcase(ev->x) == 'Y' && ev->y & KBD_CTRL)) && ses->term->spec->braille) rep_ev(ses, fd, br_next_link, 0);
-		else if (((ev->x == KBD_TAB && ev->y & (KBD_SHIFT | KBD_CTRL | KBD_ALT) && fd == ses->screen) || (upcase(ev->x) == 'T' && ev->y & KBD_CTRL)) && ses->term->spec->braille) rep_ev(ses, fd, br_prev_link, 0);
-		else if (upcase(ev->x) == 'O' && ev->y == KBD_CTRL && ses->term->spec->braille) rep_ev(ses, fd, br_next_link, 1);
+		else if (upcase(ev->x) == 'Y' && !(ev->y & (KBD_CTRL | KBD_ALT)) && ses->term->spec->braille) rep_ev(ses, fd, cursor_word, 0);
+		else if (upcase(ev->x) == 'T' && !(ev->y & (KBD_CTRL | KBD_ALT)) && ses->term->spec->braille) rep_ev(ses, fd, cursor_word_back, 0);
+		else if (((ev->x == KBD_TAB && !ev->y && fd == ses->screen) || (upcase(ev->x) == 'Y' && ev->y & KBD_CTRL)) && ses->term->spec->braille) rep_ev(ses, fd, br_next_link, 0);
+		else if (((ev->x == KBD_TAB && ev->y && fd == ses->screen) || (upcase(ev->x) == 'T' && ev->y & KBD_CTRL)) && ses->term->spec->braille) rep_ev(ses, fd, br_prev_link, 0);
+		else if (upcase(ev->x) == 'O' && ev->y & KBD_CTRL && ses->term->spec->braille) rep_ev(ses, fd, br_next_link, 1);
 		/* Copy current link to clipboard */
-		else if ((ev->x == KBD_INS && ev->y == KBD_CTRL) || (upcase(ev->x) == 'C' && ev->y == KBD_CTRL)) {
+		else if ((ev->x == KBD_INS && ev->y & KBD_CTRL) || (upcase(ev->x) == 'C' && ev->y & KBD_CTRL)) {
 			unsigned char *current_link = print_current_link(ses);
 			if (current_link) {
 				set_clipboard_text(ses->term, current_link);
 				mem_free(current_link);
 			}
 		}
-		else if (ev->x == KBD_INS || (upcase(ev->x) == 'P' && ev->y == KBD_CTRL)) rep_ev(ses, fd, scroll, -1 - !ses->kbdprefix.rep);
-		else if (ev->x == KBD_DEL || (upcase(ev->x) == 'N' && ev->y == KBD_CTRL)) rep_ev(ses, fd, scroll, 1 + !ses->kbdprefix.rep);
+		else if (ev->x == KBD_INS || (upcase(ev->x) == 'P' && ev->y & KBD_CTRL)) rep_ev(ses, fd, scroll, -1 - !ses->kbdprefix.rep);
+		else if (ev->x == KBD_DEL || (upcase(ev->x) == 'N' && ev->y & KBD_CTRL)) rep_ev(ses, fd, scroll, 1 + !ses->kbdprefix.rep);
 		else if (ev->x == '[') rep_ev(ses, fd, hscroll, -1 - 7 * !ses->kbdprefix.rep);
 		else if (ev->x == ']') rep_ev(ses, fd, hscroll, 1 + 7 * !ses->kbdprefix.rep);
-		/*else if (upcase(ev->x) == 'Y' && ev->y == KBD_CTRL) rep_ev(ses, fd, scroll, -1);
-		else if (upcase(ev->x) == 'E' && ev->y == KBD_CTRL) rep_ev(ses, fd, scroll, 1);*/
+		/*else if (upcase(ev->x) == 'Y' && ev->y & KBD_CTRL) rep_ev(ses, fd, scroll, -1);
+		else if (upcase(ev->x) == 'E' && ev->y & KBD_CTRL) rep_ev(ses, fd, scroll, 1);*/
 		else if (ev->x == KBD_HOME || (upcase(ev->x) == 'A' && ev->y & KBD_CTRL)) rep_ev(ses, fd, home, 0);
 		else if (ev->x == KBD_END || (upcase(ev->x) == 'E' && ev->y & KBD_CTRL)) rep_ev(ses, fd, x_end, 0);
 		else if ((ev->x == KBD_RIGHT && !ses->term->spec->braille) || ev->x == KBD_ENTER) {
@@ -2824,8 +2827,8 @@ int frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 		else if (ev->x == '?') search_back_dlg(ses, fd, 0);
 		else if (ev->x == 'n' && !(ev->y & KBD_ALT)) find_next(ses, fd, 0);
 		else if (ev->x == 'N' && !(ev->y & KBD_ALT)) find_next_back(ses, fd, 0);
-		else if (upcase(ev->x) == 'F' && !(ev->y & KBD_ALT)) set_frame(ses, fd, 0);
-		else if (ev->x >= '1' && ev->x <= '9' && !ev->y) {
+		else if (upcase(ev->x) == 'F' && !(ev->y & (KBD_ALT | KBD_CTRL))) set_frame(ses, fd, 0);
+		else if (ev->x >= '1' && ev->x <= '9' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 			struct f_data *f_data = fd->f_data;
 			int nl, lnl;
 			unsigned char d[2];
@@ -2893,6 +2896,70 @@ int is_active_frame(struct session *ses, struct f_data_c *f)
 	return 0;
 }
 
+int event_catchable(struct event *ev)
+{
+	if (!(ev->ev == EV_KBD)) return 0;
+	if (ev->x == KBD_TAB || ev->x == KBD_ESC || ev->x == KBD_CTRL_C || ev->x == KBD_CLOSE) return 0;
+	return 1;
+}
+
+int call_keyboard_event(struct f_data_c *fd, unsigned char *code, struct event *ev)
+{
+	int keycode;
+	unsigned char *shiftkey, *ctrlkey, *altkey;
+	unsigned char *nc;
+	int nl;
+	shiftkey = ev->y & KBD_SHIFT ? "true" : "false";
+	ctrlkey = ev->y & KBD_CTRL ? "true" : "false";
+	altkey = ev->y & KBD_ALT ? "true" : "false";
+	if (ev->x >= 0) {
+		if (ev->x < 0x80 || is_cp_special(fd->ses->term->spec->charset)) keycode = ev->x;
+		else keycode = cp2u(ev->x, fd->ses->term->spec->charset);
+	}
+	else if (ev->x == KBD_ENTER) keycode = 13;
+	else if (ev->x == KBD_BS) keycode = 8;
+	else if (ev->x == KBD_TAB) keycode = 9;
+	else if (ev->x == KBD_ESC) keycode = 27;
+	else if (ev->x == KBD_INS) keycode = 45;
+	else if (ev->x == KBD_DEL) keycode = 46;
+	else if (ev->x == KBD_PAGE_UP) keycode = 33;
+	else if (ev->x == KBD_PAGE_DOWN) keycode = 34;
+	else if (ev->x == KBD_END) keycode = 35;
+	else if (ev->x == KBD_HOME) keycode = 36;
+	else if (ev->x == KBD_LEFT) keycode = 37;
+	else if (ev->x == KBD_UP) keycode = 38;
+	else if (ev->x == KBD_RIGHT) keycode = 39;
+	else if (ev->x == KBD_DOWN) keycode = 40;
+	else if (ev->x == KBD_F1) keycode = 112;
+	else if (ev->x == KBD_F2) keycode = 113;
+	else if (ev->x == KBD_F3) keycode = 114;
+	else if (ev->x == KBD_F4) keycode = 115;
+	else if (ev->x == KBD_F5) keycode = 116;
+	else if (ev->x == KBD_F6) keycode = 117;
+	else if (ev->x == KBD_F7) keycode = 118;
+	else if (ev->x == KBD_F8) keycode = 119;
+	else if (ev->x == KBD_F9) keycode = 120;
+	else if (ev->x == KBD_F10) keycode = 121;
+	else if (ev->x == KBD_F11) keycode = 122;
+	else if (ev->x == KBD_F12) keycode = 123;
+	else return -1;
+	nc = init_str();
+	nl = 0;
+	add_to_str(&nc, &nl, "event = new Object(); event.keyCode = ");
+	add_num_to_str(&nc, &nl, keycode);
+	add_to_str(&nc, &nl, "; event.shiftKey = ");
+	add_to_str(&nc, &nl, shiftkey);
+	add_to_str(&nc, &nl, "; event.ctrlKey = ");
+	add_to_str(&nc, &nl, ctrlkey);
+	add_to_str(&nc, &nl, "; event.altKey = ");
+	add_to_str(&nc, &nl, altkey);
+	add_to_str(&nc, &nl, "; ");
+	add_to_str(&nc, &nl, code);
+	jsint_execute_code(fd, nc, nl, -1, -1, -1, ev);
+	mem_free(nc);
+	return 0;
+}
+
 int send_to_frame(struct session *ses, struct event *ev)
 {
 	int r;
@@ -2904,6 +2971,29 @@ int send_to_frame(struct session *ses, struct event *ev)
 		/*internal("document not formatted");*/
 		return 0;
 	}
+
+	if (!event_catchable(ev) || !fd->f_data || !fd->vs) goto dont_catch;
+	if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) {
+		struct link *l = &fd->f_data->links[fd->vs->current_link];
+		if (ev->b < EVH_LINK_KEYDOWN_PROCESSED && l->js_event && l->js_event->keydown_code) {
+			ev->b = EVH_LINK_KEYDOWN_PROCESSED;
+			if (!(call_keyboard_event(fd, l->js_event->keydown_code, ev))) return 1;
+		}
+		if (ev->b < EVH_LINK_KEYPRESS_PROCESSED && l->js_event && l->js_event->keypress_code) {
+			ev->b = EVH_LINK_KEYPRESS_PROCESSED;
+			if (!(call_keyboard_event(fd, l->js_event->keypress_code, ev))) return 1;
+		}
+	}
+	if (ev->b < EVH_DOCUMENT_KEYDOWN_PROCESSED && fd->f_data->js_event && fd->f_data->js_event->keydown_code) {
+		ev->b = EVH_DOCUMENT_KEYDOWN_PROCESSED;
+		if (!(call_keyboard_event(fd, fd->f_data->js_event->keydown_code, ev))) return 1;
+	}
+	if (ev->b < EVH_DOCUMENT_KEYPRESS_PROCESSED && fd->f_data->js_event && fd->f_data->js_event->keypress_code) {
+		ev->b = EVH_DOCUMENT_KEYPRESS_PROCESSED;
+		if (!(call_keyboard_event(fd, fd->f_data->js_event->keypress_code, ev))) return 1;
+	}
+	dont_catch:
+
 	if (!F) r = frame_ev(ses, fd, ev);
 #ifdef G
 	else r = g_frame_ev(ses, fd, ev);
@@ -2924,13 +3014,13 @@ int send_to_frame(struct session *ses, struct event *ev)
 
 			/* process onchange code, if previous link was a textarea or a textfield and has changed */
 			if ((l->type==L_FIELD||l->type==L_AREA) && (fs=find_form_state(fd,l->form)) && fs->changed && l->js_event && l->js_event->change_code)
-				fs->changed=0,jsint_execute_code(fd,l->js_event->change_code,strlen(l->js_event->change_code),-1,-1,-1);
+				fs->changed=0,jsint_execute_code(fd,l->js_event->change_code,strlen(l->js_event->change_code),-1,-1,-1, NULL);
 
 			/* process blur and mouse-out handlers */
 			if (l->js_event&&l->js_event->blur_code)
-				jsint_execute_code(fd,l->js_event->blur_code,strlen(l->js_event->blur_code),-1,-1,-1);
+				jsint_execute_code(fd,l->js_event->blur_code,strlen(l->js_event->blur_code),-1,-1,-1, NULL);
 			if (l->js_event&&l->js_event->out_code)
-				jsint_execute_code(fd,l->js_event->out_code,strlen(l->js_event->out_code),-1,-1,-1);
+				jsint_execute_code(fd,l->js_event->out_code,strlen(l->js_event->out_code),-1,-1,-1, NULL);
 		}
 		if (previous_link!=fd->vs->current_link&&fd->f_data&&fd->vs->current_link>=0&&fd->vs->current_link<fd->f_data->nlinks)
 		{
@@ -2938,9 +3028,9 @@ int send_to_frame(struct session *ses, struct event *ev)
 
 			/* process focus and mouse-over handlers */
 			if (l->js_event&&l->js_event->focus_code)
-				jsint_execute_code(fd,l->js_event->focus_code,strlen(l->js_event->focus_code),-1,-1,-1);
+				jsint_execute_code(fd,l->js_event->focus_code,strlen(l->js_event->focus_code),-1,-1,-1, NULL);
 			if (l->js_event&&l->js_event->over_code)
-				jsint_execute_code(fd,l->js_event->over_code,strlen(l->js_event->over_code),-1,-1,-1);
+				jsint_execute_code(fd,l->js_event->over_code,strlen(l->js_event->over_code),-1,-1,-1, NULL);
 		}
 #endif
 	}
@@ -3060,7 +3150,7 @@ void send_event(struct session *ses, struct event *ev)
 			back(ses, NULL, 0);
 			goto x;
 		}
-		if (upcase(ev->x) == 'Z' && !ev->y) {
+		if (upcase(ev->x) == 'Z' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 			back(ses, NULL, 0);
 			goto x;
 		}
@@ -3078,20 +3168,20 @@ void send_event(struct session *ses, struct event *ev)
 			back(ses, NULL, 0);
 			goto x;
 		}
-		if (upcase(ev->x) == 'R' && ev->y == KBD_CTRL) {
+		if (upcase(ev->x) == 'R' && ev->y & KBD_CTRL) {
 			reload(ses, -1);
 			goto x;
 		}
-		if (upcase(ev->x) == 'S' && ev->y == KBD_CTRL) {
+		if (upcase(ev->x) == 'S' && ev->y & KBD_CTRL) {
 			abort_all_connections();
 			goto x;
 		}
-		if (ev->x == 'g' && !ev->y) {
+		if (ev->x == 'g' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 			quak:
 			dialog_goto_url(ses,"");
 			goto x;
 		}
-		if (ev->x == 'G' && !ev->y) {
+		if (ev->x == 'G' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 			unsigned char *s;
 			if (list_empty(ses->history)) goto quak;
 			s = stracpy(ses->screen->rq->url);
@@ -3101,7 +3191,7 @@ void send_event(struct session *ses, struct event *ev)
 			mem_free(s);
 			goto x;
 		}
-		if (upcase(ev->x) == 'G' && ev->y == KBD_CTRL) {
+		if (upcase(ev->x) == 'G' && ev->y & KBD_CTRL) {
 			struct f_data_c *fd = current_frame(ses);
 			if (!fd->vs || !fd->f_data || fd->vs->current_link < 0 || fd->vs->current_link >= fd->f_data->nlinks) goto quak;
 			dialog_goto_url(ses, fd->f_data->links[fd->vs->current_link].where);
@@ -3117,8 +3207,8 @@ void send_event(struct session *ses, struct event *ev)
 			if (!anonymous) menu_bookmark_manager(ses->term, NULL, ses);
 			goto x;
 		}
-		if ((upcase(ev->x) == 'Q' && !ev->y) || ev->x == KBD_CTRL_C) {
-		  exit_prog(ses->term, (void *)(ev->x == KBD_CTRL_C), ses); /* 2989: warning: cast to pointer from integer of different size */
+		if ((upcase(ev->x) == 'Q' && !(ev->y & (KBD_CTRL | KBD_ALT))) || ev->x == KBD_CTRL_C) {
+		  exit_prog(ses->term, (void *)(my_intptr_t)(ev->x == KBD_CTRL_C), ses);
 			goto x;
 		}
 		if (ev->x == KBD_CLOSE){
@@ -3150,11 +3240,11 @@ void send_event(struct session *ses, struct event *ev)
 					struct form_state *fs;
 					/* select se dela jinde */
 					if (lnk->type!=L_SELECT&&lnk->js_event&&lnk->js_event->blur_code)
-						jsint_execute_code(current_frame(ses),lnk->js_event->blur_code,strlen(lnk->js_event->blur_code),-1,-1,-1);
+						jsint_execute_code(current_frame(ses),lnk->js_event->blur_code,strlen(lnk->js_event->blur_code),-1,-1,-1, NULL);
 
 					/* execute onchange handler of text field/area */
 					if ((lnk->type==L_AREA||lnk->type==L_FIELD)&&lnk->js_event&&lnk->js_event->change_code&&(fs=find_form_state(ses->screen,lnk->form))&&fs->changed)
-						fs->changed=0,jsint_execute_code(current_frame(ses),lnk->js_event->change_code,strlen(lnk->js_event->change_code),-1,-1,-1);
+						fs->changed=0,jsint_execute_code(current_frame(ses),lnk->js_event->change_code,strlen(lnk->js_event->change_code),-1,-1,-1, NULL);
 					
 				}
 #endif

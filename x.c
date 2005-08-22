@@ -324,6 +324,7 @@ static int x_translate_key(XKeyEvent *e,int *key,int *flag)
 	*key=0;
 
 	/* alt, control, shift ... */
+	if (e->state&ShiftMask)*flag|=KBD_SHIFT;
 	if (e->state&ControlMask)*flag|=KBD_CTRL;
 	if (e->state&Mod1Mask)*flag|=KBD_ALT;
 

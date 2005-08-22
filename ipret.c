@@ -700,8 +700,6 @@ int vartoint(lns*pna,js_context*context)
 	return retval;
 }
 
-float tofloat(abuf*,js_context*);
-
 float vartofloat(lns*pna,js_context*context)
 {	abuf*pomocny;
 	lns*promenna;
@@ -2351,12 +2349,14 @@ void plusassign(js_context*context)
 		break;
 		case 2: debug("pocitam... \n");
 			context->current->in=0;
-			retval=js_mem_alloc(sizeof(abuf));
 			par2=pulla(context);/*second argument*/
 			RESOLV(par2);
 			par1=pulla(context);/*first argument*/
 			RESOLV(par1);
-			
+			pusha(par2,context);/* konsolidace */
+			VARTEST2(par1,"You can assign only to variable!\n");
+			pulla(context);/* pullneme hodnotu par2 z bufferu */
+			retval=js_mem_alloc(sizeof(abuf));
 			if((par2->typ==STRING) || (par1->typ==STRING))
 			{	retval->typ=STRING;
 				retval->argument=(long)js_mem_alloc(1+strlen(str1=tostring(par1,context))+
@@ -3470,22 +3470,22 @@ void for3(js_context*context)
 			 */
 			debug("For3 vracim identifier\n");
 			if(!context->current->arg[6])
-nebo_skrtnem_sirkou:		while(!context->current->arg[6] && ((long)context->current->arg[5])<HASHNUM)
+nebo_skrtnem_sirkou:		while(!context->current->arg[6] && ((my_intptr_t)context->current->arg[5])<HASHNUM)
 				{
-					context->current->arg[6]=((plns*)((lns*)context->current->arg[3])->value)->ns[(long)context->current->arg[5]];
+					context->current->arg[6]=((plns*)((lns*)context->current->arg[3])->value)->ns[(my_intptr_t)context->current->arg[5]];
 					/* co tim chtel basnik rict ?? */
 /* Basnik: context->ptr->arg[3] je typu lns*, jeho value je plns* a my
    koukneme do namespacu pod timto plns (to znamena pointer na localnamespace)
    a to konkretne do context->current->arg[5]-te pozice. */
 					/*(int)context->current->arg[5]=(int)context->current->arg[5]+1;*/
-					context->current->arg[5]=(void *)((long)context->current->arg[5]+1);
+					context->current->arg[5]=(void *)((my_intptr_t)context->current->arg[5]+1);
 				}
 			else {	context->current->arg[6]=((lns*)context->current->arg[6])->next;
-				while(!context->current->arg[6] && ((long)context->current->arg[5])<HASHNUM)
-				{	context->current->arg[6]=((plns*)((lns*)context->current->arg[3])->value)->ns[(long)context->current->arg[5]];
+				while(!context->current->arg[6] && ((my_intptr_t)context->current->arg[5])<HASHNUM)
+				{	context->current->arg[6]=((plns*)((lns*)context->current->arg[3])->value)->ns[(my_intptr_t)context->current->arg[5]];
 					/* co tim chtel basnik rict ?? */
 					/*(int)context->current->arg[5]=(int)context->current->arg[5]+1;*/
-					context->current->arg[5]=(void *)((long)context->current->arg[5]+1);
+					context->current->arg[5]=(void *)((my_intptr_t)context->current->arg[5]+1);
 				}
 			}
 			if(!context->current->arg[6])
@@ -3510,7 +3510,7 @@ nebo_skrtnem_sirkou:		while(!context->current->arg[6] && ((long)context->current
 			{	context->current->arg[6]=((lns*)context->current->arg[6])->next;
 				goto nebo_skrtnem_sirkou;
 			}
-			pna=context->namespace[((long)context->current->arg[5])-1];
+			pna=context->namespace[((my_intptr_t)context->current->arg[5])-1];
 			while(pna && (pna->klic!=((lns*)context->current->arg[6])->identifier/HASHNUM))pna=pna->next;
 			if(!pna){ my_internal("Kalim mimo misu!\n",context);
 				retval=js_mem_alloc(sizeof(abuf));

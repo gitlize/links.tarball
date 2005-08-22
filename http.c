@@ -231,7 +231,7 @@ void http_send_header(struct connection *c)
 		add_to_str(&hdr, &l, "\r\n");
 	}
 	add_to_str(&hdr, &l, "User-Agent: ");
-	if (!(*fake_useragent)) {
+	if (!(*http_bugs.fake_useragent)) {
 		add_to_str(&hdr, &l, "Links (" VERSION_STRING "; ");
 		add_to_str(&hdr, &l, system_name);
 		if (!F && !list_empty(terminals)) {
@@ -254,15 +254,15 @@ void http_send_header(struct connection *c)
 		add_to_str(&hdr, &l, ")\r\n");
 	}
 	else {
-		add_to_str(&hdr, &l, fake_useragent);
+		add_to_str(&hdr, &l, http_bugs.fake_useragent);
 		add_to_str(&hdr, &l, "\r\n");
 	}
-	switch (referer)
+	switch (http_bugs.referer)
 	{
 		unsigned char *ur;
 		case REFERER_FAKE:
 		add_to_str(&hdr, &l, "Referer: ");
-		add_to_str(&hdr, &l, fake_referer);
+		add_to_str(&hdr, &l, http_bugs.fake_referer);
 		add_to_str(&hdr, &l, "\r\n");
 		break;
 		

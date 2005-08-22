@@ -5,15 +5,6 @@
 
 #include "links.h"
 
-#ifdef G
-
-void t_redraw(struct graphics_device *, struct rect *);
-void t_resize(struct graphics_device *);
-void t_kbd(struct graphics_device *, int, int);
-void t_mouse(struct graphics_device *, int, int, int);
-
-#endif
-
 void alloc_term_screen(struct terminal *, int, int);
 void clear_terminal(struct terminal *);
 void redraw_terminal_ev(struct terminal *, int);
@@ -742,7 +733,7 @@ void in_term(struct terminal *term)
 		term->redrawing = 0;
 	}
 	if (ev->ev == EV_KBD || ev->ev == EV_MOUSE) {
-		if (ev->ev == EV_KBD && upcase(ev->x) == 'L' && ev->y == KBD_CTRL) {
+		if (ev->ev == EV_KBD && upcase(ev->x) == 'L' && ev->y & KBD_CTRL) {
 			ev->ev = EV_REDRAW;
 			ev->x = term->x;
 			ev->y = term->y;
@@ -850,7 +841,7 @@ void redraw_all_terminals(void)
 void redraw_screen(struct terminal *term)
 {
 	int x, y, p = 0;
-	int cx = -1, cy = -1;
+	int cx = term->lcx, cy = term->lcy;
 	unsigned char *a;
 	int attrib = -1;
 	int mode = -1;
@@ -864,9 +855,10 @@ void redraw_screen(struct terminal *term)
 		for (x = 0; x < term->x; x++, p++) {
 			if (y == term->y - 1 && x == term->x - 1) break;
 			if (term->screen[p] == term->last_screen[p]) continue;
-			if ((term->screen[p] & 0x3800) == (term->last_screen[p] & 0x3800) && ((term->screen[p] & 0xff) == 0 || (term->screen[p] & 0xff) == 1 || (term->screen[p] & 0xff) == ' ') && ((term->last_screen[p] & 0xff) == 0 || (term->last_screen[p] & 0xff) == 1 || (term->last_screen[p] & 0xff) == ' ')) continue;
+			if ((term->screen[p] & 0x3800) == (term->last_screen[p] & 0x3800) && ((term->screen[p] & 0xff) == 0 || (term->screen[p] & 0xff) == 1 || (term->screen[p] & 0xff) == ' ') && ((term->last_screen[p] & 0xff) == 0 || (term->last_screen[p] & 0xff) == 1 || (term->last_screen[p] & 0xff) == ' ') && (x != term->cx || y != term->cy)) continue;
+			term->last_screen[p] = term->screen[p];
 			if (cx == x && cy == y) goto pc;/*PRINT_CHAR(p)*/
-			else if (cy == y && x - cx < 10) {
+			else if (cy == y && x - cx < 10 && x - cx > 0) {
 				int i;
 				for (i = x - cx; i >= 0; i--) PRINT_CHAR(p - i);
 			} else {
@@ -886,7 +878,9 @@ void redraw_screen(struct terminal *term)
 		if (s->mode == TERM_LINUX && s->m11_hack) add_to_str(&a, &l, "\033[10m");
 		if (s->mode == TERM_VT100) add_to_str(&a, &l, "\x0f");
 	}
-	if (l || term->cx != term->lcx || term->cy != term->lcy) {
+	term->lcx = cx;
+	term->lcy = cy;
+	if (term->cx != term->lcx || term->cy != term->lcy) {
 		term->lcx = term->cx;
 		term->lcy = term->cy;
 		add_to_str(&a, &l, "\033[");
@@ -899,7 +893,6 @@ void redraw_screen(struct terminal *term)
 	hard_write(term->fdout, a, l);
 	if (l && term->master) done_draw();
 	mem_free(a);
-	memcpy(term->last_screen, term->screen, term->x * term->y * sizeof(int));
 	term->dirty = 0;
 }
 
@@ -1059,14 +1052,14 @@ void exec_thread(unsigned char *path, int p)
 
 void close_handle(void *p)
 {
-	long h = (long)p;
+	long h = (my_intptr_t)p;
 	close(h);
 	set_handlers(h, NULL, NULL, NULL, NULL);
 }
 
 void unblock_terminal(struct terminal *term)
 {
-	close_handle((void *)term->blocked);  /* 1087: warning: cast to pointer from integer of different size */
+	close_handle((void *)(my_intptr_t)term->blocked);
 	term->blocked = -1;
 	if (!F) {
 		set_handlers(term->fdin, (void (*)(void *))in_term, NULL, (void (*)(void *))destroy_terminal, term);

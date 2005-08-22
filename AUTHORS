@@ -328,3 +328,6 @@ Dieter <netbsd@sopwith.solgatos.com>
 Jakub Bogusz <qboosh@pld-linux.org>
 	Updated Polish translation
 
+Federico G. Schwindt <fgsch@lodoss.net>
+	Use MD5 functions from libc when available
+

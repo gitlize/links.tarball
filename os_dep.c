@@ -225,8 +225,7 @@ int get_terminal_size(int fd, int *x, int *y)
 /*
 		debug("%d %d", *x, *y);
 */
-
-		return 0;
+		goto set_default;
 #else
 		*x = 80; *y = 24;
 		return 0;
@@ -236,6 +235,7 @@ int get_terminal_size(int fd, int *x, int *y)
 		_scrsize(a);
 		*x = a[0];
 		*y = a[1];
+		set_default:
 		if (*x == 0) {
 			*x = get_e("COLUMNS");
 			if (*x == 0) *x = 80;

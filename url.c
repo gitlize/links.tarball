@@ -449,10 +449,13 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 unsigned char *extract_position(unsigned char *url)
 {
 	unsigned char *u, *uu, *r;
+	if ((u = get_url_data(url))) url = u;
 	if (!(u = strchr(url, POST_CHAR))) u = url + strlen(url);
+	if (u == url) return NULL;
 	uu = u;
-	while (--uu > url && *uu != '#') ;
+	while (uu > url && uu[-1] != '#') uu--;
 	if (uu <= url) return NULL;
+	uu--;
 	r = mem_alloc(u - uu);
 	memcpy(r, uu + 1, u - uu - 1);
 	r[u - uu - 1] = 0;

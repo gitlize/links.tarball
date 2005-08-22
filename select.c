@@ -43,6 +43,7 @@ struct timer {
 struct list_head timers = {&timers, &timers};
 
 /* prototypes */
+void signal_break(void *);
 void got_signal(int);
 void sigchld(void *);
 void check_timers(void);

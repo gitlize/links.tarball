@@ -36,6 +36,7 @@
 
 #include "struct.h"
 #include "ipret.h"
+#include "builtin_keys.h"
 
 /*
 vypisuje to: jaky kod byl zarazen do fronty. jaky kod byl predan interpretu do js_execute_code. jaky kod byl vykonan a ukoncen intepretem jsint_done_execution
@@ -47,6 +48,7 @@ struct js_request {
 	struct js_request *prev;
 	int onclick_submit;	/* >=0 (znamena cislo formulare) pokud tohle je request onclick handleru u submit tlacitka nebo onsubmit handleru */
 	int onsubmit;		/* dtto pro submit handler */
+	struct event ev;	/* event, ktery se ma poslat pri uspechu */
 	int write_pos;	/* document.write position from END of document. -1 if document.write cannot be used */
 	int wrote;	/* this request called document.write */
 	int len;
@@ -83,6 +85,7 @@ struct js_request {
  */
 
 /* prototypes */
+void jsint_send_event(struct f_data_c *fd, struct event *ev);
 int jsint_create(struct f_data_c *);
 void jsint_done_execution(struct f_data_c *);
 int jsint_can_access(struct f_data_c *, struct f_data_c *);
@@ -222,7 +225,13 @@ void javascript_func(struct session *ses, unsigned char *hlavne_ze_je_vecirek)
 {
 	unsigned char *code=get_url_data(hlavne_ze_je_vecirek);
 
-	jsint_execute_code(current_frame(ses),code,strlen(code),-1,-1,-1);
+	jsint_execute_code(current_frame(ses),code,strlen(code),-1,-1,-1, NULL);
+}
+
+void jsint_send_event(struct f_data_c *fd, struct event *ev)
+{
+	if (!ev || !ev->b) return;
+	send_event(fd->ses, ev);
 }
 
 /* executes or queues javascript code in frame:
@@ -230,7 +239,8 @@ void javascript_func(struct session *ses, unsigned char *hlavne_ze_je_vecirek)
 	write_pos == -1 if it is not from <SCRIPT> statement and cannot use document.write
 */
 /* data je cislo formulare pro onclick submit handler, jinak se nepouziva */
-void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int write_pos, int onclick_submit, int onsubmit)
+/* ev je udalost, ktera se ma znovu poslat, pokud bylo vraceno true */
+void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int write_pos, int onclick_submit, int onsubmit, struct event *ev)
 {
 	struct js_request *r, *q;
 
@@ -243,13 +253,19 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 
 	if (len >= 11 && !casecmp(code, "javascript:", 11)) code += 11, len -= 11;
 	
-	if (!js_enable)return;
+	if (!js_enable) {
+		jsint_send_event(fd, ev);
+		return;
+	}
 
 #ifdef TRACE_EXECUTE
 	fprintf(stderr, "Submitted: ^^%.*s^^\n", len, code);
 #endif
 
-	if (!fd->js && jsint_create(fd)) return;
+	if (!fd->js && jsint_create(fd)) {
+		jsint_send_event(fd, ev);
+		return;
+	}
 	if ((unsigned)len > MAXINT - sizeof(struct js_request)) overalloc();
 	r = mem_calloc(sizeof(struct js_request) + len);
 	r->write_pos = write_pos;
@@ -257,6 +273,7 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 	r->onclick_submit=onclick_submit;
 	r->onsubmit=onsubmit;
 	memcpy(r->code, code, len);
+	if (ev) memcpy(&r->ev, ev, sizeof(struct event));
 	if (write_pos == -1) {
 		struct list_head *l = (struct list_head *)fd->js->queue.prev;
 		add_to_list(*l, r);
@@ -273,6 +290,7 @@ void jsint_done_execution(struct f_data_c *fd)
 {
 	struct js_request *r;
 	struct js_state *js = fd->js;
+	struct event ev = { 0, 0, 0, 0 };
 	if (!js) {
 		internal("no js in frame");
 		return;
@@ -292,6 +310,8 @@ void jsint_done_execution(struct f_data_c *fd)
 	/* js->active obsahuje request prave dobehnuteho skriptu */
 
 	/* dobehl onclick_handler a nezaplatil (vratil false), budou se dit veci */
+	if (js->active->ev.b && js->ctx->zaplatim)
+		memcpy(&ev, &js->active->ev, sizeof(struct event));
 	if ((js->active->onclick_submit)>=0&&!js->ctx->zaplatim)
 	{
 		/* pokud je handler od stejneho formulare, jako je defered, tak odlozeny skok znicime a zlikvidujem prislusny onsubmit handler z fronty */
@@ -341,6 +361,7 @@ void jsint_done_execution(struct f_data_c *fd)
 	}
 	else
 		jsint_run_queue(fd);
+	jsint_send_event(fd, &ev);
 }
 
 void jsint_run_queue(struct f_data_c *fd)
@@ -462,7 +483,7 @@ void jsint_scan_script_tags(struct f_data_c *fd)
 	{
 		if (onload_code && fd->script_t != -1)
 		{
-			jsint_execute_code(fd,onload_code,strlen(onload_code),-1,-1,-1);
+			jsint_execute_code(fd,onload_code,strlen(onload_code),-1,-1,-1, NULL);
 		}
 		fd->script_t = -1;
 		goto ret;
@@ -519,8 +540,8 @@ void jsint_scan_script_tags(struct f_data_c *fd)
 	while (ee < eof && *ee != '>') ee++;
 	if (ee < eof) ee++;
 	fd->script_t = ee - ss;
-	if (!start || !end) jsint_execute_code(fd, s, e - s, eof - ee,-1,-1);
-	else jsint_execute_code(fd, start, end - start, eof - ee,-1,-1);
+	if (!start || !end) jsint_execute_code(fd, s, e - s, eof - ee,-1,-1, NULL);
+	else jsint_execute_code(fd, start, end - start, eof - ee,-1,-1, NULL);
 	ret:
 	if (onload_code)mem_free(onload_code);
 
@@ -551,7 +572,9 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 	switch (type)
 	{
  		/* form element
-		 * obj_id can be from 0 to (form_info_len-1) 
+		 * obj_id can be from 0 up to number of form fields
+		 * (document->vs->form_info_len may be actually lower if the fields were never
+		 * touched)
 		 * returns allocated struct hopla_mladej, you must free it after use
 		 */
 		case JS_OBJ_T_TEXT:
@@ -568,10 +591,10 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 			struct hopla_mladej *hopla;
 
 			struct form_control *fc;
-			int n=document->vs->form_info_len;
+			/*int n=document->vs->form_info_len;*/
 			int a=0;
 	
-			if (obj_id<0||obj_id>=n)return NULL;
+			if (obj_id<0/*||obj_id>=n*/)return NULL;
 			hopla=mem_alloc(sizeof(struct hopla_mladej));
 
 			if (!(document->f_data)){mem_free(hopla);return NULL;};
@@ -1056,13 +1079,13 @@ unsigned char *js_upcall_get_useragent(void *data)
 	if (!data)internal("js_upcall_get_useragent called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	if (!fake_useragent||!(*fake_useragent)) {
+	if (!http_bugs.fake_useragent||!(*http_bugs.fake_useragent)) {
 		add_to_str(&retval, &l, "Links (" VERSION_STRING "; ");
 		add_to_str(&retval, &l, system_name);
 		add_to_str(&retval, &l, ")");
 	}
 	else {
-		add_to_str(&retval, &l, fake_useragent);
+		add_to_str(&retval, &l, http_bugs.fake_useragent);
 	}
 
 	return retval;
@@ -1072,20 +1095,20 @@ unsigned char *js_upcall_get_useragent(void *data)
 /* returns allocated string with browser name */
 unsigned char *js_upcall_get_appname(void)
 {
-	if (!fake_useragent||!(*fake_useragent))
+	if (!http_bugs.fake_useragent||!(*http_bugs.fake_useragent))
 		return stracpy("Links");
 	else
-		return stracpy(fake_useragent);
+		return stracpy(http_bugs.fake_useragent);
 }
 
 
 /* returns allocated string with browser name */
 unsigned char *js_upcall_get_appcodename(void)
 {
-	if (!fake_useragent||!(*fake_useragent))
+	if (!http_bugs.fake_useragent||!(*http_bugs.fake_useragent))
 		return stracpy("Links");
 	else
-		return stracpy(fake_useragent);
+		return stracpy(http_bugs.fake_useragent);
 }
 
 
@@ -1095,7 +1118,7 @@ unsigned char *js_upcall_get_appversion(void)
 	unsigned char *str;
 	int l=0;
 
-	if (fake_useragent&&(*fake_useragent))return stracpy(fake_useragent);
+	if (http_bugs.fake_useragent&&(*http_bugs.fake_useragent))return stracpy(http_bugs.fake_useragent);
 	str=init_str();
 	add_to_str(&str,&l,VERSION_STRING);
 	add_to_str(&str,&l," (");
@@ -1116,10 +1139,10 @@ unsigned char *js_upcall_get_referrer(void *data)
 	if (!data)internal("js_upcall_get_referrer called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	switch (referer)
+	switch (http_bugs.referer)
 	{
 		case REFERER_FAKE:
-		add_to_str(&retval, &l, fake_referer);
+		add_to_str(&retval, &l, http_bugs.fake_referer);
 		break;
 		
 		case REFERER_SAME_URL:
@@ -1960,7 +1983,7 @@ long *js_upcall_get_form_elements(void *data, long document_id, long form_id, in
 	pole_Premysla_Zavorace=mem_alloc((*len)*sizeof(long));
 	
 	b=0;
-	foreach (fc2, fd->f_data->forms)
+	foreachback (fc2, fd->f_data->forms)
 		if (fc2->form_num==fc->form_num)
 		{
 			switch (fc2->type)
@@ -2110,7 +2133,7 @@ void js_upcall_set_checkbox_radio_default_checked(void *bidak_smirak, long docum
 	if (!js_ctx)internal("js_upcall_set_checkbox_radio_default_checked called with NULL context pointer\n");
 	if ((radio_tv_id&JS_OBJ_MASK)!=JS_OBJ_T_RADIO&&(radio_tv_id&JS_OBJ_MASK)!=JS_OBJ_T_CHECKBOX)return;   /* this isn't radio nor TV */
 	fd=jsint_find_document(document_id);
-	if (!fd||!jsint_can_access(js_ctx,fd))return;
+	if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd))return;
 
 	hopla=jsint_find_object(fd,radio_tv_id);
 	if (!hopla)return;
@@ -2175,7 +2198,7 @@ void js_upcall_set_form_element_name(void *bidak, long document_id, long ksunt_i
 
 	if (!js_ctx)internal("js_upcall_set_form_element_name called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
-	if (!fd||!jsint_can_access(js_ctx,fd)){if (name)mem_free(name);return;}
+	if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd)){if (name)mem_free(name);return;}
 
 	switch (ksunt_id&JS_OBJ_MASK)
 	{
@@ -2224,7 +2247,7 @@ unsigned char *js_upcall_get_form_element_default_value(void *bidak, long docume
 
 	if (!js_ctx)internal("js_upcall_get_form_element_default_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
-	if (!fd||!jsint_can_access(js_ctx,fd))return NULL;
+	if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd))return NULL;
 
 	switch (ksunt_id&JS_OBJ_MASK)
 	{
@@ -2266,7 +2289,7 @@ void js_upcall_set_form_element_default_value(void *bidak, long document_id, lon
 
 	if (!js_ctx)internal("js_upcall_set_form_element_default_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
-	if (!fd||!jsint_can_access(js_ctx,fd)){if (name)mem_free(name);return;}
+	if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd)){if (name)mem_free(name);return;}
 
 	switch (ksunt_id&JS_OBJ_MASK)
 	{
@@ -2302,6 +2325,57 @@ void js_upcall_set_form_element_default_value(void *bidak, long document_id, lon
 	if (name)mem_free(name);
 }
 
+static unsigned char **get_js_event_ptr(struct js_event_spec **j, long type)
+{
+	create_js_event_spec(j);
+	if (type == Conkeydown) return &(*j)->keydown_code;
+	else if (type == Conkeypress) return &(*j)->keypress_code;
+	else if (type == Conkeyup) return &(*j)->keyup_code;
+	else return NULL;
+}
+
+void js_upcall_set_form_element_event_handler(void *bidak, long document_id, long ksunt_id, long type, unsigned char *name)
+{
+	struct f_data_c *js_ctx=(struct f_data_c*)bidak;
+	struct f_data_c *fd;
+	struct hopla_mladej *hopla;
+	int i;
+
+	if (!js_ctx)internal("js_upcall_set_form_element_event_handler called with NULL context pointer\n");
+	fd=jsint_find_document(document_id);
+	if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd)){if (name)mem_free(name);return;}
+	if ((ksunt_id&JS_OBJ_MASK) == JS_OBJ_T_FRAME || (ksunt_id&JS_OBJ_MASK) == JS_OBJ_T_DOCUMENT) {
+		unsigned char **p = get_js_event_ptr(&fd->f_data->js_event, type);
+		if (!p) {
+			mem_free(name);
+			return;
+		}
+		if (*p) mem_free(*p);
+		*p = name;
+		fd->f_data->uncacheable=1;
+		return;
+	}
+	hopla=jsint_find_object(fd,ksunt_id);
+	if (!hopla){if (name)mem_free(name);return;}
+	for (i = 0; i < fd->f_data->nlinks; i++) {
+		struct link *l = &fd->f_data->links[i];
+		if (l->form == hopla->fc) {
+			unsigned char **p = get_js_event_ptr(&l->js_event, type);
+			mem_free(hopla);
+			if (!p) {
+				mem_free(name);
+				return;
+			}
+			if (*p) mem_free(*p);
+			*p = name;
+			fd->f_data->uncacheable=1;
+			return;
+		}
+	}
+	mem_free(hopla);
+	mem_free(name);
+}
+
 
 /* returns allocated string with actual value of password, text or textarea element
  * on error returns NULL
@@ -2317,7 +2391,7 @@ unsigned char *js_upcall_get_form_element_value(void *bidak, long document_id, l
 
 	if (!js_ctx)internal("js_upcall_get_form_element_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
-	if (!fd||!jsint_can_access(js_ctx,fd))return NULL;
+	if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd))return NULL;
 
 	switch (ksunt_id&JS_OBJ_MASK)
 	{
@@ -2354,7 +2428,7 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 
 	if (!js_ctx)internal("js_upcall_set_form_element_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
-	if (!fd||!jsint_can_access(js_ctx,fd)){if (name)mem_free(name);return;}
+	if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd)){if (name)mem_free(name);return;}
 
 	fd=jsint_find_document(document_id);
 
@@ -2499,7 +2573,7 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 					}
 #endif
 					if (l->js_event&&l->js_event->focus_code)
-						jsint_execute_code(fd,l->js_event->focus_code,strlen(l->js_event->focus_code),-1,-1,-1);
+						jsint_execute_code(fd,l->js_event->focus_code,strlen(l->js_event->focus_code),-1,-1,-1, NULL);
 
 					/*draw_fd(fd);*/
 					draw_formatted(ses);
@@ -2548,7 +2622,7 @@ void js_upcall_blur(void *bidak, long document_id, long elem_id)
 					{
 						fd->ses->locked_link=0;
 						if (l->js_event&&l->js_event->blur_code)
-							jsint_execute_code(fd,l->js_event->blur_code,strlen(l->js_event->blur_code),-1,-1,-1);
+							jsint_execute_code(fd,l->js_event->blur_code,strlen(l->js_event->blur_code),-1,-1,-1, NULL);
 
 						/* pro jistotu */
 						draw_fd(fd);
@@ -2903,7 +2977,7 @@ static void __js_upcall_goto_history_ok_pressed(void *data)
 
 	if (a<jsid->n&&(fd->js)&&jsid->js_id==fd->js->ctx->js_id){js_downcall_vezmi_null(fd->js->ctx);return;}   /* call downcall */
 
-	go_backwards(fd->ses->term,(void*)(jsid->n),fd->ses); /* 2848: warning: cast to pointer from integer of different size */
+	go_backwards(fd->ses->term,(void*)(my_intptr_t)(jsid->n),fd->ses);
 }
 
 
@@ -3714,7 +3788,8 @@ void js_upcall_set_image_src(void *chuligane)
 		if (!gi||!fd->f_data)goto abych_tu_nepovecerel;
 	
 		/* string joinnem s url */
-		if (fd->loc&&fd->loc->url) vecirek=join_urls(fd->loc->url,fax->string);
+		if (fd->f_data&&fd->f_data->script_href_base) vecirek=join_urls(fd->f_data->script_href_base,fax->string);
+		else if (fd->loc&&fd->loc->url) vecirek=join_urls(fd->loc->url,fax->string);
 		else vecirek=stracpy(fax->string);
 		/* a mame to kompatidebilni s verzi pred jointem */
 	
@@ -3876,7 +3951,7 @@ void js_downcall_vezmi_float(void *context, float f)
 
 #else
 
-void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int write_pos, int onclick_submit, int onsubmit)
+void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int write_pos, int onclick_submit, int onsubmit, struct event *ev)
 {
 }
 

@@ -18,6 +18,10 @@
 /* This file is a part of the Links project, released under GPL.
  */
 
+#include "cfg.h"
+
+#if !defined(HAVE_MD5INIT) || !defined(HAVE_MD5DATA) || !defined(HAVE_MD5_H)
+
 #include "links.h"
 
 #ifdef JS
@@ -252,5 +256,7 @@ void MD5Transform(u_int32_t buf[4], u_int32_t const in[16])
     buf[2] += c;
     buf[3] += d;
 }
+
+#endif
 
 #endif

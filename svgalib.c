@@ -2389,7 +2389,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 			else f = 1, add_to_str(&m, &l, "The following modes are supported:\n");
 			add_to_str(&m, &l, modes[j].name);
 		}
-		if (f) add_to_str(&m, &l, "\nUse -mode switch to set video mode mode.\n");
+		if (f) add_to_str(&m, &l, "\nUse -mode switch to set video mode.\n");
 		else add_to_str(&m, &l, "There are no supported video modes. Links can't run on svgalib.\n");
 		if(svga_driver_param)mem_free(svga_driver_param),svga_driver_param=NULL;
 		return m;

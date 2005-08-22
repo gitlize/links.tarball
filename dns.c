@@ -34,7 +34,7 @@ struct dnsquery {
 
 struct list_head dns_cache = {&dns_cache, &dns_cache};
 
-inline int get_addr_byte(unsigned char **ptr, unsigned char *res, char stp)
+static inline int get_addr_byte(unsigned char **ptr, unsigned char *res, char stp)
 {
 	unsigned u = 0;
 	if (!(**ptr >= '0' && **ptr <= '9')) return -1;

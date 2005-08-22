@@ -1,6 +1,6 @@
-# Makefile.in generated automatically by automake 1.4 from Makefile.am
+# Makefile.in generated automatically by automake 1.4-p6 from Makefile.am
 
-# Copyright (C) 1994, 1995-8, 1999 Free Software Foundation, Inc.
+# Copyright (C) 1994, 1995-8, 1999, 2001 Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
 # with or without modifications, as long as this notice is preserved.
@@ -60,9 +60,14 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
+host_alias = @host_alias@
+host_triplet = @host@
 CC = @CC@
 CXX = @CXX@
 DIRECTFB_CONFIG = @DIRECTFB_CONFIG@
+HAVE_LIB = @HAVE_LIB@
+LIB = @LIB@
+LTLIB = @LTLIB@
 MAKEINFO = @MAKEINFO@
 PACKAGE = @PACKAGE@
 PKG_CONFIG = @PKG_CONFIG@
@@ -338,7 +343,7 @@ distdir: $(DISTFILES)
 	@for file in $(DISTFILES); do \
 	  d=$(srcdir); \
 	  if test -d $$d/$$file; then \
-	    cp -pr $$/$$file $(distdir)/$$file; \
+	    cp -pr $$d/$$file $(distdir)/$$file; \
 	  else \
 	    test -f $(distdir)/$$file \
 	    || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
@@ -359,7 +364,7 @@ bookmarks.o: bookmarks.c links.h cfg.h config.h os_dep.h os_depx.h \
 	setup.h language.h codepage.h
 builtin.o: builtin.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h struct.h typy.h builtin_keys.h builtin.h \
-	ipret.h ns.h md5.h
+	ipret.h ns.h tree.h md5.h
 cache.o: cache.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 charsets.o: charsets.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
@@ -422,7 +427,7 @@ javascript.o: javascript.c cfg.h config.h struct.h links.h os_dep.h \
 jpeg.o: jpeg.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 jsint.o: jsint.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
-	language.h codepage.h struct.h ipret.h
+	language.h codepage.h struct.h ipret.h builtin_keys.h
 kbd.o: kbd.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 language.o: language.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
@@ -437,9 +442,9 @@ mailto.o: mailto.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 main.o: main.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
-md5.o: md5.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
+md5.o: md5.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h md5.h
-md5hl.o: md5hl.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
+md5hl.o: md5hl.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h md5.h
 memory.o: memory.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h

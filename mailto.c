@@ -88,7 +88,7 @@ void tn3270_func(struct session *ses, unsigned char *url)
 void mms_func(struct session *ses, unsigned char *url)
 {
 	if (check_shell_url(url)) {
-		msg_box(ses->term, NULL, TEXT(T_MMS_URL_CONTAINS_INACCEPTABLE_CHARACTERS), AL_CENTER, TEXT(T_MMS), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(ses->term, NULL, TEXT(T_BAD_URL_SYNTAX), AL_CENTER, TEXT(T_MMS_URL_CONTAINS_INACCEPTABLE_CHARACTERS), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return;
 	}
 	prog_func(ses->term, &mms_prog, url, TEXT(T_MMS));

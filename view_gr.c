@@ -24,7 +24,7 @@ void get_parents_sub(struct g_object *, struct g_object *);
 void g_set_current_link(struct f_data_c *, struct g_object_text *, int, int, int);
 void process_sb_event(struct f_data_c *, int, int);
 void process_sb_move(struct f_data_c *, int);
-inline int ev_in_rect(struct event *, int, int, int, int);
+static inline int ev_in_rect(struct event *, int, int, int, int);
 int is_link_in_view(struct f_data_c *, int);
 int skip_link(struct f_data_c *, int);
 int lr_link(struct f_data_c *, int);
@@ -359,6 +359,12 @@ void g_line_destruct(struct g_object_line *l)
 	int i;
 	for (i = 0; i < l->n_entries; i++) l->entries[i]->destruct(l->entries[i]);
 	mem_free(l);
+}
+
+void g_line_bg_destruct(struct g_object_line *l)
+{
+	g_release_background(l->bg);
+	g_line_destruct(l);
 }
 
 void g_line_get_list(struct g_object_line *l, void (*f)(struct g_object *parent, struct g_object *child))
@@ -785,10 +791,10 @@ void g_text_mouse(struct f_data_c *fd, struct g_object_text *a, int x, int y, in
 		struct link *l=&(fd->f_data->links[fd->vs->current_link]);
 
 		if (l->js_event&&l->js_event->up_code&&(b&BM_ACT)==B_UP)
-			jsint_execute_code(fd,l->js_event->up_code,strlen(l->js_event->up_code),-1,-1,-1);
+			jsint_execute_code(fd,l->js_event->up_code,strlen(l->js_event->up_code),-1,-1,-1, NULL);
 
 		if (l->js_event&&l->js_event->down_code&&(b&BM_ACT)==B_DOWN)
-			jsint_execute_code(fd,l->js_event->down_code,strlen(l->js_event->down_code),-1,-1,-1);
+			jsint_execute_code(fd,l->js_event->down_code,strlen(l->js_event->down_code),-1,-1,-1, NULL);
 		
 	}
 #endif
@@ -851,7 +857,7 @@ void process_sb_move(struct f_data_c *fd, int off)
 	draw_graphical_doc(fd->ses->term, fd, 1);
 }
 
-inline int ev_in_rect(struct event *ev, int x1, int y1, int x2, int y2)
+static inline int ev_in_rect(struct event *ev, int x1, int y1, int x2, int y2)
 {
 	return ev->x >= x1 && ev->y >= y1 && ev->x < x2 && ev->y < y2;
 }
@@ -1066,11 +1072,11 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 
 			if (previous_link>=0&&previous_link<fd->f_data->nlinks)lnk=&(fd->f_data->links[previous_link]);
 				if (lnk&&lnk->js_event&&lnk->js_event->out_code)
-					jsint_execute_code(fd,lnk->js_event->out_code,strlen(lnk->js_event->out_code),-1,-1,-1);
+					jsint_execute_code(fd,lnk->js_event->out_code,strlen(lnk->js_event->out_code),-1,-1,-1, NULL);
 				lnk=NULL;
 				if (fd->vs->current_link>=0&&fd->vs->current_link<fd->f_data->nlinks)lnk=&(fd->f_data->links[fd->vs->current_link]);
 				if (lnk&&lnk->js_event&&lnk->js_event->over_code)
-					jsint_execute_code(fd,lnk->js_event->over_code,strlen(lnk->js_event->over_code),-1,-1,-1);
+					jsint_execute_code(fd,lnk->js_event->over_code,strlen(lnk->js_event->over_code),-1,-1,-1, NULL);
 			}
 
 			if ((ev->b & BM_ACT) == B_DOWN && (ev->b & BM_BUTT) == B_RIGHT && fd->vs->current_link == -1) goto scrll;
@@ -1101,13 +1107,18 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				}
 				return enter(ses, fd, 0);
 			}
-			if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && (!ev->y || ev->y== KBD_CTRL)) || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) {
+			if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && !(ev->y & KBD_ALT)) || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) {
 				unset_link(fd);
 				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->f_data->hsb * G_SCROLL_BAR_WIDTH) return 0;
 				fd->vs->view_pos += fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
 				return 3;
 			}
-			if (ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && (!ev->y || ev->y == KBD_CTRL)) || (upcase(ev->x) == 'B' && ev->y & KBD_CTRL)) {
+			if (ev->x == '*') {
+				ses->ds.display_images ^= 1; 
+				html_interpret_recursive(ses->screen); 
+				return 1;
+			}
+			if (ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && !(ev->y & KBD_ALT))) {
 				unset_link(fd);
 				if (!fd->vs->view_pos) return 0;
 				fd->vs->view_pos -= fd->f_data->opt.yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH;
@@ -1125,12 +1136,12 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				fd->vs->view_pos -= 64;
 				return 3;
 			}
-			if (ev->x == KBD_DEL || (upcase(ev->x) == 'N' && ev->y == KBD_CTRL)) {
+			if (ev->x == KBD_DEL || (upcase(ev->x) == 'N' && ev->y & KBD_CTRL)) {
 				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->f_data->hsb * G_SCROLL_BAR_WIDTH) return 0;
 				fd->vs->view_pos += 32;
 				return 3;
 			}
-			if (ev->x == KBD_INS || (upcase(ev->x) == 'P' && ev->y == KBD_CTRL)) {
+			if (ev->x == KBD_INS || (upcase(ev->x) == 'P' && ev->y & KBD_CTRL)) {
 				if (!fd->vs->view_pos) return 0;
 				fd->vs->view_pos -= 32;
 				return 3;
@@ -1187,7 +1198,7 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				unset_link(fd);
 				return 3;
 			}
-			if (upcase(ev->x) == 'F' && !(ev->y & KBD_ALT)) {
+			if (upcase(ev->x) == 'F' && !(ev->y & (KBD_ALT | KBD_CTRL))) {
 				set_frame(ses, fd, 0);
 				return 2;
 			}

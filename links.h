@@ -154,6 +154,8 @@ x #endif*/
 #define longlong long
 #endif
 
+#define my_intptr_t long
+
 #include <termios.h>
 
 #include "os_depx.h"
@@ -843,6 +845,7 @@ int clipboard_support(struct terminal *);
 void set_window_title(unsigned char *);
 unsigned char *get_window_title(void);
 int is_safe_in_shell(unsigned char);
+int is_safe_in_url(unsigned char);
 void check_shell_security(unsigned char **);
 int check_shell_url(unsigned char *);
 void block_stdin(void);
@@ -1082,6 +1085,8 @@ static inline int getpri(struct connection *c)
 #define S_SSL_ERROR		-1400
 #define S_NO_SSL		-1401
 
+#define S_NO_SMB_CLIENT		-1500
+
 extern struct s_msg_dsc {
 	int n;
 	unsigned char *msg;
@@ -1240,8 +1245,6 @@ void finger_func(struct connection *);
 
 /* ftp.c */
 
-extern int fast_ftp;
-extern int passive_ftp;
 void ftp_func(struct connection *);
 
 /* smb.c */
@@ -1782,6 +1785,12 @@ struct event {
 #define EV_RESIZE	4
 #define EV_ABORT	5
 
+#define EVH_NOT_PROCESSED		0
+#define EVH_LINK_KEYDOWN_PROCESSED	1
+#define EVH_LINK_KEYPRESS_PROCESSED	2
+#define EVH_DOCUMENT_KEYDOWN_PROCESSED	3
+#define EVH_DOCUMENT_KEYPRESS_PROCESSED	4
+
 struct window {
 	struct window *next;
 	struct window *prev;
@@ -1912,7 +1921,11 @@ static inline void exclude_from_set(struct rect_set **s, int x1, int y1, int x2,
 	r.x1 = x1, r.x2 = x2, r.y1 = y1, r.y2 = y2;
 	exclude_rect_from_set(s, &r);
 }
+
 void t_redraw(struct graphics_device *, struct rect *);
+void t_resize(struct graphics_device *);
+void t_kbd(struct graphics_device *, int, int);
+void t_mouse(struct graphics_device *, int, int, int);
 
 #endif
 
@@ -2058,7 +2071,7 @@ int is_url_blocked(unsigned char* url);
 void block_add_URL(struct terminal *term, void *xxx, struct session *ses);
 void* block_add_URL_fn(void* garbage, unsigned char* url);
 extern void block_manager(struct terminal *term,void *fcp,struct session *ses);
-void free_blocks();
+void free_blocks(void);
 
 
 /* objreq.c */
@@ -2106,6 +2119,7 @@ struct link_def {
 	unsigned char *link;
 	unsigned char *target;
 
+	unsigned char *label;	/* only for image maps */
 	unsigned char *shape;
 	unsigned char *coords;
 
@@ -2362,6 +2376,10 @@ struct background {
 
 struct f_data_c;
 
+#define G_OBJ_ALIGN_SPECIAL	(MAXINT - 2)
+#define G_OBJ_ALIGN_MIDDLE	(MAXINT - 2)
+#define G_OBJ_ALIGN_TOP		(MAXINT - 1)
+
 struct g_object {
 	void (*mouse_event)(struct f_data_c *, struct g_object *, int, int, int);
 		/* pos is relative to object */
@@ -2522,7 +2540,8 @@ struct g_object_image {
 	void (*draw)(struct f_data_c *, struct g_object_image *, int, int);
 	void (*destruct)(struct g_object *);
 	void (*get_list)(struct g_object *, void (*)(struct g_object *parent, struct g_object *child));
-	int x, y, xw, yw; /* For html parser. If xw or yw are zero, then entries
+	int x, y, xw, yw;
+	/* For html parser. If xw or yw are zero, then entries
                background_color
                af
                width
@@ -2539,7 +2558,7 @@ struct g_object_image {
                rows_added
                reparse
        	are uninitialized and thus garbage
-      	 */
+      	*/
 
 	struct g_object *parent;
 	int link_num;
@@ -2659,6 +2678,8 @@ struct f_data {
 
 	struct js_document_description *js_doc;
 	int uncacheable;	/* cannot be cached - either created from source modified by document.write or modified by javascript */
+
+	struct js_event_spec *js_event;
 
 	/* graphics only */
 #ifdef G
@@ -2847,7 +2868,6 @@ struct session {
 int get_file(struct object_request *o, unsigned char **start, unsigned char **end);
 
 int f_is_finished(struct f_data *f);
-void reinit_f_data_c(struct f_data_c *);
 long formatted_info(int);
 void init_fcache(void);
 void html_interpret(struct f_data_c *);
@@ -2989,7 +3009,7 @@ struct fax_me_tender_nothing{
 };
 
 void javascript_func(struct session *ses, unsigned char *code);
-void jsint_execute_code(struct f_data_c *, unsigned char *, int, int, int, int);
+void jsint_execute_code(struct f_data_c *, unsigned char *, int, int, int, int, struct event *);
 void jsint_destroy(struct f_data_c *);
 void jsint_run_queue(struct f_data_c *);
 int jsint_get_source(struct f_data_c *, unsigned char **, unsigned char **);
@@ -3043,6 +3063,7 @@ unsigned char *js_upcall_get_form_element_name(void *smirak, long document_id, l
 void js_upcall_set_form_element_name(void *smirak, long document_id, long ksunt_id, unsigned char *name);
 unsigned char *js_upcall_get_form_element_default_value(void *smirak, long document_id, long ksunt_id);
 void js_upcall_set_form_element_default_value(void *smirak, long document_id, long ksunt_id, unsigned char *name);
+void js_upcall_set_form_element_event_handler(void *bidak, long document_id, long ksunt_id, long typ, unsigned char *name);
 unsigned char *js_upcall_get_form_element_value(void *smirak, long document_id, long ksunt_id);
 void js_upcall_set_form_element_value(void *smirak, long document_id, long ksunt_id, unsigned char *name);
 void js_upcall_click(void *smirak, long document_id, long elem_id);
@@ -3506,6 +3527,7 @@ struct image_description {
 	unsigned char *alt;
 	unsigned char *src;		/* reflects the src attribute */
 	int border, vspace, hspace;
+	int align;
 	int ismap;
 	int insert_flag;		/* pokud je 1, ma se vlozit do seznamu obrazku ve f_data */
 
@@ -3689,6 +3711,7 @@ void g_area_draw(struct f_data_c *, struct g_object_area *, int, int);
 void g_tag_destruct(struct g_object *);
 void g_text_destruct(struct g_object_text *);
 void g_line_destruct(struct g_object_line *);
+void g_line_bg_destruct(struct g_object_line *);
 void g_area_destruct(struct g_object_area *);
 
 void g_line_get_list(struct g_object_line *, void (*)(struct g_object *parent, struct g_object *child));
@@ -3717,6 +3740,9 @@ void init_grview(void);
 #define AL_RIGHT	2
 #define AL_BLOCK	3
 #define AL_NO		4
+#define AL_BOTTOM	5
+#define AL_MIDDLE	6
+#define AL_TOP		7
 
 #define AL_MASK		0x1f
 
@@ -3730,6 +3756,7 @@ struct text_attrib_beginning {
 	struct rgb fg;
 	struct rgb bg;
 	int fontsize;
+	int baseline;
 };
 
 struct text_attrib {
@@ -3737,6 +3764,7 @@ struct text_attrib {
 	struct rgb fg;
 	struct rgb bg;
 	int fontsize;
+	int baseline;
 	unsigned char *fontface;
 	unsigned char *link;
 	unsigned char *target;
@@ -3837,7 +3865,7 @@ void kill_html_stack_item(struct html_element *);
 unsigned char *skip_comment(unsigned char *, unsigned char *);
 void parse_html(unsigned char *, unsigned char *, void (*)(void *, unsigned char *, int), void (*)(void *), void *(*)(void *, int, ...), void *, unsigned char *);
 int get_image_map(unsigned char *, unsigned char *, unsigned char *, unsigned char *a, struct menu_item **, struct memory_list **, unsigned char *, unsigned char *, int, int, int, int gfx);
-void scan_http_equiv(unsigned char *, unsigned char *, unsigned char **, int *, unsigned char **, unsigned char **, unsigned char **);
+void scan_http_equiv(unsigned char *, unsigned char *, unsigned char **, int *, unsigned char **, unsigned char **, unsigned char **, struct js_event_spec **);
 
 int decode_color(unsigned char *, struct rgb *);
 
@@ -3851,6 +3879,8 @@ int decode_color(unsigned char *, struct rgb *);
 #define SP_IMAGE	7
 #define SP_NOWRAP	8
 #define SP_REFRESH	9
+#define SP_SET_BASE	10
+#define SP_HR		11
 
 struct frameset_param {
 	struct frameset_desc *parent;
@@ -3869,6 +3899,11 @@ struct frame_param {
 struct refresh_param {
 	unsigned char *url;
 	int time;
+};
+
+struct hr_param {
+	int size;
+	int width;
 };
 
 void free_menu(struct menu_item *);
@@ -3908,7 +3943,6 @@ struct g_part {
 	int pending_text_len;
 	struct wrap_struct w;
 	struct style *current_style;
-	int current_font_size;
 	struct f_data *data;
 	int link_num;
 	struct list_head uf;
@@ -3944,6 +3978,7 @@ void xset_hchars(struct part *, int, int, int, unsigned);
 void align_line(struct part *, int);
 void html_tag(struct f_data *, unsigned char *, int, int);
 void process_script(struct f_data *, unsigned char *);
+void set_base(struct f_data *, unsigned char *);
 void html_process_refresh(struct f_data *, unsigned char *, int );
 
 void free_table_cache(void);
@@ -3989,7 +4024,9 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight);
 
 /* html_tbl.c */
 
+unsigned char *skip_element(unsigned char *, unsigned char *, unsigned char *, int);
 void format_table(unsigned char *, unsigned char *, unsigned char *, unsigned char **, void *);
+void table_bg(struct text_attrib *ta, char bgstr[8]);
 
 /* default.c */
 
@@ -4076,9 +4113,6 @@ extern struct rgb default_vlink_g;
 
 extern unsigned char http_proxy[];
 extern unsigned char ftp_proxy[];
-extern unsigned char fake_useragent[];
-extern unsigned char fake_referer[];
-extern int referer;
 #ifdef JS
 extern int js_enable;
 extern int js_verbose_errors;
@@ -4095,11 +4129,20 @@ struct http_bugs {
 	int bug_post_no_keepalive;
 	int no_accept_charset;
 	int aggressive_cache;
+	unsigned char fake_useragent[MAX_STR_LEN];
+	unsigned char fake_referer[MAX_STR_LEN];
+	int referer;
 };
 
 extern struct http_bugs http_bugs;
 
-extern unsigned char default_anon_pass[];
+struct ftp_options {
+	unsigned char anon_pass[MAX_STR_LEN];
+	int fast_ftp;
+	int passive_ftp;
+};
+
+extern struct ftp_options ftp_options;
 
 /* listedit.c */
 

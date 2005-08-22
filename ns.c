@@ -331,10 +331,6 @@ void zrusargy(abuf*co,js_context*context)
 	}else	delarg(co,context);
 }
 
-void add_to_parlist(lns*parent,lns*list);
-
-lns* buildin(char*,js_id_name **,plns*,js_context*);
-
 plns * newnamespace(abuf*jmena,abuf*hod,js_context*context)
 {	plns * nns=js_mem_alloc(sizeof(plns));
 	lns*p,*po;
@@ -519,6 +515,16 @@ lns* cllookup(char* retezec,js_id_name **names,plns*lnamespace,js_context*contex
 			return 0;
 	} else	return 0;
 	return cloklookup(klic,lnamespace,context);
+}
+
+char *key_2_name(long klic, js_context *context)
+{
+	js_id_name *nm = context->namespace[klic & (HASHNUM - 1)];
+	while (nm) {
+		if (nm->klic == klic / HASHNUM) return nm->jmeno;
+		nm = nm->next;
+	}
+	return NULL;
 }
 
 void add_to_parlist(lns*parent,lns*list)

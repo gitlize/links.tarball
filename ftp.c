@@ -6,9 +6,6 @@
 
 #include "links.h"
 
-int fast_ftp = 0;
-int passive_ftp = 0;
-
 #define FTP_BUF	16384
 
 struct ftp_connection_info {
@@ -89,7 +86,7 @@ void ftp_func(struct connection *c)
 			abort_connection(c);
 			return;
 		}
-		make_connection(c, p, &c->sock1, fast_ftp ? ftp_login : ftp_get_banner);
+		make_connection(c, p, &c->sock1, ftp_options.fast_ftp ? ftp_login : ftp_get_banner);
 	} else ftp_send_retr_req(c, S_SENT);
 }
 
@@ -122,11 +119,11 @@ void ftp_login(struct connection *c)
 	if ((u = get_user_name(c->url)) && *u) add_to_str(&login, &logl, u);
 	else add_to_str(&login, &logl, "anonymous");
 	if (u) mem_free(u);
-	if (fast_ftp) {
+	if (ftp_options.fast_ftp) {
 		struct ftp_connection_info *fi;
 		add_to_str(&login, &logl, "\r\nPASS ");
 		if ((u = get_pass(c->url)) && *u) add_to_str(&login, &logl, u);
-		else add_to_str(&login, &logl, default_anon_pass);
+		else add_to_str(&login, &logl, ftp_options.anon_pass);
 		if (u) mem_free(u);
 		add_to_str(&login, &logl, "\r\n");
 		if (!(fi = add_file_cmd_to_str(c))) {
@@ -144,7 +141,7 @@ void ftp_logged(struct connection *c)
 {
 	struct read_buffer *rb;
 	if (!(rb = alloc_read_buffer(c))) return;
-	if (!fast_ftp) {
+	if (!ftp_options.fast_ftp) {
 		ftp_got_user_info(c, rb);
 		return;
 	}
@@ -168,10 +165,10 @@ void ftp_got_user_info(struct connection *c, struct read_buffer *rb)
 	if (g >= 530 && g < 540) { setcstate(c, S_FTP_LOGIN); retry_connection(c); return; }
 	if (g >= 400) { setcstate(c, S_FTP_UNAVAIL); retry_connection(c); return; }
 	if (g >= 200 && g < 300) {
-		if (fast_ftp) ftp_dummy_info(c, rb);
+		if (ftp_options.fast_ftp) ftp_dummy_info(c, rb);
 		else ftp_send_retr_req(c, S_GETH);
 	} else {
-		if (fast_ftp) ftp_pass_info(c, rb);
+		if (ftp_options.fast_ftp) ftp_pass_info(c, rb);
 		else {
 			unsigned char *login;
 			unsigned char *u;
@@ -179,7 +176,7 @@ void ftp_got_user_info(struct connection *c, struct read_buffer *rb)
 			login = init_str();
 			add_to_str(&login, &logl, "PASS ");
 			if ((u = get_pass(c->url)) && *u) add_to_str(&login, &logl, u);
-			else add_to_str(&login, &logl, default_anon_pass);
+			else add_to_str(&login, &logl, ftp_options.anon_pass);
 			if (u) mem_free(u);
 			add_to_str(&login, &logl, "\r\n");
 			write_to_socket(c, c->sock1, login, strlen(login), ftp_sent_passwd);
@@ -211,7 +208,7 @@ void ftp_pass_info(struct connection *c, struct read_buffer *rb)
 	if (!g) { read_from_socket(c, c->sock1, rb, ftp_pass_info); setcstate(c, S_LOGIN); return; }
 	if (g >= 530 && g < 540) { setcstate(c, S_FTP_LOGIN); abort_connection(c); return; }
 	if (g >= 400) { setcstate(c, S_FTP_UNAVAIL); abort_connection(c); return; }
-	if (fast_ftp) ftp_retr_file(c, rb);
+	if (ftp_options.fast_ftp) ftp_retr_file(c, rb);
 	else ftp_send_retr_req(c, S_GETH);
 }
 
@@ -238,7 +235,7 @@ struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 	memset(inf, 0, sizeof(struct ftp_connection_info));
 	l = 0;
 	s = init_str();
-	inf->pasv = passive_ftp;
+	inf->pasv = ftp_options.passive_ftp;
 	c->info = inf;
 	if (!inf->pasv) if ((ps = get_pasv_socket(c, c->sock1, &c->sock2, pc))) {
 		mem_free(d);
@@ -324,7 +321,7 @@ void ftp_send_retr_req(struct connection *c, int state)
 		mem_free(login);
 		return;
 	} else fi = c->info;
-	if (fast_ftp) a:add_to_str(&login, &logl, fi->cmdbuf);
+	if (ftp_options.fast_ftp) a:add_to_str(&login, &logl, fi->cmdbuf);
 	else {
 		unsigned char *nl = strchr(fi->cmdbuf, '\n');
 		if (!nl) goto a;
@@ -350,7 +347,7 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 	struct ftp_connection_info *inf = c->info;
 	if (0) {
 		rep:
-		if (!fast_ftp) {
+		if (!ftp_options.fast_ftp) {
 			ftp_send_retr_req(c, S_GETH);
 			return;
 		}

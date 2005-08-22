@@ -28,6 +28,9 @@ struct jpeg_decompress_struct *global_cinfo;
 int mesg_unsup_emitted; /* Defaults to zero at program startup and once set
 			 * is never reset back to zero */
 
+void cmyk_to_rgb(unsigned char *data, int pixels);
+void gray_to_rgb(unsigned char *data, int pixels);
+
 METHODDEF(void) my_error_exit(j_common_ptr cinfo)
 {
 	longjmp(global_jerr->setjmp_buffer,2);
@@ -140,7 +143,7 @@ void gray_to_rgb(unsigned char *data, int pixels)
 }
 
 /* Fixes returned data in case they are CMYK or grayscale. */
-inline void fix_data( struct jpg_decoder *deco, int lines_read)
+static inline void fix_data( struct jpg_decoder *deco, int lines_read)
 {
 	int a;
 

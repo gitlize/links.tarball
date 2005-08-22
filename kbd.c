@@ -49,6 +49,8 @@ void unblock_itrm_x(void *);
 void resize_terminal_x(unsigned char *);
 void kbd_timeout(struct itrm *);
 int get_esc_code(char *, int, char *, int *, int *);
+int ttcgetattr(int, struct termios *);
+int ttcsetattr(int, int, struct termios *);
 
 
 int is_blocked(void)
@@ -866,14 +868,14 @@ int process_queue(struct itrm *itrm)
 	el = 1;
 	ev.x = itrm->kqueue[0];
 	l2:
-	if (ev.x == 1) ev.x = KBD_HOME;
+	/*if (ev.x == 1) ev.x = KBD_HOME;
 	if (ev.x == 2) ev.x = KBD_PAGE_UP;
 	if (ev.x == 4) ev.x = KBD_DEL;
 	if (ev.x == 5) ev.x = KBD_END;
-	if (ev.x == 6) ev.x = KBD_PAGE_DOWN;
+	if (ev.x == 6) ev.x = KBD_PAGE_DOWN;*/
 	if (ev.x == 8) ev.x = KBD_BS;
 	if (ev.x == 9) ev.x = KBD_TAB;
-	if (ev.x == 10) ev.x = KBD_ENTER, ev.y = KBD_CTRL;
+	if (ev.x == 10) ev.x = KBD_ENTER/*, ev.y = KBD_CTRL*/;
 	if (ev.x == 13) ev.x = KBD_ENTER;
 	if (ev.x == 127) ev.x = KBD_BS;
 	if (ev.x >= 0 && ev.x < ' ') {

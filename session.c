@@ -830,7 +830,7 @@ int f_need_reparse(struct f_data *f)
 {
 	struct additional_file *af;
 	if (!f || f->rq->state >= 0) return 1;
-	if (f->af) foreach(af, f->af->af) if (af->need_reparse) return 1;
+	if (f->af) foreach(af, f->af->af) if (af->need_reparse > 0) return 1;
 	return 0;
 }
 
@@ -849,7 +849,7 @@ struct f_data *format_html(struct f_data_c *fd, struct object_request *rq, unsig
 		int stl = -1;
 		struct additional_file *af;
 
-		if (fd->af) foreach(af, fd->af->af) af->need_reparse = 0;
+		if (fd->af) foreach(af, fd->af->af) if (af->need_reparse > 0) af->need_reparse = 0;
 
 		get_file(rq, &start, &end);
 		if (jsint_get_source(fd, &start, &end)) f->uncacheable = 1;
@@ -941,7 +941,7 @@ static inline int is_format_cache_entry_uptodate(struct f_data *f)
 	if (!ce || ce->count != f->use_tag) return 0;
 	if (f->af) foreach(af, f->af->af) {
 		struct cache_entry *ce = af->rq->ce;
-		if (af->need_reparse) if (!ce || ce->count != af->use_tag) return 0;
+		if (af->need_reparse > 0) if (!ce || ce->count != af->use_tag) return 0;
 	}
 	return 1;
 }
@@ -1171,7 +1171,7 @@ void html_interpret(struct f_data_c *fd)
 		/* create new frames */
 		if (fd->f_data->frame_desc) create_new_frames(fd, fd->f_data->frame_desc, &fd->f_data->opt);
 	} else {
-		if (fd->f_data->frame_desc && f_is_finished(fd->f_data)) {
+		if (fd->f_data->frame_desc && fd->f_data->rq->state < 0) {
 			if (fd->f_data->opt.xw != oxw ||
 			    fd->f_data->opt.yw != oyw ||
 			    fd->f_data->opt.xp != oxp ||
@@ -1389,6 +1389,7 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		if (f_is_finished(fd->f_data)) goto priint;
 		else fd->done = 0, fd->parsed_done = 1;
 	}
+	if (fd->parsed_done && f_need_reparse(fd->f_data)) fd->parsed_done = 0;
 	if (fd->vs->plain == -1 && rq->state != O_WAITING) {
 		fd->vs->plain = plain_type(fd->ses, fd->rq, NULL);
 	}
@@ -1453,7 +1454,7 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		all_loaded=__frame_and_all_subframes_loaded(fd->parent);
 		if (!all_loaded) goto hell;
 		/* parent has all subframes loaded */
-		jsint_execute_code(fd->parent,fd->parent->onload_frameset_code,strlen(fd->parent->onload_frameset_code),-1,-1,-1);
+		jsint_execute_code(fd->parent,fd->parent->onload_frameset_code,strlen(fd->parent->onload_frameset_code),-1,-1,-1, NULL);
 		mem_free(fd->parent->onload_frameset_code), fd->parent->onload_frameset_code=NULL;
 	hell:;
 	}
@@ -2050,10 +2051,10 @@ void map_selected(struct terminal *term, struct link_def *ld, struct session *se
 	int x = 0;
 	if (ld->onclick) {
 		struct f_data_c *fd = current_frame(ses);
-		jsint_execute_code(fd, ld->onclick, strlen(ld->onclick), -1, -1, -1);
+		jsint_execute_code(fd, ld->onclick, strlen(ld->onclick), -1, -1, -1, NULL);
 		x = 1;
 	}
-	goto_url_f(ses, NULL, ld->link, ld->target, current_frame(ses), -1, x, 0, 0);
+	if (ld->link) goto_url_f(ses, NULL, ld->link, ld->target, current_frame(ses), -1, x, 0, 0);
 }
 
 void go_back(struct session *ses)
@@ -2110,7 +2111,8 @@ void set_doc_view(struct session *ses)
 	ses->screen->xp = 0;
 	ses->screen->yp = gf_val(1, G_BFU_FONT_SIZE);
 	ses->screen->xw = ses->term->x;
-	ses->screen->yw = ses->term->y - gf_val(2, 2 * G_BFU_FONT_SIZE);
+	if (ses->term->y < gf_val(2, 2 * G_BFU_FONT_SIZE)) ses->screen->yw = 0;
+	else ses->screen->yw = ses->term->y - gf_val(2, 2 * G_BFU_FONT_SIZE);
 }
 
 struct session *create_session(struct window *win)
