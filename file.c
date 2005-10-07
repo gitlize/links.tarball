@@ -249,6 +249,10 @@ void file_func(struct connection *c)
 		struct dirent *de;
 		d = opendir(name);
 		close(h);
+		if (!d) {
+			mem_free(name);
+			setcstate(c, -errno); abort_connection(c); return;
+		}
 		dir:
 		dir = DUMMY, dirl = 0;
 		if (name[0] && !dir_sep(name[strlen(name) - 1])) {

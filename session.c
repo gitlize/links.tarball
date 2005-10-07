@@ -1106,6 +1106,9 @@ void html_interpret(struct f_data_c *fd)
 	int cch;
 	/*int first = !fd->f_data;*/
 	struct document_options o;
+	struct js_event_spec *doc_js;
+	struct js_event_spec **link_js;
+	int nlink_js;
 	if (!fd->loc) goto d;
 	if (fd->f_data) {
 		oxw = fd->f_data->opt.xw;
@@ -1157,8 +1160,31 @@ void html_interpret(struct f_data_c *fd)
 #endif
 	}
 	if (!(o.framename = fd->loc->name)) o.framename = NULL;
+	doc_js = NULL;
+	link_js = DUMMY;
+	nlink_js = 0;
+	if (fd->f_data) {
+		copy_js_event_spec(&doc_js, fd->f_data->js_event);
+		if (fd->f_data->nlinks > fd->f_data->nlink_events) nlink_js = fd->f_data->nlinks; else nlink_js = fd->f_data->nlink_events;
+		if ((unsigned)nlink_js > MAXINT / sizeof(struct js_event_spec *)) overalloc();
+		link_js = mem_alloc(nlink_js * sizeof(struct js_event_spec *));
+		for (i = 0; i < fd->f_data->nlinks; i++) copy_js_event_spec(&link_js[i], fd->f_data->links[i].js_event);
+		for (; i < fd->f_data->nlink_events; i++) copy_js_event_spec(&link_js[i], fd->f_data->link_events[i]);
+	}
 	detach_f_data(&fd->f_data);
-	if (!(fd->f_data = cached_format_html(fd, fd->rq, fd->rq->url, &o, &cch))) goto d;
+	if (!(fd->f_data = cached_format_html(fd, fd->rq, fd->rq->url, &o, &cch))) {
+		for (i = 0; i < nlink_js; i++) free_js_event_spec(link_js[i]);
+		mem_free(link_js);
+		free_js_event_spec(doc_js);
+		goto d;
+	}
+	if (join_js_event_spec(&fd->f_data->js_event, doc_js)) fd->f_data->uncacheable = 1;
+	for (i = 0; i < fd->f_data->nlink_events; i++) free_js_event_spec(fd->f_data->link_events[i]);
+	mem_free(fd->f_data->link_events);
+	fd->f_data->link_events = link_js;
+	fd->f_data->nlink_events = nlink_js;
+	for (i = 0; i < fd->f_data->nlinks && i < nlink_js; i++) if (join_js_event_spec(&fd->f_data->links[i].js_event, link_js[i])) fd->f_data->uncacheable = 1;
+	free_js_event_spec(doc_js);
 
 	/* erase frames if changed */
 	i = 0;

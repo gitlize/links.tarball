@@ -2056,7 +2056,7 @@ int x_exec(unsigned char *command, int fg)
 
 	if (!fg) return system(command);
 
-	run=subst_file(*x_driver.shell?x_driver.shell:(unsigned char *)"xterm -e \"%\"",command, 0);
+	run=subst_file(*x_driver.shell?x_driver.shell:(unsigned char *)"xterm -e %",command, 0);
 	retval=system(run);
 	mem_free(run);
 	return retval;

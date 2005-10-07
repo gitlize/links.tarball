@@ -94,7 +94,7 @@ void freeml(struct memory_list *ml)
 }
 
 #ifndef G
-#define txtlen strlen
+#define txtlen (int)strlen
 #else
 #define txtlen(x) (F ? g_text_width(bfu_style_wb, x) : (int)strlen(x))
 #endif

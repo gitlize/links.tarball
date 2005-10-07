@@ -196,6 +196,37 @@ void copy_js_event_spec(struct js_event_spec **target, struct js_event_spec *sou
 	t->keydown_code = stracpy(source->keydown_code);
 }
 
+static inline int copy_string(unsigned char **dest, unsigned char *src)
+{
+	if (!src) return 0;
+	if (*dest) {
+		if (!strcmp(src, *dest)) return 0;
+		mem_free(*dest);
+	}
+	*dest = stracpy(src);
+	return 1;
+}
+
+int join_js_event_spec(struct js_event_spec **target, struct js_event_spec *source)
+{
+	if (!source) return 0;
+	create_js_event_spec(target);
+	return
+	copy_string(&(*target)->move_code, source->move_code) |
+	copy_string(&(*target)->over_code, source->over_code) |
+	copy_string(&(*target)->out_code, source->out_code) |
+	copy_string(&(*target)->down_code, source->down_code) |
+	copy_string(&(*target)->up_code, source->up_code) |
+	copy_string(&(*target)->click_code, source->click_code) |
+	copy_string(&(*target)->dbl_code, source->dbl_code) |
+	copy_string(&(*target)->blur_code, source->blur_code) |
+	copy_string(&(*target)->focus_code, source->focus_code) |
+	copy_string(&(*target)->change_code, source->change_code) |
+	copy_string(&(*target)->keypress_code, source->keypress_code) |
+	copy_string(&(*target)->keyup_code, source->keyup_code) |
+	copy_string(&(*target)->keydown_code, source->keydown_code);
+}
+
 void add_event_desc(unsigned char **str, int *l, unsigned char *fn, unsigned char *desc)
 {
 	if (!fn) return;
@@ -243,6 +274,11 @@ int compare_js_event_spec(struct js_event_spec *j1, struct js_event_spec *j2)
 
 void copy_js_event_spec(struct js_event_spec **target, struct js_event_spec *source)
 {
+}
+
+int join_js_event_spec(struct js_event_spec **target, struct js_event_spec *source)
+{
+	return 0;
 }
 
 unsigned char *print_js_event_spec(struct js_event_spec *j)
@@ -310,7 +346,17 @@ void sort_links(struct f_data *f)
 {
 	int i;
 	if (F) return;
+	/*if (F) goto skip_sort;*/
 	if (f->nlinks) qsort(f->links, f->nlinks, sizeof(struct link), (void *)comp_links);
+	/*
+	skip_sort:
+	mem_free(f->link_events);
+	if ((unsigned)f->nlinks > MAXINT / sizeof(struct js_event_spec *)) overalloc();
+	f->link_events = mem_alloc(f->nlinks * sizeof(struct js_event_spec *));
+	f->nlink_events = f->nlinks;
+	for (i = 0; i < f->nlinks; i++) copy_js_event_spec(&f->link_events[i], f->links[i].js_event);
+	if (F) return;
+	*/
 	if ((unsigned)f->y > MAXINT / sizeof(struct link *)) overalloc();
 	f->lines1 = mem_calloc(f->y * sizeof(struct link *));
 	f->lines2 = mem_calloc(f->y * sizeof(struct link *));
@@ -2972,6 +3018,7 @@ int send_to_frame(struct session *ses, struct event *ev)
 		return 0;
 	}
 
+#ifdef JS
 	if (!event_catchable(ev) || !fd->f_data || !fd->vs) goto dont_catch;
 	if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) {
 		struct link *l = &fd->f_data->links[fd->vs->current_link];
@@ -2993,6 +3040,7 @@ int send_to_frame(struct session *ses, struct event *ev)
 		if (!(call_keyboard_event(fd, fd->f_data->js_event->keypress_code, ev))) return 1;
 	}
 	dont_catch:
+#endif
 
 	if (!F) r = frame_ev(ses, fd, ev);
 #ifdef G

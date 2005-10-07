@@ -2659,6 +2659,8 @@ struct f_data {
 	struct line *data;
 	struct link *links;
 	int nlinks;
+	struct js_event_spec **link_events;
+	int nlink_events;
 	struct link **lines1;
 	struct link **lines2;
 	struct list_head nodes;		/* struct node */
@@ -3400,7 +3402,7 @@ static inline int utf8len(unsigned char *s)
 	}
 }
 #else
-#define utf8len(s) strlen(s)
+#define utf8len(s) ((int)strlen(s))
 #endif
 
 /* view.c */
@@ -3463,6 +3465,7 @@ void reset_form(struct f_data_c *f, int form_num);
 void set_textarea(struct session *, struct f_data_c *, int);
 
 void copy_js_event_spec(struct js_event_spec **, struct js_event_spec *);
+int join_js_event_spec(struct js_event_spec **, struct js_event_spec *);
 void free_js_event_spec(struct js_event_spec *);
 void create_js_event_spec(struct js_event_spec **);
 int compare_js_event_spec(struct js_event_spec *, struct js_event_spec *);
@@ -3734,6 +3737,7 @@ void init_grview(void);
 #define AT_UNDERLINE	4
 #define AT_FIXED	8
 #define AT_GRAPHICS	16
+#define AT_INVERT	32
 
 #define AL_LEFT		0
 #define AL_CENTER	1

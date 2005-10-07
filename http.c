@@ -614,8 +614,8 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 #endif
 	if (e->redirect) mem_free(e->redirect), e->redirect = NULL;
-	if (h == 301 || h == 302 || h == 303) {
-		if (h == 302 && !e->expire_time) e->expire_time = 1;
+	if (h == 301 || h == 302 || h == 303 || h == 307) {
+		if ((h == 302 || h == 307) && !e->expire_time) e->expire_time = 1;
 		if ((d = parse_http_header(e->head, "Location", NULL))) {
 			if (e->redirect) mem_free(e->redirect);
 			e->redirect = d;

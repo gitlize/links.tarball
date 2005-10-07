@@ -30,15 +30,15 @@
 #define LEAK_DEBUG
 #endif
 
-#define LINKS_MANUAL_URL		(strcmp(language_name(current_language),"Czech")?\
-					"http://links.sourceforge.net/docs/manual-0.90-en/":\
-					"http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/user.html")
-#define LINKS_HOMEPAGE_URL		(strcmp(language_name(current_language),"Czech")?\
-					"http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/":\
-					"http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/index_cz.html")
-#define LINKS_CALIBRATION_URL		(strcmp(language_name(current_language),"Czech")?\
-					"http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/calibration.html":\
-					"http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/kalibrace.html")
+#define LINKS_MANUAL_URL		(!strcmp(language_name(current_language),"Czech") || !strcmp(language_name(current_language),"Slovak")?\
+					"http://links.twibright.com/user.html":\
+					"http://links.sourceforge.net/docs/manual-0.90-en/")
+#define LINKS_HOMEPAGE_URL		(!strcmp(language_name(current_language),"Czech") || !strcmp(language_name(current_language),"Slovak")?\
+					"http://links.twibright.com/index_cz.php":\
+					"http://links.twibright.com/")
+#define LINKS_CALIBRATION_URL		(!strcmp(language_name(current_language),"Czech") || !strcmp(language_name(current_language),"Slovak")?\
+					"http://links.twibright.com/kalibrace.html":\
+					"http://links.twibright.com/calibration.html")
 
 #define LINKS_SOCK_NAME			"socket"
 #define LINKS_PORT			23755

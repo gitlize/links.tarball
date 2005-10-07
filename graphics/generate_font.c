@@ -194,49 +194,49 @@ void get_png_dimensions(int *x, int *y, FILE * stream)
 /* Returns forbidden_0_to_7 for next char. */
 int print_char(FILE *output, int c, int forbidden_0_to_7)
 {
-	static int char_pos=0; /* To not makes lines excessively long. */
-
-	if (char_pos>=70){
-		fputs("\"\n\"",output);
-		char_pos=0;
-	}
 	switch(c){
 		case '\n':
 			fputs("\\n",output);
-two:
-			char_pos+=2;
 			forbidden_0_to_7=0;
 			break;
 
 		case '\t':
-			fputs("\\t",output); goto two;
+			fputs("\\t",output);
+			forbidden_0_to_7=0;
+			break;
 
 		case '\b':
-			fputs("\\b",output); goto two;
+			fputs("\\b",output);
+			forbidden_0_to_7=0;
+			break;
 
 		case '\r':
-			fputs("\\r",output); goto two;
+			fputs("\\r",output);
+			forbidden_0_to_7=0;
+			break;
 
 		case '\f':
-			fputs("\\f",output); goto two;
+			fputs("\\f",output);
+			forbidden_0_to_7=0;
+			break;
 
 		case '\\':
-			fputs("\\\\",output); goto two;
+			fputs("\\\\",output);
+			forbidden_0_to_7=0;
+			break;
 
 		case '\'':
-			fputs("\\\'",output); goto two;
+			fputs("\\\'",output);
+			forbidden_0_to_7=0;
+			break;
 
 		default:
 			if (c<' '||c=='"'||c=='?'||c>126
 				||(c>='0'&&c<='7'&&forbidden_0_to_7)){
 				fprintf(output,"\\%o",c);
-				if (c>=0100) char_pos+=4;
-				else if (c>=010) char_pos+=3;
-				else char_pos+=2;
 				forbidden_0_to_7=(c<0100);
 			}else{
 				fprintf(output,"%c",c);
-				char_pos++;
 				forbidden_0_to_7=0;
 			
 			}
@@ -250,8 +250,7 @@ two:
  * output:      where to put the C code
  * char_number: number of the char. -1 means do not write anything into the tables.
 */
-static inline void process_file(unsigned char *name,
-		FILE*output, int char_number)
+static inline void process_file(unsigned char *name, FILE*output, int char_number)
 {
 	FILE *f;
 	int c;

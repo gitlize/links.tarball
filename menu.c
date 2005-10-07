@@ -2195,6 +2195,15 @@ struct menu_item help_menu[] = {
 	{ TEXT(T_KEYS), "", TEXT(T_HK_KEYS), MENU_FUNC menu_keys, (void *)0, 0, 0 },
 	{ TEXT(T_MANUAL), "", TEXT(T_HK_MANUAL), MENU_FUNC menu_manual, (void *)0, 0, 0 },
 	{ TEXT(T_HOMEPAGE), "", TEXT(T_HK_HOMEPAGE), MENU_FUNC menu_homepage, (void *)0, 0, 0 },
+	{ TEXT(T_COPYING), "", TEXT(T_HK_COPYING), MENU_FUNC menu_copying, (void *)0, 0, 0 },
+	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
+};
+
+struct menu_item help_menu_g[] = {
+	{ TEXT(T_ABOUT), "", TEXT(T_HK_ABOUT), MENU_FUNC menu_about, (void *)0, 0, 0 },
+	{ TEXT(T_KEYS), "", TEXT(T_HK_KEYS), MENU_FUNC menu_keys, (void *)0, 0, 0 },
+	{ TEXT(T_MANUAL), "", TEXT(T_HK_MANUAL), MENU_FUNC menu_manual, (void *)0, 0, 0 },
+	{ TEXT(T_HOMEPAGE), "", TEXT(T_HK_HOMEPAGE), MENU_FUNC menu_homepage, (void *)0, 0, 0 },
 	{ TEXT(T_CALIBRATION), "", TEXT(T_HK_CALIBRATION), MENU_FUNC menu_calibration, (void *)0, 0, 0 },
 	{ TEXT(T_COPYING), "", TEXT(T_HK_COPYING), MENU_FUNC menu_copying, (void *)0, 0, 0 },
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
@@ -2290,25 +2299,24 @@ struct menu_item main_menu[] = {
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
 
-/*
 #ifdef G
 struct menu_item main_menu_g[] = {
 	{ TEXT(T_FILE), "", TEXT(T_HK_FILE), MENU_FUNC do_file_menu, NULL, 1, 1 },
 	{ TEXT(T_VIEW), "", TEXT(T_HK_VIEW), MENU_FUNC do_view_menu, NULL, 1, 1 },
+	{ TEXT(T_LINK), "", TEXT(T_HK_LINK), MENU_FUNC link_menu, NULL, 1, 1 },
 	{ TEXT(T_DOWNLOADS), "", TEXT(T_HK_DOWNLOADS), MENU_FUNC downloads_menu, NULL, 1, 1 },
 	{ TEXT(T_SETUP), "", TEXT(T_HK_SETUP), MENU_FUNC do_setup_menu, NULL, 1, 1 },
-	{ TEXT(T_HELP), "", TEXT(T_HK_HELP), MENU_FUNC do_menu, help_menu, 1, 1 },
+	{ TEXT(T_HELP), "", TEXT(T_HK_HELP), MENU_FUNC do_menu, help_menu_g, 1, 1 },
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
 #endif
-*/
 
 /* lame technology rulez ! */
 
 void activate_bfu_technology(struct session *ses, int item)
 {
 	struct terminal *term = ses->term;
-	do_mainmenu(term, /*gf_val(*/main_menu/*, main_menu_g)*/, ses, item);
+	do_mainmenu(term, gf_val(main_menu, main_menu_g), ses, item);
 }
 
 struct history goto_url_history = { 0, { &goto_url_history.items, &goto_url_history.items } };

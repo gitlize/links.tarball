@@ -15,6 +15,8 @@ struct f_data *init_formatted(struct document_options *opt)
 	scr->data = DUMMY;
 	scr->nlinks = 0;
 	scr->links = DUMMY;
+	scr->nlink_events = 0;
+	scr->link_events = DUMMY;
 	init_list(scr->forms);
 	init_list(scr->tags);
 	init_list(scr->nodes);
@@ -136,6 +138,10 @@ void clear_formatted(struct f_data *scr)
 		free_js_event_spec(l->js_event);
 	}
 	mem_free(scr->links);
+	for (n = 0; n < scr->nlink_events; n++) {
+		free_js_event_spec(scr->link_events[n]);
+	}
+	mem_free(scr->link_events);
 	if (!F) for (y = 0; y < scr->y; y++) mem_free(scr->data[y].d);
 	mem_free(scr->data);
 	if (scr->lines1) mem_free(scr->lines1);

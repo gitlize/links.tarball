@@ -28,6 +28,7 @@ void html_bold(unsigned char *);
 void html_italic(unsigned char *);
 void html_underline(unsigned char *);
 void html_fixed(unsigned char *);
+void html_invert(unsigned char *);
 void html_a(unsigned char *);
 void html_sub(unsigned char *);
 void html_sup(unsigned char *);
@@ -845,6 +846,11 @@ unsigned char *last_form_tag;
 unsigned char *last_form_attr;
 unsigned char *last_input_tag;
 
+static inline void set_link_attr(void)
+{
+	memcpy(!(format.attr & AT_INVERT) ? &format.fg : &format.bg, &format.clink, sizeof(struct rgb));
+}
+
 void put_link_line(unsigned char *prefix, unsigned char *linkname, unsigned char *link, unsigned char *target)
 {
 	html_stack_dup();
@@ -856,7 +862,7 @@ void put_link_line(unsigned char *prefix, unsigned char *linkname, unsigned char
 	html_format_changed = 1;
 	format.link = join_urls(format.href_base, link);
 	format.target = stracpy(target);
-	memcpy(&format.fg, &format.clink, sizeof(struct rgb));
+	set_link_attr();
 	put_chrs(linkname, strlen(linkname), put_chars_f, ff);
 	ln_break(1, line_break_f, ff);
 	kill_html_stack_item(&html_top);
@@ -888,6 +894,16 @@ void html_fixed(unsigned char *a)
 	format.attr |= AT_FIXED;
 }
 
+void html_invert(unsigned char *a)
+{
+	struct rgb rgb;
+	get_js_events(a);
+	memcpy(&rgb, &format.fg, sizeof(struct rgb));
+	memcpy(&format.fg, &format.bg, sizeof(struct rgb));
+	memcpy(&format.bg, &rgb, sizeof(struct rgb));
+	format.attr ^= AT_INVERT;
+}
+
 void html_a(unsigned char *a)
 {
 	char *al;
@@ -909,7 +925,7 @@ void html_a(unsigned char *a)
 			format.target = stracpy(format.target_base);
 		}
 		/*format.attr ^= AT_BOLD;*/
-		memcpy(&format.fg, &format.clink, sizeof(struct rgb));
+		set_link_attr();
 	} else if (!ev) kill_html_stack_item(&html_top);
 	if ((al = get_attr_val(a, "name"))) {
 		special_f(ff, SP_TAG, al);
@@ -2395,6 +2411,7 @@ struct element_info elements[] = {
 	{"SUB",		html_sub,	0, 0},
 	{"SUP",		html_sup,	0, 0},
 	{"FONT",	html_font,	0, 0},
+	{"INVERT",	html_invert,	0, 0},
 	{"A",		html_a,		0, 2},
 	{"IMG",		html_img,	0, 1},
 	{"IMAGE",	html_img,	0, 1},

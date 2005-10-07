@@ -1078,9 +1078,9 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				if (lnk&&lnk->js_event&&lnk->js_event->over_code)
 					jsint_execute_code(fd,lnk->js_event->over_code,strlen(lnk->js_event->over_code),-1,-1,-1, NULL);
 			}
+#endif
 
 			if ((ev->b & BM_ACT) == B_DOWN && (ev->b & BM_BUTT) == B_RIGHT && fd->vs->current_link == -1) goto scrll;
-#endif
 			break;
 		case EV_KBD:
 			if (ses->locked_link && fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks && (fd->f_data->links[fd->vs->current_link].type == L_FIELD || fd->f_data->links[fd->vs->current_link].type == L_AREA)) {
