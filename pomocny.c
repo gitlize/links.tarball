@@ -77,7 +77,7 @@ void js_spec_vykill_timer(js_context*context,int i)
 
 void* js_js_temp_var1;
 size_t js_js_temp_var2;
-int js_zaflaknuto_pameti=0;
+long js_zaflaknuto_pameti=0;
 
 void my_itoa(char*vysl,long cislo)
 {	char x[4*sizeof(long)+1];

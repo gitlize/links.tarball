@@ -251,6 +251,7 @@ unsigned char *get_attr_val(unsigned char *e, unsigned char *name)
 			d_opt->cp = c;
 			mem_free(aa);
 		}
+		while ((b = strchr(a, 1))) *b = ' ';
 		if (get_attr_val_nl != 2) {
 			for (b = a; *b == ' '; b++);
 			if (b != a) memmove(a, b, strlen(b) + 1);
@@ -690,7 +691,7 @@ int get_js_events(unsigned char *a)
 #endif
 
 void *ff;
-void (*put_chars_f)(void *, unsigned char *, int);
+int (*put_chars_f)(void *, unsigned char *, int);
 void (*line_break_f)(void *);
 void *(*special_f)(void *, int, ...);
 
@@ -714,11 +715,11 @@ void ln_break(int n, void (*line_break)(void *), void *f)
 	putsp = -1;
 }
 
-void put_chrs(unsigned char *start, int len, void (*put_chars)(void *, unsigned char *, int), void *f)
+void put_chrs(unsigned char *start, int len, int (*put_chars)(void *, unsigned char *, int), void *f)
 {
 	if (par_format.align == AL_NO) putsp = 0;
 	if (!len || html_top.invisible) return;
-	if (putsp == 1) put_chars(f, " ", 1), pos++, putsp = -1;
+	if (putsp == 1) pos += put_chars(f, " ", 1), putsp = -1;
 	if (putsp == -1) {
 		if (start[0] == ' ') start++, len--;
 		putsp = 0;
@@ -731,8 +732,7 @@ void put_chrs(unsigned char *start, int len, void (*put_chars)(void *, unsigned 
 	if (start[len - 1] == ' ') putsp = -1;
 	if (par_format.align == AL_NO) putsp = 0;
 	was_br = 0;
-	put_chars(f, start, len);
-	pos += len;
+	pos += put_chars(f, start, len);
 	line_breax = 0;
 }
 
@@ -993,7 +993,7 @@ void html_img(unsigned char *a)
 		mem_free(u);
 		mem_free(al);
 	}
-	ismap = format.link && !has_attr(a, "usemap") && has_attr(a, "ismap");
+	ismap = format.link && (F || !has_attr(a, "usemap")) && has_attr(a, "ismap");
 	if (format.image) mem_free(format.image), format.image = NULL;
 	if ((s = get_url_val(a, "src")) || (s = get_attr_val(a, "dynsrc")) || (s = get_attr_val(a, "data"))) {
 		 if (!format.link && d_opt->braille) goto skip_img;
@@ -1065,10 +1065,7 @@ void html_img(unsigned char *a)
 			format.link = h;
 		}
 
-		if(is_url_blocked(format.image))
-			i.url = stracpy("");
-		else
-			i.url = stracpy(format.image);
+		i.url = stracpy(format.image);
 
 		i.src = orig_link, orig_link = NULL;
 		/*
@@ -1084,8 +1081,9 @@ void html_img(unsigned char *a)
 		i.align = aa;
 		i.name = get_attr_val(a, "id");
 		if (!i.name) i.name = get_attr_val(a, "name");
-		i.alt = get_attr_val(a, "alt");
-		i.insert_flag= !(format.form);
+		i.alt = get_attr_val(a, "title");
+		if (!i.alt) i.alt = get_attr_val(a, "alt");
+		i.insert_flag = !(format.form);
 		i.ismap = ismap;
 		if ((u = get_attr_val(a, "usemap"))) {
 			i.usemap = join_urls(format.href_base, u);
@@ -2371,7 +2369,7 @@ void html_frameset(unsigned char *a)
 
 void html_link(unsigned char *a)
 {
-	unsigned char *name, *url;
+	unsigned char *name, *url, *title;
 	if ((name = get_attr_val(a, "type"))) {
 		if (casecmp(a, "text/css", 8)) {
 			mem_free(name);
@@ -2381,6 +2379,11 @@ void html_link(unsigned char *a)
 	}
 	if (!(url = get_url_val(a, "href"))) return;
 	if (!(name = get_attr_val(a, "rel"))) if (!(name = get_attr_val(a, "rev"))) name = stracpy(url);
+	if ((title = get_attr_val(a, "title"))) {
+		add_to_strn(&name, ": ");
+		add_to_strn(&name, title);
+		mem_free(title);
+	}
 	if (strcasecmp(name, "STYLESHEET") && strcasecmp(name, "made") && strcasecmp(name, "SHORTCUT ICON")) put_link_line("Link: ", name, url, format.target_base);
 	mem_free(name);
 	mem_free(url);
@@ -2517,7 +2520,7 @@ void process_head(unsigned char *head)
 	}
 }
 
-void parse_html(unsigned char *html, unsigned char *eof, void (*put_chars)(void *, unsigned char *, int), void (*line_break)(void *), void *(*special)(void *, int, ...), void *f, unsigned char *head)
+void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *, unsigned char *, int), void (*line_break)(void *), void *(*special)(void *, int, ...), void *f, unsigned char *head)
 {
 	/*unsigned char *start = html;*/
 	unsigned char *lt;

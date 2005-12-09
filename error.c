@@ -47,6 +47,7 @@ static inline void force_dump(void)
 	fprintf(stderr, "\n\033[1m%s\033[0m\n", "Forcing core dump");
 	fflush(stdout);
 	fflush(stderr);
+	fatal_tty_exit();
 	raise(SIGSEGV);
 }
 
@@ -142,6 +143,7 @@ void *debug_mem_alloc(unsigned char *file, int line, size_t size)
 #endif
 	if (!(p = malloc(size + RED_ZONE_INC))) {
 		error("ERROR: out of memory (malloc returned NULL)");
+		fatal_tty_exit();
 		exit(RET_FATAL);
 		return NULL;
 	}
@@ -180,6 +182,7 @@ void *debug_mem_calloc(unsigned char *file, int line, size_t size)
 #endif
 	if (!(p = x_calloc(size + RED_ZONE_INC))) {
 		error("ERROR: out of memory (calloc returned NULL)");
+		fatal_tty_exit();
 		exit(RET_FATAL);
 		return NULL;
 	}
@@ -282,6 +285,7 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size)
 #endif
 	if (!(p = realloc(p, size + L_D_S + RED_ZONE_INC))) {
 		error("ERROR: out of memory (realloc returned NULL)");
+		fatal_tty_exit();
 		exit(RET_FATAL);
 		return NULL;
 	}
@@ -341,7 +345,10 @@ void fault(void *dummy)
 {
 	struct prot *p;
 	/*fprintf(stderr, "FAULT: %d !\n", (int)(unsigned long)dummy);*/
-	if (list_empty(prot)) exit(0);
+	if (list_empty(prot)) {
+		fatal_tty_exit();
+		exit(0);
+	}
 	p = prot.next;
 	del_from_list(p);
 	longjmp(p->buf, 1);

@@ -91,12 +91,12 @@ char *clipboard = NULL;
 
 #if defined(O_SIZE) && defined(__EMX__)
 
-int open_prealloc(char *name, int flags, int mode, int siz)
+int open_prealloc(char *name, int flags, int mode, off_t siz)
 {
 	return open(name, flags | O_SIZE, mode, (unsigned long)siz);
 }
 
-void prealloc_truncate(int h, int siz)
+void prealloc_truncate(int h, off_t siz)
 {
 	ftruncate(h, siz);
 }
@@ -1685,6 +1685,7 @@ int my_snprintf(char *str, int n, char *f, ...)
 	if (i >= B_SZ) {
 		error("String size too large!");
 		va_end(l);
+		fatal_tty_exit();
 		exit(RET_FATAL);
 	}
 	if (i >= n) {

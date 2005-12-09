@@ -103,8 +103,9 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	} else
 		cookie->expires = 0;
 	if (!(cookie->path = parse_header_param(str, "path"))) {
-		unsigned char *w;
+		/*unsigned char *w;*/
 		cookie->path = stracpy("/");
+		/*
 		add_to_strn(&cookie->path, document);
 		for (w = cookie->path; *w; w++) if (end_of_dir(cookie->path, *w)) {
 			*w = 0;
@@ -115,6 +116,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 				w[1] = 0;
 				break;
 			}
+		*/
 	} else {
 		if (!cookie->path[0] || cookie->path[strlen(cookie->path) - 1] != '/')
 			add_to_strn(&cookie->path, "/");
@@ -278,7 +280,7 @@ void send_cookies(unsigned char **s, int *l, unsigned char *url)
 			mem_free(d);
 			continue;
 		}
-		if (c->secure) continue;
+		if (c->secure && casecmp(url, "https://", 8)) continue;
 		if (!nc) add_to_str(s, l, "Cookie: "), nc = 1;
 		else add_to_str(s, l, "; ");
 		add_to_str(s, l, c->name);

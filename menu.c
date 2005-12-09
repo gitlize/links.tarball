@@ -361,6 +361,9 @@ void memory_info(struct terminal *term, void *d, struct session *ses)
 	sprintf(p, "%ld %s", mem_amount, _(TEXT(T_MEMORY_ALLOCATED), term)), p += strlen(p);
 	if (last_mem_amount != -1) sprintf(p, ", %s %ld, %s %ld", _(TEXT(T_LAST), term), last_mem_amount, _(TEXT(T_DIFFERENCE), term), mem_amount - last_mem_amount), p += strlen(p);
 	sprintf(p, "."), p += strlen(p);
+#ifdef JS
+	sprintf(p, "\n%ld %s.", js_zaflaknuto_pameti, _(TEXT(T_JS_MEMORY_ALLOCATED), term)), p += strlen(p);
+#endif
 #if 0 && defined(MAX_LIST_SIZE)
 	if (last_mem_amount != -1) {
 		long i, j;
@@ -716,7 +719,7 @@ void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 
 #endif
 
-unsigned char *http_labels[] = { TEXT(T_USE_HTTP_10), TEXT(T_ALLOW_SERVER_BLACKLIST), TEXT(T_BROKEN_302_REDIRECT), TEXT(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT(T_DO_NOT_SEND_ACCEPT_CHARSET), TEXT(T_REFERER_NONE), TEXT(T_REFERER_SAME_URL), TEXT(T_REFERER_REAL), TEXT(T_REFERER_FAKE), TEXT(T_FAKE_USERAGENT), TEXT(T_FAKE_REFERER) };
+unsigned char *http_labels[] = { TEXT(T_USE_HTTP_10), TEXT(T_ALLOW_SERVER_BLACKLIST), TEXT(T_BROKEN_302_REDIRECT), TEXT(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT(T_DO_NOT_SEND_ACCEPT_CHARSET), TEXT(T_RETRY_ON_INTERNAL_ERRORS), TEXT(T_REFERER_NONE), TEXT(T_REFERER_SAME_URL), TEXT(T_REFERER_FAKE), TEXT(T_REFERER_REAL_SAME_SERVER), TEXT(T_REFERER_REAL), TEXT(T_FAKE_USERAGENT), TEXT(T_FAKE_REFERER) };
 
 void httpopt_fn(struct dialog_data *dlg)
 {
@@ -763,7 +766,7 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	struct http_bugs *bugs = (struct http_bugs *)di->cdata;
 	struct dialog *d;
-	d = mem_calloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item));
 	d->title = TEXT(T_HTTP_BUG_WORKAROUNDS);
 	d->fn = httpopt_fn;
 	d->udata = http_labels;
@@ -788,18 +791,17 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[4].dlen = sizeof(int);
 	d->items[4].data = (void *)&bugs->no_accept_charset;
 	d->items[5].type = D_CHECKBOX;
-	d->items[5].gid = 1;
-	d->items[5].gnum = REFERER_NONE;
+	d->items[5].gid = 0;
 	d->items[5].dlen = sizeof(int);
-	d->items[5].data = (void *)&bugs->referer;
+	d->items[5].data = (void *)&bugs->retry_internal_errors;
 	d->items[6].type = D_CHECKBOX;
 	d->items[6].gid = 1;
-	d->items[6].gnum = REFERER_SAME_URL;
+	d->items[6].gnum = REFERER_NONE;
 	d->items[6].dlen = sizeof(int);
 	d->items[6].data = (void *)&bugs->referer;
 	d->items[7].type = D_CHECKBOX;
 	d->items[7].gid = 1;
-	d->items[7].gnum = REFERER_REAL;
+	d->items[7].gnum = REFERER_SAME_URL;
 	d->items[7].dlen = sizeof(int);
 	d->items[7].data = (void *)&bugs->referer;
 	d->items[8].type = D_CHECKBOX;
@@ -807,21 +809,32 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[8].gnum = REFERER_FAKE;
 	d->items[8].dlen = sizeof(int);
 	d->items[8].data = (void *)&bugs->referer;
-	d->items[9].type = D_FIELD;
-	d->items[9].dlen = MAX_STR_LEN;
-	d->items[9].data = bugs->fake_useragent;
-	d->items[10].type = D_FIELD;
-	d->items[10].dlen = MAX_STR_LEN;
-	d->items[10].data = bugs->fake_referer;
-	d->items[11].type = D_BUTTON;
-	d->items[11].gid = B_ENTER;
-	d->items[11].fn = ok_dialog;
-	d->items[11].text = TEXT(T_OK);
-	d->items[12].type = D_BUTTON;
-	d->items[12].gid = B_ESC;
-	d->items[12].fn = cancel_dialog;
-	d->items[12].text = TEXT(T_CANCEL);
-	d->items[13].type = D_END;
+	d->items[9].type = D_CHECKBOX;
+	d->items[9].gid = 1;
+	d->items[9].gnum = REFERER_REAL_SAME_SERVER;
+	d->items[9].dlen = sizeof(int);
+	d->items[9].data = (void *)&bugs->referer;
+	d->items[10].type = D_CHECKBOX;
+	d->items[10].gid = 1;
+	d->items[10].gnum = REFERER_REAL;
+	d->items[10].dlen = sizeof(int);
+	d->items[10].data = (void *)&bugs->referer;
+
+	d->items[11].type = D_FIELD;
+	d->items[11].dlen = MAX_STR_LEN;
+	d->items[11].data = bugs->fake_useragent;
+	d->items[12].type = D_FIELD;
+	d->items[12].dlen = MAX_STR_LEN;
+	d->items[12].data = bugs->fake_referer;
+	d->items[13].type = D_BUTTON;
+	d->items[13].gid = B_ENTER;
+	d->items[13].fn = ok_dialog;
+	d->items[13].text = TEXT(T_OK);
+	d->items[14].type = D_BUTTON;
+	d->items[14].gid = B_ESC;
+	d->items[14].fn = cancel_dialog;
+	d->items[14].text = TEXT(T_CANCEL);
+	d->items[15].type = D_END;
 	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
@@ -1116,7 +1129,7 @@ void refresh_net(void *xxx)
 	max_tries = atoi(max_t_str);
 	receive_timeout = atoi(time_str);
 	unrestartable_receive_timeout = atoi(unrtime_str);
-	register_bottom_half((void (*)(void *))check_queue, NULL);
+	register_bottom_half(check_queue, NULL);
 }
 
 unsigned char *net_msg[] = {

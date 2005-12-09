@@ -321,10 +321,24 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		translate_directories(n);
 		return n;
 	}
+	if (rel[0] == '?' || rel[0] == '&') {
+		unsigned char rj[3];
+		unsigned char *d = get_url_data(base);
+		if (!d) goto bad_base;
+		rj[0] = rel[0];
+		rj[1] = POST_CHAR;
+		rj[2] = 0;
+		d += strcspn(d, rj);
+		n = memacpy(base, d - base);
+		add_to_strn(&n, rel);
+		translate_directories(n);
+		return n;
+	}
 	if (rel[0] == '/' && rel[1] == '/') {
 		unsigned char *s, *n;
 		if (!(s = strstr(base, "//"))) {
 			if (!(s = strchr(base, ':'))) {
+				bad_base:
 				internal("bad base url: %s", base);
 				return NULL;
 			}
@@ -357,8 +371,7 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 	mem_free(n);
 	prx:
 	if (parse_url(base, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &p, NULL, NULL) || !p) {
-		internal("bad base url: %s", base);
-		return NULL;
+		goto bad_base;
 	}
 	if (!dsep(*p)) p--;
 	if (end_of_dir(base, rel[0])) for (; *p; p++) {

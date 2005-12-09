@@ -11,7 +11,15 @@
 #ifdef INT_MAX
 #define MAXINT INT_MAX
 #else
-#define MAXINT 0x7fffffff
+#define MAXINT ((int)((unsigned int)-1 >> 1))
+#endif
+#endif
+
+#ifndef MAXLONG
+#ifdef LONG_MAX
+#define MAXLONG LONG_MAX
+#else
+#define MAXLONG ((long)((unsigned long)-1L >> 1))
 #endif
 #endif
 

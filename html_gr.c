@@ -29,7 +29,7 @@ void *g_html_special(struct g_part *, int, ...);
 void g_do_format(char *, char *, struct g_part *, unsigned char *);
 void g_scan_width(struct g_object **, int, int *);
 void g_scan_lines(struct g_object_line **, int, int *);
-void g_put_chars_conv(struct g_part *, unsigned char *, int);
+int g_put_chars_conv(struct g_part *, unsigned char *, int);
 
 int g_nobreak;
 
@@ -72,14 +72,15 @@ void g_put_chars(struct g_part *, unsigned char *, int);
 
 #define CH_BUF	256
 
-void g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
+int g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
 {
 	static char buffer[CH_BUF];
 	int bp = 0;
 	int pp = 0;
+	int total = 0;
 	if (format.attr & AT_GRAPHICS) {
 		g_put_chars(p, c, l);
-		return;
+		return l;
 	}
 	/*{
 		debug("\"%.*s\"", l, c);
@@ -128,10 +129,12 @@ void g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
 			if (bp < CH_BUF) continue;
 			flush1:
 			g_put_chars(p, buffer, bp);
-			bp = 0;
+			while (bp) if ((buffer[--bp] & 0xc0) != 0x80) total++;
 		}
 	}
 	if (bp) g_put_chars(p, buffer, bp);
+	while (bp) if ((buffer[--bp] & 0xc0) != 0x80) total++;
+	return total;
 }
 
 /* Returns 0 to 2550 */
@@ -856,6 +859,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 
 	process_link:
 	if ((last_link /*|| last_target*/ || last_image || last_form) &&
+	    !putchars_link_ptr &&
 	    !xstrcmp(format.link, last_link) && !xstrcmp(format.target, last_target) &&
 	    !xstrcmp(format.image, last_image) && format.form == last_form
 	    && ((!format.js_event && !last_js_event) || !compare_js_event_spec(format.js_event, last_js_event))) {
@@ -923,7 +927,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 void g_do_format(char *start, char *end, struct g_part *part, unsigned char *head)
 {
 	pr(
-	parse_html(start, end, (void (*)(void *, unsigned char *, int)) g_put_chars_conv, (void (*)(void *)) g_line_break, (void *(*)(void *, int, ...)) g_html_special, part, head);
+	parse_html(start, end, (int (*)(void *, unsigned char *, int)) g_put_chars_conv, (void (*)(void *)) g_line_break, (void *(*)(void *, int, ...)) g_html_special, part, head);
 	/*if ((part->y -= line_breax) < 0) part->y = 0;*/
 	flush_pending_text_to_line(part);
 	flush_pending_line_to_obj(part, 0);

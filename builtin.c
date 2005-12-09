@@ -35,8 +35,8 @@
 lns fotr_je_lotr;
 long js_lengthid/*=0*/;
 long CStoString,CSvalueOf,CSMIN_VALUE,CSMAX_VALUE,CSNaN,CSlength,
-	CSindexOf,CSlastIndexOf,CSsubstring,CScharAt,CStoLowerCase,CSsubstr,
-	CStoUpperCase,CSsplit,CSparse,CSUTC;
+	CSindexOf,CSlastIndexOf,CSsubstring,CScharAt,CScharCodeAt,CSfromCharCode,CStoLowerCase,CSsubstr,
+	CStoUpperCase,CSsplit,CSparse,CSUTC,CSreplace;
 
 #define INTFUNC(a)	pna=buildin(a,context->namespace,context->lnamespace,context);\
 			pna->type=FUNKINT; \
@@ -459,11 +459,14 @@ void add_builtin(js_context*context)
 	js_lengthid=CSlength; /* Fixme! Black magic! */
 	CSindexOf=buildin("indexOf",context->namespace,context->lnamespace,context)->identifier;
 	CSlastIndexOf=buildin("lastIndexOf",context->namespace,context->lnamespace,context)->identifier;
+	CScharCodeAt=buildin("charCodeAt",context->namespace,context->lnamespace,context)->identifier;
+	CSfromCharCode=buildin("fromCharCode",context->namespace,context->lnamespace,context)->identifier;
 	CSsubstring=buildin("substring",context->namespace,context->lnamespace,context)->identifier;
 	CSsubstr=buildin("substr",context->namespace,context->lnamespace,context)->identifier;
 	CScharAt=buildin("charAt",context->namespace,context->lnamespace,context)->identifier;
 	CStoLowerCase=buildin("toLowerCase",context->namespace,context->lnamespace,context)->identifier;
 	CStoUpperCase=buildin("toUpperCase",context->namespace,context->lnamespace,context)->identifier;
+	CSreplace=buildin("replace",context->namespace,context->lnamespace,context)->identifier;
 	CSsplit=buildin("split",context->namespace,context->lnamespace,context)->identifier;
 	CSparse=buildin("parse",context->namespace,context->lnamespace,context)->identifier;
 	CSUTC=buildin("UTC",context->namespace,context->lnamespace,context)->identifier;
@@ -1920,7 +1923,81 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 				rettype=STRING;
 				retval=(long)pomstr;
 			} else
-
+	
+			if(variable->identifier==CScharCodeAt)
+			{	
+				pomstr1=tostring(pomarg,context);
+				pomstr=js_mem_alloc(2);
+				pomarg=getarg(&argy);
+				pomstr[0]='\0';
+				pomstr[1]='\0';
+				if(!pomarg)
+					js_error("Argument required by method charAt ",context);
+				else {	pomint=to32int(pomarg,context);
+					if(((size_t)pomint>=strlen(pomstr1))||(pomint<0))
+					{	if(!js_all_conversions)
+							js_error("Argument out of range ",context);
+						pomint=0;
+					}
+					pomstr[0]=pomstr1[pomint];
+				}
+				js_mem_free(pomstr1);
+				rettype=INTEGER;
+				retval=(long)pomstr[0];
+				js_mem_free(pomstr);
+			} else
+			
+			if(variable->identifier==CSfromCharCode)
+			{	
+				int counter = 0;
+				pomstr1=tostring(pomarg,context);
+				pomstr=js_mem_alloc(200);
+				pomarg=getarg(&argy);
+				if(!pomarg)
+					js_error("Argument required by method fromCharCode ",context);
+				while(pomarg) 
+				{	
+					pomint=to32int(pomarg,context);
+					if((pomint >255) ||(pomint<0))
+					{	if(!js_all_conversions)
+							js_error("Argument out of range ",context);
+						pomint=0;
+					}
+					if(counter < 199)
+						pomstr[counter++]=(unsigned char)pomint;
+					pomarg=getarg(&argy);
+				}
+				pomstr[counter]='\0';
+				js_mem_free(pomstr1);
+				rettype=STRING;
+				retval=(long)pomstr;
+			} else
+	
+			if(variable->identifier==CSreplace)
+			{	
+				pomstr1=tostring(pomarg,context);
+				pomarg=getarg(&argy);
+				pomarg1=getarg(&argy);
+				if(!pomarg || !pomarg1)
+				{
+					js_error("Two arguments required by method replace ",context);
+					retval = 0;
+				}
+				else {	pomstr = tostring(pomarg,context);
+					pomstr2 = tostring(pomarg1,context);
+					retval = (long)regexp_replace(pomstr, pomstr2, pomstr1);
+					js_mem_free(pomstr);
+					js_mem_free(pomstr2);
+				}
+				js_mem_free(pomstr1);
+				if(!retval)
+				{
+					retval=(long)js_mem_alloc(1);
+					*((unsigned char *)retval) = '\0';
+				}
+				rettype=STRING;
+			} else
+	
 				
 			if(variable->identifier==CStoLowerCase)
 			{	pomstr=tostring(pomarg,context);

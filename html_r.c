@@ -36,7 +36,7 @@ struct f_data *init_formatted(struct document_options *opt)
 void clear_formatted(struct f_data *);
 void r_xpand_spaces(struct part *, int);
 int split_line(struct part *);
-void put_chars_conv(struct part *, unsigned char *, int);
+int put_chars_conv(struct part *, unsigned char *, int);
 void html_form_control(struct part *, struct form_control *);
 void add_frameset_entry(struct frameset_desc *, struct frameset_desc *, unsigned char *, unsigned char *, int, int);
 void *html_special(struct part *, int, ...);
@@ -594,14 +594,15 @@ void put_chars(struct part *, unsigned char *, int);
 
 #define CH_BUF	256
 
-void put_chars_conv(struct part *p, unsigned char *c, int l)
+int put_chars_conv(struct part *p, unsigned char *c, int l)
 {
 	static char buffer[CH_BUF];
 	int bp = 0;
 	int pp = 0;
+	int total = 0;
 	if (format.attr & AT_GRAPHICS) {
 		put_chars(p, c, l);
-		return;
+		return l;
 	}
 	if (!l) put_chars(p, NULL, 0);
 	while (pp < l) {
@@ -647,10 +648,13 @@ void put_chars_conv(struct part *p, unsigned char *c, int l)
 			if (bp < CH_BUF) continue;
 			flush1:
 			put_chars(p, buffer, bp);
+			total += bp;
 			bp = 0;
 		}
 	}
 	if (bp) put_chars(p, buffer, bp);
+	total += bp;
+	return total;
 }
 
 void put_chars(struct part *p, unsigned char *c, int l)
@@ -1002,7 +1006,7 @@ void *html_special(struct part *p, int c, ...)
 void do_format(char *start, char *end, struct part *part, unsigned char *head)
 {
 	pr(
-	parse_html(start, end, (void (*)(void *, unsigned char *, int)) put_chars_conv, (void (*)(void *)) line_break, (void *(*)(void *, int, ...)) html_special, part, head);
+	parse_html(start, end, (int (*)(void *, unsigned char *, int)) put_chars_conv, (void (*)(void *)) line_break, (void *(*)(void *, int, ...)) html_special, part, head);
 	/*if ((part->y -= line_breax) < 0) part->y = 0;*/
 	) {};
 }

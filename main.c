@@ -172,7 +172,7 @@ int attach_g_terminal(void *info, int len)
 #endif
 
 struct object_request *dump_obj;
-int dump_pos;
+off_t dump_pos;
 
 void end_dump(struct object_request *r, void *p)
 {

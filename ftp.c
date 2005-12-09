@@ -40,7 +40,7 @@ void ftp_got_final_response(struct connection *, struct read_buffer *);
 void got_something_from_data_connection(struct connection *);
 void ftp_end_request(struct connection *);
 int get_ftp_response(struct connection *, struct read_buffer *, int);
-int ftp_process_dirlist(struct cache_entry *, int *, int *, unsigned char *, int, int, int *);
+int ftp_process_dirlist(struct cache_entry *, off_t *, int *, unsigned char *, int, int, int *);
 
 
 int get_ftp_response(struct connection *c, struct read_buffer *rb, int part)
@@ -453,7 +453,6 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 	g = get_ftp_response(c, rb, 2);
 	if (!g) { read_from_socket(c, c->sock1, rb, ftp_retr_file); setcstate(c, S_GETH); return; }
 	if (g >= 100 && g < 200) {
-		long est;
 		unsigned char *d = rb->data;
 		int i, p = 0;
 		for (i = 0; i < rb->len && d[i] != 10; i++) if (d[i] == '(') p = i;
@@ -466,9 +465,18 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 		for (; i < rb->len; i++) if (d[i] != ' ') break;
 		if (i + 4 > rb->len) goto nol;
 		if (casecmp(&d[i], "byte", 4)) goto nol;
-		est = strtol(&d[p], NULL, 10);
-		if (est < 0 || est >= MAXINT) est = 0;
-		if (est && !c->from) c->est_length = est; /* !!! FIXME: when I add appedning to downloaded file */
+		{
+#if defined(HAVE_STRTOLL)
+			long long est = strtoll(&d[p], NULL, 10);
+#elif defined(HAVE_STRTOQ)
+			quad_t est = strtoq(&d[p], NULL, 10);
+#else
+			long est = strtol(&d[p], NULL, 10);
+			if (est == MAXLONG) est = -1;
+#endif
+			if (est < 0 || (off_t)est < 0 || (off_t)est != est) est = 0;
+			if (est && !c->from) c->est_length = est; /* !!! FIXME: when I add appedning to downloaded file */
+		}
 		nol:;
 	}
 	if (!inf->pasv)
@@ -511,7 +519,7 @@ void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 	}
 }
 
-int ftp_process_dirlist(struct cache_entry *ce, int *pos, int *d, unsigned char *bf, int ln, int fin, int *tr)
+int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned char *bf, int ln, int fin, int *tr)
 {
 	unsigned char *str, *buf;
 	int sl;
@@ -690,6 +698,11 @@ void got_something_from_data_connection(struct connection *c)
 	}
 	if (l > 0) {
 		if (!inf->dir) {
+			if (c->from + l < 0) {
+				setcstate(c, S_LARGE_FILE);
+				abort_connection(c);
+				return;
+			}
 			c->received += l;
 			if (add_fragment(c->cache, c->from, inf->ftp_buffer, l) == 1) c->tries = 0;
 			c->from += l;

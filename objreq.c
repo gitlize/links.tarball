@@ -234,6 +234,7 @@ void objreq_end(struct status *stat, struct object_request *rq)
 		}
 		if (stat->ce && rq->state == O_WAITING && (stat->ce->http_code == 401 || stat->ce->http_code == 407)) {
 			unsigned char *realm = get_auth_realm(rq->url, stat->ce->head, stat->ce->http_code == 407);
+			unsigned char *user;
 			if (!realm) goto xx;
 			if (stat->ce->http_code == 401 && !find_auth(rq->url, realm)) {
 				mem_free(realm);
@@ -242,6 +243,13 @@ void objreq_end(struct status *stat, struct object_request *rq)
 				load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD);
 				return;
 			}
+			user = get_user_name(rq->url);
+			if (user && *user) {
+				mem_free(user);
+				mem_free(realm);
+				goto xx;
+			}
+			mem_free(user);
 			if (!auth_window(rq, realm)) {
 				rq->redirect_cnt = 0;
 				mem_free(realm);
@@ -273,6 +281,8 @@ void object_timer(struct object_request *rq)
 		} else rq->state = O_FAILED;
 	}
 	if (rq->stat.state != S_TRANS) {
+		if (rq->stat.state >= 0)
+			rq->timer = install_timer(STAT_UPDATE_MAX, (void (*)(void *))object_timer, rq);
 		rq->last_update = rq->z;
 		if (rq->upcall) rq->upcall(rq, rq->data);
 	} else {
@@ -307,7 +317,7 @@ void release_object(struct object_request **rqq)
 	release_object_get_stat(rqq, NULL, PRI_CANCEL);
 }
 
-void detach_object_connection(struct object_request *rq, int pos)
+void detach_object_connection(struct object_request *rq, off_t pos)
 {
 	if (rq->state == O_WAITING || rq->state == O_FAILED) {
 		internal("detach_object_connection: no data received");

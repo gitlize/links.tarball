@@ -1,3 +1,104 @@
+=== RELEASE 2.1pre20 ===
+
+Wed Dec  7 21:21:18 MET 2005 E. Rosten <er258@eng.cam.ac.uk>:
+
+	Blocklist blocks all accesses, not only images
+
+Wed Dec  7 00:41:09 MET 2005 user:
+
+	Fixed proper position after go-back if the file was not in cache
+	Fixed incorrect initial position on some pages with long tables during
+		viewing while loading
+	Fixed some quirks with Braille terminal and jumping by words
+	-dump -html-numbered-links 1 prints links' locations
+
+Tue Nov 29 00:36:24 MET 2005 mikulas:
+
+	Do not load too big files on background (maximum size is cache size / 4)
+
+Mon Nov 28 01:49:54 MET 2005 mikulas:
+
+	Restore terminal attributes on fatal errors
+
+Sun Nov 27 22:35:25 CET 2005 mikulas:
+
+	Allowed download of files larger than 2G
+
+Thu Nov 24 18:17:38 MET 2005 Konstantin <k6@pisem.net>:
+
+	Regular expressions for javascript
+
+Sat Nov 19 18:57:04 MET 2005 mikulas:
+
+	Allow cookies with "secure" parameter
+	Cookies without path act as if path was "/" instead of current directory
+
+Sat Nov 12 23:34:13 cet 2005 mikulas:
+
+	Remove username and password from referer
+	An option to send real referer only to the same server
+
+Sat Nov 12 20:37:06 MET 2005 user:
+
+	Allow user and password in http url --- http://user:password@host/
+
+Wed Nov  9 20:20:45 MET 2005 user:
+
+	In graphics mode, prefer "title" to "alt" in <img> tag
+
+Thu Nov  3 00:22:18 MET 2005 user:
+
+	Status line is redrawn only when it changes --- prevents cursor flicker
+
+Wed Nov  2 15:36:17 MET 2005 user:
+
+	Do not use HTTP/1.1 on lighttpd server
+
+Mon Oct 24 22:19:33 CEST 2005 mikulas:
+
+	Account document.write content to javascript memory quota
+	Print javascript memory in "memory info" dialog window
+
+Mon Oct 24 16:32:40 MET 2005 user:
+
+	Recognise "title" attribute in <LINK> tag
+
+Mon Oct 24 16:23:41 MET 2005 user:
+
+	Accept application/xhtml as html type
+
+Sun Oct 23 03:38:48 cet 2005 mikulas:
+
+	Allow usemap and ismap on images simultaneously
+
+Sat Oct 22 17:16:52 MET 2005 Rezzie <rezzie@telkom.net>:
+
+	Updated Indonesian translation
+
+Fri Oct 21 15:58:56 MET 2005 user:
+
+	&quote;
+
+Thu Oct 20 03:30:48 MET DST 2005 mikulas:
+
+	Special handling for relative URLs beginning with '&' or '?'
+
+Wed Oct 12 13:27:52 MET 2005 Jakub Bogusz <qboosh@pld-linux.org>:
+
+	Updated Polish translation
+
+Tue Oct 11 17:23:26 MET 2005 user:
+
+	An optional retry on internal server errors
+
+Tue Oct 11 03:48:52 MET DST 2005 mikulas:
+
+	Get indenting of TAB character in UTF-8 documents right
+
+Tue Oct 11 02:40:17 MET DST 2005 mikulas:
+
+	Better glob match that does not cause stack overflow
+
 === RELEASE 2.1pre19 ===
 
 Fri Sep  9 00:37:42 CEST 2005 mikulas:
@@ -10,7 +111,7 @@ Tue Sep  6 16:14:26 MET 2005 user:
 
 Sun Aug 21 19:18:34 MET 2005 user:
 
-	(sponsored by Knapp Systems)
+	sponsored by Arida Technology (www.arida-technology.com)
 	Keyboard handlers in javascript
 	Inverted text
 

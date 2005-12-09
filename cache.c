@@ -83,31 +83,22 @@ int get_cache_entry(unsigned char *url, struct cache_entry **f)
 	return 0;
 }
 
-int get_cache_data(struct cache_entry *e, unsigned char **d, int *l)
-{
-	struct fragment *frag;
-	*d = NULL; *l = 0;
-	if ((void *)(frag = e->frag.next) == &e->frag) return -1;
-	*d = frag->data;
-	*l = frag->length;
-	return 0;
-}
-
 #define sf(x) e->data_size += (x), cache_size += (x)
 
 int page_size = 4096;
 
 #define C_ALIGN(x) ((((x) + sizeof(struct fragment) + 64) | (page_size - 1)) - sizeof(struct fragment) - 64)
 
-int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int length)
+int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t length)
 {
 	struct fragment *f;
 	struct fragment *nf;
 	int a = 0;
 	int trunc = 0;
+	off_t ca;
 	if (!length) return 0;
-	if ((unsigned)offset + (unsigned)length > MAXINT) overalloc();
-	if ((unsigned)offset + C_ALIGN((unsigned)length) > MAXINT) overalloc();
+	if (offset + length < 0 || offset + length < offset) overalloc();
+	if (offset + C_ALIGN(length) < 0 || offset + C_ALIGN(length) < offset) overalloc();
 	if (e->length < offset + length) e->length = offset + length;
 	e->count = cache_count++;
 	if (list_empty(e->frag)) e->count2 = cache_count++;
@@ -138,8 +129,11 @@ int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int len
 			goto ch_o;
 		}
 	}
-	if (C_ALIGN((unsigned)length) > MAXINT - sizeof(struct fragment)) overalloc();
-	nf = mem_alloc(sizeof(struct fragment)+C_ALIGN(length));
+/* Intel C 9 has a bug and miscompiles this statement (< 0 test is true) */
+	/*if (C_ALIGN(length) > MAXINT - sizeof(struct fragment) || C_ALIGN(length) < 0) overalloc();*/
+	ca = C_ALIGN(length);
+	if (ca > MAXINT - sizeof(struct fragment) || ca < 0) overalloc();
+	nf = mem_alloc(sizeof(struct fragment) + C_ALIGN(length));
 	a = 1;
 	sf(length);
 	nf->offset = offset;
@@ -178,7 +172,7 @@ int add_fragment(struct cache_entry *e, int offset, unsigned char *data, int len
 void defrag_entry(struct cache_entry *e)
 {
 	struct fragment *f, *g, *h, *n, *x;
-	int l;
+	off_t l;
 	if (list_empty(e->frag)) return;
 	f = e->frag.next;
 	if (f->offset) return;
@@ -186,9 +180,9 @@ void defrag_entry(struct cache_entry *e)
 		internal("fragments overlay");
 		return;
 	}
-	if (g == f->next) return;
+	if (g == f->next && f->length == f->real_length) return;
 	for (l = 0, h = f; h != g; h = h->next) l += h->length;
-	if ((unsigned)l > MAXINT - sizeof(struct fragment)) overalloc();
+	if (l > MAXINT - sizeof(struct fragment) || l < 0) overalloc();
 	n = mem_alloc(sizeof(struct fragment) + l);
 	n->offset = 0;
 	n->length = l;
@@ -213,7 +207,7 @@ void defrag_entry(struct cache_entry *e)
 	}*/
 }
 
-void truncate_entry(struct cache_entry *e, int off, int final)
+void truncate_entry(struct cache_entry *e, off_t off, int final)
 {
 	struct fragment *f, *g;
 	if (e->length > off) e->length = off, e->incomplete = 1;
@@ -245,7 +239,7 @@ void truncate_entry(struct cache_entry *e, int off, int final)
 	}
 }
 
-void free_entry_to(struct cache_entry *e, int off)
+void free_entry_to(struct cache_entry *e, off_t off)
 {
 	struct fragment *f, *g;
 	foreach(f, e->frag) {

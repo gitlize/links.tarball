@@ -855,6 +855,7 @@ static CONST UC_entity_info unicode_entities[] = {
   {"puncsp",	0x2008},  /* PUNCTUATION SPACE				   */
   {"quest",	0x003F},  /* QUESTION MARK				   */
   {"quot",	0x0022},  /* QUOTATION MARK				   */
+  {"quote",	0x0022},  /* QUOTATION MARK				   */
   {"rAarr",	0x21DB},  /* RIGHTWARDS TRIPLE ARROW			   */
   {"rArr",	0x21D2},  /* RIGHTWARDS DOUBLE ARROW			   */
   {"racute",	0x0155},  /* LATIN SMALL LETTER R WITH ACUTE		   */

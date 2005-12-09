@@ -66,6 +66,11 @@ void finger_get_response(struct connection *c, struct read_buffer *rb)
 		return;
 	}
 	l = rb->len;
+	if (c->from + l < 0) {
+		setcstate(c, S_LARGE_FILE);
+		abort_connection(c);
+		return;
+	}
 	c->received += l;
 	if (add_fragment(c->cache, c->from, rb->data, l) == 1) c->tries = 0;
 	c->from += l;

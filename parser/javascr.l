@@ -571,7 +571,7 @@ int f(void){return 0;}
 
 <INITIAL>\/([^\\\/\*\n\r]|\\[^\n\r])([^\n\r\/\\]|\\[^\n\r])*\/[A-Za-z0-9\_\$]*	{
 	if ((unsigned)yyleng >= MAXINT) overalloc();
-	j=1;	rawstr=js_mem_alloc(yyleng-1);	while(j<(yyleng-1)){rawstr[j-1]=yytext[j];j++;}
+	j=0;	rawstr=js_mem_alloc(yyleng+1);	while(j<(yyleng+1)){rawstr[j]=yytext[j];j++;}
 	rawstr[j-1]=0;
 	yylval=civilize(rawstr);
 #ifdef DEBUZIM

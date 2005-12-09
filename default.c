@@ -1114,8 +1114,9 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    (default 0)\n"
 "  0 - do not send referer\n"
 "  1 - send the requested URL as referer\n"
-"  2 - send real referer\n"
-"  3 - send fake referer\n"
+"  2 - send fake referer\n"
+"  3 - send real referer\n"
+"  4 - send real referer only to the same server\n"
 "\n"
 " -fake-referer <string>\n"
 "  Fake referer value.\n"
@@ -1398,7 +1399,7 @@ unsigned char download_dir[MAX_STR_LEN] = "";
 struct ftp_options ftp_options = { "somebody@host.domain", 0, 0 };
 
 /* These are workarounds for some CGI script bugs */
-struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 1, "", "", REFERER_NONE };
+struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 0, 1, "", "", REFERER_NONE };
 /*int bug_302_redirect = 0;*/
 	/* When got 301 or 302 from POST request, change it to GET
 	   - this violates RFC2068, but some buggy message board scripts rely on it */
@@ -1446,8 +1447,9 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_post_no_keepalive, "http_bugs.bug_post_no_keepalive", "http-bugs.bug-post-no-keepalive"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.retry_internal_errors, "http_bugs.retry_internal_errors", "http-bugs.retry-internal-errors"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.aggressive_cache, "http_bugs.aggressive_cache", "http-bugs.aggressive-cache"},
-	{1, gen_cmd, num_rd, num_wr, 0, 3, &http_bugs.referer, "http_referer", "http-referer"},
+	{1, gen_cmd, num_rd, num_wr, 0, 4, &http_bugs.referer, "http_referer", "http-referer"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_bugs.fake_useragent, "fake_useragent", "fake-user-agent"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_bugs.fake_referer, "fake_referer", "fake-referer"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, ftp_options.anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},

@@ -5,13 +5,13 @@ struct list_head auth = {&auth, &auth};
 struct http_auth {
 	struct http_auth *next;
 	struct http_auth *prev;
-	char *host;
+	unsigned char *host;
 	int port;
-	char *realm;
-	char *user;
-	char *password;
-	char *directory;
-	char *user_password_encoded;
+	unsigned char *realm;
+	unsigned char *user;
+	unsigned char *password;
+	unsigned char *directory;
+	unsigned char *user_password_encoded;
 	int proxy;
 };
 
@@ -48,6 +48,17 @@ unsigned char *base64_encode(unsigned char *in)
 	}
 	*out = 0;
 	return outstr;
+}
+
+unsigned char *basic_encode(unsigned char *user, unsigned char *password)
+{
+	unsigned char *e, *p = mem_alloc(strlen(user) + strlen(password) + 2);
+	strcpy(p, user);
+	strcat(p, ":");
+	strcat(p, password);
+	e = base64_encode(p);
+	mem_free(p);
+	return e;
 }
 
 unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy)
@@ -87,6 +98,7 @@ char *get_auth_string(char *url)
 	int port;
 	unsigned char *r = NULL;
 	int l = 0;
+	unsigned char *user, *password;
 	if (!(host = get_host_name(url))) return NULL;
 	port = get_port(url);
 	if (upcase(url[0]) == 'P') {
@@ -104,6 +116,23 @@ char *get_auth_string(char *url)
 		if (!(host = get_host_name(url))) return NULL;
 		port = get_port(url);
 	}
+
+	user = get_user_name(url);
+	password = get_pass(url);
+	if (user && *user && password) {
+		unsigned char *e = basic_encode(user, password);
+		if (!r) r = init_str();
+		add_to_str(&r, &l, "Authorization: Basic ");
+		add_to_str(&r, &l, e);
+		add_to_str(&r, &l, "\r\n");
+		mem_free(e);
+		if (user) mem_free(user);
+		if (password) mem_free(password);
+		goto have_passwd;
+	}
+	if (user) mem_free(user);
+	if (password) mem_free(password);
+
 	foreach(a, auth) if (!a->proxy && !strcasecmp(a->host, host) && a->port == port) {
 		unsigned char *d, *data;
 		data = get_url_data(url);
@@ -115,9 +144,10 @@ char *get_auth_string(char *url)
 			add_to_str(&r, &l, "Authorization: Basic ");
 			add_to_str(&r, &l, a->user_password_encoded);
 			add_to_str(&r, &l, "\r\n");
-			break;
+			goto have_passwd;
 		}
 	}
+	have_passwd:
 	mem_free(host);
 	return r;
 }
@@ -143,13 +173,12 @@ void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, uns
 {
 	struct http_auth *a;
 	unsigned char *host;
-	unsigned char *p;
 	int port;
 	if (!proxy) {
 		host = get_host_name(url);
 		port = get_port(url);
 	} else {
-		char *p = get_proxy(url);
+		unsigned char *p = get_proxy(url);
 		host = get_host_name(p);
 		port = get_port(p);
 		mem_free(p);
@@ -173,12 +202,7 @@ void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, uns
 		a->directory = data;
 	} else a->directory = NULL;
 	a->proxy = proxy;
-	p = mem_alloc(strlen(a->user) + strlen(a->password) + 2);
-	strcpy(p, a->user);
-	strcat(p, ":");
-	strcat(p, a->password);
-	a->user_password_encoded = base64_encode(p);
-	mem_free(p);
+	a->user_password_encoded = basic_encode(a->user, a->password);
 	add_to_list(auth, a);
 }
 

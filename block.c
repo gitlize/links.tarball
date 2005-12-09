@@ -310,35 +310,37 @@ void block_add_URL(struct terminal *term, void *xxx, struct session *ses)
 
 }
 
-
-
-int simple_glob_match(unsigned char* s, unsigned char* p)
+static unsigned char *find_first_match(unsigned char *s, unsigned char *p, unsigned *ii)
 {
-	/*Very simple glob matching algorithm inspired by schweikh's "Best One-Liner"
-	in the 2001 IOCCC http://www.ioccc.org/2001/schweikh.c
-	*/
-
-	/* Sorry. */
-
-
-	if(!s || !p)
-		return 0;
-
-	/*Match any simple bits*/
-	while(*s && *p && *p != '*' && (*s == *p || *p == '?'))
-		s++, p++;
-
-	if(*p == '*')
-	{
-		/*Try to see if the string starts to match the
-		rest of the pattern, or if the pattern matches
-		more of the string
-		*/
-		return simple_glob_match(s, p+1) || (*s && simple_glob_match(s+1, p));
+	unsigned i;
+	retry:
+	for (i = 0; s[i] && p[i] && p[i] != '*'; i++) {
+		if (s[i] != p[i] && p[i] != '?') {
+			s++;
+			goto retry;
+		}
 	}
-	else /* *s == *p only if they are both NULL (which is a correct match)*/
-		return *s == *p;	
+	*ii = i;
+	if (!p[i] || p[i] == '*') return s;
+	return NULL;
 }
+
+int simple_glob_match(unsigned char *s, unsigned char *p)
+{
+	unsigned i;
+	if (find_first_match(s, p, &i) != s) return 0;
+	if (!p[i]) return !s[i];
+	while (1) {
+		s += i;
+		p += i + 1;
+		if (!(s = find_first_match(s, p, &i))) return 0;
+		if (!p[i]) {
+			s += strlen(s) - i;
+			return !!find_first_match(s, p, &i);
+		}
+	}
+}
+
 
 int is_url_blocked(unsigned char* url)
 {

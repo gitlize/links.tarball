@@ -71,6 +71,12 @@
 #undef JS
 
 /* */
+#undef HAVE_PCRE
+
+/* */
+#undef HAVE_REGEX
+
+/* */
 #undef CHCEME_FLEXI_LIBU
 
 /* By PerM's ideological comittee */

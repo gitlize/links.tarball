@@ -1,4 +1,5 @@
 english
+bahasa_indonesian
 belarusian
 brazilian_portuguese
 bulgarian
@@ -15,7 +16,6 @@ german
 greek
 hungarian
 icelandic
-indonesian
 italian
 lithuanian
 norwegian

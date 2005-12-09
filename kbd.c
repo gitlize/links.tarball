@@ -318,6 +318,11 @@ void free_trm(struct itrm *itrm)
 	if (itrm == ditrm) ditrm = NULL;
 }
 
+void fatal_tty_exit(void)
+{
+	if (ditrm) ttcsetattr(ditrm->ctl_in, TCSANOW, &ditrm->t);
+}
+
 void resize_terminal_x(unsigned char *text)
 {
 	int x, y;

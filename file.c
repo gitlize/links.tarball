@@ -370,7 +370,7 @@ void file_func(struct connection *c)
 		   -EACCES when reading 0 bytes to invalid address */
 		if (stt.st_size > MAXINT) {
 			close(h);
-			setcstate(c, S_OUT_OF_MEM); abort_connection(c);
+			setcstate(c, S_LARGE_FILE); abort_connection(c);
 			return;
 		}
 		file = mem_alloc(stt.st_size + !stt.st_size);

@@ -197,8 +197,8 @@ extern long js_lengthid;
 
 extern long MIN1KEY;
 extern long CStoString,CSvalueOf,CSMIN_VALUE,CSMAX_VALUE,CSNaN,CSlength,
-	CSindexOf,CSlastIndexOf,CSsubstring,CScharAt,CStoLowerCase,CSsubstr,
-	CStoUpperCase,CSsplit,CSparse,CSUTC;
+	CSindexOf,CSlastIndexOf,CSsubstring,CScharAt,CScharCodeAt,CSfromCharCode,CStoLowerCase,CSsubstr,
+	CStoUpperCase,CSsplit,CSparse,CSUTC,CSreplace;
 
 static int sezvykan;
 
@@ -4304,7 +4304,7 @@ void member(js_context*context)/*a.b*/
 				}
 				pusha(nans,context);
 				pomv=(long)pomvrch->arg[0];
-				if(pomv!=CStoString && pomv!=CSvalueOf && pomv!= CSMIN_VALUE && pomv!=CSMAX_VALUE &&pomv!=CSNaN && pomv!=CSlength && pomv!=CSindexOf && pomv!=CSlastIndexOf && pomv!=CSsubstring && pomv!=CSsubstr && pomv!=CScharAt &&pomv!=CStoLowerCase && pomv!= CStoUpperCase && pomv!= CSsplit && pomv!= CSparse && pomv!= CSUTC) {
+				if(pomv!=CStoString && pomv!=CSvalueOf && pomv!= CSMIN_VALUE && pomv!=CSMAX_VALUE &&pomv!=CSNaN && pomv!=CSlength && pomv!=CSindexOf && pomv!=CSlastIndexOf && pomv!=CSsubstring && pomv!=CSsubstr && pomv!=CScharAt && pomv!=CScharCodeAt && pomv!=CSfromCharCode && pomv!=CStoLowerCase && pomv!= CStoUpperCase && pomv!= CSsplit && pomv!= CSparse && pomv!= CSUTC && pomv!= CSreplace) {
 					if(!js_all_conversions)
 						js_error("Calling strange method/property of non-object typed variable!\n",context);
 					nans=pulla(context);

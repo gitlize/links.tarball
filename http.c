@@ -97,7 +97,7 @@ int get_http_code(unsigned char *head, int *code, int *version)
 	return 0;
 }
 
-unsigned char *buggy_servers[] = { "mod_czech/3.1.0", "Purveyor", "Netscape-Enterprise", "Apache Coyote", NULL };
+unsigned char *buggy_servers[] = { "mod_czech/3.1.0", "Purveyor", "Netscape-Enterprise", "Apache Coyote", "lighttpd", NULL };
 
 int check_http_server_bugs(unsigned char *url, struct http_connection_info *info, unsigned char *head)
 {
@@ -182,7 +182,7 @@ void http_send_header(struct connection *c)
 	}
 	if (info->bl_flags & BL_HTTP10) http10 = 1;
 	info->http10 = http10;
-	post = strchr(c->url, POST_CHAR);
+	post = strchr(host, POST_CHAR);
 	if (post) post++;
 	hdr = init_str();
 	if (!post) add_to_str(&hdr, &l, "GET ");
@@ -259,7 +259,6 @@ void http_send_header(struct connection *c)
 	}
 	switch (http_bugs.referer)
 	{
-		unsigned char *ur;
 		case REFERER_FAKE:
 		add_to_str(&hdr, &l, "Referer: ");
 		add_to_str(&hdr, &l, http_bugs.fake_referer);
@@ -267,24 +266,44 @@ void http_send_header(struct connection *c)
 		break;
 		
 		case REFERER_SAME_URL:
-		if (upcase(c->url[0]) != 'P') ur = c->url;
-		else ur = get_url_data(c->url);
 		add_to_str(&hdr, &l, "Referer: ");
-		if (!post) add_to_str(&hdr, &l, ur);
-		else add_bytes_to_str(&hdr, &l, ur, post - ur - 1);
+		if (!post) add_to_str(&hdr, &l, host);
+		else add_bytes_to_str(&hdr, &l, host, post - host - 1);
 		add_to_str(&hdr, &l, "\r\n");
 		break;
 
+		case REFERER_REAL_SAME_SERVER:
+		{
+			unsigned char *h, *j;
+			int brk = 1;
+			if ((h = get_host_name(host))) {
+				if ((j = get_host_name(c->prev_url))) {
+					if (!strcasecmp(h, j)) brk = 0;
+					mem_free(j);
+				}
+				mem_free(h);
+			}
+			if (brk) break;
+			/* fall through */
+		}
 		case REFERER_REAL:
 		{
 			unsigned char *post2;
+			unsigned char *ref;
+			unsigned char *user, *ins;
+			int ulen;
 			if (!(c->prev_url))break;   /* no referrer */
 
-			post2 = strchr(c->prev_url, POST_CHAR);
+			ref = stracpy(c->prev_url);
+			post2 = strchr(ref, POST_CHAR);
+			if (post2) *post2 = 0;
+			if (!parse_url(post2, NULL, &user, &ulen, NULL, NULL, &ins, NULL, NULL, NULL, NULL, NULL, NULL) && ulen && ins) {
+				memmove(user, ins, strlen(ins) + 1);
+			}
 			add_to_str(&hdr, &l, "Referer: ");
-			if (!post2) add_to_str(&hdr, &l, c->prev_url);
-			else add_bytes_to_str(&hdr, &l, c->prev_url, post2 - c->prev_url);
+			add_to_str(&hdr, &l, ref);
 			add_to_str(&hdr, &l, "\r\n");
+			mem_free(ref);
 		}
 		break;
 	}
@@ -393,6 +412,11 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 	if (info->length != -2) {
 		int l = rb->len;
 		if (info->length >= 0 && info->length < l) l = info->length;
+		if (c->from + l < 0) {
+			setcstate(c, S_LARGE_FILE);
+			abort_connection(c);
+			return;
+		}
 		c->received += l;
 		if (add_fragment(c->cache, c->from, rb->data, l) == 1) c->tries = 0;
 		if (info->length >= 0) info->length -= l;
@@ -439,6 +463,11 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 		} else {
 			int l = info->chunk_remaining;
 			if (l > rb->len) l = rb->len;
+			if (c->from + l < 0) {
+				setcstate(c, S_LARGE_FILE);
+				abort_connection(c);
+				return;
+			}
 			c->received += l;
 			if (add_fragment(c->cache, c->from, rb->data, l) == 1) c->tries = 0;
 			info->chunk_remaining -= l;
@@ -555,16 +584,23 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		abort_connection(c);
 		return;
 	}
+	if (h == 204) {
+		mem_free(head);
+		setcstate(c, S_HTTP_204);
+		http_end_request(c, 0);
+		return;
+	}
 	if (h == 304) {
 		mem_free(head);
 		setcstate(c, S_OK);
 		http_end_request(c, 1);
 		return;
 	}
-	if (h == 204) {
+	if ((h == 500 || h == 502 || h == 503 || h == 504) && http_bugs.retry_internal_errors && is_connection_restartable(c)) {
+			/* !!! FIXME: wait some time ... */
 		mem_free(head);
-		setcstate(c, S_HTTP_204);
-		http_end_request(c, 0);
+		setcstate(c, S_RESTART);
+		retry_connection(c);
 		return;
 	}
 	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
@@ -617,6 +653,22 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	if (h == 301 || h == 302 || h == 303 || h == 307) {
 		if ((h == 302 || h == 307) && !e->expire_time) e->expire_time = 1;
 		if ((d = parse_http_header(e->head, "Location", NULL))) {
+			unsigned char *user, *ins;
+			unsigned char *newuser, *newpassword;
+			if (!parse_url(d, NULL, &user, NULL, NULL, NULL, &ins, NULL, NULL, NULL, NULL, NULL, NULL) && !user && ins && (newuser = get_user_name(host))) {
+				if (*newuser) {
+					newpassword = get_pass(host);
+					if (!newpassword) newpassword = stracpy("");
+					add_to_strn(&newuser, ":");
+					add_to_strn(&newuser, newpassword);
+					add_to_strn(&newuser, "@");
+					extend_str(&d, strlen(newuser));
+					memmove(ins + strlen(newuser), ins, strlen(ins) + 1);
+					memcpy(ins, newuser, strlen(newuser));
+					mem_free(newpassword);
+				}
+				mem_free(newuser);
+			}
 			if (e->redirect) mem_free(e->redirect);
 			e->redirect = d;
 			e->redirect_get = h == 303;
@@ -637,8 +689,15 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		if (strlen(d) > 6) {
 			d[5] = 0;
 			if (!(strcasecmp(d, "bytes")) && d[6] >= '0' && d[6] <= '9') {
+#if defined(HAVE_STRTOLL)
+				long long f = strtoll(d + 6, NULL, 10);
+#elif defined(HAVE_STRTOQ)
+				quad_t f = strtoq(d + 6, NULL, 10);
+#else
 				long f = strtol(d + 6, NULL, 10);
-				if (f >= 0 && f < MAXINT) c->from = f;
+				if (f == MAXLONG) f = -1;
+#endif
+				if (f >= 0 && (off_t)f >= 0 && (off_t)f == f) c->from = f;
 			}
 		}
 		mem_free(d);
@@ -651,10 +710,17 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if ((d = parse_http_header(e->head, "Content-Length", NULL))) {
 		unsigned char *ep;
+#if defined(HAVE_STRTOLL)
+		long long l = strtoll(d, (char **)(void *)&ep, 10);
+#elif defined(HAVE_STRTOQ)
+		quad_t l = strtoq(d, (char **)(void *)&ep, 10);
+#else
 		long l = strtol(d, (char **)(void *)&ep, 10);
-		if (!*ep && l >= 0 && l < MAXINT) {
+		if (l == MAXLONG) l = -1;
+#endif
+		if (!*ep && l >= 0 && (off_t)l >= 0 && (off_t)l == l) {
 			if (!info->close || version >= 11) info->length = l;
-			if ((unsigned)c->from + (unsigned)l < MAXINT) c->est_length = c->from + l;
+			if (c->from + l >= 0) c->est_length = c->from + l;
 		}
 		mem_free(d);
 	}

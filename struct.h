@@ -15,11 +15,10 @@
 
 extern void* js_js_temp_var1;
 extern size_t js_js_temp_var2;
-extern int js_zaflaknuto_pameti;
 
 #define J_A_S ((sizeof(int) + 15) & ~15)
 
-#define js_mem_alloc(a) ((js_js_temp_var1=mem_alloc((js_js_temp_var2=(a))+J_A_S)),(js_zaflaknuto_pameti+=js_js_temp_var2),(*(int*)js_js_temp_var1=js_js_temp_var2),(void*)(((char*)js_js_temp_var1)+J_A_S))
+#define js_mem_alloc(a) ((js_js_temp_var1=mem_alloc(js_js_temp_var2=(a)+J_A_S)),(js_zaflaknuto_pameti+=js_js_temp_var2),(*(int*)js_js_temp_var1=js_js_temp_var2),(void*)(((char*)js_js_temp_var1)+J_A_S))
 
 #define js_mem_free(a) ((js_zaflaknuto_pameti-=*(int*)((char*)((js_js_temp_var1=(a)))-J_A_S)), (mem_free((void*)((char*)js_js_temp_var1-J_A_S))))
 

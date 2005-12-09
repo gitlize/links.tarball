@@ -8,7 +8,7 @@
 struct list_head downloads = {&downloads, &downloads};
 
 /* prototypes */
-void add_xnum_to_str(unsigned char **, int *, int);
+void add_xnum_to_str(unsigned char **, int *, off_t);
 void add_time_to_str(unsigned char **, int *, ttime);
 unsigned char *get_stat_msg(struct status *, struct terminal *);
 void _print_screen_status(struct terminal *, struct session *);
@@ -105,11 +105,12 @@ unsigned char *get_err_msg(int state)
 	return s->msg;
 }
 
-void add_xnum_to_str(unsigned char **s, int *l, int n)
+void add_xnum_to_str(unsigned char **s, int *l, off_t n)
 {
 	unsigned char suff = 0;
 	int d = -1;
-	if (n >= 1000000) suff = 'M', d = (n / 100000) % 10, n /= 1000000;
+	if (n >= 1000000000) suff = 'G', d = (n / 100000000) % 10, n /= 1000000000;
+	else if (n >= 1000000) suff = 'M', d = (n / 100000) % 10, n /= 1000000;
 	else if (n >= 1000) suff = 'k', d = (n / 100) % 10, n /= 1000;
 	add_num_to_str(s, l, n);
 	if (n < 10 && d != -1) add_chr_to_str(s, l, '.'), add_num_to_str(s, l, d);
@@ -121,9 +122,8 @@ void add_xnum_to_str(unsigned char **s, int *l, int n)
 void add_time_to_str(unsigned char **s, int *l, ttime t)
 {
 	unsigned char q[64];
-	t /= 1000;
-	t &= 0xffffffff;
 	if (t < 0) t = 0;
+	t &= 0xffffffff;
 	if (t >= 86400) sprintf(q, "%dd ", (int)(t / 86400)), add_to_str(s, l, q);
 	if (t >= 3600) t %= 86400, sprintf(q, "%d:%02d", (int)(t / 3600), (int)(t / 60 % 60)), add_to_str(s, l, q);
 	else sprintf(q, "%d", (int)(t / 60)), add_to_str(s, l, q);
@@ -207,7 +207,23 @@ void _print_screen_status(struct terminal *term, struct session *ses)
 void print_screen_status(struct session *ses)
 {
 	unsigned char *m;
+#ifdef G
+	if (F) {
+		/*debug("%s - %s", ses->st_old, ses->st);
+		debug("clip: %d.%d , %d.%d", ses->term->dev->clip.x1, ses->term->dev->clip.y1, ses->term->dev->clip.x2, ses->term->dev->clip.y2);
+		debug("size: %d.%d , %d.%d", ses->term->dev->size.x1, ses->term->dev->size.y1, ses->term->dev->size.x2, ses->term->dev->size.y2);*/
+		if (ses->st_old) {
+			if (ses->st && !strcmp(ses->st, ses->st_old)) goto skip_status;
+			mem_free(ses->st_old);
+			ses->st_old = NULL;
+		}
+		if (!memcmp(&ses->term->dev->clip, &ses->term->dev->size, sizeof(struct rect))) ses->st_old = stracpy(ses->st);
+	}
+#endif
 	draw_to_window(ses->win, (void (*)(struct terminal *, void *))_print_screen_status, ses);
+#ifdef G
+	skip_status:
+#endif
 	if ((m = stracpy("Links"))) {
 		if (ses->screen && ses->screen->f_data && ses->screen->f_data->title && ses->screen->f_data->title[0]) add_to_strn(&m, " - "), add_to_strn(&m, ses->screen->f_data->title);
 		set_terminal_title(ses->term, m);
@@ -371,13 +387,13 @@ void download_window_function(struct dialog_data *dlg)
 		add_to_str(&m, &l, "\n");
 		add_to_str(&m, &l, _(TEXT(T_ELAPSED_TIME), term));
 		add_to_str(&m, &l, " ");
-		add_time_to_str(&m, &l, stat->prg->elapsed);
+		add_time_to_str(&m, &l, stat->prg->elapsed / 1000);
 		if (stat->prg->size >= 0 && stat->prg->loaded > 0) {
 			add_to_str(&m, &l, ", ");
 			add_to_str(&m, &l, _(TEXT(T_ESTIMATED_TIME), term));
 			add_to_str(&m, &l, " ");
 			/*add_time_to_str(&m, &l, stat->prg->elapsed / 1000 * stat->prg->size / stat->prg->loaded * 1000 - stat->prg->elapsed);*/
-			add_time_to_str(&m, &l, (stat->prg->size - stat->prg->pos) / ((longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100)) * 1000);
+			add_time_to_str(&m, &l, (stat->prg->size - stat->prg->pos) / ((longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100)));
 		}
 	} else m = stracpy(_(get_err_msg(stat->state), term));
 	u = stracpy(down->url);
@@ -707,16 +723,6 @@ int create_download_file(struct terminal *term, unsigned char *fi, int safe)
 	}
 	h = open(file, O_CREAT|O_WRONLY|O_TRUNC|(sf?O_EXCL:0), sf ? 0600 : 0666);
 	if (wd) set_cwd(wd), mem_free(wd);
-	/* FIXME */
-	#if 0
-	if (h == -1&&errno==EEXIST) {
-		unsigned char *msg = stracpy(file);
-		unsigned char *msge = stracpy(strerror(errno));
-		msg_box(term, getml(msg, msge, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_CREATE_FILE), " ", msg, ": ", msge, NULL, NULL, 2,  TEXT(T_YES), NULL, B_ENTER, TEXT(T_NO), NULL, B_ESC);
-		if (file != fi) mem_free(file);
-		return -1;
-	}
-	#endif
 	if (h == -1) {
 		unsigned char *msg = stracpy(file);
 		unsigned char *msge = stracpy(strerror(errno));
@@ -864,7 +870,10 @@ struct f_data *format_html(struct f_data_c *fd, struct object_request *rq, unsig
 		really_format_html(f->rq->ce, start, end, f, fd->ses ? fd != fd->ses->screen : 0);
 		if (stl != -1) mem_free(start);
 		f->use_tag = f->rq->ce->count;
-		if (f->af) foreach(af, f->af->af) if (af->rq->ce) af->use_tag = af->rq->ce->count;
+		if (f->af) foreach(af, f->af->af) if (af->rq->ce) {
+			af->use_tag = af->rq->ce->count;
+			af->use_tag2 = af->rq->ce->count2;
+		}
 	} else f->use_tag = 0;
 	f->time_to_get += get_time();
 	) nul:return NULL;
@@ -942,6 +951,7 @@ static inline int is_format_cache_entry_uptodate(struct f_data *f)
 	if (f->af) foreach(af, f->af->af) {
 		struct cache_entry *ce = af->rq->ce;
 		if (af->need_reparse > 0) if (!ce || ce->count != af->use_tag) return 0;
+		if (af->unknown_image_size) if (!ce || ce->count2 != af->use_tag2) return 0;
 	}
 	return 1;
 }
@@ -1239,9 +1249,11 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 	}
 	af = mem_alloc(sizeof(struct additional_file) + strlen(url) + 1);
 	af->use_tag = 0;
+	af->use_tag2 = 0;
 	strcpy(af->url, url);
 	request_object(f->ses->term, url, f->rq->url, PRI_IMG, NC_CACHE, f->rq->upcall, f->rq->data, &af->rq);
 	af->need_reparse = 0;
+	af->unknown_image_size = 0;
 	add_to_list(f->af->af, af);
 	mem_free(url);
 	return af;
@@ -1354,7 +1366,7 @@ int plain_type(struct session *ses, struct object_request *rq, unsigned char **p
 		goto f;
 	}
 	if (!(ct = get_content_type(ce->head, ce->url))) goto f;
-	if (!strcasecmp(ct, "text/html")) goto ff;
+	if (is_html_type(ct)) goto ff;
 	r = 1;
 	if (!strcasecmp(ct, "text/plain")) goto ff;
 	r = 2;
@@ -1632,7 +1644,7 @@ void ses_go_forward(struct session *ses, int plain, int refresh)
 	fd->loc->prev_url = stracpy(fd->rq->prev_url);
 	fd->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
 	fd->rq->data = fd;
-	/*ses->locked_link = 0;*/
+	ses->locked_link = 0;
 	fd->rq->upcall(fd->rq, fd);
 	draw_formatted(ses);
 }
@@ -2264,6 +2276,7 @@ void destroy_session(struct session *ses)
 	}
 	while (!list_empty(ses->history)) destroy_location(ses->history.next);
 	if (ses->st) mem_free(ses->st);
+	if (ses->st_old) mem_free(ses->st_old);
 	if (ses->default_status)mem_free(ses->default_status);
 	if (ses->dn_url) mem_free(ses->dn_url);
 	if (ses->search_word) mem_free(ses->search_word);
@@ -2293,12 +2306,14 @@ void win_func(struct window *win, struct event *ev, int fw)
 				return;
 			}
 		case EV_RESIZE:
+			if (ses->st_old) mem_free(ses->st_old), ses->st_old = NULL;
 			GF(set_window_pos(win, 0, 0, ev->x, ev->y));
 			set_doc_view(ses);
 			html_interpret_recursive(ses->screen);
 			draw_fd(ses->screen);
 			break;
 		case EV_REDRAW:
+			if (ses->st_old) mem_free(ses->st_old), ses->st_old = NULL;
 			draw_formatted(ses);
 			break;
 		case EV_MOUSE:

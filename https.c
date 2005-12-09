@@ -12,7 +12,7 @@
 
 #ifdef HAVE_SSL
 
-SSL_CTX *context = 0;
+SSL_CTX *context = NULL;
 
 SSL *getSSL(void)
 {

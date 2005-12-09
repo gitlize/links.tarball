@@ -332,3 +332,9 @@ Jakub Bogusz <qboosh@pld-linux.org>
 Federico G. Schwindt <fgsch@lodoss.net>
 	Use MD5 functions from libc when available
 
+Rezzie <rezzie@telkom.net>
+	Updated Indonesian translation
+
+Konstantin S. Kravtsov <k6@pisem.net>
+	Regular expressions for javascript
+

@@ -914,3 +914,8 @@ unsigned char *get_prog(struct list_head *l)
 	foreach(repl, *l) if (repl->system == SYSTEM_ID) return repl->prog;
 	return NULL;
 }
+
+int is_html_type(unsigned char *ct)
+{
+	return !strcasecmp(ct, "text/html") || !casecmp(ct, "application/xhtml", strlen("application/xhtml"));
+}

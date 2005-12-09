@@ -216,6 +216,7 @@ void jsint_destroy(struct f_data_c *fd)
 	pr(js_destroy_context(js->ctx)) return;
 	if (js->src) mem_free(js->src);
 	if (js->active) mem_free(js->active);
+	js_zaflaknuto_pameti-=js->newdata;
 	free_list(js->queue);
 	mem_free(js);
 }
@@ -971,6 +972,8 @@ void js_upcall_document_write(void *p, unsigned char *str, int len)
 	memmove(s + pos + len, s + pos, js->srclen - pos);
 	memcpy(s + pos, str, len);
 	js->srclen += len;
+	js->newdata += len;
+	js_zaflaknuto_pameti += len;
 	js->active->wrote = 1;
 }
 
@@ -2495,10 +2498,13 @@ void js_upcall_click(void *bidak, long document_id, long elem_id)
 				if (l->form&&l->form==hopla->fc)	/* to je on! */
 				{
 					int old_link=fd->vs->current_link;
+					int old_orig_link=fd->vs->orig_link;
 					fd->vs->current_link=a;
+					fd->vs->orig_link=a;
 					enter(fd->ses,fd,0);
 					draw_fd(fd);
 					fd->vs->current_link=old_link;
+					fd->vs->orig_link=old_orig_link;
 					change_screen_status(fd->ses);
 					print_screen_status(fd->ses);
 					break;
@@ -2554,10 +2560,11 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 					int x = 0;
 					while (fd != current_frame(ses)) next_frame(ses, 1), x = 1;
 					fd->vs->current_link=a;
+					fd->vs->orig_link=a;
 					if (fd->ses->term->spec->braille) {
 						if (fd->f_data->links[a].n) {
-							fd->vs->brl_x = fd->f_data->links[a].pos[0].x;
-							fd->vs->brl_y = fd->f_data->links[a].pos[0].y;
+							fd->vs->brl_x = fd->vs->orig_brl_x = fd->f_data->links[a].pos[0].x;
+							fd->vs->brl_y = fd->vs->orig_brl_y = fd->f_data->links[a].pos[0].y;
 						}
 					}
 #ifdef G

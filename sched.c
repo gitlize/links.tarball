@@ -112,6 +112,7 @@ void stat_timer(struct connection *c)
 {
 	struct remaining_info *r = &c->prg;
 	ttime a = get_time() - r->last_time;
+	if (getpri(c) == PRI_CANCEL && (c->est_length > memory_cache_size * MAX_CACHED_OBJECT || c->from > memory_cache_size * MAX_CACHED_OBJECT)) register_bottom_half(check_queue, NULL);
 	if (c->state > S_WAIT) {
 		r->loaded = c->received;
 		if ((r->size = c->est_length) < (r->pos = c->from) && r->size != -1)
@@ -292,14 +293,14 @@ void add_keepalive_socket(struct connection *c, ttime timeout)
 #ifdef DEBUG
 	check_queue_bugs();
 #endif
-	register_bottom_half((void (*)(void *))check_queue, NULL);
+	register_bottom_half(check_queue, NULL);
 	return;
 	close:
 	close(c->sock1);
 #ifdef DEBUG
 	check_queue_bugs();
 #endif
-	register_bottom_half((void (*)(void *))check_queue, NULL);
+	register_bottom_half(check_queue, NULL);
 }
 
 void del_keepalive_socket(struct k_conn *kc)
@@ -410,6 +411,13 @@ void run_connection(struct connection *c)
 		internal("connection already running");
 		return;
 	}
+
+	if (is_url_blocked(c->url)) {
+		setcstate(c, S_BLOCKED_URL);
+		del_connection(c);
+		return;
+	}
+	
 	if (!(func = get_protocol_handle(c->url))) {
 		setcstate(c, S_BAD_URL);
 		del_connection(c);
@@ -432,17 +440,23 @@ void run_connection(struct connection *c)
 	func(c);
 }
 
+int is_connection_restartable(struct connection *c)
+{
+	return !(c->unrestartable >= 2 || (c->tries + 1 >= (max_tries ? max_tries : 1000)));
+}
+
 void retry_connection(struct connection *c)
 {
 	interrupt_connection(c);
-	if (c->unrestartable >= 2 || (++c->tries >= (max_tries ? max_tries : 1000))) {
+	if (!is_connection_restartable(c)) {
 		/*send_connection_info(c);*/
 		del_connection(c);
 #ifdef DEBUG
 		check_queue_bugs();
 #endif
-		register_bottom_half((void (*)(void *))check_queue, NULL);
+		register_bottom_half(check_queue, NULL);
 	} else {
+		c->tries++;
 		c->prev_error = c->state;
 		run_connection(c);
 	}
@@ -456,7 +470,7 @@ void abort_connection(struct connection *c)
 #ifdef DEBUG
 	check_queue_bugs();
 #endif
-	register_bottom_half((void (*)(void *))check_queue, NULL);
+	register_bottom_half(check_queue, NULL);
 }
 
 int try_connection(struct connection *c)
@@ -509,7 +523,7 @@ void check_queue_bugs(void)
 }
 #endif
 
-void check_queue(void)
+void check_queue(void *dummy)
 {
 	struct connection *c;
 	again:
@@ -541,6 +555,10 @@ void check_queue(void)
 		if (c->state == S_WAIT) {
 			setcstate(c, S_INTERRUPTED);
 			del_connection(c);
+			goto again2;
+		} else if (c->est_length > memory_cache_size * MAX_CACHED_OBJECT || c->from > memory_cache_size * MAX_CACHED_OBJECT) {
+			setcstate(c, S_INTERRUPTED);
+			abort_connection(c);
 			goto again2;
 		}
 	}
@@ -610,7 +628,7 @@ int load_url(unsigned char *url, unsigned char * prev_url, struct status *stat, 
 			del_from_list(c);
 			c->pri[pri]++;
 			add_to_queue(c);
-			register_bottom_half((void (*)(void *))check_queue, NULL);
+			register_bottom_half(check_queue, NULL);
 		} else c->pri[pri]++;
 		if (stat) {
 			stat->prg = &c->prg;
@@ -656,7 +674,7 @@ int load_url(unsigned char *url, unsigned char * prev_url, struct status *stat, 
 #ifdef DEBUG
 	check_queue_bugs();
 #endif
-	register_bottom_half((void (*)(void *))check_queue, NULL);
+	register_bottom_half(check_queue, NULL);
 	return 0;
 }
 
@@ -706,13 +724,14 @@ void change_connection(struct status *oldstat, struct status *newstat, int newpr
 #ifdef DEBUG
 	check_queue_bugs();
 #endif
-	register_bottom_half((void (*)(void *))check_queue, NULL);
+	register_bottom_half(check_queue, NULL);
 }
 
-void detach_connection(struct status *stat, int pos)
+void detach_connection(struct status *stat, off_t pos)
 {
 	struct connection *c;
-	int i, l;
+	int i;
+	off_t l;
 	if (stat->state < 0) return;
 	c = stat->c;
 	if (c->detached) goto detach_done;
@@ -725,7 +744,6 @@ void detach_connection(struct status *stat, int pos)
 	if (!l) internal("detaching free connection");
 	if (l != 1 || c->cache->refcount) return;
 	shrink_memory(SH_CHECK_QUOTA);
-	/*debug("detached");*/
 	c->cache->url[0] = 0;
 	c->detached = 1;
 	detach_done:
@@ -859,6 +877,7 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_RESTART,		TEXT(T_REQUEST_MUST_BE_RESTARTED)},
 	{S_STATE,		TEXT(T_CANT_GET_SOCKET_STATE)},
 	{S_CYCLIC_REDIRECT,	TEXT(T_CYCLIC_REDIRECT)},
+	{S_LARGE_FILE,		TEXT(T_TOO_LARGE_FILE)},
 
 	{S_HTTP_ERROR,		TEXT(T_BAD_HTTP_RESPONSE)},
 	{S_HTTP_100,		TEXT(T_HTTP_100)},
@@ -877,6 +896,7 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_SSL_ERROR,		TEXT(T_SSL_ERROR)},
 	{S_NO_SSL,		TEXT(T_NO_SSL)},
 
+	{S_BLOCKED_URL,		TEXT(T_BLOCKED_URL)},
 	{S_NO_SMB_CLIENT,	TEXT(T_NO_SMB_CLIENT)},
 	{0,			NULL}
 };

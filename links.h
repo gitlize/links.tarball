@@ -36,6 +36,14 @@
 #define __EXTENSIONS__
 #endif
 
+#ifndef _LARGEFILE_SOURCE
+#define _LARGEFILE_SOURCE	1
+#endif
+
+#ifndef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS	64
+#endif
+
 #include "cfg.h"
 #include "os_dep.h"
 #include <stdio.h>
@@ -151,7 +159,7 @@ x #endif*/
 #ifdef HAVE_LONG_LONG
 #define longlong long long
 #else
-#define longlong long
+#define longlong double
 #endif
 
 #define my_intptr_t long
@@ -288,6 +296,8 @@ extern unsigned char *errfile;
 
 /* inline */
 
+void fatal_tty_exit(void);
+
 #ifdef HAVE_CALLOC
 #define x_calloc(x) calloc((x), 1)
 #else
@@ -302,6 +312,7 @@ static inline void *x_calloc(size_t x)
 #define overalloc()							\
 do {									\
 	error((unsigned char *)"ERROR: attempting to allocate too large block at %s:%d", __FILE__, __LINE__);\
+	fatal_tty_exit();						\
 	exit(RET_FATAL);						\
 } while (1)	/* while (1) is not a type --- it's here to allow the
 	compiler that doesn't know that exit doesn't return to do better
@@ -360,6 +371,7 @@ static inline void *mem_alloc(size_t size)
 	if (size > MAXINT) overalloc();
 	if (!(p = malloc(size))) {
 		error((unsigned char *)"ERROR: out of memory (malloc returned NULL)\n");
+		fatal_tty_exit();
 		exit(RET_FATAL);
 	}
 	return p;
@@ -372,6 +384,7 @@ static inline void *mem_calloc(size_t size)
 	if (size > MAXINT) overalloc();
 	if (!(p = x_calloc(size))) {
 		error((unsigned char *)"ERROR: out of memory (calloc returned NULL)\n");
+		fatal_tty_exit();
 		exit(RET_FATAL);
 	}
 	return p;
@@ -401,6 +414,7 @@ static inline void *mem_realloc(void *p, size_t size)
 	if (size > MAXINT) overalloc();
 	if (!(p = realloc(p, size))) {
 		error((unsigned char *)"ERROR: out of memory (realloc returned NULL)\n");
+		fatal_tty_exit();
 		exit(RET_FATAL);
 	}
 	return p;
@@ -489,16 +503,16 @@ void xpr(void);
 void nopr(void);
 #endif
 
-static inline int snprint(unsigned char *s, int n, unsigned num)
+static inline int snprint(unsigned char *s, int n, off_t num)
 {
-	unsigned q = 1;
+	off_t q = 1;
 	while (q <= num / 10) q *= 10;
 	while (n-- > 1 && q) *(s++) = num / q + '0', num %= q, q /= 10;
 	*s = 0;
 	return !!q;
 }
 
-static inline int snzprint(unsigned char *s, int n, int num)
+static inline int snzprint(unsigned char *s, int n, off_t num)
 {
 	if (n > 1 && num < 0) *(s++) = '-', num = -num, n--;
 	return snprint(s, n, num);
@@ -606,7 +620,7 @@ static inline void add_chr_to_str(unsigned char **s, int *l, unsigned char a)
 	p[new_length]=0;
 }
 
-static inline void add_num_to_str(unsigned char **s, int *l, int n)
+static inline void add_num_to_str(unsigned char **s, int *l, off_t n)
 {
 	unsigned char a[64];
 	/*sprintf(a, "%d", n);*/
@@ -614,7 +628,7 @@ static inline void add_num_to_str(unsigned char **s, int *l, int n)
 	add_to_str(s, l, a);
 }
 
-static inline void add_knum_to_str(unsigned char **s, int *l, int n)
+static inline void add_knum_to_str(unsigned char **s, int *l, off_t n)
 {
 	unsigned char a[13];
 	if (n && n / (1024 * 1024) * (1024 * 1024) == n) snzprint(a, 12, n / (1024 * 1024)), a[strlen((char *)a) + 1] = 0, a[strlen((char *)a)] = 'M';
@@ -857,10 +871,10 @@ int can_open_os_shell(int);
 struct open_in_new *get_open_in_new(int);
 void set_highpri(void);
 #ifdef HAVE_OPEN_PREALLOC
-int open_prealloc(char *, int, int, int);
-void prealloc_truncate(int, int);
+int open_prealloc(char *, int, int, off_t);
+void prealloc_truncate(int, off_t);
 #else
-static inline void prealloc_truncate(int x, int y) {}
+static inline void prealloc_truncate(int x, off_t y) {}
 #endif
 void os_cfmakeraw(struct termios *t);
 
@@ -931,12 +945,12 @@ struct cache_entry {
 	int http_code;
 	unsigned char *redirect;
 	int redirect_get;
-	int length;
+	off_t length;
 	int incomplete;
 	int tgc;
 	unsigned char *last_modified;
 	time_t expire_time;	/* 0 never, 1 always */
-	int data_size;
+	off_t data_size;
 	struct list_head frag;	/* struct fragment */
 	tcount count;
 	tcount count2;
@@ -949,9 +963,9 @@ struct cache_entry {
 struct fragment {
 	struct fragment *next;
 	struct fragment *prev;
-	int offset;
-	int length;
-	int real_length;
+	off_t offset;
+	off_t length;
+	off_t real_length;
 	unsigned char data[1];
 };
 
@@ -961,11 +975,10 @@ void init_cache(void);
 long cache_info(int);
 int find_in_cache(unsigned char *, struct cache_entry **);
 int get_cache_entry(unsigned char *, struct cache_entry **);
-int get_cache_data(struct cache_entry *e, unsigned char **, int *);
-int add_fragment(struct cache_entry *, int, unsigned char *, int);
+int add_fragment(struct cache_entry *, off_t, unsigned char *, off_t);
 void defrag_entry(struct cache_entry *);
-void truncate_entry(struct cache_entry *, int, int);
-void free_entry_to(struct cache_entry *, int);
+void truncate_entry(struct cache_entry *, off_t, int);
+void free_entry_to(struct cache_entry *, off_t);
 void delete_entry_content(struct cache_entry *);
 void delete_cache_entry(struct cache_entry *);
 void garbage_collection(int);
@@ -983,8 +996,8 @@ void garbage_collection(int);
 
 struct remaining_info {
 	int valid;
-	int size, loaded, last_loaded, cur_loaded;
-	int pos;
+	off_t size, loaded, last_loaded, cur_loaded;
+	off_t pos;
 	ttime elapsed;
 	ttime last_time;
 	ttime dis_b;
@@ -1001,7 +1014,7 @@ struct connection {
 	int running;
 	int state;
 	int prev_error;
-	int from;
+	off_t from;
 	int pri[N_PRI];
 	int no_cache;
 	int sock1;
@@ -1014,8 +1027,8 @@ struct connection {
 	void *buffer;
 	void (*conn_func)(void *);
 	struct cache_entry *cache;
-	int received;
-	int est_length;
+	off_t received;
+	off_t est_length;
 	int unrestartable;
 	struct remaining_info prg;
 	int timer;
@@ -1067,6 +1080,8 @@ static inline int getpri(struct connection *c)
 #define S_RESTART		-1011
 #define S_STATE			-1012
 #define S_CYCLIC_REDIRECT	-1013
+#define S_LARGE_FILE		-1014
+#define S_BLOCKED_URL		-1015
 
 #define S_HTTP_ERROR		-1100
 #define S_HTTP_100		-1101
@@ -1106,19 +1121,20 @@ struct status {
 };
 
 unsigned char *get_proxy(unsigned char *url);
-void check_queue(void);
+void check_queue(void *dummy);
 long connect_info(int);
 void send_connection_info(struct connection *c);
 void setcstate(struct connection *c, int);
 int get_keepalive_socket(struct connection *c);
 void add_keepalive_socket(struct connection *c, ttime);
 void run_connection(struct connection *c);
+int is_connection_restartable(struct connection *c);
 void retry_connection(struct connection *c);
 void abort_connection(struct connection *c);
 void end_connection(struct connection *c);
 int load_url(unsigned char *, unsigned char *, struct status *, int, int);
 void change_connection(struct status *, struct status *, int);
-void detach_connection(struct status *, int);
+void detach_connection(struct status *, off_t);
 void abort_all_connections(void);
 void abort_background_connections(void);
 int is_entry_used(struct cache_entry *);
@@ -1318,8 +1334,8 @@ void handle_trm(int, int, int, int, int, void *, int);
 void free_all_itrms(void);
 void resize_terminal(void);
 void dispatch_special(unsigned char *);
-int is_blocked(void);
 void kbd_ctrl_c(void);
+int is_blocked(void);
 
 struct os2_key {
 	int x, y;
@@ -2073,6 +2089,7 @@ void* block_add_URL_fn(void* garbage, unsigned char* url);
 extern void block_manager(struct terminal *term,void *fcp,struct session *ses);
 void free_blocks(void);
 
+int is_html_type(unsigned char *ct);
 
 /* objreq.c */
 
@@ -2111,7 +2128,7 @@ void request_object(struct terminal *, unsigned char *, unsigned char *, int, in
 void clone_object(struct object_request *, struct object_request **);
 void release_object(struct object_request **);
 void release_object_get_stat(struct object_request **, struct status *, int);
-void detach_object_connection(struct object_request *, int);
+void detach_object_connection(struct object_request *, off_t);
 
 /* session.c */
 
@@ -2624,7 +2641,9 @@ struct additional_file {
 	struct additional_file *prev;
 	struct object_request *rq;
 	tcount use_tag;
+	tcount use_tag2;
 	int need_reparse;
+	int unknown_image_size;
 	unsigned char url[1];
 };
 
@@ -2715,13 +2734,18 @@ struct view_state {
 	
 	int view_pos;
 	int view_posx;
+	int orig_view_pos;
+	int orig_view_posx;
 	int current_link;	/* platny jen kdyz je <f_data->n_links */
+	int orig_link;
 	int frame_pos;
 	int plain;
 	struct form_state *form_info;
 	int form_info_len;
 	int brl_x;
 	int brl_y;
+	int orig_brl_x;
+	int orig_brl_y;
 	int brl_in_field;
 #ifdef G
 	int g_display_link;
@@ -2803,7 +2827,7 @@ struct download {
 	unsigned char *url;
 	struct status stat;
 	unsigned char *file;
-	int last_pos;
+	off_t last_pos;
 	int handle;
 	int redirect_cnt;
 	unsigned char *prog;
@@ -2824,6 +2848,7 @@ struct session {
 	struct window *win;
 	int id;
 	unsigned char *st;		/* status line string */
+	unsigned char *st_old;		/* old status line --- compared with st to prevent cursor flicker */
 	unsigned char *default_status;	/* default value of the status line */
 	struct f_data_c *screen;
 	struct object_request *rq;
@@ -2948,6 +2973,7 @@ void js_execute_code(struct javascript_context *, unsigned char *, int, void (*)
 #define JS_OBJ_T_HIDDEN 15
 #define JS_OBJ_T_BUTTON 16
 
+extern long js_zaflaknuto_pameti;
 
 extern struct history js_get_string_history;
 extern int js_manual_confirmation;
@@ -2959,6 +2985,7 @@ struct js_state {
 	unsigned char *src;		/* zdrojak beziciho javascriptu??? */	/* mikulas: ne. to je zdrojak stranky */
 	int srclen;
 	int wrote;
+	int newdata;
 };
 
 struct js_document_description {
@@ -3436,6 +3463,7 @@ void sort_links(struct f_data *);
 struct view_state *create_vs(void);
 void destroy_vs(struct view_state *);
 int dump_to_file(struct f_data *, int);
+void check_vs(struct f_data_c *);
 void draw_doc(struct terminal *t, struct f_data_c *scr);
 void draw_formatted(struct session *);
 void draw_fd(struct f_data_c *);
@@ -3726,6 +3754,8 @@ void draw_graphical_doc(struct terminal *t, struct f_data_c *scr, int active);
 int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev);
 void g_find_next(struct f_data_c *f, int);
 
+int is_link_in_view(struct f_data_c *fd, int nl);
+
 void init_grview(void);
 
 #endif
@@ -3833,13 +3863,12 @@ extern unsigned char *eofff;
 #define html_top (*(struct html_element *)html_stack.next)
 
 extern void *ff;
-extern void (*put_chars_f)(void *, unsigned char *, int);
+extern int (*put_chars_f)(void *, unsigned char *, int);
 extern void (*line_break_f)(void *);
-extern void (*init_f)(void *);
 extern void *(*special_f)(void *, int, ...);
 
 void ln_break(int, void (*)(void *), void *);
-void put_chrs(unsigned char *, int, void (*)(void *, unsigned char *, int), void *);
+void put_chrs(unsigned char *, int, int (*)(void *, unsigned char *, int), void *);
 
 extern int table_level;
 extern int empty_format;
@@ -3867,7 +3896,7 @@ int get_bgcolor(unsigned char *, struct rgb *);
 void html_stack_dup(void);
 void kill_html_stack_item(struct html_element *);
 unsigned char *skip_comment(unsigned char *, unsigned char *);
-void parse_html(unsigned char *, unsigned char *, void (*)(void *, unsigned char *, int), void (*)(void *), void *(*)(void *, int, ...), void *, unsigned char *);
+void parse_html(unsigned char *, unsigned char *, int (*)(void *, unsigned char *, int), void (*)(void *), void *(*)(void *, int, ...), void *, unsigned char *);
 int get_image_map(unsigned char *, unsigned char *, unsigned char *, unsigned char *a, struct menu_item **, struct memory_list **, unsigned char *, unsigned char *, int, int, int, int gfx);
 void scan_http_equiv(unsigned char *, unsigned char *, unsigned char **, int *, unsigned char **, unsigned char **, unsigned char **, struct js_event_spec **);
 
@@ -4110,10 +4139,11 @@ extern struct rgb default_link_g;
 extern struct rgb default_vlink_g;
 #endif
 
-#define REFERER_NONE 0
-#define REFERER_SAME_URL 1
-#define REFERER_FAKE 2
-#define REFERER_REAL 3
+#define REFERER_NONE			0
+#define REFERER_SAME_URL		1
+#define REFERER_FAKE			2
+#define REFERER_REAL			3
+#define REFERER_REAL_SAME_SERVER	4
 
 extern unsigned char http_proxy[];
 extern unsigned char ftp_proxy[];
@@ -4132,6 +4162,7 @@ struct http_bugs {
 	int bug_302_redirect;
 	int bug_post_no_keepalive;
 	int no_accept_charset;
+	int retry_internal_errors;
 	int aggressive_cache;
 	unsigned char fake_useragent[MAX_STR_LEN];
 	unsigned char fake_referer[MAX_STR_LEN];
@@ -4166,6 +4197,10 @@ struct list{
 	int depth;
 	void *fotr;   /* ignored when list is flat */
 };
+/* regexp.c */
+
+char *regexp_replace(char *, char *, char *);
+
 
 struct list_description{
 	unsigned char type;  /* 0=flat, 1=tree */

@@ -17,7 +17,7 @@ struct smb_connection_info {
 void smb_got_data(struct connection *);
 void smb_got_text(struct connection *);
 void end_smb_connection(struct connection *);
-int smbc_get_num(unsigned char *, int *, int *);
+int smbc_get_num(unsigned char *, int *, off_t *);
 void smb_read_text(struct connection *, int);
 
 void smb_func(struct connection *c)
@@ -251,9 +251,10 @@ void smb_func(struct connection *c)
 	setcstate(c, S_CONN);
 }
 
-int smbc_get_num(unsigned char *text, int *ptr, int *res)
+int smbc_get_num(unsigned char *text, int *ptr, off_t *res)
 {
-	int num, dec, dec_order, unit;
+	off_t num;
+	int dec, dec_order, unit;
 	int was_digit;
 	int i = *ptr;
 	while (text[i] == ' ' || text[i] == '\t') i++;
@@ -319,7 +320,7 @@ void smb_read_text(struct connection *c, int sock)
 		for (i = 0; i + 7 < si->ntext; i++) {
 			nexti:
 			if ((si->text[i] == '\n' || si->text[i] == '\r') && (si->text[i + 1] == ' ' || (si->text[i + 1] >= '0' && si->text[i + 1] <= '9')) && ((si->text[i + 2] == ' ' && si->text[i + 1] == ' ') || (si->text[i + 2] >= '0' && si->text[i + 2] <= '9')) && (si->text[i + 3] >= '0' && si->text[i + 3] <= '9') && si->text[i + 4] == '%' && si->text[i + 5] == ' ' && si->text[i + 6] == '[') {
-				int position, total;
+				off_t position, total;
 				i += 7;
 				while (si->text[i] != ']') {
 					if (!si->text[i] || si->text[i] == '\n' || si->text[i] == '\r') {
@@ -378,6 +379,12 @@ void smb_got_data(struct connection *c)
 	setcstate(c, S_TRANS);
 	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
 		setcstate(c, S_OUT_OF_MEM);
+		abort_connection(c);
+		mem_free(buffer);
+		return;
+	}
+	if (c->from + r < 0) {
+		setcstate(c, S_LARGE_FILE);
 		abort_connection(c);
 		mem_free(buffer);
 		return;

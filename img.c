@@ -887,8 +887,8 @@ int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 		if (length>RESTART_SIZE){
 			length=RESTART_SIZE;
 			chopped=1;
-			if (fdatac){
-				refresh_image(fdatac,(struct g_object *)goi,0);
+			if (fdatac) {
+				refresh_image(fdatac,(struct g_object *)goi,1);
 			}
 		}
 		/* Decoder has been already started */
@@ -924,19 +924,23 @@ img_process_download.\n");
 	end:
 	
 	/* Test end */
-	if (!chopped){
+	if (!is_entry_used(goi->af->rq->ce) && (goi->af->rq->state==O_FAILED
+		||goi->af->rq->state==O_OK
+		||goi->af->rq->state==O_INCOMPLETE
+		||(goi->af->rq->ce&&goi->af->rq->stat.state<0))){
 		/* We must not perform end with chopped because some
 		 * unprocessed data still wait for us :)
 		 */
-		if (!is_entry_used(goi->af->rq->ce) && (goi->af->rq->state==O_FAILED
-			||goi->af->rq->state==O_OK
-			||goi->af->rq->state==O_INCOMPLETE
-			||(goi->af->rq->ce&&goi->af->rq->stat.state<0))){
+		if (!chopped){
 #ifdef HAVE_TIFF
 			if (!((cimg->state^8)&9)&&cimg->image_type==IM_TIFF)
 				tiff_finish(cimg);
 #endif
 			img_end(cimg);
+		}
+	} else if (!chopped) {
+		if (fdatac && f_is_finished(fdatac->f_data)) {
+			refresh_image(fdatac,(struct g_object *)goi,2000);
 		}
 	}
 	return chopped;
@@ -1085,14 +1089,20 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 	 * usoudil, ze zadnejch 1000, ale 0.
 	 */
 	
+	if (cimg) {
+		color_bg=dip_get_color_sRGB(cimg->background_color);
+		color_fg=dip_get_color_sRGB(get_foreground(cimg->background_color));
+	} else {
+		color_bg = dip_get_color_sRGB(0x00c0c0c0);
+		color_fg = dip_get_color_sRGB(0x00000000);
+	}
+
 	if (!(goi->xw&&goi->yw)) return; /* At least one dimension is zero */
 	global_goi=goi;
 	global_cimg=goi->cimg;
-	if (img_process_download(goi, fdatac)) return; /* Choked with data, will not
+	if (img_process_download(goi, fdatac)) goto draw_only_frame; /* Choked with data, will not
 							* draw. */
 	/* Now we will only draw... */
-	color_bg=dip_get_color_sRGB(cimg->background_color);
-	color_fg=dip_get_color_sRGB(get_foreground(cimg->background_color));
 	if (cimg->state<12){
 		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
 			goi->yw,color_bg,color_fg,cimg->state&1);
@@ -1111,6 +1121,7 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 		internal("Invalid state in img_draw_image");
 	}
 #endif /* #ifdef DEBUG */
+	draw_only_frame:
 	if (fdatac->vs->g_display_link && fdatac->active && fdatac->vs->current_link != -1 && fdatac->vs->current_link == goi->link_num) {
 		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
 			goi->yw,color_bg,color_fg,2);
@@ -1208,6 +1219,7 @@ struct g_object_image *insert_image(struct g_part *p, struct image_description *
 	image->parent is already filled
 	*/
 	image->af=request_additional_file(current_f_data,im->url);
+	if (image->xw < 0 || image->yw < 0) image->af->unknown_image_size = 1;
 	image->background=p->root->bg->u.sRGB;
 
 	/* This supplies the result into image->cimg and global_cimg */
@@ -1219,7 +1231,7 @@ next_chunk:
 	if (retval&&!(cimg->state&4)) goto next_chunk;
 	image->xw=image->cimg->xww;
 	image->yw=image->cimg->yww;
-	if (cimg->state==0||cimg->state==8) if (image->af->need_reparse != -1) image->af->need_reparse=1;
+	if (cimg->state==0||cimg->state==8||(!image->af->rq->ce && image->af->unknown_image_size)) if (image->af->need_reparse != -1) image->af->need_reparse = 1;
 	if (im->insert_flag)add_to_list(current_f_data->images,&image->image_list);
 	else image->image_list.prev=NULL,image->image_list.next=NULL;
 	return image;

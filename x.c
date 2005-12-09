@@ -913,7 +913,11 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 
 */
 	if (!display)display=getenv("DISPLAY");
+#ifndef __linux__
+	/* on Linux, do not assume XWINDOW present if $DISPLAY is not set
+	   --- rather open links on svgalib or framebuffer console */
 	if (!display)display=":0.0";	/* needed for MacOS X */
+#endif
 
 	x_display=XOpenDisplay(display);
 	if (!x_display)
@@ -1849,6 +1853,7 @@ void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 		return p->data.image->data+(bmp->skip*top);
 	}
 	internal("Unknown pixmap type found in x_prepare_strip. SOMETHING IS REALLY STRANGE!!!!\n");
+	fatal_tty_exit();
 	exit(RET_FATAL);	/* never called */
 }
 
@@ -1947,14 +1952,14 @@ void selection_request(XEvent *event)
 	);
 	}
 	else if (req->target == x_targets_atom) {
-	Atom tgt_atoms[2] /*= {x_targets_atom, XA_STRING }*/;
+	unsigned tgt_atoms[2] /*= {x_targets_atom, XA_STRING }*/;
 	tgt_atoms[0] = x_targets_atom;
 	tgt_atoms[1] = XA_STRING;
 	XChangeProperty (x_display,
 			 sel.requestor,
 			 sel.property,
 			 XA_ATOM,
-			 sizeof(Atom)*8,
+			 32,
 			 PropModeReplace,
 			 (char*)&tgt_atoms,
 			 2
