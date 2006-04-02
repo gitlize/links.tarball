@@ -217,9 +217,13 @@ void objreq_end(struct status *stat, struct object_request *rq)
 		if (stat->ce && rq->state == O_WAITING && stat->ce->redirect) {
 			if (rq->redirect_cnt++ < MAX_REDIRECTS) {
 				int cache;
-				unsigned char *u, *p;
+				unsigned char *u, *p, *pos;
 				change_connection(stat, NULL, PRI_CANCEL);
 				u = join_urls(rq->url, stat->ce->redirect);
+				if ((pos = extract_position(u))) {
+					if (rq->goto_position) mem_free(rq->goto_position);
+					rq->goto_position = pos;
+				}
 				if (!http_bugs.bug_302_redirect && !stat->ce->redirect_get && (p = strchr(u, POST_CHAR))) add_to_strn(&u, p);
 				cache = rq->cache;
 				if (cache < NC_RELOAD && (!strcmp(u, rq->url) || rq->redirect_cnt >= MAX_CACHED_REDIRECTS)) cache = NC_RELOAD;
@@ -307,7 +311,8 @@ void release_object_get_stat(struct object_request **rqq, struct status *news, i
 	if (rq->ce) rq->ce->refcount--;
 	mem_free(rq->orig_url);
 	mem_free(rq->url);
-	if (rq->prev_url)mem_free(rq->prev_url);
+	if (rq->prev_url) mem_free(rq->prev_url);
+	if (rq->goto_position) mem_free(rq->goto_position);
 	del_from_list(rq);
 	mem_free(rq);
 }

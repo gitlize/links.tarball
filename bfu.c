@@ -2156,8 +2156,8 @@ void input_field_fn(struct dialog_data *dlg)
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	max_text_width(term, dlg->dlg->udata, &max, AL_LEFT);
 	min_text_width(term, dlg->dlg->udata, &min, AL_LEFT);
-	max_buttons_width(term, dlg->items + 1, 2, &max);
-	min_buttons_width(term, dlg->items + 1, 2, &min);
+	max_buttons_width(term, dlg->items + 1, dlg->n - 1, &max);
+	min_buttons_width(term, dlg->items + 1, dlg->n - 1, &min);
 	if (max < dlg->dlg->items->dlen) max = dlg->dlg->items->dlen;
 	w = term->x * 9 / 10 - 2 * DIALOG_LB;
 	if (w > max) w = max;
@@ -2165,7 +2165,7 @@ void input_field_fn(struct dialog_data *dlg)
 	rw = w;
 	dlg_format_text_and_field(dlg, NULL, dlg->dlg->udata, dlg->items, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_buttons(dlg, NULL, dlg->items + 1, 2, 0, &y, w, &rw, AL_CENTER);
+	dlg_format_buttons(dlg, NULL, dlg->items + 1, dlg->n - 1, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
 	dlg->xw = rw + 2 * DIALOG_LB;
 	dlg->yw = y + 2 * DIALOG_TB;
@@ -2175,17 +2175,29 @@ void input_field_fn(struct dialog_data *dlg)
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_text_and_field(dlg, term, dlg->dlg->udata, dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_buttons(dlg, term, dlg->items + 1, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
+	dlg_format_buttons(dlg, term, dlg->items + 1, dlg->n - 1, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
 
-void input_field(struct terminal *term, struct memory_list *ml, unsigned char *title, unsigned char *text, unsigned char *okbutton, unsigned char *cancelbutton, void *data, struct history *history, int l, unsigned char *def, int min, int max, int (*check)(struct dialog_data *, struct dialog_item_data *), void (*fn)(void *, unsigned char *), void (*cancelfn)(void *))
+typedef void (*input_field_t)(void *, unsigned char *);
+
+void input_field(struct terminal *term, struct memory_list *ml, unsigned char *title, unsigned char *text, void *data, struct history *history, int l, unsigned char *def, int min, int max, int (*check)(struct dialog_data *, struct dialog_item_data *), ...)
 {
 	struct dialog *dlg;
 	unsigned char *field;
-	if ((unsigned)l > MAXINT - sizeof(struct dialog) + 4 * sizeof(struct dialog_item)) overalloc();
-	dlg = mem_alloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item) + l);
-	memset(dlg, 0, sizeof(struct dialog) + 4 * sizeof(struct dialog_item) + l);
-	*(field = (unsigned char *)dlg + sizeof(struct dialog) + 4 * sizeof(struct dialog_item)) = 0;
+	va_list va;
+	unsigned i, n;
+	va_start(va, check);
+	n = 0;
+	while (va_arg(va, unsigned char *)) {
+		void *q = va_arg(va, input_field_t);
+		q = q;	/* suppress warning */
+		n++;
+	}
+	va_end(va);
+	if ((unsigned)l > MAXINT - sizeof(struct dialog) + (2 + n) * sizeof(struct dialog_item)) overalloc();
+	dlg = mem_alloc(sizeof(struct dialog) + (2 + n) * sizeof(struct dialog_item) + l);
+	memset(dlg, 0, sizeof(struct dialog) + (2 + n) * sizeof(struct dialog_item) + l);
+	*(field = (unsigned char *)dlg + sizeof(struct dialog) + (2 + n) * sizeof(struct dialog_item)) = 0;
 	if (def) {
 		if (strlen(def) + 1 > (size_t)l) memcpy(field, def, l - 1);
 		else strcpy(field, def);
@@ -2201,19 +2213,18 @@ void input_field(struct terminal *term, struct memory_list *ml, unsigned char *t
 	dlg->items[0].history = history;
 	dlg->items[0].dlen = l;
 	dlg->items[0].data = field;
-	dlg->items[1].type = D_BUTTON;
-	dlg->items[1].gid = B_ENTER;
-	dlg->items[1].fn = input_field_ok;
-	dlg->items[1].dlen = 0;
-	dlg->items[1].text = okbutton;
-	dlg->items[1].udata = fn;
-	dlg->items[2].type = D_BUTTON;
-	dlg->items[2].gid = B_ESC;
-	dlg->items[2].fn = input_field_cancel;
-	dlg->items[2].dlen = 0;
-	dlg->items[2].text = cancelbutton;
-	dlg->items[2].udata = cancelfn;
-	dlg->items[3].type = D_END;
+	va_start(va, check);
+	for (i = 1; i <= n; i++) {
+		dlg->items[i].type = D_BUTTON;
+		dlg->items[i].gid = i == 1 ? B_ENTER : i == n ? B_ESC : 0;
+		dlg->items[i].fn = i != n || n == 1 ? input_field_ok : input_field_cancel;
+		dlg->items[i].dlen = 0;
+		dlg->items[i].text = va_arg(va, unsigned char *);
+		dlg->items[i].udata = va_arg(va, input_field_t);
+	}
+	va_end(va);
+
+	dlg->items[i].type = D_END;
 	add_to_ml(&ml, dlg, NULL);
 	do_dialog(term, dlg, ml);
 }

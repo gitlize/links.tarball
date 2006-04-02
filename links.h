@@ -203,36 +203,13 @@ struct timezone {
 	int tz_minuteswest;
 	int tz_dsttime;
 };
-static inline int gettimeofday(struct timeval *tv, struct timezone *tz)
-{
-	if (tv) tv->tv_sec = time(NULL), tv->tv_usec = 0;
-	if (tz) tz->tz_minuteswest = tz->tz_dsttime = 0;
-	return 0;
-}
+int gettimeofday(struct timeval *tv, struct timezone *tz);
 #endif
 #ifndef HAVE_STRCSPN
-size_t strcspn(const char *s, const char *reject)
-{
-	size_t r;
-	for (r = 0; *s; r++, s++) {
-		const char *rj;
-		for (rj = reject; *rj; rj++) if (*s == *rj) goto brk;
-	}
-	brk:
-	return r;
-}
+size_t strcspn(const char *s, const char *reject);
 #endif
 #ifndef HAVE_STRSTR
-char *strstr(const char *haystack, const char *needle)
-{
-	size_t hs = strlen(haystack);
-	size_t ns = strlen(needle);
-	while (hs >= ns) {
-		if (!memcmp(haystack, needle, ns)) return haystack;
-		haystack++, hs--;
-	}
-	return NULL;
-}
+char *strstr(const char *haystack, const char *needle);
 #endif
 
 #define option option_dirty_workaround_for_name_clash_with_include_on_cygwin
@@ -267,16 +244,16 @@ extern int F;
 #define GF(x) if (F) {x;}
 #endif
 
-#define BIN_SEARCH(table, entries, eq, ab, key, result)			\
+#define BIN_SEARCH(entries, eq, ab, key, result)			\
 {									\
 	int _s = 0, _e = (entries) - 1;					\
 	while (_s <= _e || !((result) = -1)) {				\
 		int _m = (_s + _e) / 2;					\
-		if (eq(((table)[_m]), (key))) {				\
+		if (eq((_m), (key))) {					\
 			(result) = _m;					\
 			break;						\
 		}							\
-		if (ab(((table)[_m]), (key))) _e = _m - 1;		\
+		if (ab((_m), (key))) _e = _m - 1;			\
 		else _s = _m + 1;					\
 	}								\
 }									\
@@ -1039,6 +1016,21 @@ struct connection {
 #endif
 };
 
+extern struct list_head queue;
+
+struct k_conn {
+	struct k_conn *next;
+	struct k_conn *prev;
+	void (*protocol)(struct connection *);
+	unsigned char *host;
+	int port;
+	int conn;
+	ttime timeout;
+	ttime add_time;
+};
+
+extern struct list_head keepalive_connections;
+
 void no_owner(void);
 
 static inline int getpri(struct connection *c)
@@ -1145,8 +1137,9 @@ void del_blacklist_entry(unsigned char *, int);
 int get_blacklist_flags(unsigned char *);
 void free_blacklist(void);
 
-#define BL_HTTP10	1
-#define BL_NO_CHARSET	2
+#define BL_HTTP10		1
+#define BL_NO_ACCEPT_LANGUAGE	2
+#define BL_NO_CHARSET		4
 
 /* url.c */
 
@@ -1260,6 +1253,10 @@ void file_func(struct connection *);
 void finger_func(struct connection *);
 
 /* ftp.c */
+
+#if defined(IP_TOS) && defined(IPTOS_THROUGHPUT)
+#define HAVE_IPTOS
+#endif
 
 void ftp_func(struct connection *);
 
@@ -2110,6 +2107,7 @@ struct object_request {
 	unsigned char *orig_url;
 	unsigned char *url;
 	unsigned char *prev_url;   /* allocated string with referrer or NULL */
+	unsigned char *goto_position;
 	int pri;
 	int cache;
 	void (*upcall)(struct object_request *, void *);
@@ -2715,8 +2713,8 @@ struct f_data {
 	int srch_string_size;
 
 	unsigned char *last_search;
-	int last_search_len;
 	int *search_positions;
+	int *search_lengths;
 	int n_search_positions;
 	int hlt_pos; /* index of first highlighted byte */
 	int hlt_len; /* length of highlighted bytes; (hlt_pos+hlt_len) is index of last highlighted character */
@@ -2878,6 +2876,7 @@ struct session {
 	unsigned char *defered_target;
 	struct f_data_c *defered_target_base;
 	int defered_data;	/* for submit: form number, jinak -1 */
+	tcount defered_seq;
 
 	int locked_link;	/* for graphics - when link is locked on FIELD/AREA */
 
@@ -3036,6 +3035,8 @@ struct fax_me_tender_2_stringy{
 struct fax_me_tender_nothing{
 	void *ident;   /* struct f_data_c*, but JS doesn't know it ;-) */
 };
+
+extern tcount jsint_execute_seq;
 
 void javascript_func(struct session *ses, unsigned char *code);
 void jsint_execute_code(struct f_data_c *, unsigned char *, int, int, int, int, struct event *);
@@ -3333,14 +3334,12 @@ void msg_box(struct terminal *, struct memory_list *, unsigned char *, int, /*un
  *		... other buttons
  */
 void input_field_fn(struct dialog_data *);
-void input_field(struct terminal *, struct memory_list *, unsigned char *, unsigned char *, unsigned char *, unsigned char *, void *, struct history *, int, unsigned char *, int, int, int (*)(struct dialog_data *, struct dialog_item_data *), void (*)(void *, unsigned char *), void (*)(void *));
+void input_field(struct terminal *, struct memory_list *, unsigned char *, unsigned char *, void *, struct history *, int, unsigned char *, int, int, int (*)(struct dialog_data *, struct dialog_item_data *), ...);
 /* input_field arguments:
  * 		terminal,
  * 		blocks to free,
  * 		title,
  * 		question,
- * 		OK button text,
- * 		CANCEL button text,
  *		data for functions,
  *		history,
  *		length,
@@ -3348,8 +3347,17 @@ void input_field(struct terminal *, struct memory_list *, unsigned char *, unsig
  *		minimal length,
  *		maximal length,
  *		check_function,
+ * 		OK button text,
  *		ok function,
- *		cancel function
+ * 		CANCEL button text,
+ *		cancel function,
+ *		NULL
+ *
+ *	field can have multiple buttons and functions, and finally NULL
+ *	(warning: if there's no cancel function, there will be two NULLs in
+ *	a call). Functions have type
+ *	void (*fn)(void *data, unsigned char *text), only the last one has type
+ *	void (*fn)(void *data). Check it carefully because the compiler wont!
  */
 void add_to_history(struct history *, unsigned char *);
 
@@ -3366,6 +3374,8 @@ void msg_box_fn(struct dialog_data *dlg);
 void download_window_function(struct dialog_data *dlg);
 
 /* menu.c */
+
+extern struct history goto_url_history;
 
 void activate_bfu_technology(struct session *, int);
 void dialog_goto_url(struct session *ses, char *url);
@@ -3400,6 +3410,7 @@ struct conv_table {
 };
 
 struct conv_table *get_translation_table(int, int);
+int get_entity_number(unsigned char *st, int l);
 unsigned char *get_entity_string(unsigned char *, int, int);
 unsigned char *convert_string(struct conv_table *, unsigned char *, int, struct document_options *);
 int get_cp_index(unsigned char *);
@@ -3410,7 +3421,12 @@ void free_conv_table(void);
 unsigned char *encode_utf_8(int);
 int cp2u(unsigned char, int);
 
-#ifdef G
+unsigned char charset_upcase(unsigned char, int);
+void charset_upcase_string(unsigned char **, int);
+unsigned char *unicode_upcase_string(unsigned char *ch);
+unsigned char *to_utf8_upcase(unsigned char *str, int cp);
+int compare_case_utf8(unsigned char *u1, unsigned char *u2);
+
 int get_utf_8(unsigned char **p);
 extern unsigned short int utf8_2_uni_table[0x200];
 #define GET_UTF_8(s, c)	do {if ((unsigned char)(s)[0] < 0x80) (c) = (s)++[0]; else if (((c) = utf8_2_uni_table[((unsigned char)(s)[0] << 2) + ((unsigned char)(s)[1] >> 6) - 0x200])) (c) += (unsigned char)(s)[1] & 0x3f, (s) += 2; else (c) = get_utf_8(&(s));} while (0)
@@ -3428,9 +3444,6 @@ static inline int utf8len(unsigned char *s)
 		len++;
 	}
 }
-#else
-#define utf8len(s) ((int)strlen(s))
-#endif
 
 /* view.c */
 
@@ -4074,13 +4087,15 @@ extern unsigned char default_target[MAX_STR_LEN];
 
 unsigned char *parse_options(int, unsigned char *[]);
 void init_home(void);
+unsigned char *read_config_file(unsigned char *);
+int write_to_config_file(unsigned char *, unsigned char *);
 void load_config(void);
 void write_config(struct terminal *);
 void write_html_config(struct terminal *);
 void end_config(void);
 
-int load_url_history(void);
-int save_url_history(void);
+void load_url_history(void);
+void save_url_history(void);
 
 struct driver_param {
 	struct driver_param *next;
@@ -4175,6 +4190,7 @@ struct ftp_options {
 	unsigned char anon_pass[MAX_STR_LEN];
 	int fast_ftp;
 	int passive_ftp;
+	int set_tos;
 };
 
 extern struct ftp_options ftp_options;

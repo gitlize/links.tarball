@@ -43,6 +43,8 @@ vypisuje to: jaky kod byl zarazen do fronty. jaky kod byl predan interpretu do j
 #define TRACE_EXECUTE
 */
 
+tcount jsint_execute_seq = 0;
+
 struct js_request {
 	struct js_request *next;
 	struct js_request *prev;
@@ -52,6 +54,7 @@ struct js_request {
 	int write_pos;	/* document.write position from END of document. -1 if document.write cannot be used */
 	int wrote;	/* this request called document.write */
 	int len;
+	tcount seq;
 	unsigned char code[1];
 };
 
@@ -269,10 +272,11 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 	}
 	if ((unsigned)len > MAXINT - sizeof(struct js_request)) overalloc();
 	r = mem_calloc(sizeof(struct js_request) + len);
+	r->seq = jsint_execute_seq++;
 	r->write_pos = write_pos;
 	r->len = len;
-	r->onclick_submit=onclick_submit;
-	r->onsubmit=onsubmit;
+	r->onclick_submit = onclick_submit;
+	r->onsubmit = onsubmit;
 	memcpy(r->code, code, len);
 	if (ev) memcpy(&r->ev, ev, sizeof(struct event));
 	if (write_pos == -1) {
@@ -289,7 +293,7 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 
 void jsint_done_execution(struct f_data_c *fd)
 {
-	struct js_request *r;
+	struct js_request *r, *to_exec;
 	struct js_state *js = fd->js;
 	struct event ev = { 0, 0, 0, 0 };
 	if (!js) {
@@ -313,14 +317,14 @@ void jsint_done_execution(struct f_data_c *fd)
 	/* dobehl onclick_handler a nezaplatil (vratil false), budou se dit veci */
 	if (js->active->ev.b && js->ctx->zaplatim)
 		memcpy(&ev, &js->active->ev, sizeof(struct event));
-	if ((js->active->onclick_submit)>=0&&!js->ctx->zaplatim)
+	if (js->active->onclick_submit >=0 && !js->ctx->zaplatim)
 	{
 		/* pokud je handler od stejneho formulare, jako je defered, tak odlozeny skok znicime a zlikvidujem prislusny onsubmit handler z fronty */
-		if (js->active->onclick_submit==fd->ses->defered_data)
+		if (js->active->onclick_submit == fd->ses->defered_data)
 		{
 			foreach (r,js->queue)
 				/* to je onsubmit od naseho formulare, tak ho smazem */
-				if (r->onsubmit==js->active->onclick_submit)
+				if (r->onsubmit == js->active->onclick_submit)
 				{
 					del_from_list(r);
 					mem_free(r);
@@ -348,8 +352,9 @@ void jsint_done_execution(struct f_data_c *fd)
 		mem_free(r);
 	}
 	
-	/* no script to run, call defered goto-url's */
-	if (!js->active&&list_empty(fd->js->queue)&&(fd->ses)&&(fd->ses->defered_url))
+	to_exec = js->active;
+	if (!to_exec && !list_empty(fd->js->queue)) to_exec = fd->js->queue.next;
+	if (fd->ses->defered_url && (!to_exec || (to_exec->seq > fd->ses->defered_seq && to_exec->write_pos == -1)))
 	{
 		unsigned char *url, *target;
 		
@@ -1483,8 +1488,6 @@ void js_upcall_get_string(void *data)
 		getml(str1, str2,jsid,NULL),   /* mem to free */
 		TEXT(T_ENTER_STRING),  /* title */
 		str1,   /* question */
-		TEXT(T_OK),   /* ok button */
-		TEXT(T_KILL_SCRIPT),  /* cancel button */
 		jsid,   /* data for functions */
 		&js_get_string_history,   /* history */
 		MAX_INPUT_URL_LEN,   /* string len */
@@ -1492,8 +1495,11 @@ void js_upcall_get_string(void *data)
 		0,  /* min value */
 		0,  /* max value */
 		NULL,  /* check fn */
+		TEXT(T_OK),   /* ok button */
 		__js_upcall_get_string_ok_pressed,
-		__js_kill_script_pressed
+		TEXT(T_KILL_SCRIPT),  /* cancel button */
+		__js_kill_script_pressed,
+		NULL
 	);
 	js_mem_free(s);
 }

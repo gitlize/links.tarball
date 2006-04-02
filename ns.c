@@ -43,6 +43,18 @@ void clearvars(parlist*);  /* prototype */
  * Co je MFR, viz Datove struktury (RNDr. Koubek)
  */
 
+char* find_var_name(long identifier,js_id_name*namespace)
+{/* We get relevant part of namespace and identifier, we
+    return pointer to the variable's name. The returned
+    name doesn't become a property of caller - it isn't
+    a cheap copy, it's the original!!! */
+	identifier/=HASHNUM;
+	while(namespace && (namespace->klic!=identifier))
+		namespace=namespace->next;
+	if(!namespace)return 0;
+	return namespace->jmeno;
+}
+
 lns* loklookup(long key,plns*pns,js_context*context)
 {	lns*current=(pns->ns)[key%HASHNUM],*pom=0;
 	long * sperhaky=0,pomkey=key/HASHNUM;
@@ -92,6 +104,7 @@ lns* loklookup(long key,plns*pns,js_context*context)
 				case JS_OBJ_T_RADIO:	
 					current->type=ARRAY;
 					current->value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+					add_to_list(context->namespaces, &pomns->xl);
 					pomns->mid=0;
 					pomns->handler=pns->handler;
 					pomns->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
@@ -213,6 +226,7 @@ Neexistuje-li takova, tak ji vyrobi v globalnim ns*/
                                 case JS_OBJ_T_RADIO:  /*  current->value=Cradioptr;*/
 					current->type=ARRAY;
                                         current->value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+					add_to_list(context->namespaces, &pomns->xl);
                                         pomns->mid=0;
 					pomns->handler=pns->handler;
 					pomns->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
@@ -336,6 +350,7 @@ plns * newnamespace(abuf*jmena,abuf*hod,js_context*context)
 	lns*p,*po;
 	abuf*jm,*val;
 	int i=0;
+	add_to_list(context->namespaces, &nns->xl);
 	nns->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
 	while(i<HASHNUM)nns->ns[i++]=0;
 	/*Ted se tam pridaji promenne*/
@@ -386,10 +401,9 @@ void clearvars(parlist*list)
 	}
 }
 
-void deletenamespace(plns* pns,js_context*context)
+void deletenamespace(plns* pns,js_context*context,int only_content)
 {	lns ** ns=pns->ns,*pom,*p1;
 	int i=0;
-	js_mem_free(pns);
 	if(!ns)	my_internal("Freeing NULL addrspace!\n",context);
 	while(i<HASHNUM)
 	{	pom=ns[i++];
@@ -404,7 +418,8 @@ void deletenamespace(plns* pns,js_context*context)
 	}
 	i=0;
 	while(i<HASHNUM)
-	{	pom=ns[i++];
+	{	pom=ns[i];
+		ns[i++] = NULL;
 		while(pom)			
 		{	if(pom->type==PARLIST) 
 				my_internal("Too many parentlists!\n",context) /*;*/
@@ -415,7 +430,10 @@ void deletenamespace(plns* pns,js_context*context)
 			pom=p1;
 		}
 	}
+	if (only_content) return;
+	del_from_list(&pns->xl);
 	js_mem_free(ns);
+	js_mem_free(pns);
 }
 
 lns* buildin(char* retezec,js_id_name **names,plns*lnamespace,js_context*context)
@@ -532,11 +550,17 @@ void add_to_parlist(lns*parent,lns*list)
 	pom->next=(parlist*)list->value;
 	pom->parent=parent;
 	list->value=(long)pom; /*we add to head of list*/
+	if (list == (void *)0x822ab00) {
+		fprintf(stderr, "add(%p)\n", parent);
+	}
 }
 
 void delete_from_parlist(lns*parent,lns*list)
 {	parlist*pom=(parlist*)list->value;
 	parlist*prev;
+	if (list == (void *)0x822ab00) {
+		fprintf(stderr, "remove(%p)\n", parent);
+	}
 	if(pom)
 	{	if(pom->parent==parent)
 		{	prev=pom->next;

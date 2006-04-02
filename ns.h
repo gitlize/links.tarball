@@ -12,3 +12,4 @@ lns* llookup(char*,js_id_name **,plns*,js_context*);
 lns* cllookup(char*,js_id_name **,plns*,js_context*);
 lns* loklookup(long,plns*,js_context*);
 char *key_2_name(long, js_context *);
+char* find_var_name(long,js_id_name*);

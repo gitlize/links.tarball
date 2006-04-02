@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre20)
+AM_INIT_AUTOMAKE(links, 2.1pre21)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -24,6 +24,7 @@ AC_PROG_CC
 #AC_PROG_YACC
 
 AC_HEADER_STDC
+AC_PROG_GCC_TRADITIONAL
 
 dnl Check for libraries
 #AC_CHECK_LIB(fl,main,AC_DEFINE(JS) LIBS="$LIBS -lfl",AC_MSG_WARN(You don't have libfl; you won't be able to run javascript))
@@ -119,8 +120,30 @@ else if test "$ac_cv_little_endian" = yes; then
 fi
 fi
 
+AC_CACHE_CHECK([if rename can replace existing files], ac_cv_rename_over_existing_files,
+	AC_TRY_RUN([
+	#include <fcntl.h>
+	#include <stdio.h>
+	#include <unistd.h>
+
+	int main()
+	{
+		int ret;
+		close(creat("conftest.rename1", 0600));
+		close(creat("conftest.rename2", 0600));
+		ret = rename("conftest.rename1", "conftest.rename2");
+		unlink("conftest.rename1");
+		unlink("conftest.rename2");
+		return !!ret;
+	}
+	], ac_cv_rename_over_existing_files=yes, ac_cv_rename_over_existing_files=no, ac_cv_rename_over_existing_files=no)
+)
+
+if test "$ac_cv_rename_over_existing_files" = yes; then
+	AC_DEFINE(RENAME_OVER_EXISTING_FILES)
+fi
+
 dnl Checks for library functions.
-AC_PROG_GCC_TRADITIONAL
 AC_FUNC_MEMCMP
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
@@ -212,6 +235,16 @@ AC_ARG_ENABLE(javascript, [  --enable-javascript     use javascript interpreter]
 AC_MSG_RESULT($cf_use_javascript)
 if test "$cf_use_javascript" = yes; then
 	AC_DEFINE(JS)
+	AC_MSG_CHECKING([if you want to link with system libfl])
+	cf_use_libfl=no
+	AC_ARG_WITH(libfl, [  --with-libfl            use libfl],cf_use_libfl="$withval")
+	AC_MSG_RESULT($cf_use_libfl)
+	if test "$cf_use_libfl" != no; then
+		LIBS="$LIBS -lfl"
+	else
+		AC_DEFINE(CHCEME_FLEXI_LIBU)
+	fi
+
 	reg_exp_mode="NONE"
 	AC_CHECK_LIB(pcre, pcre_compile)
 	AC_CHECK_HEADERS(pcre.h)
@@ -227,8 +260,6 @@ if test "$cf_use_javascript" = yes; then
 		fi
 	fi
 fi
-
-AC_ARG_WITH(libfl, [  --with-libfl            use libfl],LIBS="$LIBS -lfl",AC_DEFINE(CHCEME_FLEXI_LIBU))
 
 cf_use_graphics=no
 AC_MSG_CHECKING([if you want to use graphics])

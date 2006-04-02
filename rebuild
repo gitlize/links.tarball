@@ -46,5 +46,9 @@ if [ "$1" = reconf ]; then
 	sed 's%sed '\''s/\\\.am\$/\.in/'\''%sed '\''s/\\\.[aA][mM]\$/\.in/'\''%' <missing >missing.tmp &&
 	mv -f missing.tmp missing &&
 	chmod a+x missing &&
+	sed -n '{h;s/X11R6/X11R7/p;x;p;}' <configure >configure.tmp &&
+	mv -f configure.tmp configure &&
+	chmod a+x configure &&
 	./configure --enable-graphics --enable-javascript
+	if [ $? != 0 ]; then echo CONFIGURE FAILED; exit 1; fi
 fi

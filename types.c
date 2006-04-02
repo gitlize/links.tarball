@@ -82,7 +82,7 @@ void *assoc_new_item(void *ignore)
 	struct assoc *new;
 
 	ignore=ignore;
-	new = mem_alloc(sizeof(struct assoc));
+	new = mem_calloc(sizeof(struct assoc));
 	new->label = stracpy("");
 	new->ct = stracpy("");
 	new->prog = stracpy("");
@@ -396,7 +396,7 @@ void update_assoc(struct assoc *new)
 		add_to_list(assoc, repl);
 		return;
 	}
-	repl = mem_alloc(sizeof(struct assoc));
+	repl = mem_calloc(sizeof(struct assoc));
 	add_to_list(assoc, repl);
 	repl->label = stracpy(new->label);
 	repl->ct = stracpy(new->ct);
@@ -463,7 +463,7 @@ void *ext_new_item(void *ignore)
 	struct extension *new;
 
 	ignore=ignore;
-	new = mem_alloc(sizeof(struct extension));
+	new = mem_calloc(sizeof(struct extension));
 	new->ext = stracpy("");
 	new->ct = stracpy("");
 	new->type=0;
@@ -705,7 +705,7 @@ void update_ext(struct extension *new)
 		add_to_list(extensions, repl);
 		return;
 	}
-	repl = mem_alloc(sizeof(struct extension));
+	repl = mem_calloc(sizeof(struct extension));
 	add_to_list(extensions, repl);
 	repl->ext = stracpy(new->ext);
 	repl->ct = stracpy(new->ct);
@@ -787,18 +787,12 @@ int is_in_list(unsigned char *list, unsigned char *str, int l)
 	goto rep;
 }
 
-unsigned char *get_content_type(unsigned char *head, unsigned char *url)
+unsigned char *get_content_type_by_extension(unsigned char *url)
 {
 	struct extension *e;
 	struct assoc *a;
 	unsigned char *ct, *ext, *exxt;
 	int extl, el;
-	if (head && (ct = parse_http_header(head, "Content-Type", NULL))) {
-		unsigned char *s;
-		if ((s = strchr(ct, ';'))) *s = 0;
-		while (*ct && ct[strlen(ct) - 1] <= ' ') ct[strlen(ct) - 1] = 0;
-		return ct;
-	}
 	ext = NULL, extl = 0;
 	if (!(ct = get_url_data(url))) ct = url;
 	for (; *ct && !end_of_dir(url, *ct); ct++)
@@ -836,6 +830,27 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 	add_bytes_to_str(&exxt, &el, ext, extl);
 	foreach(a, assoc) if (is_in_list(a->ct, exxt, el)) return exxt;
 	mem_free(exxt);
+	return NULL;
+}
+
+unsigned char *get_content_type(unsigned char *head, unsigned char *url)
+{
+	unsigned char *ct;
+	if (head && (ct = parse_http_header(head, "Content-Type", NULL))) {
+		unsigned char *s;
+		if ((s = strchr(ct, ';'))) *s = 0;
+		while (*ct && ct[strlen(ct) - 1] <= ' ') ct[strlen(ct) - 1] = 0;
+		if (!strcasecmp(ct, "text/plain") || !strcasecmp(ct, "application/octet-stream")) {
+			unsigned char *ctt = get_content_type_by_extension(url);
+			if (ctt) {
+				mem_free(ct);
+				return ctt;
+			}
+		}
+		return ct;
+	}
+	ct = get_content_type_by_extension(url);
+	if (ct) return ct;
 	return !force_html ? stracpy("text/plain") : stracpy("text/html");
 }
 
@@ -848,7 +863,7 @@ struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 	foreach(a, assoc) 
 		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, strlen(type))) {
 			if (count == MAXINT) overalloc();
-			count ++;
+			count++;
 		}
 	*n=count;
 	if (!count)return NULL;

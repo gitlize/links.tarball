@@ -44,6 +44,7 @@ js_context* js_create_context(void*p,long id)/*nevim co budu delat s tim p*/
 	
 	js_context*context=js_mem_alloc(sizeof(js_context));
 	if(!context) return NULL;
+	init_list(context->namespaces);
 	context->running=0;
 /*	context->start=context->now=0;*/
 	context->lock=0;/*nebezime*/
@@ -62,6 +63,7 @@ je potreba umet z fabriky (OnClick apod.)*/
 	context->first_ns=0;
 	context->last_ns=&context->first_ns;
 	context->fotrisko=context->lnamespace=js_mem_alloc(sizeof(plns));
+	add_to_list(context->namespaces, &context->lnamespace->xl);
 	context->lnamespace->next=0;
 	if(js_global_resolve)
 		context->lnamespace->mid=js_upcall_get_window_id(p);
@@ -166,6 +168,8 @@ void total_clearvar(lns*pna,js_context*context)
 void clearvars(parlist*list);
 
 void del_ns(plns*pns,js_context*context) /* deletes table of keys and values of vars */
+/* Jezkovy voci !!! Tohle uz dela deletenamespace. Ten PerM je ale cune
+			--- mikulas */
 {	int i=0;
 	lns**ns; /* Pozor mozna prasarna! */
 	lns*a,*b;
@@ -195,6 +199,7 @@ void del_ns(plns*pns,js_context*context) /* deletes table of keys and values of 
 			}
 		i++;
 	}
+	del_from_list(&pns->xl);
 	js_mem_free(ns);
 	js_mem_free(pns);
 }
@@ -223,7 +228,7 @@ void js_cistka_kontextu(js_context*context)
         } /*Neco takoveho tu bude potreba, ale lepe a radostneji :-) */
 	while(context->first_ns)
         {       odlozene_deti=context->first_ns->next;
-                deletenamespace(context->first_ns->pns,context);
+                deletenamespace(context->first_ns->pns,context,0);
                 js_mem_free(context->first_ns);
                 context->first_ns=odlozene_deti;
         }
@@ -277,11 +282,11 @@ void js_destroy_context(js_context* context)
 	if(promenna->type!=PARLIST)
 		my_internal("Parentlist corrupted!",context);
 	if(!promenna->value)
-		deletenamespace(context->lnamespace,context);
+		deletenamespace(context->lnamespace,context,0);
 
 	while(context->first_ns)
 	{	odlozene_deti=context->first_ns->next;
-		deletenamespace(context->first_ns->pns,context);
+		deletenamespace(context->first_ns->pns,context,0);
 		js_mem_free(context->first_ns);
 		context->first_ns=odlozene_deti;
 	}
@@ -307,6 +312,17 @@ void js_destroy_context(js_context* context)
 		idebug("Strange things happen!\n");
 	}
 	vymaz(context->namespace);
+	if (!list_empty(context->namespaces)) {
+		struct xlist_head *xl;
+		foreach(xl, context->namespaces) {
+			plns *pl = (plns *)((char *)xl - (int)&((plns *)NULL)->xl);
+			deletenamespace(pl, context, 1);
+		}
+		while (!list_empty(context->namespaces)) {
+			plns *pl = (plns *)((char *)context->namespaces.next - (int)&((plns *)NULL)->xl);
+			deletenamespace(pl, context, 0);
+		}
+	}
 	for(timerno=0;timerno<TIMERNO;timerno++)
 		if(context->t[timerno]!=-1)
 		{	kill_timer(context->t[timerno]);

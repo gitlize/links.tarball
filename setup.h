@@ -57,7 +57,7 @@
 #define MEMORY_CACHE_GC_PERCENT		9/10
 #define MAX_CACHED_OBJECT		1/4
 
-#define MAX_HISTORY_ITEMS		256
+#define MAX_HISTORY_ITEMS		4096
 #define MENU_HOTKEY_SPACE		2
 
 #define COL(x)				((x)*0x100)

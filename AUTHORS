@@ -298,6 +298,7 @@ Strahinya Radich <mr99164@alas.matf.bg.ac.yu>
 
 Andrei Paskevich <andrei@capet.iut-fbleau.fr>
 	Image view & download with 'i', '*' to change inlined image display
+	Fix tokenizer of javascript when it encounters 0xff character
 
 Wojciech Puchar <wojtek@tensor.3miasto.net>
 	SunOS 4 portability fixes

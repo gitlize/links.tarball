@@ -97,20 +97,29 @@ int get_http_code(unsigned char *head, int *code, int *version)
 	return 0;
 }
 
-unsigned char *buggy_servers[] = { "mod_czech/3.1.0", "Purveyor", "Netscape-Enterprise", "Apache Coyote", "lighttpd", NULL };
+struct {
+	unsigned char *name;
+	int bugs;
+} buggy_servers[] = {
+	{ "mod_czech/3.1.0", BL_HTTP10 },
+	{ "Purveyor", BL_HTTP10 },
+	{ "Netscape-Enterprise", BL_HTTP10 | BL_NO_ACCEPT_LANGUAGE },
+	{ "Apache Coyote", BL_HTTP10 },
+	{ "lighttpd", BL_HTTP10 },
+	{ NULL, 0 }
+};
 
 int check_http_server_bugs(unsigned char *url, struct http_connection_info *info, unsigned char *head)
 {
-	unsigned char *server, **s;
+	unsigned char *server;
+	int i, bugs;
 	if (!http_bugs.allow_blacklist || info->http10) return 0;
 	if (!(server = parse_http_header(head, "Server", NULL))) return 0;
-	for (s = buggy_servers; *s; s++) if (strstr(server, *s)) goto bug;
+	bugs = 0;
+	for (i = 0; buggy_servers[i].name; i++) if (strstr(server, buggy_servers[i].name)) bugs |= buggy_servers[i].bugs;
 	mem_free(server);
-	return 0;
-	bug:
-	mem_free(server);
-	if ((server = get_host_name(url))) {
-		add_blacklist_entry(server, BL_HTTP10);
+	if (bugs && (server = get_host_name(url))) {
+		add_blacklist_entry(server, bugs);
 		mem_free(server);
 		return 1;
 	}
@@ -167,6 +176,7 @@ void http_send_header(struct connection *c)
 	unsigned char *hdr;
 	unsigned char *h, *u, *uu, *sp;
 	int l = 0;
+	int la;
 	unsigned char *post;
 	unsigned char *host;
 
@@ -325,9 +335,14 @@ void http_send_header(struct connection *c)
 		mem_free(ac);
 	}
 	if (!(info->bl_flags & BL_NO_CHARSET) && !http_bugs.no_accept_charset) add_to_str(&hdr, &l, accept_charset);
-	add_to_str(&hdr, &l, "Accept-Language: ");
-	add_to_str(&hdr, &l, _(TEXT(T__ACCEPT_LANGUAGE), NULL));
-	add_to_str(&hdr, &l, ", en;q=0.2, *;q=0.1\r\n");
+	if (!(info->bl_flags & BL_NO_ACCEPT_LANGUAGE)) {
+		add_to_str(&hdr, &l, "Accept-Language: ");
+		la = l;
+		add_to_str(&hdr, &l, _(TEXT(T__ACCEPT_LANGUAGE), NULL));
+		add_to_str(&hdr, &l, ", ");
+		if (!strstr(hdr + la, "en,") && !strstr(hdr + la, "en;")) add_to_str(&hdr, &l, "en;q=0.2, ");
+		add_to_str(&hdr, &l, "*;q=0.1\r\n");
+	}
 	if (!http10) {
 		if (upcase(c->url[0]) != 'P') add_to_str(&hdr, &l, "Connection: ");
 		else add_to_str(&hdr, &l, "Proxy-Connection: ");

@@ -839,7 +839,7 @@ int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	return 0;
 }
 
-unsigned char *ftp_texts[] = { TEXT(T_PASSWORD_FOR_ANONYMOUS_LOGIN), TEXT(T_USE_PASSIVE_FTP), TEXT(T_USE_FAST_FTP), NULL };
+unsigned char *ftp_texts[] = { TEXT(T_PASSWORD_FOR_ANONYMOUS_LOGIN), TEXT(T_USE_PASSIVE_FTP), TEXT(T_USE_FAST_FTP), TEXT(T_SET_TYPE_OF_SERVICE), NULL };
 
 void ftpopt_fn(struct dialog_data *dlg)
 {
@@ -861,7 +861,7 @@ void ftpopt_fn(struct dialog_data *dlg)
 	if (w < 5) w = 5;
 	rw = 0;
 	dlg_format_text_and_field(dlg, NULL, ftp_texts[0], dlg->items, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_checkboxes(dlg, NULL, dlg->items + 1, 2, 0, &y, w, &rw, ftp_texts + 1);
+	dlg_format_checkboxes(dlg, NULL, dlg->items + 1, dlg->n - 3, 0, &y, w, &rw, ftp_texts + 1);
 	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -873,7 +873,7 @@ void ftpopt_fn(struct dialog_data *dlg)
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_text_and_field(dlg, term, ftp_texts[0], dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_checkboxes(dlg, term, dlg->items + 1, 2, dlg->x + DIALOG_LB, &y, w, NULL, ftp_texts + 1);
+	dlg_format_checkboxes(dlg, term, dlg->items + 1, dlg->n - 3, dlg->x + DIALOG_LB, &y, w, NULL, ftp_texts + 1);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, dlg->items + dlg->n - 2, 2, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
 }
@@ -881,6 +881,7 @@ void ftpopt_fn(struct dialog_data *dlg)
 
 int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
+	int a;
 	struct ftp_options *ftp_options = (struct ftp_options *)di->cdata;
 	struct dialog *d;
 	d = mem_calloc(sizeof(struct dialog) + 6 * sizeof(struct dialog_item));
@@ -896,15 +897,25 @@ int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[2].type = D_CHECKBOX;
 	d->items[2].dlen = sizeof(int);
 	d->items[2].data = (void*)&ftp_options->fast_ftp;
-	d->items[3].type = D_BUTTON;
-	d->items[3].gid = B_ENTER;
-	d->items[3].fn = ok_dialog;
-	d->items[3].text = TEXT(T_OK);
-	d->items[4].type = D_BUTTON;
-	d->items[4].gid = B_ESC;
-	d->items[4].fn = cancel_dialog;
-	d->items[4].text = TEXT(T_CANCEL);
-	d->items[5].type = D_END;
+#ifdef HAVE_IPTOS
+	d->items[3].type = D_CHECKBOX;
+	d->items[3].dlen = sizeof(int);
+	d->items[3].data = (void*)&ftp_options->set_tos;
+	a = 4;
+#else
+	a = 3;
+#endif
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ENTER;
+	d->items[a].fn = ok_dialog;
+	d->items[a].text = TEXT(T_OK);
+	a++;
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ESC;
+	d->items[a].fn = cancel_dialog;
+	d->items[a].text = TEXT(T_CANCEL);
+	a++;
+	d->items[a].type = D_END;
 	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
@@ -1727,7 +1738,8 @@ void refresh_misc(void *ignore)
 	if (strcmp(new_bookmarks_file,bookmarks_file)||new_bookmarks_codepage!=bookmarks_codepage)
 	{
 		save_bookmarks();
-		strncpy(bookmarks_file,new_bookmarks_file,MAX_STR_LEN);
+		strncpy(bookmarks_file,new_bookmarks_file,MAX_STR_LEN - 1);
+		bookmarks_file[MAX_STR_LEN - 1] = 0;
 		bookmarks_codepage=new_bookmarks_codepage;
 		reinit_bookmarks();
 	}
@@ -2336,12 +2348,12 @@ struct history goto_url_history = { 0, { &goto_url_history.items, &goto_url_hist
 
 void dialog_goto_url(struct session *ses, char *url)
 {
-	input_field(ses->term, NULL, TEXT(T_GOTO_URL), TEXT(T_ENTER_URL), TEXT(T_OK), TEXT(T_CANCEL), ses, &goto_url_history, MAX_INPUT_URL_LEN, url, 0, 0, NULL, (void (*)(void *, unsigned char *)) goto_url, NULL);
+	input_field(ses->term, NULL, TEXT(T_GOTO_URL), TEXT(T_ENTER_URL), ses, &goto_url_history, MAX_INPUT_URL_LEN, url, 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) goto_url, TEXT(T_CANCEL), NULL, NULL);
 }
 
 void dialog_save_url(struct session *ses)
 {
-	input_field(ses->term, NULL, TEXT(T_SAVE_URL), TEXT(T_ENTER_URL), TEXT(T_OK), TEXT(T_CANCEL), ses, &goto_url_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) save_url, NULL);
+	input_field(ses->term, NULL, TEXT(T_SAVE_URL), TEXT(T_ENTER_URL), ses, &goto_url_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) save_url, TEXT(T_CANCEL), NULL, NULL);
 }
 
 
@@ -2459,7 +2471,7 @@ void query_file(struct session *ses, unsigned char *url, void (*std)(struct sess
 	h->file=NULL;
 	h->url=stracpy(url);
 
-	input_field(ses->term, getml(h->url, h, NULL), TEXT(T_DOWNLOAD), TEXT(T_SAVE_TO_FILE), TEXT(T_OK), TEXT(T_CANCEL), h, &file_history, MAX_INPUT_URL_LEN, def, 0, 0, NULL, (void (*)(void *, unsigned char *))does_file_exist, (void (*)(void *))query_file_cancel);
+	input_field(ses->term, getml(h->url, h, NULL), TEXT(T_DOWNLOAD), TEXT(T_SAVE_TO_FILE), h, &file_history, MAX_INPUT_URL_LEN, def, 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *))does_file_exist, TEXT(T_CANCEL), (void (*)(void *))query_file_cancel, NULL);
 	mem_free(def);
 }
 
@@ -2467,12 +2479,12 @@ struct history search_history = { 0, { &search_history.items, &search_history.it
 
 void search_back_dlg(struct session *ses, struct f_data_c *f, int a)
 {
-	input_field(ses->term, NULL, TEXT(T_SEARCH_BACK), TEXT(T_SEARCH_FOR_TEXT), TEXT(T_OK), TEXT(T_CANCEL), ses, &search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) search_for_back, NULL);
+	input_field(ses->term, NULL, TEXT(T_SEARCH_BACK), TEXT(T_SEARCH_FOR_TEXT), ses, &search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) search_for_back, TEXT(T_CANCEL), NULL, NULL);
 }
 
 void search_dlg(struct session *ses, struct f_data_c *f, int a)
 {
-	input_field(ses->term, NULL, TEXT(T_SEARCH), TEXT(T_SEARCH_FOR_TEXT), TEXT(T_OK), TEXT(T_CANCEL), ses, &search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) search_for, NULL);
+	input_field(ses->term, NULL, TEXT(T_SEARCH), TEXT(T_SEARCH_FOR_TEXT), ses, &search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) search_for, TEXT(T_CANCEL), NULL, NULL);
 }
 
 void free_history_lists(void)

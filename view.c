@@ -29,6 +29,7 @@ void x_draw_form_entry(struct session *, struct f_data_c *, struct link *);
 void draw_forms(struct terminal *, struct f_data_c *);
 void set_xchar(struct terminal *, int, int, unsigned);
 void draw_frame_lines(struct terminal *, struct frameset_desc *, int, int);
+void set_brl_cursor(struct terminal *, struct f_data_c *);
 void clr_xl(struct f_data_c *);
 void draw_doc_c(struct terminal *, struct f_data_c *);
 void draw_fd_nrd(struct f_data_c *);
@@ -623,11 +624,11 @@ int is_in_range(struct f_data *f, int y, int yw, unsigned char *txt, int *min, i
 	if (get_range(f, y, yw, l, &s1, &s2)) return 0;
 	for (; s1 <= s2; s1++) {
 		int i;
-		if (srch_cmp(s1->c, txt[0])) {
+		if (s1->c != txt[0]) {
 			unable_to_handle_kernel_paging_request___oops:
 			continue;
 		}
-		for (i = 1; i < l; i++) if (srch_cmp(s1[i].c, txt[i])) goto unable_to_handle_kernel_paging_request___oops;
+		for (i = 1; i < l; i++) if (s1[i].c != txt[i]) goto unable_to_handle_kernel_paging_request___oops;
 		if (s1[i].y < y || s1[i].y >= y + yw) continue;
 		if (!min && !max) return 1;
 		found = 1;
@@ -660,10 +661,10 @@ void get_searched(struct f_data_c *scr, struct point **pt, int *pl)
 	if (get_range(scr->f_data, scr->vs->view_pos, scr->yw, l, &s1, &s2)) goto ret;
 	for (; s1 <= s2; s1++) {
 		int i, j;
-		if (srch_cmp(s1->c, c)) {
+		if (s1->c != c) {
 			c:continue;
 		}
-		for (i = 1; i < l; i++) if (srch_cmp(s1[i].c, w[i])) goto c;
+		for (i = 1; i < l; i++) if (s1[i].c != w[i]) goto c;
 		for (i = 0; i < l && (!scr->ses->term->spec->braille || i < 1); i++) for (j = 0; j < s1[i].n; j++) {
 			int x = s1[i].x + j + xp - vx;
 			int y = s1[i].y + yp - vy;
@@ -1762,16 +1763,24 @@ unsigned char *encode_textarea(unsigned char *t)
 	return o;
 }
 
+int compare_submitted(struct submitted_value *sub1, struct submitted_value *sub2);
+int compare_submitted(struct submitted_value *sub1, struct submitted_value *sub2)
+{
+	/*int c = (sub1->type == FC_IMAGE) - (sub2->type == FC_IMAGE);
+	if (c) return c;*/
+	return sub1->position - sub2->position;
+}
+
 void get_succesful_controls(struct f_data_c *f, struct form_control *fc, struct list_head *subm)
 {
 	int ch;
 	struct form_control *form;
 	init_list(*subm);
 	foreach(form, f->f_data->forms) {
-		if (form->form_num == fc->form_num && ((form->type != FC_SUBMIT && form->type != FC_IMAGE && form->type != FC_RESET && form->type != FC_BUTTON ) || form == fc) && form->name && form->name[0]) {
+		if (form->form_num == fc->form_num && ((form->type != FC_SUBMIT && form->type != FC_IMAGE && form->type != FC_RESET && form->type != FC_BUTTON) || form == fc) && form->name && form->name[0]) {
 			struct submitted_value *sub;
 			struct form_state *fs;
-			int fi = 0;
+			int fi = form->type == FC_IMAGE && form->default_value && *form->default_value ? -1 : 0;
 			int svl;
 			if (!(fs = find_form_state(f, form))) continue;
 			if ((form->type == FC_CHECKBOX || form->type == FC_RADIO) && !fs->state) continue;
@@ -1801,6 +1810,10 @@ void get_succesful_controls(struct f_data_c *f, struct form_control *fc, struct 
 					sub->value = stracpy(fs->value);
 					break;
 				case FC_IMAGE:
+					if (fi == -1) {
+						sub->value = stracpy(form->default_value);
+						break;
+					}
 					add_to_strn(&sub->name, fi ? ".x" : ".y");
 					/*sub->value = stracpy("0");*/
 					sub->value = init_str();
@@ -1814,8 +1827,8 @@ void get_succesful_controls(struct f_data_c *f, struct form_control *fc, struct 
 			}
 			sub->position = form->form_num + form->ctrl_num;
 			add_to_list(*subm, sub);
-			if (form->type == FC_IMAGE && !fi) {
-				fi = 1;
+			if (form->type == FC_IMAGE && fi < 1) {
+				fi++;
 				goto fi_rep;
 			}
 		}
@@ -1824,7 +1837,7 @@ void get_succesful_controls(struct f_data_c *f, struct form_control *fc, struct 
 		struct submitted_value *sub, *nx;
 		ch = 0;
 		foreach(sub, *subm) if (sub->next != (void *)subm)
-			if (sub->next->position < sub->position) {
+			if (compare_submitted(sub->next, sub) < 0) {
 				nx = sub->next;
 				del_from_list(sub);
 				add_at_pos(nx, sub);
@@ -1832,7 +1845,7 @@ void get_succesful_controls(struct f_data_c *f, struct form_control *fc, struct 
 				ch = 1;
 			}
 		foreachback(sub, *subm) if (sub->next != (void *)subm)
-			if (sub->next->position < sub->position) {
+			if (compare_submitted(sub->next, sub) < 0) {
 				nx = sub->next;
 				del_from_list(sub);
 				add_at_pos(nx, sub);
@@ -1891,7 +1904,8 @@ void encode_controls(struct list_head *l, unsigned char **data, int *len,
 	}
 }
 
-#define BL	32
+#define BL	56
+#define BL1	27
 
 void encode_multipart(struct session *ses, struct list_head *l, unsigned char **data, int *len,
 		      unsigned char *bound, int cp_from, int cp_to)
@@ -1927,7 +1941,7 @@ void encode_multipart(struct session *ses, struct list_head *l, unsigned char **
 				/* It sends bad data if the file name contains ", but
 				   Netscape does the same */
 			add_to_str(data, len, "\"");
-			if ((ct = get_content_type(NULL, sv->value))) {
+			if (*sv->value) if ((ct = get_content_type(NULL, sv->value))) {
 				add_to_str(data, len, "\r\nContent-Type: ");
 				add_to_str(data, len, ct);
 				if (strlen(ct) >= 4 && !casecmp(ct, "text", 4)) {
@@ -1979,11 +1993,13 @@ void encode_multipart(struct session *ses, struct list_head *l, unsigned char **
 		goto bnd;
 	}
 	add_to_str(data, len, "--\r\n");
-	memset(bound, '0', BL);
+	memset(bound, '-', BL1);
+	memset(bound + BL1, '0', BL - BL1);
 	again:
 	for (i = 0; i <= *len - BL; i++) {
 		for (j = 0; j < BL; j++) if ((*data)[i + j] != bound[j]) goto nb;
 		for (j = BL - 1; j >= 0; j--)
+			if (bound[j] < '0') bound[j] = '0' - 1;
 			if (bound[j]++ >= '9') bound[j] = '0';
 			else goto again;
 		internal("Counld not assing boundary");
@@ -2082,7 +2098,7 @@ unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form
 	return go;
 }
 
-int ismap_link = 0, ismap_x = 0, ismap_y = 0;
+int ismap_link = 0, ismap_x = 1, ismap_y = 1;
 
 /* if onsubmit is not NULL it will contain 1 if link is submit and the form has an onsubmit handler */
 unsigned char *get_link_url(struct session *ses, struct f_data_c *f, struct link *l, int *onsubmit)
@@ -2555,7 +2571,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 			} else fs->state = strlen(fs->value);
 		} else if (!(ev->y & (KBD_CTRL | KBD_ALT)) && (ev->x >= 32 && ev->x < gf_val(256, MAXINT) && gf_val(cp2u(ev->x, ses->term->spec->charset) != -1, 1))) {
 			set_br_pos(f, l);
-			if (!form->ro && utf8len(fs->value) < form->maxlength) {
+			if (!form->ro && gf_val((unsigned)strlen(fs->value),(unsigned)utf8len(fs->value)) < (unsigned)form->maxlength) {
 				unsigned char *v;
 				unsigned char a_[2];
 				unsigned char *nw;
@@ -2599,7 +2615,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 			set_br_pos(f, l);
 			clipboard = get_clipboard_text(ses->term);
 			if (!clipboard) goto brk;
-			if (!form->ro && utf8len(fs->value) + utf8len(clipboard) <= form->maxlength) {
+			if (!form->ro && gf_val((unsigned)strlen(fs->value),(unsigned)utf8len(fs->value)) + gf_val((unsigned)strlen(clipboard),(unsigned)utf8len(clipboard)) <= (unsigned)form->maxlength) {
 				unsigned char *v;
 				v = mem_realloc(fs->value, strlen(fs->value) + strlen(clipboard) +1);
 				fs->value = v;
@@ -2737,8 +2753,9 @@ void search_for_back(struct session *ses, unsigned char *str)
 	if (!f || !str || !str[0]) return;
 	if (ses->search_word) mem_free(ses->search_word);
 	ses->search_word = stracpy(str);
+	charset_upcase_string(&ses->search_word, ses->term->spec->charset);
 	if (ses->last_search_word) mem_free(ses->last_search_word);
-	ses->last_search_word = stracpy(str);
+	ses->last_search_word = stracpy(ses->search_word);
 	ses->search_direction = -1;
 	find_next(ses, f, 1);
 }
@@ -2749,8 +2766,9 @@ void search_for(struct session *ses, unsigned char *str)
 	if (!f || !f->vs || !f->f_data || !str || !str[0]) return;
 	if (ses->search_word) mem_free(ses->search_word);
 	ses->search_word = stracpy(str);
+	charset_upcase_string(&ses->search_word, ses->term->spec->charset);
 	if (ses->last_search_word) mem_free(ses->last_search_word);
-	ses->last_search_word = stracpy(str);
+	ses->last_search_word = stracpy(ses->search_word);
 	ses->search_direction = 1;
 	find_next(ses, f, 1);
 }
@@ -3035,7 +3053,7 @@ int frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			d[1] = 0;
 			nl = f_data->nlinks, lnl = 1;
 			while (nl) nl /= 10, lnl++;
-			if (lnl > 1) input_field(ses->term, NULL, TEXT(T_GO_TO_LINK), TEXT(T_ENTER_LINK_NUMBER), TEXT(T_OK), TEXT(T_CANCEL), ses, NULL, lnl, d, 1, f_data->nlinks, check_number, (void (*)(void *, unsigned char *)) goto_link_number, NULL);
+			if (lnl > 1) input_field(ses->term, NULL, TEXT(T_GO_TO_LINK), TEXT(T_ENTER_LINK_NUMBER), ses, NULL, lnl, d, 1, f_data->nlinks, check_number, TEXT(T_OK), (void (*)(void *, unsigned char *)) goto_link_number, TEXT(T_CANCEL), NULL, NULL);
 		}
 		else x = 0;
 	} else if (ev->ev == EV_MOUSE) {

@@ -309,7 +309,7 @@ void insert_wd(unsigned char **up, unsigned char *cwd)
  */
 unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 {
-	unsigned char *p, *n, *pp;
+	unsigned char *p, *n, *pp, *ch;
 	int l;
 	int lo = !casecmp(base, "file://", 7);
 	if (rel[0] == '#') {
@@ -362,7 +362,11 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 	}
 	n = stracpy(rel);
 	while (n[0] && n[strlen(n) - 1] <= ' ') n[strlen(n) - 1] = 0;
-	add_to_strn(&n, "/");
+	extend_str(&n, 1);
+	ch = strrchr(n, '#');
+	if (!ch || strchr(ch, '/')) ch = n + strlen(n);
+	memmove(ch + 1, ch, strlen(ch) + 1);
+	*ch = '/';
 	if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
 		extend_str(&n, 1);
 		translate_directories(n);
@@ -391,8 +395,8 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 {
 	unsigned char *ch;
 	unsigned char *nu, *da;
-	while(*url == ' ') url++;
-	if (!casecmp("proxy://", url, 8)) goto prx;
+	while (*url == ' ') url++;
+	if (!casecmp("proxy://", url, 8)) return NULL;
 	if (!parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &da, NULL, NULL)) {
 		nu = stracpy(url);
 		insert_wd(&nu, cwd);
@@ -400,9 +404,14 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		translate_directories(nu);
 		return nu;
 	}
-	if (strstr(url, "//")) {
+	if (strchr(url, POST_CHAR)) return NULL;
+	if (strstr(url, "://")) {
 		nu = stracpy(url);
-		add_to_strn(&nu, "/");
+		extend_str(&nu, 1);
+		ch = strrchr(nu, '#');
+		if (!ch || strchr(ch, '/')) ch = nu + strlen(nu);
+		memmove(ch + 1, ch, strlen(ch) + 1);
+		*ch = '/';
 		if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
 			insert_wd(&nu, cwd);
 			extend_str(&nu, 1);
@@ -411,7 +420,6 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		}
 		mem_free(nu);
 	}
-	prx:
 	ch = url + strcspn(url, ".:/@");
 	if (*ch != ':' || *(url + strcspn(url, "/@")) == '@') {
 		unsigned char *prefix = "file://";
@@ -464,11 +472,7 @@ unsigned char *extract_position(unsigned char *url)
 	unsigned char *u, *uu, *r;
 	if ((u = get_url_data(url))) url = u;
 	if (!(u = strchr(url, POST_CHAR))) u = url + strlen(url);
-	if (u == url) return NULL;
-	uu = u;
-	while (uu > url && uu[-1] != '#') uu--;
-	if (uu <= url) return NULL;
-	uu--;
+	if (!(uu = memchr(url, '#', u - url))) return NULL;
 	r = mem_alloc(u - uu);
 	memcpy(r, uu + 1, u - uu - 1);
 	r[u - uu - 1] = 0;

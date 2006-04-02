@@ -64,6 +64,7 @@ int do_real_lookup(unsigned char *name, ip__address *host)
 {
 	unsigned char *n;
 	struct hostent *hst;
+	if (!*name) return -1;
 	for (n = name; *n; n++) if (*n != '.' && (*n < '0' || *n > '9')) goto nogethostbyaddr;
 	n = name;
 	if (get_addr_byte(&n, ((unsigned char *)host + 0), '.')) goto skip_addr;

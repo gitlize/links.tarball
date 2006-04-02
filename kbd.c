@@ -41,6 +41,7 @@ struct itrm *ditrm = NULL;
 
 /* prototypes */
 void write_ev_queue(struct itrm *);
+void mouse_queue_event(struct itrm *, unsigned char *, int);
 void queue_event(struct itrm *, unsigned char *, int);
 void send_init_sequence(int, int);
 void send_term_sequence(int, int);
@@ -73,6 +74,12 @@ void write_ev_queue(struct itrm *itrm)
 	}
 	memmove(itrm->ev_queue, itrm->ev_queue + l, itrm->eqlen -= l);
 	if (!itrm->eqlen) set_handlers(itrm->sock_out, get_handler(itrm->sock_out, H_READ), NULL, get_handler(itrm->sock_out, H_ERROR), get_handler(itrm->sock_out, H_DATA));
+}
+
+void mouse_queue_event(struct itrm *itrm, unsigned char *data, int len)
+{
+	if (itrm->blocked) return;
+	queue_event(itrm, data, len);
 }
 
 void queue_event(struct itrm *itrm, unsigned char *data, int len)
@@ -256,7 +263,7 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	queue_event(itrm, (char *)&xwin, sizeof(int));
 	queue_event(itrm, (char *)&init_len, sizeof(int));
 	queue_event(itrm, (char *)init_string, init_len);
-	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))queue_event, itrm);
+	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))mouse_queue_event, itrm);
 	itrm->orig_title = get_window_title();
 	set_window_title("Links");
 	send_init_sequence(std_out,itrm->flags);

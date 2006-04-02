@@ -10,8 +10,8 @@
 #include "links.h"
 
 int *highlight_positions = NULL;
+int *highlight_lengths = NULL;
 int n_highlight_positions = 0;
-int highlight_position_size = 0;
 
 static int root_x = 0;
 static int root_y = 0;
@@ -260,7 +260,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		inv = g_invert_style(t->style);
 		g_print_text(drv, fd->ses->term->dev, x, y, inv, t->text, NULL);
 		g_free_style(inv);
-	} else if ( (!fd->f_data->hlt_len) && (!highlight_positions || !n_highlight_positions) ) {
+	} else if ( (!fd->f_data->hlt_len) && (!highlight_positions || !n_highlight_positions)) {
 		prn:
 		g_print_text(drv, fd->ses->term->dev, x, y, t->style, t->text, NULL);
 	} else {
@@ -278,17 +278,17 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 
 		intersect(fd->f_data->hlt_pos, fd->f_data->hlt_len, start, tlen, &hl_start, &hl_len);
 		
-#define B_EQUAL(t, m) ((t) + highlight_position_size > start && (t) < end)
-#define B_ABOVE(t, m) ((t) >= end)
-		BIN_SEARCH(highlight_positions, n_highlight_positions, B_EQUAL, B_ABOVE, *, found);
+#define B_EQUAL(t, m) (highlight_positions[t] + highlight_lengths[t] > start && highlight_positions[t] < end)
+#define B_ABOVE(t, m) (highlight_positions[t] >= end)
+		BIN_SEARCH(n_highlight_positions, B_EQUAL, B_ABOVE, *, found);
 		mask = mem_calloc(tlen);
 		if (found != -1)
 		{
-			while (found > 0 && B_EQUAL(highlight_positions[found - 1], *)) found--;
-			while (found < n_highlight_positions && !B_ABOVE(highlight_positions[found], *)) {
+			while (found > 0 && B_EQUAL(found - 1, *)) found--;
+			while (found < n_highlight_positions && !B_ABOVE(found, *)) {
 				int pos = highlight_positions[found] - t->srch_pos;
 				int ii = 0;
-				for (ii = 0; ii < highlight_position_size; ii++) {
+				for (ii = 0; ii < highlight_lengths[found]; ii++) {
 					if (pos >= 0 && (size_t)pos < tlen) mask[pos] = 1;
 					pos++;
 				}
@@ -372,13 +372,13 @@ void g_line_get_list(struct g_object_line *l, void (*f)(struct g_object *parent,
 	for (i = 0; i < l->n_entries; i++) f((struct g_object *)l, l->entries[i]);
 }
 
-#define OBJ_EQ(a, b)	(*(a)).y <= (b) && (*(a)).y + (*(a)).yw > (b)
-#define OBJ_ABOVE(a, b)	(*(a)).y > (b)
+#define OBJ_EQ(n, b)	(*a[n]).y <= (b) && (*a[n]).y + (*a[n]).yw > (b)
+#define OBJ_ABOVE(n, b)	(*a[n]).y > (b)
 
 static inline struct g_object **g_find_line(struct g_object **a, int n, int p)
 {
 	int res = -1;
-	BIN_SEARCH(a, n, OBJ_EQ, OBJ_ABOVE, p, res);
+	BIN_SEARCH(n, OBJ_EQ, OBJ_ABOVE, p, res);
 	if (res == -1) return NULL;
 	return &a[res];
 }
@@ -505,20 +505,29 @@ void g_get_search(struct f_data *f, unsigned char *s)
 	int i;
 	if (!s || !*s) return;
 	if (f->last_search && !strcmp(f->last_search, s)) return;
-	if (f->search_positions) mem_free(f->search_positions), f->search_positions = DUMMY, f->n_search_positions = 0;
+	mem_free(f->search_positions);
+	mem_free(f->search_lengths);
+	f->search_positions = DUMMY, f->search_lengths = DUMMY, f->n_search_positions = 0;
 	if (f->last_search) mem_free(f->last_search);
 	if (!(f->last_search = stracpy(s))) return;
-	f->last_search_len = strlen(s);
-	for (i = 0; i <= f->srch_string_size - f->last_search_len; i++) {
-		int ii;
-		if (srch_cmp(f->srch_string[i], s[0])) aiee__killing_interrupt_handler: continue;
-		for (ii = 1; ii < f->last_search_len; ii++)
-			if (srch_cmp(f->srch_string[i + ii], s[ii])) goto aiee__killing_interrupt_handler;
+	for (i = 0; i < f->srch_string_size; i++) {
+		int len;
+		if ((s[0] | f->srch_string[i]) < 0x80) {
+			if ((f->srch_string[i] ^ s[0]) & 0xdf) continue;
+			if (s[1] != 0 && (s[1] ^ f->srch_string[i + 1]) < 0x80) {
+				if ((f->srch_string[i + 1] ^ s[1]) & 0xdf) continue;
+			}
+		}
+		len = compare_case_utf8(f->srch_string + i, s);
+		if (!len) continue;
 		if (!(f->n_search_positions & (ALLOC_GR - 1))) {
 			if ((unsigned)f->n_search_positions > MAXINT / sizeof(int) - ALLOC_GR) overalloc();
 			f->search_positions = mem_realloc(f->search_positions, (f->n_search_positions + ALLOC_GR) * sizeof(int));
+			f->search_lengths = mem_realloc(f->search_lengths, (f->n_search_positions + ALLOC_GR) * sizeof(int));
 		}
-		f->search_positions[f->n_search_positions++] = i;
+		f->search_positions[f->n_search_positions] = i;
+		f->search_lengths[f->n_search_positions] = len;
+		f->n_search_positions++;
 	}
 }
 
@@ -538,8 +547,8 @@ void draw_graphical_doc(struct terminal *t, struct f_data_c *scr, int active)
 			g_get_search_data(scr->f_data);
 			g_get_search(scr->f_data, scr->ses->search_word);
 			highlight_positions = scr->f_data->search_positions;
+			highlight_lengths = scr->f_data->search_lengths;
 			n_highlight_positions = scr->f_data->n_search_positions;
-			highlight_position_size = scr->f_data->last_search_len;
 		}
 	}
 
@@ -620,8 +629,8 @@ void draw_graphical_doc(struct terminal *t, struct f_data_c *scr, int active)
 	drv->set_clip_area(t->dev, &old);
 
 	highlight_positions = NULL;
+	highlight_lengths = NULL;
 	n_highlight_positions = 0;
-	highlight_position_size = 0;
 }
 
 int g_forward_mouse(struct f_data_c *fd, struct g_object *a, int x, int y, int b)
@@ -655,9 +664,19 @@ void draw_one_object_fn(struct terminal *t, struct draw_data *d)
 void draw_one_object(struct f_data_c *fd, struct g_object *o)
 {
 	struct draw_data d;
+	int *h1, *h2, h3;
 	d.fd = fd;
 	d.o = o;
+	h1 = highlight_positions;
+	h2 = highlight_lengths;
+	h3 = n_highlight_positions;
+	highlight_positions = fd->f_data->search_positions;
+	highlight_lengths = fd->f_data->search_lengths;
+	n_highlight_positions = fd->f_data->n_search_positions;
 	draw_to_window(fd->ses->win, (void (*)(struct terminal *, void *))draw_one_object_fn, &d);
+	highlight_positions = h1;
+	highlight_lengths = h2;
+	n_highlight_positions = h3;
 }
 
 void g_area_mouse(struct f_data_c *fd, struct g_object_area *a, int x, int y, int b)
@@ -802,13 +821,14 @@ void g_text_mouse(struct f_data_c *fd, struct g_object_text *a, int x, int y, in
 #endif
 
 	if (b == (B_UP | B_LEFT)) {
+		int ix = ismap_x, iy = ismap_y, il = ismap_link;
 		ismap_x = x;
 		ismap_y = y;
 		ismap_link = a->ismap;
 		e = enter(fd->ses, fd, 1);
-		ismap_x = 0;
-		ismap_y = 0;
-		ismap_link = 0;
+		ismap_x = ix;
+		ismap_y = iy;
+		ismap_link = il;
 		if (e) {
 			print_all_textarea = 1;
 			draw_one_object(fd, (struct g_object *)a);
@@ -817,7 +837,7 @@ void g_text_mouse(struct f_data_c *fd, struct g_object_text *a, int x, int y, in
 		if (e == 2) fd->f_data->locked_on = (struct g_object *)a;
 		return;
 	}
-	if (b == (B_UP | B_RIGHT) || b == (B_UP | B_MIDDLE)) {
+	if (b == (B_UP | B_RIGHT)) {
 		if (fd->vs->current_link != -1) link_menu(fd->ses->term, NULL, fd->ses);
 	}
 }
@@ -1008,13 +1028,6 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			}
 
 	
-			if ((ev->b & BM_ACT) == B_DOWN && (ev->b & BM_BUTT) == B_MIDDLE) {
-				scrll:
-				ses->scrolltype = ev->x + fd->vs->view_posx;
-				ses->scrolloff = ev->y + fd->vs->view_pos;
-				ses->scrolling = 2;
-				break;
-			}
 			if ((ev->b & BM_ACT) == B_DOWN && fd->f_data->vsb && ev_in_rect(ev, fd->xw - G_SCROLL_BAR_WIDTH, 0, fd->xw, fd->yw - fd->f_data->hsb * G_SCROLL_BAR_WIDTH)) {
 				process_sb_event(fd, ev->y, 0);
 				break;
@@ -1025,20 +1038,28 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			}
 			if (fd->f_data->vsb && ev_in_rect(ev, fd->xw - G_SCROLL_BAR_WIDTH, 0, fd->xw, fd->yw)) return 0;
 			if (fd->f_data->hsb && ev_in_rect(ev, 0, fd->yw - G_SCROLL_BAR_WIDTH, fd->xw, fd->yw)) return 0;
+
+			if ((ev->b & BM_ACT) == B_DOWN && (ev->b & BM_BUTT) == B_MIDDLE) {
+				scrll:
+				ses->scrolltype = ev->x + fd->vs->view_posx;
+				ses->scrolloff = ev->y + fd->vs->view_pos;
+				ses->scrolling = 2;
+				break;
+			}
+
 			previous_link=fd->vs->current_link;
 			if (fd->vs->g_display_link) {
 				fd->vs->g_display_link = 0;
 				if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) redraw_link(fd, fd->vs->current_link);
 			}
-			fd->vs->current_link = -1;
-			fd->vs->orig_link = fd->vs->current_link;
-			if (!((ev->b & BM_ACT) == B_UP && fd->f_data->hlt_len && fd->f_data->start_highlight_x == -1))
+			if (!(ev->b == (B_LEFT | B_UP) && fd->f_data->hlt_len && fd->f_data->start_highlight_x == -1)) {
+				fd->vs->current_link = -1;
+				fd->vs->orig_link = fd->vs->current_link;
 				fd->f_data->root->mouse_event(fd, fd->f_data->root, ev->x + fd->vs->view_posx, ev->y + fd->vs->view_pos, ev->b);
-			if (previous_link!=fd->vs->current_link)
-				change_screen_status(ses);
-			print_screen_status(ses);
-#ifdef JS
-			/* process onmouseover/onmouseout handlers */
+				if (previous_link!=fd->vs->current_link)
+					change_screen_status(ses);
+				print_screen_status(ses);
+			}
 
 			/* highlight text */
 			if ((ev->b & BM_ACT) == B_DOWN && (ev->b & BM_BUTT) == B_LEFT) {   /* start highlighting */
@@ -1086,6 +1107,8 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			}
 			skip_hl:
 
+#ifdef JS
+			/* process onmouseover/onmouseout handlers */
 			if (previous_link!=fd->vs->current_link)
 			{
 				struct link* lnk=NULL;
@@ -1442,7 +1465,7 @@ void find_next_sub(struct g_object *p, struct g_object *c)
 		int start = t->srch_pos;
 		int end = t->srch_pos + strlen(t->text);
 		int found;
-		BIN_SEARCH(highlight_positions, n_highlight_positions, B_EQUAL, B_ABOVE, *, found);
+		BIN_SEARCH(n_highlight_positions, B_EQUAL, B_ABOVE, *, found);
 		if (found != -1) {
 			int x, y, yy;
 			get_object_pos(c, &x, &y);
@@ -1459,10 +1482,9 @@ void find_next_sub(struct g_object *p, struct g_object *c)
 				find_opt_xw = t->xw;
 				l = strlen(t->text);
 				ll = strlen(search_word);
-				for (i = 0; i <= l - ll; i++) {
-					int j;
+				for (i = 0; i < l; i++) {
 					unsigned char *tt;
-					for (j = 0; j < ll; j++) if (srch_cmp(t->text[i + j], search_word[j])) goto no_ch;
+					if (!(compare_case_utf8(t->text + i, search_word))) goto no_ch;
 					tt = memacpy(t->text, i);
 					find_opt_x += g_text_width(t->style, tt);
 					find_opt_xw = g_text_width(t->style, search_word);
@@ -1492,8 +1514,8 @@ void g_find_next(struct f_data_c *f, int a)
 	if (!f->f_data->n_search_positions) msg_box(f->ses->term, NULL, TEXT(T_SEARCH), AL_CENTER, TEXT(T_SEARCH_STRING_NOT_FOUND), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 
 	highlight_positions = f->f_data->search_positions;
+	highlight_lengths = f->f_data->search_lengths;
 	n_highlight_positions = f->f_data->n_search_positions;
-	highlight_position_size = f->f_data->last_search_len;
 
 	if ((!a && f->ses->search_direction == -1) ||
 	     (a && f->ses->search_direction == 1)) find_refline = f->vs->view_pos;
@@ -1503,7 +1525,8 @@ void g_find_next(struct f_data_c *f, int a)
 	g_find_next_str(f->f_data);
 
 	highlight_positions = NULL;
-	n_highlight_positions = highlight_position_size = 0;
+	highlight_lengths = NULL;
+	n_highlight_positions = 0;
 
 	if (find_opt_yy == -1) goto d;
 	if (!a || find_opt_y < f->vs->view_pos || find_opt_y + find_opt_yw >= f->vs->view_pos + f->yw - f->f_data->hsb * G_SCROLL_BAR_WIDTH) {

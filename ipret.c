@@ -618,7 +618,7 @@ void clearvar(lns*pna,js_context*context)
 			if(zrusit->type!=PARLIST)
 			{	my_internal("Internal: Parent list corrupted!!\n",context);	return;}
 			if(!((parlist*)zrusit->value) || !(((parlist*)zrusit->value)->next)) /*variable became garbage*/
-				deletenamespace((plns*)pna->value,context);
+				deletenamespace((plns*)pna->value,context,0);
 			else
 				delete_from_parlist(pna,zrusit);
 			/* Pokud existuje vice odkazu, tak jen soucasny 
@@ -1205,6 +1205,7 @@ void andassign(js_context*context)
 			pna=(lns*)par1->argument;
 			pusha(retval,context);
 			js_mem_free(par1);
+			VARTEST2(((abuf*)pna),"You can assign only to a variable!\n");
 			if(pna->type==INTVAR)
 				set_var_value(pna,INTEGER,retval->argument,context);
 			else
@@ -1269,7 +1270,7 @@ void delete(js_context*context)
 				}
 				pom=pom->next;
 			}
-			deletenamespace((plns*)variable->value,context);/* clean contain */
+			deletenamespace((plns*)variable->value,context,0);/* clean contain */
 			variable->value=0;
 			variable->type=UNDEFINED; /*undefine it*/
 			objekt->typ=UNDEFINED; /* to argbuf put void */
@@ -3816,7 +3817,7 @@ void program(js_context*context)
 					debug("Killim leklou promennou!\n");
 				}
 				while((sirotci=context->first_ns))
-				{	deletenamespace(sirotci->pns,context);
+				{	deletenamespace(sirotci->pns,context,0);
 					context->first_ns=context->first_ns->next;
 					js_mem_free(sirotci);
 					debug("Vrazdim sirotka!\n");
@@ -4464,8 +4465,8 @@ void array(js_context*context)/*a[b]*/
 	lns*  variable,*vari=0,*pomvar=0,*pomvar1;
 	long* typ,*value;
 	varlist* svinec;
-	char* index; int pomint,to_je_ale_cislo;
-	char pomstr[DELKACISLA]; 
+	char* index; unsigned long pomint, to_je_ale_cislo; long i;
+	char pomstr[DELKACISLA],*pomstr1; 
 		/*Hopefully number has less than 25 digits! Alert! */
 	debug("Vjizdim do fce array ");
 	switch(context->current->in)
@@ -4600,16 +4601,31 @@ void array(js_context*context)/*a[b]*/
 						js_error("Invalid array/member operation ",context);
 						return;
 					}
-					if(pomvar->handler<(to_je_ale_cislo=atoi(index)))
+					if((unsigned long)pomvar->handler<(to_je_ale_cislo=atoi(index)))
 					{	pomint=pomvar->handler;
 						pomvar->handler=to_je_ale_cislo+1;
 						pomstr[DELKACISLA-1]='\0';
+#if 1
+						if(pomint<to_je_ale_cislo)
+							for(i=0;i<HASHNUM;i++)
+							{	pomvar=((plns*)variable->value)->ns[i];
+								while(pomvar)
+								{	if(!(pomstr1=find_var_name(pomvar->identifier,context->namespace[i])))
+										my_internal("Internal: Couldn't find name of existing variable!\n",context);
+									if(atof(pomstr1)>pomint)
+										clearvar(pomvar,context);
+									pomvar=pomvar->next;
+								}
+							}
+#endif
+#if 0
 						while((pomint<=to_je_ale_cislo) &&(js_memory_limit>=(js_zaflaknuto_pameti/1024)))
 						{	my_itoa(pomstr,pomint);
 							if((pomvar=cllookup(pomstr,context->namespace,(plns*)variable->value,context)))
 								clearvar(pomvar,context);
 							pomint++;
 						}
+#endif
 						if(js_memory_limit<(js_zaflaknuto_pameti/1024))
 							js_error("Too much memory allocated by javascript",context);
 					} else	if(pomvar->handler==atoi(index))pomvar->handler++;

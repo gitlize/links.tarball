@@ -306,7 +306,7 @@ void block_add_URL(struct terminal *term, void *xxx, struct session *ses)
 	if (!(u = fd->f_data->links[fd->vs->current_link].where_img)) return;
 
 
-	input_field(ses->term, NULL, TEXT(T_BLOCK_URL) , TEXT(T_BLOCK_ADD), TEXT(T_OK), TEXT(T_CANCEL), ses, 0, MAX_INPUT_URL_LEN, u, 0, 0, NULL, (void (*)(void *, unsigned char *)) block_add_URL_fn, NULL);
+	input_field(ses->term, NULL, TEXT(T_BLOCK_URL) , TEXT(T_BLOCK_ADD), ses, 0, MAX_INPUT_URL_LEN, u, 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) block_add_URL_fn, TEXT(T_CANCEL), NULL, NULL);
 
 }
 

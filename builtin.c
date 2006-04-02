@@ -78,6 +78,12 @@ long CStoString,CSvalueOf,CSMIN_VALUE,CSMAX_VALUE,CSNaN,CSlength,
 			pomvar->mid=0; \
 			pomvar->handler=0;
 
+#define BUILDTYPE(x)	pomvar=buildin("type",context->namespace,context->lnamespace,context);\
+			pomvar->type=STRING;\
+			pomvar->value=(long)js_mem_alloc(strlen(x)+1);\
+			strcpy((unsigned char*)pomvar->value,x);
+
+
 #define BUILDFCE(a,b)	pomvar=buildin(a,context->namespace,context->lnamespace,context);\
 			pomvar->type=FUNKINT; \
 			pomvar->value=b;
@@ -393,6 +399,7 @@ void buildin_document(js_context*context,long id)
 	idebug("Vstavam dokumentarni vlastnosti");
 	pna->type=ADDRSPACEP;
 	pna->value=(long)(nsp=js_mem_alloc(sizeof(plns)));
+	add_to_list(context->namespaces, &nsp->xl);
 	nsp->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
 	pna->handler=pna->mid=nsp->handler=nsp->mid=id;
 	while(j<HASHNUM)nsp->ns[j++]=0;
@@ -481,6 +488,7 @@ void add_builtin(js_context*context)
 	idebug("Vstavam matiku\n");
 	pna->type=ADDRSPACEP;
 	pna->value=(long)(nsp=js_mem_alloc(sizeof(plns)));
+	add_to_list(context->namespaces, &nsp->xl);
 	nsp->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
 	nsp->mid=0; /* To je moje! Do toho at Mikulas nestoura! B;-) */
 	nsp->handler=0;
@@ -546,6 +554,7 @@ void add_builtin(js_context*context)
 	idebug("Vstavam skrin!\n");
 	pna->type=ADDRSPACEP;
 	pna->value=(long)(nsp=js_mem_alloc(sizeof(plns)));
+	add_to_list(context->namespaces, &nsp->xl);
 	nsp->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
 	nsp->mid=0;
 	nsp->handler=0;
@@ -562,6 +571,7 @@ void add_builtin(js_context*context)
 	idebug("Vstavam dokumentarni vlastnosti!\n");
 	pna->type=ADDRSPACEP;
 	pna->value=(long)(nsp=js_mem_alloc(sizeof(plns)));
+	add_to_list(context->namespaces, &nsp->xl);
 	nsp->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
 	pna->handler=pna->mid=nsp->handler=nsp->mid=js_upcall_get_document_id(context->ptr);
 	j=0;
@@ -611,6 +621,7 @@ void add_builtin(js_context*context)
 	idebug("Vstavam smiracke schopnosti\n");
 	pna->type=ADDRSPACEP;
 	pna->value=(long)(nsp=js_mem_alloc(sizeof(plns)));
+	add_to_list(context->namespaces, &nsp->xl);
 	nsp->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
 	nsp->handler=nsp->mid=0;
 	j=0;
@@ -646,6 +657,7 @@ void add_builtin(js_context*context)
         idebug("Vstavam historii\n");
         pna->type=ADDRSPACEP;
         pna->value=(long)(nsp=js_mem_alloc(sizeof(plns)));
+	add_to_list(context->namespaces, &nsp->xl);
         nsp->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
         nsp->handler=nsp->mid=js_upcall_get_document_id(context->ptr);
         j=0;
@@ -1139,6 +1151,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			pomarg1=getarg(&argy);
 			rettype=ARRAY;
 			retval=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -1206,6 +1219,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 /*			debug("CImage is only fake!!");*/
 			rettype=ADDRSPACE;
 			retval=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -1244,6 +1258,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			idebug("CDate called ");
 			rettype=ADDRSPACE;
 			retval=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -2022,6 +2037,7 @@ void js_intern_fupcall(js_context*context,long klic,lns*variable)
 			if(variable->identifier==CSsplit)
 			{	rettype=ARRAY;
 				retval=(long)(pomns=js_mem_alloc(sizeof(plns)));
+				add_to_list(context->namespaces, &pomns->xl);
 				pomns->next=context->lnamespace;
 				pomns->handler=pomns->mid=0;
 				pomns->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
@@ -2402,6 +2418,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 		case Clocation:
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
 			pomns->mid=pna->mid;
 			pomns->handler=pna->handler;
@@ -2568,6 +2585,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Clinks called ");
 			*typ=ARRAY;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomstr=js_mem_alloc(DELKACISLA+1);
 			pomns->next=context->lnamespace;
 			pomns->handler=pna->handler;
@@ -2616,6 +2634,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Ctop called\n");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			if(pna->value==Ctop)
 				j=pomns->handler=pomns->mid=js_upcall_get_frame_top(context->ptr,pna->mid);
@@ -2659,6 +2678,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cframesy called ");
                         *typ=ARRAY;
                         *value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
                         pomstr=js_mem_alloc(DELKACISLA+1);
                         pomns->next=context->lnamespace;
                         pomns->mid=pna->mid;
@@ -2706,6 +2726,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cforms called\n");
 			*typ=ARRAY;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomstr=js_mem_alloc(DELKACISLA+1);
 			pomns->next=context->lnamespace;
 			pomns->mid=pna->mid;
@@ -2745,6 +2766,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Canchors called\n");
 			*typ=ARRAY;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomstr=js_mem_alloc(DELKACISLA+1);
 			pomns->next=context->lnamespace;
 			pomns->mid=pna->mid;
@@ -2784,6 +2806,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Clinkptr called");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->handler=pomns->mid=0;
 			pomns->ns=js_mem_alloc(sizeof(lns*)*HASHNUM);
@@ -2804,6 +2827,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cformptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=pna->mid; /* Nevim ale snad to bude fungovat */
 			pomns->handler=pna->handler;
@@ -2831,6 +2855,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Ctextptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -2847,6 +2872,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
 			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
 			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
+
+			BUILDTYPE("text");
+			
 			BUILDSFCE("focus",Cfocus,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDSFCE("blur",Cblur,pna->mid);
@@ -2862,6 +2890,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cpasswdptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -2878,6 +2907,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
 			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
 			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
+
+			BUILDTYPE("password");
+
 			BUILDSFCE("focus",Cfocus,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDSFCE("blur",Cblur,pna->mid);
@@ -2893,6 +2925,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Ctextarptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -2909,6 +2942,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
 			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
 			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
+
+			BUILDTYPE("textarray");
+			
 			BUILDSFCE("focus",Cfocus,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDSFCE("blur",Cblur,pna->mid);
@@ -2925,6 +2961,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Csubmitptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -2940,6 +2977,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
 			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
 			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
+
+			BUILDTYPE("submit");
+
 /*			BUILDSFCE("focus",Cfocus,pna->mid);
 			pomvar->handler=pna->handler; */
 			BUILDSFCE("click",Cclick,pna->mid);
@@ -2954,6 +2994,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cresetptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -2969,6 +3010,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
 			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
 			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
+
+			BUILDTYPE("reset");
+
 			BUILDSFCE("click",Cclick,pna->mid);
 			pomvar->handler=pna->handler;
 /*			BUILDSFCE("focus",Cfocus,pna->mid);
@@ -2983,6 +3027,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Chiddenptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -2995,6 +3040,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			pomvar->value=0;
 			BIVAR1("name",Cfename,pna->mid,pna->handler);
 			BIVAR1("value",CdefaultValue,pna->mid,pna->handler);
+
+			BUILDTYPE("hidden");
+			
 			BUILDFCE("toString",CtoString);
 			pomvar->handler=C_OBJ_hidden;
 
@@ -3005,6 +3053,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cchkboxptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -3022,6 +3071,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
 			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
 			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
+
+			BUILDTYPE("checkbox");
+			
 			BUILDSFCE("click",Cclick,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDFCE("toString",CtoString);
@@ -3036,6 +3088,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cradioptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -3054,6 +3107,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
 			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
 			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
+
+			BUILDTYPE("radio");
+			
 			BUILDSFCE("click",Cclick,pna->mid);
 			pomvar->handler=pna->handler;
 			BUILDFCE("toString",CtoString);
@@ -3067,6 +3123,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cselectptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -3088,6 +3145,9 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			BIVAR1("onkeydown",Conkeydown,pna->mid,pna->handler);
 			BIVAR1("onkeypress",Conkeypress,pna->mid,pna->handler);
 			BIVAR1("onkeyup",Conkeyup,pna->mid,pna->handler);
+
+			BUILDTYPE("select");
+			
 			BUILDFCE("toString",CtoString);
 			pomvar->handler=C_OBJ_select;
 
@@ -3105,6 +3165,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			 idebug("Cselectoptions called\n");
                         *typ=ARRAY;
                         *value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
                         pomstr=js_mem_alloc(DELKACISLA+1);
                         pomns->next=context->lnamespace;
                         pomns->mid=pna->mid;
@@ -3151,6 +3212,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cselectmrcha called...\n");
                         *typ=ADDRSPACE;
                         *value=(long)(pomns=js_mem_alloc(sizeof(plns))); /* Dul se muze zaplavit, zasypat, ale nikdo vam ho nemuze vzit. B;-) */
+			add_to_list(context->namespaces, &pomns->xl);
                         pomns->next=context->lnamespace;
                         pomns->mid=0;
                         pomns->handler=0;
@@ -3312,6 +3374,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Celements called ");
 			*typ=ARRAY;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomstr=js_mem_alloc(DELKACISLA+1);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
@@ -3397,6 +3460,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 #if 1
 			*typ=ARRAY;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomstr=js_mem_alloc(DELKACISLA+1);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
@@ -3557,6 +3621,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cimages called ");
                         *typ=ARRAY;
                         *value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
                         pomstr=js_mem_alloc(DELKACISLA+1);
                         pomns->next=context->lnamespace;
                         pomns->mid=pna->mid;
@@ -3600,6 +3665,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cbuttonptr called");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
 			pomns->next=context->lnamespace;
 			pomns->mid=0;
 			pomns->handler=0;
@@ -3623,6 +3689,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cimageptr called");
                         *typ=ADDRSPACE;
                         *value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
                         pomns->next=context->lnamespace;
                         pomns->mid=0;
 			pomns->handler=0;
@@ -3720,6 +3787,7 @@ void get_var_value(lns*pna,long* typ, long*value,js_context*context)
 			idebug("Cframeptr called ");
 			*typ=ADDRSPACE;
 			*value=(long)(pomns=js_mem_alloc(sizeof(plns)));
+			add_to_list(context->namespaces, &pomns->xl);
                         pomns->next=context->lnamespace;
                         pomns->mid=pna->mid;
 			pomns->handler=pna->mid;

@@ -611,56 +611,63 @@ void download_data(struct status *stat, struct download *down)
 	struct fragment *frag;
 	if (stat->state >= S_WAIT && stat->state < S_TRANS) goto end_store;
 	if (!(ce = stat->ce)) goto end_store;
-	if (ce->last_modified)
-	down->remotetime = parse_http_date(ce->last_modified);
+	if (ce->last_modified) down->remotetime = parse_http_date(ce->last_modified);
 /*	  fprintf(stderr,"\nFEFE date %s\n",ce->last_modified); */
-	if (ce->redirect && down->redirect_cnt++ < MAX_REDIRECTS) {
-		unsigned char *u, *p;
-		if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
-		u = join_urls(down->url, ce->redirect);
-		if (!u) goto x;
-		if (!http_bugs.bug_302_redirect) if (!ce->redirect_get && (p = strchr(down->url, POST_CHAR))) add_to_strn(&u, p);
-		mem_free(down->url);
-		down->url = u;
-		down->stat.state = S_WAIT_REDIR;
-		if (down->win) {
-			struct event ev = { EV_REDRAW, 0, 0, 0 };
-			ev.x = down->win->term->x;
-			ev.y = down->win->term->y;
-			down->win->handler(down->win, &ev, 0);
-		}
-		/*if (!strchr(down->url, POST_CHAR)) {*/
-			load_url(down->url, NULL, &down->stat, PRI_DOWNLOAD, NC_CACHE);
+	if (ce->redirect) {
+		if (down->redirect_cnt++ < MAX_REDIRECTS) {
+			unsigned char *u, *p, *pos;
+			unsigned char *prev_down_url;
+			int cache;
+			if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
+			u = join_urls(down->url, ce->redirect);
+			if (!u) goto x;
+			if ((pos = extract_position(u))) mem_free(pos);
+			if (!http_bugs.bug_302_redirect) if (!ce->redirect_get && (p = strchr(down->url, POST_CHAR))) add_to_strn(&u, p);
+			prev_down_url = down->url;
+			down->url = u;
+			down->stat.state = S_WAIT_REDIR;
+			if (down->win) {
+				struct event ev = { EV_REDRAW, 0, 0, 0 };
+				ev.x = down->win->term->x;
+				ev.y = down->win->term->y;
+				down->win->handler(down->win, &ev, 0);
+			}
+			cache = NC_CACHE;
+			if (!strcmp(down->url, prev_down_url) || down->redirect_cnt >= MAX_CACHED_REDIRECTS) cache = NC_RELOAD;
+			mem_free(prev_down_url);
+			load_url(down->url, NULL, &down->stat, PRI_DOWNLOAD, cache);
 			return;
-		/*} else {
-			unsigned char *msg = init_str();
-			int l = 0;
-			add_bytes_to_str(&msg, &l, down->url, (unsigned char *)strchr(down->url, POST_CHAR) - down->url);
-			msg_box(get_download_ses(down)->term, getml(msg, NULL), TEXT(T_WARNING), AL_CENTER | AL_EXTD_TEXT, TEXT(T_DO_YOU_WANT_TO_FOLLOW_REDIRECT_AND_POST_FORM_DATA_TO_URL), "", msg, "?", NULL, down, 3, TEXT(T_YES), down_post_yes, B_ENTER, TEXT(T_NO), down_post_no, 0, TEXT(T_CANCEL), down_post_cancel, B_ESC);
-		}*/
+		} else {
+			if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
+			stat->state = S_CYCLIC_REDIRECT;
+			goto end_store;
+		}
 	}
 	x:
-	foreach(frag, ce->frag) if (frag->offset <= down->last_pos && frag->offset + frag->length > down->last_pos) {
+	foreach(frag, ce->frag) while (frag->offset <= down->last_pos && frag->offset + frag->length > down->last_pos) {
 		int w;
 #ifdef HAVE_OPEN_PREALLOC
 		if (!down->last_pos && (!down->stat.prg || down->stat.prg->size > 0)) {
+			struct stat st;
+			if (fstat(down->handle, &st) || !S_ISREG(st.st_mode)) goto skip_prealloc;
 			close(down->handle);
 			down->handle = open_prealloc(down->file, O_CREAT|O_WRONLY|O_TRUNC, 0666, down->stat.prg ? down->stat.prg->size : ce->length);
 			if (down->handle == -1) goto error;
 			set_bin(down->handle);
+			skip_prealloc:;
 		}
 #endif
-		w = write(down->handle, frag->data + down->last_pos - frag->offset, frag->length - (down->last_pos - frag->offset));
+		w = write(down->handle, frag->data + (down->last_pos - frag->offset), frag->length - (down->last_pos - frag->offset));
 		if (w == -1) {
 #ifdef HAVE_OPEN_PREALLOC
 			error:
 #endif
-			detach_connection(stat, down->last_pos);
 			if (!list_empty(sessions)) {
-				unsigned char *msg = stracpy(down->file);
 				unsigned char *emsg = stracpy(strerror(errno));
+				unsigned char *msg = stracpy(down->file);
 				msg_box(get_download_ses(down)->term, getml(msg, emsg, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_WRITE_TO_FILE), " ", msg, ": ", emsg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 			}
+			detach_connection(stat, down->last_pos);
 			abort_download(down);
 			return;
 		}
@@ -1629,6 +1636,7 @@ void ses_go_forward(struct session *ses, int plain, int refresh)
 	struct location *cl;
 	struct f_data_c *fd;
 	if (ses->search_word) mem_free(ses->search_word), ses->search_word = NULL;
+	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
 	if ((fd = find_frame(ses, ses->wtd_target, ses->wtd_target_base))&&fd!=ses->screen) {
 		cl = NULL;
 		if (refresh && fd->loc && !strcmp(fd->loc->url, ses->rq->url)) cl = cur_loc(ses);
@@ -1652,6 +1660,7 @@ void ses_go_forward(struct session *ses, int plain, int refresh)
 void ses_go_backward(struct session *ses)
 {
 	if (ses->search_word) mem_free(ses->search_word), ses->search_word = NULL;
+	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
 	reinit_f_data_c(ses->screen);
 	destroy_location(cur_loc(ses));
 	ses->locked_link = 0;
@@ -1971,6 +1980,7 @@ void ses_finished_1st_state(struct object_request *rq, struct session *ses)
 		case O_LOADING:
 		case O_INCOMPLETE:
 		case O_OK:
+			if (!ses->goto_position && rq->goto_position) ses->goto_position = stracpy(rq->goto_position);
 			ses->wtd(ses);
 			break;
 	}
@@ -1985,10 +1995,10 @@ void ses_destroy_defered_jump(struct session *ses)
 
 #ifdef JS
 /* test if there're any running scripts */
-static inline int __any_running_scripts(struct f_data_c *fd)
+static inline int any_running_scripts(struct f_data_c *fd)
 {
-	if (!fd->js)return 0;
-	return (fd->js->active)||(!list_empty(fd->js->queue));
+	if (!fd->js) return 0;
+	return (fd->js->active) || (!list_empty(fd->js->queue));
 }
 #endif
 
@@ -1999,6 +2009,7 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	unsigned char *prev_url;
 	void (*fn)(struct session *, unsigned char *);
 	if (!state2) state2 = ses_go_to_2nd_state;
+	if (ses->defered_url && defer) return;
 	ses_destroy_defered_jump(ses);
 	if ((fn = get_external_protocol_function(url))) {
 		fn(ses, url);
@@ -2011,11 +2022,12 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 		return;
 	}
 #ifdef JS
-	if (defer && __any_running_scripts(ses->screen) ) {
+	if (defer && any_running_scripts(ses->screen)) {
 		ses->defered_url = u;
 		ses->defered_target = stracpy(target);
 		ses->defered_target_base = df;
-		ses->defered_data=data;
+		ses->defered_data = data;
+		ses->defered_seq = jsint_execute_seq++;
 		return;
 	}
 #endif
@@ -2033,9 +2045,8 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	ses->wtd_refresh = refresh;
 	if (ses->goto_position) mem_free(ses->goto_position);
 	ses->goto_position = pos;
-	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
-	if (!from_goto_dialog&&df&&(df->rq))prev_url=df->rq->url;
-	else prev_url=NULL;   /* previous page is empty - this probably never happens, but for sure */
+	if (!from_goto_dialog && df && df->rq) prev_url = df->rq->url;
+	else prev_url = NULL;   /* previous page is empty - this probably never happens, but for sure */
 	if (refresh && ses->wtd == ses_go_to_2nd_state) {
 		struct f_data_c *fr = find_frame(ses, ses->wtd_target, ses->wtd_target_base);
 		if (fr && fr->loc) if (!strcmp(fr->loc->url, u)) ses->reloadlevel = NC_RELOAD;

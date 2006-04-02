@@ -241,6 +241,12 @@ struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 		mem_free(d);
 		return NULL;
 	}
+#ifdef HAVE_IPTOS
+	if (ftp_options.set_tos) {
+		int on = IPTOS_THROUGHPUT;
+		setsockopt(c->sock2, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int));
+	}
+#endif
 	if (!(de = strchr(d, POST_CHAR))) de = d + strlen(d);
 	if (d == de || de[-1] == '/') {
 		inf->dir = 1;
@@ -424,8 +430,8 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 						return;
 					}
 					fcntl(c->sock2, F_SETFL, O_NONBLOCK);
-#if defined(IP_TOS) && defined(IPTOS_THROUGHPUT)
-					{
+#ifdef HAVE_IPTOS
+					if (ftp_options.set_tos) {
 						int on = IPTOS_THROUGHPUT;
 						setsockopt(c->sock2, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int));
 					}
@@ -574,7 +580,8 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 		for (pp = p - 1; pp >= 0; pp--) if (!WHITECHAR(buf[pp])) break;
 		if (pp < 0) goto raw;
 		for (; pp >= 0; pp--) if (pp >= 6 && WHITECHAR(buf[pp])) {
-			if (buf[pp - 6] == ' ' && buf[pp - 5] == ' ' &&
+			if ((buf[pp - 6] == ' ' || (buf[pp - 6] >= '0' && buf[pp - 6] <= '9')) &&
+			    buf[pp - 5] == ' ' &&
 			    ((buf[pp - 4] == '2' && buf[pp - 3] == '0') ||
 			     (buf[pp - 4] == '1' && buf[pp - 3] == '9')) &&
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '9' &&

@@ -1043,8 +1043,9 @@ void redraw_list(struct terminal *term, void *bla)
 			y+=gf_val(1,G_BFU_FONT_SIZE);
 			if (l==ld->list) break;
 		}
+		if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' '|COLOR_MENU);
 #ifdef G
-		if (F)
+		else
 		{
 			term->dev->drv->fill_area(term->dev,dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,dlg->y+DIALOG_TB+(ld->n_items)*G_BFU_FONT_SIZE,dip_get_color_sRGB(G_BFU_BG_COLOR));
 		}
@@ -1515,6 +1516,7 @@ void list_find_next(struct redraw_data *rd, int direction)
 				if (l!=item) l->type|=2;
 
 		draw_to_window(dlg->win,redraw_list,rd);
+		if (!F) if (!ses->term->spec->block_cursor || ses->term->spec->braille) set_cursor(ses->term, dlg->x + DIALOG_LB, dlg->y+DIALOG_TB+ld->win_pos, dlg->x + DIALOG_LB, dlg->y+DIALOG_TB+ld->win_pos);
 	}
 	else 
 		msg_box(ses->term, NULL, TEXT(T_SEARCH), AL_CENTER, TEXT(T_SEARCH_STRING_NOT_FOUND), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
@@ -1529,7 +1531,7 @@ void list_search_for_back(struct redraw_data *rd, unsigned char *str)
 	if (!ld->open) return;
 
 	if (ld->search_word) mem_free(ld->search_word);
-	ld->search_word = stracpy(str);
+	ld->search_word = to_utf8_upcase(str, rd->dlg->win->term->spec->charset);
 	ld->search_direction = -1;
 
 	list_find_next(rd, ld->search_direction);
@@ -1543,7 +1545,7 @@ void list_search_for(struct redraw_data *rd, unsigned char *str)
 	if (!ld->open) return;
 
 	if (ld->search_word) mem_free(ld->search_word);
-	ld->search_word = stracpy(str);
+	ld->search_word = to_utf8_upcase(str, rd->dlg->win->term->spec->charset);
 	ld->search_direction = 1;
 
 	list_find_next(rd, ld->search_direction);
@@ -1603,7 +1605,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			r->ld=ld;
 			r->dlg=dlg;
 
-			input_field(ses->term, getml(r,NULL), TEXT(T_SEARCH), TEXT(T_SEARCH_FOR_TEXT), TEXT(T_OK), TEXT(T_CANCEL), r, ld->search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) list_search_for, NULL);
+			input_field(ses->term, getml(r,NULL), TEXT(T_SEARCH), TEXT(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) list_search_for, TEXT(T_CANCEL), NULL, NULL);
 			return EVENT_PROCESSED;
 		}
 		if (ev->x=='?') /* search back */
@@ -1614,7 +1616,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			r->ld=ld;
 			r->dlg=dlg;
 
-			input_field(ses->term, getml(r,NULL), TEXT(T_SEARCH_BACK), TEXT(T_SEARCH_FOR_TEXT), TEXT(T_OK), TEXT(T_CANCEL), r, ld->search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, (void (*)(void *, unsigned char *)) list_search_for_back, NULL);
+			input_field(ses->term, getml(r,NULL), TEXT(T_SEARCH_BACK), TEXT(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) list_search_for_back, TEXT(T_CANCEL), NULL, NULL);
 			return EVENT_PROCESSED;
 		}
 		if (ev->x=='n') /* find next */
@@ -2129,11 +2131,11 @@ void reinit_list_window(struct list_description *ld)
 {
 	struct redraw_data rd;
 
-	if (!(ld->open)||!(ld->dlg))return;
 	ld->current_pos=ld->list;
 	ld->win_offset=ld->list;
 	ld->win_pos=0;
 
+	if (!(ld->open)||!(ld->dlg))return;
 	rd.ld=ld;
 	rd.dlg=ld->dlg;
 	rd.n=0;

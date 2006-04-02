@@ -328,7 +328,13 @@ tcount resize_count = 0;
 void close_fork_tty(void)
 {
 	struct terminal *t;
+	struct download *d;
+	struct connection *c;
+	struct k_conn *k;
 	foreach (t, terminals) if (t->fdin > 0) close(t->fdin);
+	foreach (d, downloads) if (d->handle > 0) close(d->handle);
+	foreach (c, queue) close_socket(&c->sock1), close_socket(&c->sock2);
+	foreach (k, keepalive_connections) close(k->conn);
 }
 
 #if defined(UNIX) || defined(WIN32) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(SPAD)
@@ -1820,4 +1826,37 @@ unsigned long strtoul(const char *nptr, char **endptr, int base) {
 char **sys_errlist;
 char *strerror(int errnum) { return sys_errlist[errnum];};
 
+#endif
+
+#ifndef HAVE_GETTIMEOFDAY
+int gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+	if (tv) tv->tv_sec = time(NULL), tv->tv_usec = 0;
+	if (tz) tz->tz_minuteswest = tz->tz_dsttime = 0;
+	return 0;
+}
+#endif
+#ifndef HAVE_STRCSPN
+size_t strcspn(const char *s, const char *reject)
+{
+	size_t r;
+	for (r = 0; *s; r++, s++) {
+		const char *rj;
+		for (rj = reject; *rj; rj++) if (*s == *rj) goto brk;
+	}
+	brk:
+	return r;
+}
+#endif
+#ifndef HAVE_STRSTR
+char *strstr(const char *haystack, const char *needle)
+{
+	size_t hs = strlen(haystack);
+	size_t ns = strlen(needle);
+	while (hs >= ns) {
+		if (!memcmp(haystack, needle, ns)) return haystack;
+		haystack++, hs--;
+	}
+	return NULL;
+}
 #endif

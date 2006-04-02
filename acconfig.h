@@ -121,3 +121,5 @@
 /* */
 #undef C_LITTLE_ENDIAN
 
+/* */
+#undef RENAME_OVER_EXISTING_FILES

@@ -432,6 +432,7 @@ void split_line_object(struct g_part *p, struct g_object_text *text, unsigned ch
 
 void add_object(struct g_part *p, struct g_object *o)
 {
+	g_nobreak = 0;
 	flush_pending_text_to_line(p);
 	p->w.width = rm(par_format) - par_format.leftmargin * G_HTML_MARGIN;
 	if (p->w.pos + o->xw > p->w.width) flush_pending_line_to_obj(p, 0);
@@ -489,7 +490,7 @@ void g_html_form_control(struct g_part *p, struct form_control *fc)
 	if (fc->type == FC_TEXTAREA) {
 		unsigned char *p;
 		for (p = fc->default_value; p[0]; p++) if (p[0] == '\r') {
-			if (p[1] == '\n') memcpy(p, p + 1, strlen(p)), p--;
+			if (p[1] == '\n') memmove(p, p + 1, strlen(p)), p--;
 			else p[0] = '\n';
 		}
 	}

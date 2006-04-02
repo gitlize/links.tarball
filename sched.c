@@ -21,17 +21,6 @@ struct h_conn {
 
 struct list_head h_conns = {&h_conns, &h_conns};
 
-struct k_conn {
-	struct k_conn *next;
-	struct k_conn *prev;
-	void (*protocol)(struct connection *);
-	unsigned char *host;
-	int port;
-	int conn;
-	ttime timeout;
-	ttime add_time;
-};
-
 struct list_head keepalive_connections = {&keepalive_connections, &keepalive_connections};
 
 /* prototypes */
@@ -262,7 +251,7 @@ void del_connection(struct connection *c)
 	del_from_list(c);
 	send_connection_info(c);
 	mem_free(c->url);
-	if (c->prev_url)mem_free(c->prev_url);
+	if (c->prev_url) mem_free(c->prev_url);
 	mem_free(c);
 }
 

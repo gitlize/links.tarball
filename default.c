@@ -68,11 +68,9 @@ struct option *all_options[] = { links_options, html_options, NULL, };
 unsigned char *get_token(unsigned char **);
 void parse_config_file(unsigned char *, unsigned char *, struct option **);
 unsigned char *create_config_string(struct option *);
-unsigned char *read_config_file(unsigned char *);
-int write_to_config_file(unsigned char *, unsigned char *);
 unsigned char *get_home(int *);
 void load_config_file(unsigned char *, unsigned char *);
-int write_config_file(unsigned char *, unsigned char *, struct option *, struct terminal *);
+int write_config_data(unsigned char *, unsigned char *, struct option *, struct terminal *);
 void add_nm(struct option *, unsigned char **, int *);
 void add_quoted_to_str(unsigned char **, int *, unsigned char *);
 unsigned char *num_rd(struct option *, unsigned char *);
@@ -262,19 +260,42 @@ unsigned char *read_config_file(unsigned char *name)
 
 int write_to_config_file(unsigned char *name, unsigned char *c)
 {
-	int rr = strlen(c);
-	int r = rr;
+	int rr;
+	int r;
 	int h, w;
-	if ((h = open(name, O_WRONLY | O_NOCTTY | O_CREAT | O_TRUNC, 0666)) == -1) return -1;
+	unsigned char *tmp_name = stracpy(name);
+	unsigned char *ds, *dt, *dot;
+	for (dt = ds = tmp_name; *dt; dt++) if (dir_sep(*dt)) ds = dt;
+	if ((dot = strchr(ds, '.'))) *dot = 0;
+	add_to_strn(&tmp_name, ".tmp");
+	if ((h = open(tmp_name, O_WRONLY | O_NOCTTY | O_CREAT | O_TRUNC, 0666)) == -1) {
+		mem_free(tmp_name);
+		return errno;
+	}
 	set_bin(h);
+	rr = strlen(c);
+	r = rr;
 	while (r > 0) {
 		if ((w = write(h, c + rr - r, r)) <= 0) {
+			int err = !w ? ENOSPC : errno;
 			close(h);
-			return -1;
+			unlink(tmp_name);
+			mem_free(tmp_name);
+			return err;
 		}
 		r -= w;
 	}
 	close(h);
+#ifndef RENAME_OVER_EXISTING_FILES
+	unlink(name);
+#endif
+	if (rename(tmp_name, name)) {
+		int err = errno;
+		unlink(tmp_name);
+		mem_free(tmp_name);
+		return err;
+	}
+	mem_free(tmp_name);
 	return 0;
 }
 
@@ -399,8 +420,9 @@ void load_config(void)
 	load_config_file(links_home, "user.cfg");
 }
 
-int write_config_file(unsigned char *prefix, unsigned char *name, struct option *o, struct terminal *term)
+int write_config_data(unsigned char *prefix, unsigned char *name, struct option *o, struct terminal *term)
 {
+	int err;
 	unsigned char *c, *config_file;
 	if (!(c = create_config_string(o))) return -1;
 	config_file = stracpy(prefix);
@@ -409,8 +431,8 @@ int write_config_file(unsigned char *prefix, unsigned char *name, struct option 
 		return -1;
 	}
 	add_to_strn(&config_file, name);
-	if (write_to_config_file(config_file, c)) {
-		if (term) msg_box(term, NULL, TEXT(T_CONFIG_ERROR), AL_CENTER, TEXT(T_UNABLE_TO_WRITE_TO_CONFIG_FILE), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	if ((err = write_to_config_file(config_file, c))) {
+		if (term) msg_box(term, NULL, TEXT(T_CONFIG_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_UNABLE_TO_WRITE_TO_CONFIG_FILE), ": ", get_err_msg(-err), NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 		mem_free(c);
 		mem_free(config_file);
 		return -1;
@@ -425,12 +447,12 @@ void write_config(struct terminal *term)
 #ifdef G
 	if (F) update_driver_param();
 #endif
-	write_config_file(links_home, "links.cfg", links_options, term);
+	write_config_data(links_home, "links.cfg", links_options, term);
 }
 
 void write_html_config(struct terminal *term)
 {
-	write_config_file(links_home, "html.cfg", html_options, term);
+	write_config_data(links_home, "html.cfg", html_options, term);
 }
 
 void add_nm(struct option *o, unsigned char **s, int *l)
@@ -999,7 +1021,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -force-html\n"
 "  Treat files with unknown type as html rather than text.\n"
-"    (can be toggled with '\' key)\n"
+"    (can be toggled with '\\' key)\n"
 "\n"
 " -source <url>\n"
 "  Write unformatted data stream to stdout.\n"
@@ -1026,7 +1048,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    existing instance.\n"
 "\n"
 " -download-utime <0>/<1>\n"
-"  Set time of downloaded files to last modifications time reported by server.\n"
+"  Set time of downloaded files to last modification time reported by server.\n"
 "\n"
 " -async-dns <0>/<1>\n"
 "  Asynchronous DNS resolver on(1)/off(0).\n"
@@ -1104,6 +1126,10 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    some servers will deny the request. Other servers will convert content\n"
 "    to plain ascii when Accept-Charset is missing.\n"
 "\n"
+" -http-bugs.retry-internal-errors <0>/<1>\n"
+"    (default 0)\n"
+"  Retry on internal server errors (50x).\n"
+"\n"
 " -http-bugs.aggressive-cache <0>/<1>\n"
 "    (default 1)\n"
 "  Always cache everything regardless of server's caching recomendations.\n"
@@ -1134,6 +1160,9 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Send more ftp commands simultaneously. Faster response when\n"
 "    browsing ftp directories, but it is incompatible with RFC\n"
 "    and some servers don't like it.\n"
+"\n"
+" -ftp.set-iptos <0>/<1>\n"
+"  Set IP Type-of-service to high throughput on ftp connections.\n"
 "\n"
 " -menu-font-size <size>\n"
 "  Size of font in menu.\n"
@@ -1167,6 +1196,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -user-gamma <fp-value>\n"
 "  Additional gamma.\n"
+"    (default 1)\n"
 "\n"
 " -bfu-aspect <fp-value>\n"
 "  Display aspect ration.\n"
@@ -1199,7 +1229,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Resolve global names.\n"
 "\n"
 " -js.manual-confirmation <0>/<1>\n"
-"  Ask user to confirm potentially dangerous operations\n"
+"  Ask user to confirm potentially dangerous operations.\n"
 "    (opening windows, going to url etc.) Default 1.\n"
 "\n"
 " -js.recursion-depth <integer>\n"
@@ -1244,7 +1274,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    link number and enter.\n"
 "\n"
 " -html-table-order <0>/<1>\n"
-"  In text mode, walk through table by rows (0) or columns (1)\n"
+"  In text mode, walk through table by rows (0) or columns (1).\n"
 "\n"
 " -html-auto-refresh <0>/<1>\n"
 "  Process refresh to other page (1), or display link to that page (0).\n"
@@ -1396,7 +1426,7 @@ int aspect_on=1;
 
 unsigned char download_dir[MAX_STR_LEN] = "";
 
-struct ftp_options ftp_options = { "somebody@host.domain", 0, 0 };
+struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 1 };
 
 /* These are workarounds for some CGI script bugs */
 struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 0, 1, "", "", REFERER_NONE };
@@ -1455,6 +1485,7 @@ struct option links_options[] = {
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, ftp_options.anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.passive_ftp, "ftp.use_passive", "ftp.use-passive"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.fast_ftp, "ftp.fast", "ftp.fast"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.set_tos, "ftp.set_iptos", "ftp.set-iptos"},
 	{1, gen_cmd, num_rd, num_wr, 1, 999, &menu_font_size, "menu_font_size", "menu-font-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_BG_COLOR, "background_color", "background-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_FG_COLOR, "foreground_color", "foreground-color"},
@@ -1512,66 +1543,58 @@ struct option html_options[] = {
 	{0, NULL, NULL, NULL, 0, 0, NULL, NULL, NULL},
 };
 
-extern struct history goto_url_history ;
-
-int load_url_history(void)
+void load_url_history(void)
 {
-	unsigned char *history_file ;
-	FILE *fp ;
-	char	url[MAX_INPUT_URL_LEN];
+	unsigned char *history_file, *hs;
+	unsigned char *hsp;
 
-	if (anonymous) return 0;
+	if (anonymous) return;
 	/* Must have been called after init_home */
-	if (!links_home)
-		return 0;
-	history_file = stracpy (links_home) ;
-	if (!history_file)
-		return 0;
+	if (!links_home) return;
+	history_file = stracpy(links_home);
 	add_to_strn(&history_file, "links.his");
-	if (!(fp = fopen(history_file, "r")))
-	{
-		mem_free (history_file) ;
-		return 0;
+	hs = read_config_file(history_file);
+	mem_free(history_file);
+	if (!hs) return;
+	for (hsp = hs; *hsp; ) {
+		unsigned char *hsl, *hsc;
+		for (hsl = hsp; *hsl && *hsl != 10 && *hsl != 13; hsl++) ;
+		hsc = memacpy(hsp, hsl - hsp);
+		add_to_history(&goto_url_history, hsc);
+		mem_free(hsc);
+		hsp = hsl;
+		while (*hsp == 10 || *hsp == 13) hsp++;
 	}
-	while (fgets (url, MAX_INPUT_URL_LEN, fp))
-	{
-		url[MAX_INPUT_URL_LEN - 1] = 0;
-		if (*url) url[strlen(url)-1] = 0 ;
-		add_to_history(&goto_url_history, url) ;
-	}
-	fclose (fp) ;
-	mem_free (history_file) ;
-	return 0 ;
+	mem_free(hs);
 }
 
-int save_url_history(void)
+void save_url_history(void)
 {
-	struct history_item* hi ;
-	unsigned char *history_file ;
-	int  i = 0 ;
-	FILE *fp ;
-	if (anonymous) return 0;
+	struct history_item *hi;
+	unsigned char *history_file;
+	unsigned char *hs;
+	int hsl = 0;
+	int i = 0;
+	if (anonymous) return;
 
 	/* Must have been called after init_home */
-	if (!links_home)
-		return 0;
-	history_file = stracpy (links_home) ;
-	if (!history_file)
-		return 0;
+	if (!links_home) return;
+	history_file = stracpy(links_home);
 	add_to_strn(&history_file, "links.his");
-	if (!(fp = fopen(history_file, "w"))) {
-		mem_free(history_file);
-		return 0;
-	}
-	foreachback(hi,goto_url_history.items)
-	{
+	hs = init_str();
+	hsl = 0;
+	foreachback(hi, goto_url_history.items) {
+		if (!*hi->d || strchr(hi->d, 10) || strchr(hi->d, 13)) continue;
 		if (i++ > MAX_HISTORY_ITEMS)
-			break ;
-		else
-			fputs (hi->d, fp), fputc ('\n', fp) ;
+			break;
+		else {
+			add_to_str(&hs, &hsl, hi->d);
+			add_to_str(&hs, &hsl, NEWLINE);
+		}
 	}
-	fclose (fp) ;
-	mem_free (history_file) ;
-	return 0 ;
+	write_to_config_file(history_file, hs);
+	mem_free(history_file);
+	mem_free(hs);
+	return;
 }
 

@@ -24,6 +24,8 @@ extern js_context*js_context_ptr;
 int yylex(); /* This kills warning -hope is'nt buggy! */
 
 void js_warning_fn(struct dialog_data *dlg);
+int __js_shut_up_pressed(struct dialog_data *dlg, struct dialog_item_data* di);
+int __js_dismiss_pressed(struct dialog_data *dlg, struct dialog_item_data* ignore);
 
 /* aux function for js_warning */
 int __js_shut_up_pressed(struct dialog_data *dlg, struct dialog_item_data* di)

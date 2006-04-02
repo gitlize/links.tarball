@@ -88,13 +88,13 @@ int f(void);
 
 int mygetc(FILE *stream)
 {	int i=EOF;
-	if(js_get_char<=js_get_char_upto)i=*js_get_char++;
+	if(js_get_char<=js_get_char_upto)i=(unsigned char)(*js_get_char++);
 	return i;
 }
 
 int myungetc(int c, FILE *stream)
 {	int i=EOF;
-	if(js_get_char>js_get_char_from)i=*js_get_char--=c;
+	if(js_get_char>js_get_char_from)i=(unsigned char)(*js_get_char--=c);
 	return i;
 }
 

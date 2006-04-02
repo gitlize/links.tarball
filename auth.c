@@ -20,6 +20,7 @@ unsigned char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv
 /* prototypes */
 unsigned char *base64_encode(unsigned char *);
 void free_auth_entry(struct http_auth *);
+unsigned char *basic_encode(unsigned char *, unsigned char *);
 
 unsigned char *base64_encode(unsigned char *in)
 {

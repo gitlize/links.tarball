@@ -233,7 +233,8 @@ void tiff_finish(struct cached_image *cimg)
 	cimg->strip_optimized=0;
 	header_dimensions_known(cimg);
 /* int TIFFReadRGBAImage(TIFF* tif, u_long width, u_long height, u_long* raster, int stopOnError) from man page */
-	TIFFReadRGBAImage(t,cimg->width,cimg->height,(unsigned long*)(cimg->buffer),1); /* 231: warning: passing arg 4 of `TIFFReadRGBAImage' from incompatible pointer type */
+	/*TIFFReadRGBAImage(t,cimg->width,cimg->height,(unsigned long*)(cimg->buffer),1);*/ /* 231: warning: passing arg 4 of `TIFFReadRGBAImage' from incompatible pointer type */
+	TIFFReadRGBAImage(t,cimg->width,cimg->height,(void*)(cimg->buffer),1);
 	TIFFClose(t);
 
 	/* For some reason the TIFFReadRGBAImage() function chooses the lower

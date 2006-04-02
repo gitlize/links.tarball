@@ -87,6 +87,7 @@ typedef struct localnamespace {
 	}lns;
 
 typedef struct ptrlns {/*jako pointer na localnamespace*/
+		struct xlist_head xl;
 		lns** ns;
 		long mid; /* Jako Mikulasovo ID */
 		long handler;
@@ -163,6 +164,7 @@ typedef struct javascript_context
 		 js_id_name *namespace [HASHNUM];
 		/* Tady bude jeste fura dalsich veci, ale ted si nevzpomenu, 
 		   ktere. */
+		 struct list_head namespaces;
 		}js_context;
 
 
@@ -178,7 +180,7 @@ void ipret(js_bordylek*);
 lns*lookup(long,plns*,js_context*);
 lns*create(long,plns*,js_context*);
 plns*newnamespace(abuf*,abuf*,js_context*);
-void deletenamespace(plns*,js_context*);
+void deletenamespace(plns*,js_context*,int only_content);
 #define RESOLV(A) if((A->typ==VARIABLE)||(A->typ==INTVAR)) \
 	vartoarg((lns*)A->argument,A,context);
 

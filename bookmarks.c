@@ -481,6 +481,16 @@ void bookmark_delete_item(void *data)
 	mem_free(item);
 }
 
+static int substr_utf8(unsigned char *string, unsigned char *substr)
+{
+	int r;
+	string = unicode_upcase_string(string);
+	substr = unicode_upcase_string(substr);
+	r = !!strstr(string, substr);
+	mem_free(string);
+	mem_free(substr);
+	return r;
+}
 
 void * bookmark_find_item(void *start, unsigned char *str, int direction)
 {
@@ -492,7 +502,7 @@ void * bookmark_find_item(void *start, unsigned char *str, int direction)
 		for (b=s->next; b!=s; b=b->next)
 			if (b->depth>-1)
 			{
-				if (b->title && casestrstr(b->title,str)) return b;
+				if (b->title && substr_utf8(b->title,str)) return b;
 #ifdef SEARCH_IN_URL
 				if (b->url && casestrstr(b->url,str)) return b; 
 #endif
@@ -503,13 +513,13 @@ void * bookmark_find_item(void *start, unsigned char *str, int direction)
 		for (b=s->prev; b!=s; b=b->prev)
 			if (b->depth>-1)
 			{
-				if (b->title && casestrstr(b->title,str)) return b;
+				if (b->title && substr_utf8(b->title,str)) return b;
 #ifdef SEARCH_IN_URL
 				if (b->url && casestrstr(b->url,str)) return b; 
 #endif
 			}
 	}
-	if (b==s&&b->depth>-1&&b->title && casestrstr(b->title,str)) return b;
+	if (b==s&&b->depth>-1&&b->title && substr_utf8(b->title,str)) return b;
 #ifdef SEARCH_IN_URL
 	if (b==s&&b->depth>-1&&b->url && casestrstr(b->url,str)) return b; 
 #endif
@@ -603,7 +613,6 @@ void create_initial_bookmarks(void)
 
 void load_bookmarks(void)
 {
-	FILE *f;
 	unsigned char *buf;
 	long len;
 	
@@ -629,36 +638,16 @@ void load_bookmarks(void)
 	 *		pointer behind leading <h3> element
 	 */
 
-	f=fopen(bookmarks_file,"r"
-#if defined(OS2) || defined(WIN32)
-	"b"
-#endif
-	);
+	buf=read_config_file(bookmarks_file);
 	can_write_bookmarks=1;
-	if (!f){
+	if (!buf){
 		can_write_bookmarks=(errno==ENOENT); /* if open failed and the file exists, don't write initial bookmarks when finishing */
 		create_initial_bookmarks();
 		bookmark_ld.modified=1;
 		return;
 	}
 
-	fseek(f,0,SEEK_END);
-	len=ftell(f);
-	if (len == -1 || len >= MAXINT) {
-		file_err:
-		fclose(f);
-		can_write_bookmarks=0;
-		create_initial_bookmarks();
-		bookmark_ld.modified=1;
-		return;
-	}
-	fseek(f,0,SEEK_SET);
-	buf=mem_calloc(len);
-	if (fread(buf,len,1,f) != 1) {
-		mem_free(buf);
-		goto file_err;
-	}
-	fclose(f);
+	len=strlen(buf);
 
 	p=buf;
 	end=buf+len;
@@ -758,7 +747,7 @@ static unsigned char *convert_to_entity_string(unsigned char *str)
 	unsigned char *dst, *p, *q;
 	int size;
 	
-	for (size=1,p=str;*p;size+=*p=='&'?5:*p=='<'||*p=='>'||*p=='='?4:1,p++);
+	for (size=1,p=str;*p;size+=*p=='&'?5:*p=='<'||*p=='>'||*p=='='?4:*p=='"'?6:1,p++);
 
 	dst=mem_alloc(size);
 	
@@ -779,6 +768,10 @@ static unsigned char *convert_to_entity_string(unsigned char *str)
 			q[0]='&',q[1]='a',q[2]='m',q[3]='p',q[4]=';',q+=4;
 			break;
 
+			case '"':
+			q[0]='&',q[1]='q',q[2]='u',q[3]='o',q[4]='t',q[5]=';',q+=5;
+			break;
+
 			default:
 			*q=*p;
 			break;
@@ -791,21 +784,18 @@ static unsigned char *convert_to_entity_string(unsigned char *str)
 /* writes bookmarks to disk */
 void save_bookmarks(void)
 {
-	FILE *f;
 	struct bookmark_list *b;
 	int depth;
 	int a;
-	struct conv_table* ct;
+	struct conv_table *ct;
+	unsigned char *data;
+	int l;
 
 	if (!bookmark_ld.modified||!can_write_bookmarks)return;
 	ct=get_translation_table(bookmark_ld.codepage,bookmarks_codepage);
-	f=fopen(bookmarks_file,"w"
-#if defined(OS2) || defined(WIN32)
-	"b"
-#endif
-	);
-	if (!f)return;
-	fputs(
+	data=init_str();
+	l=0;
+	add_to_str(&data, &l,
 	"<HTML>\n"
 	"<HEAD>\n"
 	"<!-- This is an automatically generated file.\n"
@@ -815,11 +805,11 @@ void save_bookmarks(void)
 	"</HEAD>\n"
 	"<H1>Links bookmarks</H1>\n\n"
 	"<DL><P>\n"
-	,f);
+	);
 	depth=0;
 	foreach(b,bookmarks)
 	{
-		for (a=b->depth;a<depth;a++)fprintf(f,"</DL>\n");
+		for (a=b->depth;a<depth;a++)add_to_str(&data, &l,"</DL>\n");
 		depth=b->depth;
 	
 		if ((b->type)&1)
@@ -828,7 +818,9 @@ void save_bookmarks(void)
 			txt=convert_string(ct,b->title,strlen(b->title),NULL);
 			clr_white(txt);
 			txt1=convert_to_entity_string(txt);
-			fprintf(f,"    <DT><H3>%s</H3>\n<DL>\n",txt1);
+			add_to_str(&data, &l, "    <DT><H3>");
+			add_to_str(&data, &l, txt1);
+			add_to_str(&data, &l, "</H3>\n<DL>\n");
 			mem_free(txt);
 			mem_free(txt1);
 			depth++;
@@ -841,18 +833,23 @@ void save_bookmarks(void)
 			txt2=convert_string(ct,b->url,strlen(b->url),NULL);
 			clr_white(txt2);
 			txt11=convert_to_entity_string(txt1);
-			fprintf(f,"    <DT><A HREF=\"%s\">%s</A>\n",txt2,txt11);
+			add_to_str(&data, &l, "    <DT><A HREF=\"");
+			add_to_str(&data, &l, txt2);
+			add_to_str(&data, &l, "\">");
+			add_to_str(&data, &l, txt11);
+			add_to_str(&data, &l, "</A>\n");
 			mem_free(txt1);
 			mem_free(txt2);
 			mem_free(txt11);
 		}
 	}
-	for (a=0;a<depth;a++)fprintf(f,"</DL>\n");
-	fputs(
+	for (a=0;a<depth;a++)add_to_str(&data, &l,"</DL>\n");
+	add_to_str(&data, &l,
 	"</DL><P>\n"
 	"</HTML>\n"
-	,f);
-	fclose(f);
+	);
+	write_to_config_file(bookmarks_file, data);
+	mem_free(data);
 	bookmark_ld.modified=0;
 }
 

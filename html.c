@@ -90,12 +90,13 @@ void parse_frame_widths(unsigned char *, int, int, int **, int *);
 void html_frameset(unsigned char *);
 void html_link(unsigned char *);
 void process_head(unsigned char *);
+int qd(unsigned char *, unsigned char *, int *);
 void scan_area_tag(unsigned char *, unsigned char *, unsigned char **, struct memory_list **);
 void menu_labels(struct menu_item *, unsigned char *, unsigned char **);
 
 static inline int atchr(unsigned char c)
 {
-	return isA(c) || (c > ' ' && c != '=' && c != '<' && c != '>');
+	return /*isA(c) ||*/ (c > ' ' && c != '=' && c != '<' && c != '>');
 }
 
 /* accepts one html element */
@@ -118,7 +119,7 @@ int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, in
 		e++;
 		if (e >= eof) return -1;
 	}
-	if ((!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;
+	/*if ((!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;*/
 	if (name && namelen) *namelen = e - *name;
 	while ((WHITECHAR(*e) || *e == '/' || *e == ':')) {
 		e++;
@@ -150,7 +151,7 @@ int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, in
 	}
 	if (U(*e)) {
 		unsigned char uu = *e;
-		u:
+		/*u:*/
 		goto x3;
 		while (e < eof && *e != uu && *e /*(WHITECHAR(*e) || *e > ' ')*/) {
 			x3:
@@ -160,7 +161,7 @@ int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, in
 		if (*e < ' ') return -1;
 		e++;
 		if (e >= eof /*|| (!WHITECHAR(*e) && *e != uu && *e != '>' && *e != '<')*/) return -1;
-		if (*e == uu) goto u;
+		/*if (*e == uu) goto u;*/
 	} else {
 		while (!WHITECHAR(*e) && *e != '>' && *e != '<') {
 			e++;
@@ -217,7 +218,7 @@ unsigned char *get_attr_val(unsigned char *e, unsigned char *name)
 		}
 	} else {
 		char uu = *e;
-		a:
+		/*a:*/
 		e++;
 		while (*e != uu) {
 			if (!*e) {
@@ -234,10 +235,10 @@ unsigned char *get_attr_val(unsigned char *e, unsigned char *name)
 			e++;
 		}
 		e++;
-		if (*e == uu) {
+		/*if (*e == uu) {
 			if (!f) add_chr(a, l, *e);
 			goto a;
-		}
+		}*/
 	}
 	ea:
 	if (!f) {
@@ -813,8 +814,11 @@ int parse_width(unsigned char *w, int trunc)
 		if (trunc) {
 #ifdef G
 			if (trunc == 3) {
+				return -1;
+				/*
 				limit = d_opt->yw - G_SCROLL_BAR_WIDTH;
 				if (limit < 0) limit = 0;
+				*/
 			}
 #endif
 			s = s * limit / 100;
@@ -2135,9 +2139,10 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	}
 	fc->cols = cols;
 	fc->rows = rows;
+	fc->wrap = 1;
 	if ((w = get_attr_val(attr, "wrap"))) {
-		if (!strcasecmp(w, "hard")) fc->wrap = 2;
-		else fc->wrap = 1;
+		if (!strcasecmp(w, "hard") || !strcasecmp(w, "physical")) fc->wrap = 2;
+		else if (!strcasecmp(w, "off")) fc->wrap = 0;
 		mem_free(w);
 	}
 	if ((fc->maxlength = get_num(attr, "maxlength")) == -1) fc->maxlength = MAXINT / 4;
@@ -2520,6 +2525,28 @@ void process_head(unsigned char *head)
 	}
 }
 
+int qd(unsigned char *html, unsigned char *eof, int *len)
+{
+	int l;
+	*len = 1;
+	if (html >= eof) {
+		internal("qd: out of data, html == %p, eof == %p", html, eof);
+		return -1;
+	}
+	if (html[0] != '&') return html[0];
+	if (html + 1 >= eof) return -1;
+	if (html[1] != '#') return -1;
+	for (l = 2; l < 10 && html + l < eof; l++) if (html[l] == ';') {
+		int n = get_entity_number(html + 2, l - 2);
+		if (n >= 0) {
+			*len = l + 1;
+			return n;
+		}
+		break;
+	}
+	return -1;
+}
+
 void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *, unsigned char *, int), void (*line_break)(void *), void *(*special)(void *, int, ...), void *f, unsigned char *head)
 {
 	/*unsigned char *start = html;*/
@@ -2580,20 +2607,24 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 			put_chrs(" ", 1, put_chars, f);
 			/*putsp = -1;*/
 		}
-		if (par_format.align == AL_NO) {
+		if (par_format.align == AL_NO && (*html < 32 || *html == '&')) {
+			int l;
+			int q = qd(html, eof, &l);
 			putsp = 0;
-			if (*html == 9) {
+			if (q == 9) {
 				put_chrs(lt, html - lt, put_chars, f);
-				put_chrs("        ", 8 - pos%8, put_chars, f);
-				html++;
+				put_chrs("        ", 8 - pos % 8, put_chars, f);
+				html += l;
 				goto set_lt;
-			} else if (*html == 13 || *html == 10) {
+			} else if (q == 13 || q == 10) {
 				put_chrs(lt, html - lt, put_chars, f);
 				next_break:
-				if (*html == 13 && html < eof-1 && html[1] == 10) html++;
+				html += l;
+				if (q == 13 && html < eof - 1 && qd(html, eof, &l) == 10) html += l;
 				ln_break(1, line_break, f);
-				html++;
-				if (*html == 13 || *html == 10) {
+				if (html >= eof) goto set_lt;
+				q = qd(html, eof, &l);
+				if (q == 13 || q == 10) {
 					line_breax = 0;
 					goto next_break;
 				}

@@ -1,3 +1,150 @@
+=== RELEASE 2.1pre21 ===
+
+Sun Apr  2 19:37:50 MET 2006 user:
+
+	Fixed some quirks when URL contained multiple '#' characters
+
+Sun Apr  2 19:08:45 MET 2006 user:
+
+	Better parsing of FTP directories (fixes Quick 'n Easy FTP Server)
+
+Sun Apr  2 17:10:30 CEST 2006 mikulas:
+
+	Fixed javascript memory leak on www.ebay.com
+	The bug was due to namespace containing reference to itself
+	PerM is really a programmer pig. After writing namespace allocation and
+	initialization 39 times, he didn't even consider making it function :-(
+
+Thu Mar 30 20:36:39 cet 2006 mikulas:
+
+	Location: field in HTTP reply is now allowed to contain position
+	specification '#'
+
+Thu Mar 23 15:20:22 CET 2006 mikulas:
+
+	Do not send Accept-Language to a buggy Netscape-Enterprise server
+	Do not send "en" language twice in Accept-Language
+
+Mon Mar 20 01:14:58 MET 2006 user:
+
+	Changes license to allow linking with OpenSSL
+
+Sun Mar 19 03:07:32 MET 2006 mikulas:
+
+	Support &#10;, &#13; and &#9;
+
+Sat Mar 11 04:08:15 MET 2006 mikulas:
+
+	An option to turn off IP type-of-service (some misconfigured firewalls
+	drop packets with it)
+
+Mon Mar  6 17:27:27 MET 2006 mikulas:
+
+	When clicking on images with keyboard, submit point (1,1), not (0,0)
+	(work around another bug on mail.centrum.cz)
+	Submit value attribute with image
+
+Sun Mar  5 21:07:38 MET 2006 mikulas:
+
+	Ignore percentual height specification in html (links took it relatively
+	to the height of the screen while other browsers interpreted it
+	relatively to the height of a table cell)
+
+Sun Mar  5 20:47:23 MET 2006 mikulas:
+
+	Make multipart boundary format compatible with Netscape (unfortunatelly
+	there are buggy servers that depend on it --- for example
+	mail.centrum.cz)
+	Do not send Content-Type when there's no file to upload
+
+Wed Mar  1 01:01:36 MET 2006 Andrei Paskevich <andrei@capet.iut-fbleau.fr>:
+
+	Fix tokenizer of javascript when it encounters 0xff character
+
+Tue Feb 28 01:46:18 cet 2006 mikulas:
+
+	OS/2 Pmshell gui: Ignore mouse-move events if mouse position stays the
+	same. Mozilla is somehow generating these events when its javascript
+	runs and it disrupts links
+
+Mon Feb 27 05:24:28 cet 2006 mikulas:
+
+	Make textarea wrapping default (compatible with Mozilla, Netscape has
+	default no wrapping)
+
+Sat Feb 11 02:26:24 cet 2006 mikulas:
+
+	More bug-compatible parsing of superfluous quotation marks
+
+Sun Feb  5 21:11:49 MET 2006 mikulas:
+
+	Fixed some quirks when searching in associations or extensions ---
+	search sometimes didn't find anything (depending on random memory)
+	and window was not properly redrawn
+
+Sun Feb  5 20:15:38 MET 2006 mikulas:
+
+	Fixed crash when bookmarks window was opened after changing bookmarks
+	charset
+
+Sun Feb  5 18:54:52 MET 2006 mikulas:
+
+	Case-insensitive search of all characters
+
+Wed Jan 25 16:26:35 MET 2006 user:
+
+	Fixed some quirks in graphics user interface:
+		selection didn't work when javascript was not compiled in
+		right mouse button didn't display menu when text was selected
+		serch text temporarily disappeared when user clicked on it
+		middle button didn't click on scrollbars
+
+Wed Jan 25 05:18:08 CET 2006 mikulas:
+
+	Updated manpage
+
+Mon Jan 23 18:22:41 MET 2006 user:
+
+	Fixed textarea content corruption due to overlapping areas in memcpy
+
+Thu Jan 19 18:13:52 MET 2006 user:
+
+	Disallow access to proxy:// urls from user interface
+	(they are internal-only)
+
+Thu Jan 19 17:57:13 MET 2006 user:
+
+	Accept urls http://host.domain#position
+
+Sun Jan 15 16:29:19 MET 2006 mikulas:
+
+	Find X-window in X11R7 directory
+
+Sun Jan 15 05:51:13 MET 2006 user:
+
+	Preserve config, history and bookmarks in case of IO error (including
+	full disk)
+
+Fri Dec 30 17:31:26 MET 2005 user:
+
+	Guess content-type by extension on misconfigured servers that
+	return text/plain or application/octet-stream
+
+Thu Dec 29 23:35:32 MET 2005 Jakub Bogusz <qboosh@pld-linux.org>:
+
+	Updated Polish translation
+
+Thu Dec 22 15:14:00 MET 2005 mikulas:
+
+	Discard mouse events while user viewer is in foreground (but due to some
+	quirks in gpm/svgalib, it may still produce spurious mouse-click events)
+
+Thu Dec 22 13:36:38 MET 2005 user:
+
+	Fixed bug with downloads and cyclic redirects (now, as when loading
+	real documents, it turns off cache and displays error if it doesn't
+	help)
+
 === RELEASE 2.1pre20 ===
 
 Wed Dec  7 21:21:18 MET 2005 E. Rosten <er258@eng.cam.ac.uk>:

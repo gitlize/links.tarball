@@ -335,6 +335,7 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 		case WM_MOUSEMOVE:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
+			if (win->lastpos == (unsigned)mp1) { pm_unlock; break; }
 			win->lastpos = (unsigned)mp1;
 			pm_send_mouse_event(win, (unsigned)mp1 & 0xffff, win->y - ((unsigned)mp1 >> 16), (win->button ? B_DRAG : B_MOVE) | (win->button & (1 << B_LEFT) ? B_LEFT : win->button & (1 << B_MIDDLE) ? B_MIDDLE : win->button & (1 << B_RIGHT) ? B_RIGHT : 0));
 			pm_unlock;
@@ -715,6 +716,7 @@ struct graphics_device *pm_init_device()
 	struct graphics_device *dev;
 	struct pm_window *win;
 	win = mem_alloc(sizeof(struct pm_window));
+	win->lastpos = 0xffffffff;
 	win->button = 0;
 	init_list(win->queue);
 	win->in = 0;

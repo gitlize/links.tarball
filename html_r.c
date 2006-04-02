@@ -24,6 +24,7 @@ struct f_data *init_formatted(struct document_options *opt)
 	scr->n_images=0;
 	init_list(scr->images);
 	scr->search_positions = DUMMY;
+	scr->search_lengths = DUMMY;
 	init_list(scr->image_refresh);
 	scr->start_highlight_x = -1;
 	scr->start_highlight_y = -1;
@@ -161,6 +162,7 @@ void clear_formatted(struct f_data *scr)
 	if (scr->srch_string) mem_free(scr->srch_string);
 	if (scr->last_search) mem_free(scr->last_search);
 	if (scr->search_positions) mem_free(scr->search_positions);
+	if (scr->search_lengths) mem_free(scr->search_lengths);
 #endif
 	if (scr->refresh) mem_free(scr->refresh);
 	jsint_destroy_document_description(scr);
@@ -868,7 +870,7 @@ void html_form_control(struct part *p, struct form_control *fc)
 	if (fc->type == FC_TEXTAREA) {
 		unsigned char *p;
 		for (p = fc->default_value; p[0]; p++) if (p[0] == '\r') {
-			if (p[1] == '\n') memcpy(p, p + 1, strlen(p)), p--;
+			if (p[1] == '\n') memmove(p, p + 1, strlen(p)), p--;
 			else p[0] = '\n';
 		}
 	}
@@ -1430,8 +1432,9 @@ int get_srch(struct f_data *f)
 			int ns = 1;
 			for (x = n->x; x < xm && x < f->data[y].l; x++) {
 				unsigned char c = f->data[y].d[x];
-				if (c < ' ') c = ' ' ;
+				if (c < ' ' || f->data[y].d[x] & ATTR_FRAME) c = ' ';
 				if (c == ' ' && ns) continue;
+				c = charset_upcase(c, f->opt.cp);
 				if (ns) {
 					if (!cc) add_srch_chr(f, c, x, y, 1);
 					else cnt++;

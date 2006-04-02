@@ -251,7 +251,7 @@ void free_entry_to(struct cache_entry *e, off_t off)
 			mem_free(g);
 		} else if (f->offset < off) {
 			sf(f->offset - off);
-			memmove(f->data, f->data + off - f->offset, f->length -= off - f->offset);
+			memmove(f->data, f->data + (off - f->offset), f->length -= off - f->offset);
 			f->offset = off;
 		} else break;
 	}

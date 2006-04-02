@@ -1794,6 +1794,7 @@ static void setup_functions(void)
 
 }
 
+#if 0
 void dump_mode_info_into_file(vga_modeinfo* i)
 {
  FILE *f;
@@ -1828,6 +1829,7 @@ void dump_mode_info_into_file(vga_modeinfo* i)
  fprintf(f,"Accelerated putimage: %s\n",svga_driver.draw_bitmap==draw_bitmap_accel?"yes":"no");
  fclose(f);
 }
+#endif
 
 static void svgalib_key_in(void *p, struct event *ev, int size)
 {

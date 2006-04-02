@@ -99,7 +99,7 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 		e:
 		setcstate(c, -errno);
 		retry_connection(c);
-		return -2;
+		return -1;
 	}
 	if ((s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) goto e;
 	*sock = s;
@@ -112,12 +112,6 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 	if (listen(s, 1)) goto e;
 	memcpy(port, &sa.sin_addr.s_addr, 4);
 	memcpy(port + 4, &sa.sin_port, 2);
-#if defined(IP_TOS) && defined(IPTOS_THROUGHPUT)
-	{
-		int on = IPTOS_THROUGHPUT;
-		setsockopt(s, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int));
-	}
-#endif
 	return 0;
 }
 

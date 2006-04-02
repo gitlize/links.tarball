@@ -21,6 +21,7 @@ struct codepage_desc {
 #include "codepage.inc"
 #include "uni_7b.inc"
 #include "entity.inc"
+#include "upcase.inc"
 
 char strings[256][2] = {
 	"\000", "\001", "\002", "\003", "\004", "\005", "\006", "\007",
@@ -89,24 +90,27 @@ int strange_chars[32] = {
 	0x007e, 0x2122, 0x0161, 0x003e, 0x0153, 0x0000, 0x0000, 0x0000,
 };
 
-#define U_EQUAL(a, b) (a).x == (b)
-#define U_ABOVE(a, b) (a).x > (b)
+#define U_EQUAL(a, b) unicode_7b[a].x == (b)
+#define U_ABOVE(a, b) unicode_7b[a].x > (b)
 
-static inline unsigned char *u2cp(int u, int to)
+static inline unsigned char *u2cp(int u, int to, int fallback)
 {
 	int j, s;
+	again:
 	if (u < 128) return strings[u];
 	if (u == 0xa0) return "\001";
 	if (u == 0xad) return "";
 	if (codepages[to].table == table_utf_8) return encode_utf_8(u);
 	if (u < 0xa0) {
-		if (!strange_chars[u - 0x80]) return NULL;
-		return u2cp(strange_chars[u - 0x80], to);
+		u = strange_chars[u - 0x80];
+		if (!u) return NULL;
+		goto again;
 	}
 	for (j = 0; codepages[to].table[j].c; j++)
 		if (codepages[to].table[j].u == u)
 			return strings[codepages[to].table[j].c];
-	BIN_SEARCH(unicode_7b, N_UNICODE_7B, U_EQUAL, U_ABOVE, u, s);
+	if (!fallback) return NULL;
+	BIN_SEARCH(N_UNICODE_7B, U_EQUAL, U_ABOVE, u, s);
 	if (s != -1) return unicode_7b[s].s;
 	return NULL;
 }
@@ -318,7 +322,7 @@ struct conv_table *get_translation_table(int from, int to)
 		}
 		continue;
 		f:
-		u = u2cp(codepages[from].table[j].u, to);
+		u = u2cp(codepages[from].table[j].u, to, 1);
 		if (u) table[i].u.str = u;
 	}
 	return table;
@@ -334,34 +338,39 @@ static inline int xxstrcmp(unsigned char *s1, unsigned char *s2, int l2)
 	return !!*s1;
 }
 
+int get_entity_number(unsigned char *st, int l)
+{
+	int n = 0;
+	if (st[0] == 'x') {
+		st++, l--;
+		if (!l || l > 4) return -1;
+		do {
+			char c = upcase(*(st++));
+			if (c >= '0' && c <= '9') n = n * 16 + c - '0';
+			else if (c >= 'A' && c <= 'F') n = n * 16 + c - 'A' + 10;
+			else return -1;
+			if (n >= 0x10000) return -1;
+		} while (--l);
+	} else {
+		if (!l || l > 5) return -1;
+		do {
+			char c = *(st++);
+			if (c >= '0' && c <= '9') n = n * 10 + c - '0';
+			else return -1;
+			if (n >= 0x10000) return -1;
+		} while (--l);
+	}
+	return n;
+}
+
 unsigned char *get_entity_string(unsigned char *st, int l, int encoding)
 {
 	int n;
 	if (l <= 0) return NULL;
 	if (st[0] == '#') {
 		if (l == 1) return NULL;
-		if (st[1] == 'x') {
-			n = 0;
-			if (l == 2 || l > 6) return NULL;
-			st += 2, l -= 2;
-			do {
-				char c = upcase(*(st++));
-				if (c >= '0' && c <= '9') n = n * 16 + c - '0';
-				else if (c >= 'A' && c <= 'F') n = n * 16 + c - 'A' + 10;
-				else return NULL;
-				if (n >= 0x10000) return NULL;
-			} while (--l);
-		} else {
-			n = 0;
-			if (l > 6) return NULL;
-			st++, l--;
-			do {
-				char c = *(st++);
-				if (c >= '0' && c <= '9') n = n * 10 + c - '0';
-				else return NULL;
-				if (n >= 0x10000) return NULL;
-			} while (--l);
-		}
+		if ((n = get_entity_number(st + 1, l - 1)) == -1) return NULL;
+		if (n < 32) n = 32;
 	} else {
 		int s = 0, e = N_ENTITIES - 1;
 		while (s <= e) {
@@ -379,7 +388,7 @@ unsigned char *get_entity_string(unsigned char *st, int l, int encoding)
 		f:;
 	}
 
-	return u2cp(n, encoding);
+	return u2cp(n, encoding, 1);
 }
 
 unsigned char *convert_string(struct conv_table *ct, unsigned char *c, int l, struct document_options *dopt)
@@ -515,3 +524,75 @@ int is_cp_special(int index)
 {
 	return codepages[index].table == table_utf_8;
 }
+
+#define UP_EQUAL(a, b) unicode_upcase[a].lo == (b)
+#define UP_ABOVE(a, b) unicode_upcase[a].lo > (b)
+
+unsigned char charset_upcase(unsigned char ch, int cp)
+{
+	unsigned u;
+	int res;
+	unsigned char *str;
+	if (ch < 0x80) return upcase(ch);
+	u = cp2u(ch, cp);
+	BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, u, res);
+	if (res == -1) return ch;
+	str = u2cp(unicode_upcase[res].up, cp, 0);
+	if (!str || !str[0] || str[1]) return ch;
+	return str[0];
+}
+
+void charset_upcase_string(unsigned char **chp, int cp)
+{
+	unsigned char *ch = *chp;
+	int i;
+	if (codepages[cp].table == table_utf_8) {
+		ch = unicode_upcase_string(ch);
+		mem_free(*chp);
+		*chp = ch;
+	} else {
+		for (i = 0; ch[i]; i++) ch[i] = charset_upcase(ch[i], cp);
+	}
+}
+
+unsigned char *unicode_upcase_string(unsigned char *ch)
+{
+	unsigned char *r = init_str();
+	int rl = 0;
+	while (1) {
+		unsigned c;
+		int res;
+		GET_UTF_8(ch, c);
+		if (!c) break;
+		BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, c, res);
+		if (res != -1) c = unicode_upcase[res].up;
+		add_to_str(&r, &rl, encode_utf_8(c));
+	}
+	return r;
+}
+
+unsigned char *to_utf8_upcase(unsigned char *str, int cp)
+{
+	unsigned char *str1, *str2;
+	struct conv_table *ct = get_translation_table(cp, get_cp_index("utf-8"));
+	str1 = convert_string(ct, str, strlen(str), NULL);
+	str2 = unicode_upcase_string(str1);
+	mem_free(str1);
+	return str2;
+}
+
+int compare_case_utf8(unsigned char *u1, unsigned char *u2)
+{
+	unsigned char *uu1 = u1;
+	unsigned c1, c2;
+	int cc1;
+	while (1) {
+		GET_UTF_8(u2, c2);
+		if (!c2) return u1 - uu1;
+		GET_UTF_8(u1, c1);
+		BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, c1, cc1);
+		if (cc1 != -1) c1 = unicode_upcase[cc1].up;
+		if (c1 != c2) return 0;
+	}
+}
+
