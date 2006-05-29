@@ -396,6 +396,13 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	unsigned char *ch;
 	unsigned char *nu, *da;
 	while (*url == ' ') url++;
+	if (*url && url[strlen(url) - 1] == ' ') {
+		nu = stracpy(url);
+		while (*nu && nu[strlen(nu) - 1] == ' ') nu[strlen(nu) - 1] = 0;
+		ch = translate_url(nu, cwd);
+		mem_free(nu);
+		return ch;
+	}
 	if (!casecmp("proxy://", url, 8)) return NULL;
 	if (!parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &da, NULL, NULL)) {
 		nu = stracpy(url);

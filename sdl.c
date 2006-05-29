@@ -431,7 +431,7 @@ static inline void sdl_putpixel(const SDL_Surface *s, const int x, const int y, 
 /* DRIVER FUNCTIONS */
 
 	/* findout avibles video mode */
-static u_char_t *sdl_list_videomodes()
+static u_char_t *sdl_list_videomodes(void)
 {
 	SDL_Rect **modes;
 
@@ -456,7 +456,7 @@ static u_char_t *sdl_list_videomodes()
 #define sdl_RES_MAXLEN		5
 #define sdl_DEPTH_MAXLEN	2
 /* init driver */
-u_char_t *sdl_init_driver(u_char_t *param, u_char_t *display)
+static u_char_t *sdl_init_driver(u_char_t *param, u_char_t *display)
 {
 	unsigned long	video_bw_suggest	= 0;
 
@@ -679,7 +679,7 @@ u_char_t *sdl_init_driver(u_char_t *param, u_char_t *display)
 }
 
 /* shutdown driver */
-void sdl_shutdown_driver()
+static void sdl_shutdown_driver(void)
 {
 	S_ON_DEBUG_TRACE("in");
 	sdl_KILL_TIMER();
@@ -689,7 +689,7 @@ void sdl_shutdown_driver()
 }
 
 /* create new graph device */
-struct graphics_device *sdl_init_device()
+static struct graphics_device *sdl_init_device(void)
 {
 	struct graphics_device *dev	= NULL;
 	struct t_sdl_device_data *data	= NULL;
@@ -758,7 +758,7 @@ struct graphics_device *sdl_init_device()
 }
 
 /* destroy device */
-void sdl_shutdown_device(struct graphics_device *drv)
+static void sdl_shutdown_device(struct graphics_device *drv)
 {
 	struct t_sdl_device_data *dev	= NULL;
 
@@ -781,7 +781,7 @@ void sdl_shutdown_device(struct graphics_device *drv)
 
 /* get driver parameters 
    XXX: what is this fx() for ??? */
-u_char_t *sdl_get_driver_param()
+static u_char_t *sdl_get_driver_param(void)
 {
 	S_ON_DEBUG_TRACE("in");
 	S_ASSERT(0);
@@ -791,7 +791,7 @@ u_char_t *sdl_get_driver_param()
 /* GRAPHICS */
 
 /* create empty bitmap */
-int sdl_get_empty_bitmap(struct bitmap *bmp)
+static int sdl_get_empty_bitmap(struct bitmap *bmp)
 {
 	SDL_Surface	*s	= NULL;
 
@@ -830,7 +830,7 @@ int sdl_get_filled_bitmap(struct bitmap *bmp, long color)
 */
 
 /* register bitmap */
-void sdl_register_bitmap(struct bitmap *bmp)
+static void sdl_register_bitmap(struct bitmap *bmp)
 {
 	SDL_Surface	*s	= NULL;
 
@@ -848,7 +848,7 @@ void sdl_register_bitmap(struct bitmap *bmp)
 
 
 /* prepare strip */
-void *sdl_prepare_strip(struct bitmap *bmp, int top, int lines)
+static void *sdl_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
 	SDL_Surface	*s	= NULL;
 
@@ -863,7 +863,7 @@ void *sdl_prepare_strip(struct bitmap *bmp, int top, int lines)
 }
 
 /* commit strip */
-void sdl_commit_strip(struct bitmap *bmp, int top, int lines)
+static void sdl_commit_strip(struct bitmap *bmp, int top, int lines)
 {
 	SDL_Surface	*s	= NULL;
 
@@ -877,7 +877,7 @@ void sdl_commit_strip(struct bitmap *bmp, int top, int lines)
 }
 
 /* unregister bitmap */
-void sdl_unregister_bitmap(struct bitmap *bmp)
+static void sdl_unregister_bitmap(struct bitmap *bmp)
 {
 	SDL_Surface	*s	= NULL;
 
@@ -895,7 +895,7 @@ void sdl_unregister_bitmap(struct bitmap *bmp)
 }
 
 /* draw bmp */
-void sdl_draw_bitmap(struct graphics_device *drv, struct bitmap *bmp, int x, int y)
+static void sdl_draw_bitmap(struct graphics_device *drv, struct bitmap *bmp, int x, int y)
 {
 	SDL_Surface		 *s	= NULL;
 	struct t_sdl_device_data *dev	= NULL;
@@ -916,7 +916,7 @@ void sdl_draw_bitmap(struct graphics_device *drv, struct bitmap *bmp, int x, int
 }
 
 /* draw more bmps */
-void sdl_draw_bitmaps(struct graphics_device *drv, struct bitmap **bmps, int n, int x, int y)
+static void sdl_draw_bitmaps(struct graphics_device *drv, struct bitmap **bmps, int n, int x, int y)
 {
 	int	i = 0;
 
@@ -944,7 +944,7 @@ void sdl_draw_bitmaps(struct graphics_device *drv, struct bitmap **bmps, int n, 
 }
 
 /* fill some area */
-void sdl_fill_area(struct graphics_device *drv, int x1, int y1, int x2, int y2, long color)
+static void sdl_fill_area(struct graphics_device *drv, int x1, int y1, int x2, int y2, long color)
 {
 	struct t_sdl_device_data *dev = NULL;
 	SDL_Rect rect;
@@ -969,7 +969,7 @@ void sdl_fill_area(struct graphics_device *drv, int x1, int y1, int x2, int y2, 
 }
 
 /* draw horizontal line */
-void sdl_draw_hline(struct graphics_device *drv, int left, int y, int right, long color)
+static void sdl_draw_hline(struct graphics_device *drv, int left, int y, int right, long color)
 {
 	register int	i	= 0;
 	struct t_sdl_device_data *dev = NULL;
@@ -988,7 +988,7 @@ void sdl_draw_hline(struct graphics_device *drv, int left, int y, int right, lon
 }
 
 /* draw vertical line */
-void sdl_draw_vline(struct graphics_device *drv, int x, int top, int bottom, long color)
+static void sdl_draw_vline(struct graphics_device *drv, int x, int top, int bottom, long color)
 {
 	register int i = 0;
 	struct t_sdl_device_data *dev = NULL;
@@ -1009,7 +1009,7 @@ void sdl_draw_vline(struct graphics_device *drv, int x, int top, int bottom, lon
 }
 
 /* horizontal scroll */
-int sdl_hscroll(struct graphics_device *drv, struct rect_set **set, int sc)
+static int sdl_hscroll(struct graphics_device *drv, struct rect_set **set, int sc)
 {
 	struct t_sdl_device_data *dev = NULL;
 	SDL_Rect rect1, rect2;
@@ -1038,7 +1038,7 @@ int sdl_hscroll(struct graphics_device *drv, struct rect_set **set, int sc)
 }
 
 /* vertical scroll */
-int sdl_vscroll(struct graphics_device *drv, struct rect_set **set, int sc)
+static int sdl_vscroll(struct graphics_device *drv, struct rect_set **set, int sc)
 {
 	struct t_sdl_device_data *dev = NULL;
 	SDL_Rect rect1, rect2;
@@ -1068,7 +1068,7 @@ int sdl_vscroll(struct graphics_device *drv, struct rect_set **set, int sc)
 }
 
 /* set cliping area */
-void sdl_set_clip_area(struct graphics_device *drv, struct rect *r)
+static void sdl_set_clip_area(struct graphics_device *drv, struct rect *r)
 {
 	struct t_sdl_device_data *dev = NULL;
 	SDL_Rect rect;
@@ -1090,7 +1090,7 @@ void sdl_set_clip_area(struct graphics_device *drv, struct rect *r)
 }
 
 /* return rgb color */
-long sdl_get_color(int rgb)
+static long sdl_get_color(int rgb)
 {
 	/* call depth specific function (going like this enables us to use multiple screens with various depths) [someday] */
 	static	long (*gc)(int rgb)	= NULL;
@@ -1105,7 +1105,7 @@ long sdl_get_color(int rgb)
 }
 
 /* set window title (tittle utf-8 encoded !!!!) */
-void sdl_set_title(struct graphics_device *drv, u_char_t *title)
+static void sdl_set_title(struct graphics_device *drv, u_char_t *title)
 {
 	struct conv_table *ct = get_translation_table(utf8_table, sdl_DATA.input_encoding >= 0 ? sdl_DATA.input_encoding:0);
 	unsigned char	*t;

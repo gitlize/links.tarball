@@ -2255,7 +2255,11 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 		if (!has_form_submit(f->f_data, link->form) && (!a || !F)) goto submit;
 #ifdef JS
 		/* process onfocus handler */
-		if (!ses->locked_link&&f->vs&&f->f_data&&f->vs->current_link>=0&&f->vs->current_link<f->f_data->nlinks)
+		if (
+#ifdef G
+		    !ses->locked_link&&
+#endif
+		    f->vs&&f->f_data&&f->vs->current_link>=0&&f->vs->current_link<f->f_data->nlinks)
 		{
 			struct link *lnk=&(f->f_data->links[f->vs->current_link]);
 			if (lnk->js_event&&lnk->js_event->focus_code)
@@ -3264,6 +3268,9 @@ void next_frame(struct session *ses, int p)
 	struct f_data_c *fd, *fdd;
 
 	if (!(fd = current_frame(ses))) return;
+#ifdef G
+	ses->locked_link = 0;
+#endif
 	while ((fd = fd->parent)) {
 		n = 0;
 		foreach(fdd, fd->subframes) n++;
@@ -3288,6 +3295,16 @@ void next_frame(struct session *ses, int p)
 		else vs->frame_pos = 0;
 		goto next_sub;
 	}
+#ifdef G
+	if (F && (fd = current_frame(ses)) && fd->vs && fd->f_data) {
+		if (fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) {
+			/*fd->vs->g_display_link = 1;*/
+			if (fd->vs->g_display_link && (fd->f_data->links[fd->vs->current_link].type == L_FIELD || fd->f_data->links[fd->vs->current_link].type == L_AREA)) {
+				if ((fd->f_data->locked_on = fd->f_data->links[fd->vs->current_link].obj)) fd->ses->locked_link = 1;
+			}
+		}
+	}
+#endif
 }
 
 void do_for_frame(struct session *ses, void (*f)(struct session *, struct f_data_c *, int), int a)
@@ -3449,6 +3466,11 @@ void send_event(struct session *ses, struct event *ev)
 		}
 	}
 	if (ev->ev == EV_MOUSE) {
+		if (ev->b == (B_DOWN | B_FOURTH)) {
+			go_back(ses);
+			goto x;
+		}
+#ifdef G
 		if (ses->locked_link) {
 			if ((ev->b & BM_ACT) != B_MOVE) {
 				ses->locked_link = 0;
@@ -3472,6 +3494,7 @@ void send_event(struct session *ses, struct event *ev)
 				draw_formatted(ses);
 			} else return;
 		}
+#endif
 		if (ev->y < gf_val(1, G_BFU_FONT_SIZE) && (ev->b & BM_ACT) == B_DOWN) {
 #ifdef G
 			if (F && ev->x < ses->back_size) {

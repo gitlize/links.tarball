@@ -1086,6 +1086,7 @@ void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, struct doc
 			nfdc->xp = xp; nfdc->yp = yp;
 			nfdc->xw = frm->xw;
 			nfdc->yw = frm->yw;
+			nfdc->scrolling = frm->scrolling;
 			nfdc->loc = loc;
 			nfdc->vs = loc->vs;
 			if (frm->marginwidth != -1) nfdc->marginwidth = frm->marginwidth;
@@ -1359,6 +1360,7 @@ struct f_data_c *create_f_data_c(struct session *ses, struct f_data_c *parent)
 	fd->marginwidth = fd->marginheight = -1;
 	fd->image_timer = -1;
 	fd->refresh_timer = -1;
+	fd->scrolling = SCROLLING_AUTO;
 	return fd;
 }
 
@@ -1652,7 +1654,9 @@ void ses_go_forward(struct session *ses, int plain, int refresh)
 	fd->loc->prev_url = stracpy(fd->rq->prev_url);
 	fd->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
 	fd->rq->data = fd;
+#ifdef G
 	ses->locked_link = 0;
+#endif
 	fd->rq->upcall(fd->rq, fd);
 	draw_formatted(ses);
 }
@@ -1663,7 +1667,9 @@ void ses_go_backward(struct session *ses)
 	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
 	reinit_f_data_c(ses->screen);
 	destroy_location(cur_loc(ses));
+#ifdef G
 	ses->locked_link = 0;
+#endif
 	ses->screen->loc = cur_loc(ses);
 	ses->screen->vs = ses->screen->loc->vs;
 	ses->wtd = NULL;

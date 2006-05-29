@@ -549,6 +549,10 @@ int is_in_area(struct map_area *a, int x, int y)
 	return 0;
 }
 
+/* The size is requested in im->xsize and im->ysize. <0 means
+ * not specified. Autoscale is requested in im->autoscale.
+ * If autoscale is specified, im->xsize and im->ysize must
+ * be >0. */
 void do_image(struct g_part *p, struct image_description *im)
 {
 	struct g_object_image *io;
@@ -649,8 +653,7 @@ void do_image(struct g_part *p, struct image_description *im)
 		}
 		if (tag) mem_free(tag);
 	}
-	ab:
-	if (im->usemap) mem_free(im->usemap);
+	ab:;
 }
 
 void g_hr(struct g_part *gp, struct hr_param *hr)
@@ -963,6 +966,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	int lm = margin;
 
 	struct g_table_cache_entry *tce;
+
 	if (!f_d) foreach(tce, g_table_cache) {
 		if (tce->start == start && tce->end == end && tce->align == align && tce->m == m && tce->width == width && tce->link_num == link_num) {
 			p = mem_alloc(sizeof(struct g_part));

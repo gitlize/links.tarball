@@ -39,7 +39,7 @@ void r_xpand_spaces(struct part *, int);
 int split_line(struct part *);
 int put_chars_conv(struct part *, unsigned char *, int);
 void html_form_control(struct part *, struct form_control *);
-void add_frameset_entry(struct frameset_desc *, struct frameset_desc *, unsigned char *, unsigned char *, int, int);
+void add_frameset_entry(struct frameset_desc *, struct frameset_desc *, unsigned char *, unsigned char *, int, int, unsigned char);
 void *html_special(struct part *, int, ...);
 void do_format(char *, char *, struct part *, unsigned char *);
 void release_part(struct part *);
@@ -877,7 +877,7 @@ void html_form_control(struct part *p, struct form_control *fc)
 	add_to_list(p->data->forms, fc);
 }
 
-void add_frameset_entry(struct frameset_desc *fsd, struct frameset_desc *subframe, unsigned char *name, unsigned char *url, int marginwidth, int marginheight)
+void add_frameset_entry(struct frameset_desc *fsd, struct frameset_desc *subframe, unsigned char *name, unsigned char *url, int marginwidth, int marginheight, unsigned char scrolling)
 {
 	if (fsd->yp >= fsd->y) return;
 	fsd->f[fsd->xp + fsd->yp * fsd->x].subframe = subframe;
@@ -885,6 +885,7 @@ void add_frameset_entry(struct frameset_desc *fsd, struct frameset_desc *subfram
 	fsd->f[fsd->xp + fsd->yp * fsd->x].url = stracpy(url);
 	fsd->f[fsd->xp + fsd->yp * fsd->x].marginwidth = marginwidth;
 	fsd->f[fsd->xp + fsd->yp * fsd->x].marginheight = marginheight;
+	fsd->f[fsd->xp + fsd->yp * fsd->x].scrolling = scrolling;
 	if (++fsd->xp >= fsd->x) fsd->xp = 0, fsd->yp++;
 }
 
@@ -906,7 +907,7 @@ struct frameset_desc *create_frameset(struct f_data *fda, struct frameset_param 
 		fd->f[i].xw = fp->xw[i % fp->x];
 		fd->f[i].yw = fp->yw[i / fp->x];
 	}
-	if (fp->parent) add_frameset_entry(fp->parent, fd, NULL, NULL, -1, -1);
+	if (fp->parent) add_frameset_entry(fp->parent, fd, NULL, NULL, -1, -1, SCROLLING_AUTO);
 	else if (!fda->frame_desc) fda->frame_desc = fd;
 	     else mem_free(fd), fd = NULL;
 	return fd;
@@ -914,7 +915,7 @@ struct frameset_desc *create_frameset(struct f_data *fda, struct frameset_param 
 
 void create_frame(struct frame_param *fp)
 {
-	add_frameset_entry(fp->parent, NULL, fp->name, fp->url, fp->marginwidth, fp->marginheight);
+	add_frameset_entry(fp->parent, NULL, fp->name, fp->url, fp->marginwidth, fp->marginheight, fp->scrolling);
 }
 
 void process_script(struct f_data *f, unsigned char *t)
@@ -1359,6 +1360,7 @@ int compare_opt(struct document_options *o1, struct document_options *o2)
 	    o1->font_size == o2->font_size &&
 	    o1->display_images == o2->display_images &&
 	    o1->image_scale == o2->image_scale &&
+	    o1->porn_enable == o2->porn_enable &&
 	    o1->aspect_on == o2->aspect_on &&
 	    !memcmp(&o1->default_fg, &o2->default_fg, sizeof(struct rgb)) &&
 	    !memcmp(&o1->default_bg, &o2->default_bg, sizeof(struct rgb)) &&

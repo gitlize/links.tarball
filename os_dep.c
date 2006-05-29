@@ -1432,7 +1432,7 @@ struct gpm_mouse_spec {
 	void *data;
 };
 
-void gpm_mouse_in(struct gpm_mouse_spec *gms)
+static void gpm_mouse_in(struct gpm_mouse_spec *gms)
 {
 	Gpm_Event gev;
 	struct event ev;

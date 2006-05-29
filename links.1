@@ -290,6 +290,14 @@ Optimize for CRT (0), LCD RGB (1), LCD BGR (2).
 Enable javascript.
 
 .TP
+\f3-gamma-correction \f2<0>/<1>/<2>\f1
+Type of gamma correction:
+(default 2)
+0 - 8-bit (fast).
+1 - 16-bit (slow).
+2 - automatically detect according to speed of FPU.
+
+.TP
 \f3-js.verbose-errors \f2<0>/<1>\f1
 Display javascript errors.
 
@@ -359,6 +367,10 @@ Display images in graphics mode.
 .TP
 \f3-html-image-scale \f2<percent>\f1
 Scale images in graphics mode.
+
+.TP
+\f3-html-bare-image-autoscale \f2<0>/<1>\f1
+Autoscale images displayed in full screen.
 
 .TP
 \f3-html-numbered-links \f2<0>/<1>\f1

@@ -794,6 +794,7 @@ int get_num(unsigned char *a, unsigned char *n)
 	return -1;
 }
 
+/* trunc somehow clips the maximum values. Use 0 to disable truncastion. */
 int parse_width(unsigned char *w, int trunc)
 {
 	unsigned char *end;
@@ -830,6 +831,7 @@ int parse_width(unsigned char *w, int trunc)
 	return s;
 }
 
+/* trunc somehow clips the maximum values. Use 0 to disable truncastion. */
 int get_width(unsigned char *a, unsigned char *n, int trunc)
 {
 	int r;
@@ -1078,6 +1080,15 @@ void html_img(unsigned char *a)
 		*/
 		i.xsize = get_width(a, "width", 2);
 		i.ysize = get_width(a, "height", 3);
+		if (d_opt->porn_enable && i.xsize < 0 && i.ysize < 0 && d_opt->plain == 2) {
+			/* Strict checking for porn condition ;-) */
+			i.autoscale_x = d_opt->xw;
+			i.autoscale_y = d_opt->yw;
+		} else {
+			/* Turn off autoscale */
+			i.autoscale_x = 0;
+			i.autoscale_y = 0; 
+		}
 		/*debug("%s, %s -> %d, %d", get_attr_val(a, "width"), get_attr_val(a, "height"), i.xsize, i.ysize);*/
 		i.hspace = get_num(a, "hspace");
 		i.vspace = get_num(a, "vspace");
@@ -1094,6 +1105,7 @@ void html_img(unsigned char *a)
 			mem_free(u);
 		}
 		if (i.url) special_f(ff, SP_IMAGE, &i), mem_free(i.url);
+		if (i.usemap) mem_free(i.usemap);
 		if (i.name) mem_free(i.name);
 		if (i.alt) mem_free(i.alt);
 		if (i.src) mem_free(i.src);
@@ -2201,11 +2213,20 @@ void html_frame(unsigned char *a)
 	if (!d_opt->frames || !html_top.frameset) put_link_line("Frame: ", name, url, "");
 	else {
 		struct frame_param fp;
+		char *scroll = get_attr_val(a, "scrolling");
 		fp.name = name;
 		fp.url = url;
 		fp.parent = html_top.frameset;
 		fp.marginwidth = get_num(a, "marginwidth");
 		fp.marginheight = get_num(a, "marginheight");
+		fp.scrolling = SCROLLING_AUTO;
+		if (scroll) {
+			if (!strcasecmp(scroll, "no"))
+				fp.scrolling = SCROLLING_NO;
+			else if (!strcasecmp(scroll, "yes"))
+				fp.scrolling = SCROLLING_YES;
+			mem_free(scroll);
+		}
 		if (special_f(ff, SP_USED, NULL)) special_f(ff, SP_FRAME, &fp);
 	}
 	mem_free(name);
@@ -2398,7 +2419,7 @@ struct element_info {
 	char *name;
 	void (*func)(unsigned char *);
 	int linebreak;
-	int nopair;
+	int nopair; /* Somehow relates to paired elements */
 };
 
 struct element_info elements[] = {
@@ -2551,6 +2572,7 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 {
 	/*unsigned char *start = html;*/
 	unsigned char *lt;
+
 	html_format_changed = 1;
 	putsp = -1;
 	line_breax = table_level ? 2 : 1;

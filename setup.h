@@ -147,6 +147,9 @@
 
 #define G_IMG_REFRESH			1	/* Karle, nedavej sem 0 */
 
+#define SLOW_FPU_DETECT_THRESHOLD	1000
+#define SLOW_FPU_MAX_STARTUP		5000
+
 #define ESC_TIMEOUT			200
 
 #define DISPLAY_TIME_MIN		200

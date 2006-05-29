@@ -2664,6 +2664,8 @@ void js_upcall_submit(void *bidak, long document_id, long form_id)
 	fd=jsint_find_document(document_id);
 	if (!fd||!jsint_can_access(js_ctx,fd))return;
 
+	if (fd->ses->rq && fd->ses->defered_url) return;
+
 	if ((form_id&JS_OBJ_MASK)!=JS_OBJ_T_FORM)return;
 	form=jsint_find_object(fd,form_id);
 	if (!form)return;
