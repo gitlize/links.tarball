@@ -312,7 +312,7 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 	unsigned char *p, *n, *pp, *ch;
 	int l;
 	int lo = !casecmp(base, "file://", 7);
-	if (rel[0] == '#') {
+	if (rel[0] == '#' || !rel[0]) {
 		n = stracpy(base);
 		for (p = n; *p && *p != POST_CHAR && *p != '#'; p++) ;
 		*p = 0;
@@ -512,7 +512,6 @@ void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encod
 			sprintf(h, "%%%02X", (unsigned)*b & 0xff);
 			add_to_str(s, l, h);
 		} else if (*b == '%' && encode_special <= -1 && ll > 2 && ((b[1] >= '0' && b[1] <= '9') || (b[1] >= 'A' && b[1] <= 'F') || (b[1] >= 'a' && b[1] <= 'f'))) {
-			
 			unsigned char h = 0;
 			int i;
 			for (i = 1; i < 3; i++) {

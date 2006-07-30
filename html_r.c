@@ -573,13 +573,19 @@ struct link *new_link(struct f_data *f)
 void html_tag(struct f_data *f, unsigned char *t, int x, int y)
 {
 	struct tag *tag;
+	unsigned char *tt;
+	int ll;
 	if (!f) return;
-	tag = mem_alloc(sizeof(struct tag) + strlen(t) + 1);
+	tt = init_str();
+	ll = 0;
+	add_conv_str(&tt, &ll, t, strlen(t), -2);
+	tag = mem_alloc(sizeof(struct tag) + strlen(tt) + 1);
 	tag->x = x;
 	tag->y = y;
-	strcpy(tag->name, t);
+	strcpy(tag->name, tt);
 	add_to_list(f->tags, tag);
 	if ((void *)last_tag_for_newline == &f->tags) last_tag_for_newline = tag;
+	mem_free(tt);
 }
 
 unsigned char *last_link = NULL;
@@ -920,7 +926,7 @@ void create_frame(struct frame_param *fp)
 
 void process_script(struct f_data *f, unsigned char *t)
 {
-	if (!f->script_href_base) f->script_href_base = stracpy(format.href_base);
+	if (t && !f->script_href_base) f->script_href_base = stracpy(format.href_base);
 	if (!d_opt->js_enable) return;
 	if (t) {
 		unsigned char *u;
@@ -1420,6 +1426,11 @@ void sort_srch(struct f_data *f)
 	mem_free(max);
 }
 
+static inline int is_spc(chr c)
+{
+	return (unsigned char)c <= ' ' || c & ATTR_FRAME;
+}
+
 int get_srch(struct f_data *f)
 {
 	struct node *n;
@@ -1434,7 +1445,7 @@ int get_srch(struct f_data *f)
 			int ns = 1;
 			for (x = n->x; x < xm && x < f->data[y].l; x++) {
 				unsigned char c = f->data[y].d[x];
-				if (c < ' ' || f->data[y].d[x] & ATTR_FRAME) c = ' ';
+				if (is_spc(f->data[y].d[x])) c = ' ';
 				if (c == ' ' && ns) continue;
 				c = charset_upcase(c, f->opt.cp);
 				if (ns) {
@@ -1447,7 +1458,7 @@ int get_srch(struct f_data *f)
 					       else cnt++;
 				else {
 					int xx;
-					for (xx = x + 1; xx < xm && xx < f->data[y].l; xx++) if ((unsigned char) f->data[y].d[xx] >= ' ') goto ja_uz_z_toho_programovani_asi_zcvoknu;
+					for (xx = x + 1; xx < xm && xx < f->data[y].l; xx++) if (!is_spc(f->data[y].d[xx])) goto ja_uz_z_toho_programovani_asi_zcvoknu;
 					xx = x;
 					ja_uz_z_toho_programovani_asi_zcvoknu:
 					if (!cc) add_srch_chr(f, ' ', x, y, xx - x);

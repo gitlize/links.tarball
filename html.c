@@ -1167,6 +1167,7 @@ void html_body(unsigned char *a)
 	get_color(a, "text", &format.fg);
 	get_color(a, "link", &format.clink);
 	get_color(a, "vlink", &format.vlink);
+	if (has_attr(a, "onload")) special_f(ff, SP_SCRIPT, NULL);
 	/*
 	get_bgcolor(a, &format.bg);
 	get_bgcolor(a, &par_format.bgcolor);
@@ -2134,9 +2135,9 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	fc->type = FC_TEXTAREA;;
 	fc->ro = has_attr(attr, "disabled") ? 2 : has_attr(attr, "readonly") ? 1 : 0;
 	fc->default_value = memacpy(html, p - html);
-	if ((cols = get_num(attr, "cols")) <= 0) cols = HTML_DEFAULT_INPUT_SIZE;
+	if ((cols = get_num(attr, "cols")) <= 0) cols = HTML_DEFAULT_TEXTAREA_WIDTH;
 	cols++;
-	if ((rows = get_num(attr, "rows")) <= 0) rows = 1;
+	if ((rows = get_num(attr, "rows")) <= 0) rows = HTML_DEFAULT_TEXTAREA_HEIGHT;
 	if (!F) {
 		if (d_opt->xw && cols > d_opt->xw) cols = d_opt->xw;
 		if (d_opt->yw && rows > d_opt->yw) rows = d_opt->yw;
@@ -2531,12 +2532,13 @@ void process_head(unsigned char *head)
 	struct refresh_param rp;
 	if ((r = parse_http_header(head, "Refresh", NULL))) {
 		if (!d_opt->auto_refresh) {
-			if ((p = parse_header_param(r, "URL"))) {
+			if ((p = parse_header_param(r, "URL")) || (p = parse_header_param(r, ""))) {
 				put_link_line("Refresh: ", p, p, d_opt->framename);
 				mem_free(p);
 			}
 		} else {
 			rp.url = parse_header_param(r, "URL");
+			if (!rp.url) rp.url = parse_header_param(r, "");
 			rp.time = atoi(r);
 			if (rp.time < 1) rp.time = 1;
 			special_f(ff, SP_REFRESH, &rp);

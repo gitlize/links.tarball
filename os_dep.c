@@ -298,7 +298,7 @@ int can_twterm(void) /* Check if it make sense to call a twterm. */
 }
 
 
-#if defined(UNIX) || defined(WIN32) || defined(SPAD)
+#if defined(UNIX) || defined(SPAD)
 
 int is_xterm(void)
 {
@@ -312,6 +312,15 @@ int is_xterm(void)
 int is_xterm(void)
 {
 	return 0;
+}
+
+#elif defined(WIN32)
+
+int is_xterm(void)
+{
+	static int xt = -1;
+	if (xt == -1) xt = !!getenv("WINDOWID");
+	return xt;
 }
 
 #elif defined(RISCOS)
@@ -1358,6 +1367,8 @@ int get_input_handle(void)
 	static int ti = -1, tp = -1;
 	pthread_t pthrInput;
 
+	if (is_xterm()) return 0;
+
 	if (ti != -1) return ti;
 	if (c_pipe (fd) < 0) return 0;
 	ti = fd[0] ;
@@ -1378,6 +1389,8 @@ int get_input_handle(void)
 	int	fd[2] ;
 	static int ti = -1, tp = -1;
 	pid_t	pid ;
+
+	if (is_xterm()) return 0;
 
 	if (ti != -1) return ti;
 	if (c_pipe (fd) < 0) return 0;

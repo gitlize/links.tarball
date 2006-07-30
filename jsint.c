@@ -516,11 +516,16 @@ void jsint_scan_script_tags(struct f_data_c *fd)
 	if ((val = get_attr_val(attr, "src"))) {
 		unsigned char *url;
 		if (fd->f_data->script_href_base && ((url = join_urls(fd->f_data->script_href_base, val)))) {
+			int code, version;
 			struct additional_file *af = request_additional_file(fd->f_data, url);
 			mem_free(url);
 			mem_free(val);
 			if (!af || !af->rq) goto se;
 			if (af->rq->state >= 0) goto ret;
+			if (!af->rq->ce) goto se;
+			if (!get_http_code(af->rq->ce->head, &code, &version)) {
+				if (code < 200 || code >= 300) goto se;
+			}
 			get_file(af->rq, &start, &end);
 			if (start == end) goto se;
 		} else {

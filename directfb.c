@@ -81,7 +81,7 @@ directfb_fb_init_driver (unsigned char *param, unsigned char *display)
   if (dfb)
     return NULL;
 
-  DirectFBInit (&g_argc, (char ***) &g_argv);
+  DirectFBInit (&g_argc, (char ***)(void *)&g_argv);
   ret = DirectFBCreate (&dfb);
 
   if (ret)

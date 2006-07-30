@@ -574,30 +574,35 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 		add_to_str(&str, &sl, "</a>");
 		add_conv_str(&str, &sl, buf + ee, p - ee, 0);
 	} else {
-		int pp;
+		int pp, ppos;
 		int bp, bn;
 		if (p > 5 && !casecmp(buf, "total", 5)) goto raw;
 		for (pp = p - 1; pp >= 0; pp--) if (!WHITECHAR(buf[pp])) break;
 		if (pp < 0) goto raw;
+		ppos = -1;
 		for (; pp >= 0; pp--) if (pp >= 6 && WHITECHAR(buf[pp])) {
 			if ((buf[pp - 6] == ' ' || (buf[pp - 6] >= '0' && buf[pp - 6] <= '9')) &&
 			    buf[pp - 5] == ' ' &&
 			    ((buf[pp - 4] == '2' && buf[pp - 3] == '0') ||
 			     (buf[pp - 4] == '1' && buf[pp - 3] == '9')) &&
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '9' &&
-			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') goto done;
+			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') ppos = pp;
 			if (buf[pp - 6] == ' ' &&
 			    ((buf[pp - 5] == '2' && buf[pp - 4] == '0') ||
 			     (buf[pp - 5] == '1' && buf[pp - 4] == '9')) &&
 			    buf[pp - 3] >= '0' && buf[pp - 3] <= '9' &&
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '9' &&
-			    buf[pp - 1] == ' ') goto done;
+			    buf[pp - 1] == ' ') ppos = pp;
 			if (buf[pp - 6] == ' ' &&
 			    ((buf[pp - 5] >= '0' && buf[pp - 5] <= '2') || buf[pp - 5] == ' ') &&
 			    buf[pp - 4] >= '0' && buf[pp - 4] <= '9' &&
 			    buf[pp - 3] == ':' &&
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '5' &&
-			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') goto done;
+			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') ppos = pp;
+		}
+		if (ppos != -1) {
+			pp = ppos;
+			goto done;
 		}
 
 		for (pp = 0; pp + 5 <= p; pp++)

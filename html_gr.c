@@ -89,7 +89,7 @@ int g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
 	while (pp < l) {
 		unsigned char *e;
 		if (c[pp] < 128 && c[pp] != '&') {
-			putc:
+			put_c:
 			if (!(buffer[bp++] = c[pp++])) buffer[bp - 1] = ' ';
 			if (bp < CH_BUF) continue;
 			goto flush;
@@ -97,7 +97,7 @@ int g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
 		if (c[pp] != '&') {
 			struct conv_table *t;
 			int i;
-			if (!convert_table) goto putc;
+			if (!convert_table) goto put_c;
 			t = convert_table;
 			i = pp;
 			decode:
@@ -105,15 +105,15 @@ int g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
 				e = t[c[i]].u.str;
 			} else {
 				t = t[c[i++]].u.tbl;
-				if (i >= l) goto putc;
+				if (i >= l) goto put_c;
 				goto decode;
 			}
 			pp = i + 1;
 		} else {
 			int i = pp + 1;
-			if (d_opt->plain & 1) goto putc;
+			if (d_opt->plain & 1) goto put_c;
 			while (i < l && c[i] != ';' && c[i] != '&' && c[i] > ' ') i++;
-			if (!(e = get_entity_string(&c[pp + 1], i - pp - 1, d_opt->cp))) goto putc;
+			if (!(e = get_entity_string(&c[pp + 1], i - pp - 1, d_opt->cp))) goto put_c;
 			pp = i + (i < l && c[i] == ';');
 		}
 		if (!e[0]) continue;
@@ -696,7 +696,7 @@ void *g_html_special(struct g_part *p, int c, ...)
 		case SP_TAG:
 			t = va_arg(l, unsigned char *);
 			va_end(l);
-			/*html_tag(p->data, t, X(p->cx), Y(p->cy));*/
+			/* not needed to convert %AB here because html_tag will be called anyway */
 			tag = mem_calloc(sizeof(struct g_object_tag) + strlen(t) + 1);
 			tag->mouse_event = g_dummy_mouse;
 			tag->draw = g_dummy_draw;

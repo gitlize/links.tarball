@@ -87,17 +87,23 @@ void input_function (int fd)
 			if (inputBuffer.Event.MouseEvent.dwEventFlags == 0 &&
 				inputBuffer.Event.MouseEvent.dwButtonState)
 			{
+				int x, y;
+				CONSOLE_SCREEN_BUFFER_INFO cb;
 				char	mstr[] = "\E[Mxxx" ;
-				mstr[3] = ' ' | 0 ;
-				mstr[4] = ' ' + 1 +
-					inputBuffer.Event.MouseEvent.dwMousePosition.X ;
-				mstr[5] = ' ' + 1 +
-					inputBuffer.Event.MouseEvent.dwMousePosition.Y ;
-				if (write (fd, mstr, 6) < 0)
-					bSuccess = FALSE ;
-				mstr[3] = ' ' | 3 ;
-				if (write (fd, mstr, 6) < 0)
-					bSuccess = FALSE ;
+				if (!GetConsoleScreenBufferInfo(hStdOut, &cb)) break;
+				get_terminal_size(1, &x, &y);
+				x = inputBuffer.Event.MouseEvent.dwMousePosition.X;
+				y = inputBuffer.Event.MouseEvent.dwMousePosition.Y - cb.dwSize.Y + y;
+				if ((unsigned)x < 256 && (unsigned)y < 256) {
+					mstr[3] = ' ' | 0 ;
+					mstr[4] = ' ' + 1 + x;
+					mstr[5] = ' ' + 1 + y;
+					if (write (fd, mstr, 6) < 0)
+						bSuccess = FALSE ;
+					mstr[3] = ' ' | 3 ;
+					if (write (fd, mstr, 6) < 0)
+						bSuccess = FALSE ;
+				}
 			}
 			break;
 		case WINDOW_BUFFER_SIZE_EVENT:

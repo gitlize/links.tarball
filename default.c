@@ -1008,7 +1008,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -driver <driver name>\n"
 "  Graphics driver to use. Drivers are: x, svgalib, fb, directfb, pmshell,\n"
-"    atheos, sdl.\n"
+"    atheos.\n"
 "  List of drivers will be shown if you give it an unknown driver.\n"
 "  Available drivers depend on your operating system and available libraries.\n"
 "\n"

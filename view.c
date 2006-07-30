@@ -349,7 +349,16 @@ void set_link(struct f_data_c *f)
 int find_tag(struct f_data *f, unsigned char *name)
 {
 	struct tag *tag;
-	foreach(tag, f->tags) if (!strcasecmp(tag->name, name) || (tag->name[0] == '#' && !strcasecmp(tag->name + 1, name))) return tag->y;
+	unsigned char *tt;
+	int ll;
+	tt = init_str();
+	ll = 0;
+	add_conv_str(&tt, &ll, name, strlen(name), -2);
+	foreach(tag, f->tags) if (!strcasecmp(tag->name, tt) || (tag->name[0] == '#' && !strcasecmp(tag->name + 1, tt))) {
+		mem_free(tt);
+		return tag->y;
+	}
+	mem_free(tt);
 	return -1;
 }
 
@@ -1386,8 +1395,11 @@ void find_link(struct f_data_c *f, int p, int s)
 
 void page_down(struct session *ses, struct f_data_c *f, int a)
 {
-	if (f->vs->view_pos + f->f_data->opt.yw < f->f_data->y) f->vs->view_pos += f->f_data->opt.yw, f->vs->orig_view_pos = f->vs->view_pos, find_link(f, 1, a);
-	else {
+	if (f->vs->view_pos + f->f_data->opt.yw < f->f_data->y) {
+		f->vs->view_pos += f->f_data->opt.yw;
+		f->vs->orig_view_pos = f->vs->view_pos;
+		if (!ses->term->spec->braille) find_link(f, 1, a);
+	} else {
 		if (!ses->term->spec->braille) find_link(f, -1, a);
 		else if (f->f_data->y) f->vs->brl_y = f->f_data->y - 1;
 	}
@@ -2884,7 +2896,7 @@ void find_next(struct session *ses, struct f_data_c *f, int a)
 			}
 			f->vs->orig_view_pos = f->vs->view_pos;
 			f->vs->orig_view_posx = f->vs->view_posx;
-			set_link(f);
+			if (!ses->term->spec->braille) set_link(f);
 			find_next_link_in_search(f, ses->search_direction * 2);
 			return;
 		}
@@ -3445,7 +3457,7 @@ void send_event(struct session *ses, struct event *ev)
 			goto x;
 		}
 		if ((upcase(ev->x) == 'Q' && !(ev->y & (KBD_CTRL | KBD_ALT))) || ev->x == KBD_CTRL_C) {
-		  exit_prog(ses->term, (void *)(my_intptr_t)(ev->x == KBD_CTRL_C), ses);
+			exit_prog(ses->term, (void *)(my_intptr_t)(ev->x == KBD_CTRL_C || ev->x == 'Q'), ses);
 			goto x;
 		}
 		if (ev->x == KBD_CLOSE){

@@ -227,7 +227,7 @@ int slow_fpu = -1;
 		int *bptr;\
 		int skip=out->skip-SKIP_CODE;\
 \
-		o=o;\
+		o=0; /*warning go away */\
 		switch(out->x){\
 \
 			case 0:\
@@ -261,7 +261,7 @@ int slow_fpu = -1;
 		unsigned char *outp=out->data;\
 		int skip=out->skip-SKIP_CODE;\
 	\
-		o=o;\
+		o=0; /*warning go away */\
 		for (y=out->y;y;y--){\
 			for (x=out->x;x;x--){\
 				rt=red_table[in[0]];\
