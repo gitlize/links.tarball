@@ -383,7 +383,7 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 								{
 									unsigned a;
 									struct sockaddr_in sa;
-									int nl = sizeof(sa);
+									socklen_t nl = sizeof(sa);
 									if (getpeername(c->sock1, (struct sockaddr *)&sa, &nl)) goto no_pasv;
 									if (nl != sizeof(sa)) goto no_pasv;
 									a = ntohl(sa.sin_addr.s_addr);
@@ -420,11 +420,11 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 						retry_connection(c);
 						return;
 					}
-					sa.sin_family = PF_INET;
+					sa.sin_family = AF_INET;
 					sa.sin_port = htons((pc[4] << 8) + pc[5]);
 					sa.sin_addr.s_addr = htonl((pc[0] << 24) + (pc[1] << 16) + (pc[2] << 8) + pc[3]);
 					/*debug("%d.%d.%d.%d", pc[0], pc[1], pc[2], pc[3]);*/
-					if ((c->sock2 = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+					if ((c->sock2 = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 						setcstate(c, -errno);
 						retry_connection(c);
 						return;
@@ -475,7 +475,7 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 #if defined(HAVE_STRTOLL)
 			long long est = strtoll(&d[p], NULL, 10);
 #elif defined(HAVE_STRTOQ)
-			quad_t est = strtoq(&d[p], NULL, 10);
+			longlong est = strtoq(&d[p], NULL, 10);
 #else
 			long est = strtol(&d[p], NULL, 10);
 			if (est == MAXLONG) est = -1;
@@ -523,6 +523,19 @@ void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 		inf->conn_st = 1;
 		if (c->state != S_TRANS) setcstate(c, S_GETH);
 	}
+}
+
+static int is_date(char *data)	/* can touch at most data[-4] --- "n 12 "<--if fed with this --- if you change it, fix the caller */
+{
+	/* fix for ftp://ftp.su.se/ */
+	if (*data == ' ') data--;
+	if (data[0] >= '0' && data[0] <= '9' && data[-1] >= '0' && data[-1] <= '9') data -= 2;
+	else if (data[0] >= '1' && data[0] <= '9' && data[-1] == ' ') data -= 1 + (data[-2] == ' ');
+	else return 0;
+	if (data[0] == ':') return 1;
+	if (data[0] != ' ') return 0;
+	if ((data[-1] < 'a' || data[-1] > 'z') && (data[-1] < 'A' || data[-1] > 'Z')) return 0;
+	return 1;
 }
 
 int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned char *bf, int ln, int fin, int *tr)
@@ -580,19 +593,16 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 		for (pp = p - 1; pp >= 0; pp--) if (!WHITECHAR(buf[pp])) break;
 		if (pp < 0) goto raw;
 		ppos = -1;
-		for (; pp >= 0; pp--) if (pp >= 6 && WHITECHAR(buf[pp])) {
-			if ((buf[pp - 6] == ' ' || (buf[pp - 6] >= '0' && buf[pp - 6] <= '9')) &&
+		for (; pp >= 10; pp--) if (WHITECHAR(buf[pp])) {
+			if (is_date(&buf[pp - 6]) &&
 			    buf[pp - 5] == ' ' &&
 			    ((buf[pp - 4] == '2' && buf[pp - 3] == '0') ||
 			     (buf[pp - 4] == '1' && buf[pp - 3] == '9')) &&
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '9' &&
-			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') ppos = pp;
-			if (buf[pp - 6] == ' ' &&
-			    ((buf[pp - 5] == '2' && buf[pp - 4] == '0') ||
-			     (buf[pp - 5] == '1' && buf[pp - 4] == '9')) &&
-			    buf[pp - 3] >= '0' && buf[pp - 3] <= '9' &&
-			    buf[pp - 2] >= '0' && buf[pp - 2] <= '9' &&
-			    buf[pp - 1] == ' ') ppos = pp;
+			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') {
+				if (pp < p - 1 && buf[pp + 1] == ' ') ppos = pp + 1;
+				else ppos = pp;
+			}
 			if (buf[pp - 6] == ' ' &&
 			    ((buf[pp - 5] >= '0' && buf[pp - 5] <= '2') || buf[pp - 5] == ' ') &&
 			    buf[pp - 4] >= '0' && buf[pp - 4] <= '9' &&

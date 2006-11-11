@@ -47,19 +47,20 @@ void input_function (int fd)
 	hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 	hStdIn = GetStdHandle(STD_INPUT_HANDLE);
 
-	/* set up mouse and window input */
-	bSuccess = GetConsoleMode(hStdIn, &dwMode);
-
-	bSuccess = SetConsoleMode(hStdIn, (dwMode & ~(ENABLE_LINE_INPUT |
-			ENABLE_ECHO_INPUT)) | ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT);
-
-	cci.dwSize = 100;
-	cci.bVisible = TRUE ;
-	bSuccess = SetConsoleCursorInfo(hStdOut, &cci);
 	/* This is the main input loop. Read from the input queue and process */
 	/* the events read */
 	do
 	{
+		/* set up mouse and window input */
+		bSuccess = GetConsoleMode(hStdIn, &dwMode);
+
+		bSuccess = SetConsoleMode(hStdIn, (dwMode & ~(ENABLE_LINE_INPUT |
+				ENABLE_ECHO_INPUT)) | ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT);
+
+		cci.dwSize = 100;
+		cci.bVisible = TRUE ;
+		bSuccess = SetConsoleCursorInfo(hStdOut, &cci);
+
 		/* read an input events from the input event queue */
 		bSuccess = ReadConsoleInput(hStdIn, &inputBuffer, 1, &dwInputEvents);
 		switch (inputBuffer.EventType)

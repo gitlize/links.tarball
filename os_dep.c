@@ -370,7 +370,7 @@ int exe(char *path, int fg)
 int exe(char *path, int fg)
 {
 	int r;
-	unsigned char *x1 = !GETSHELL ? DEFAULT_SHELL : GETSHELL;
+	unsigned char *x1 = DEFAULT_SHELL;
 	unsigned char *x = *path != '"' ? " /c start /wait " : " /c start /wait \"\" ";
 	unsigned char *p = malloc((strlen(x1) + strlen(x) + strlen(path)) * 2 +
 1);
@@ -1871,5 +1871,32 @@ char *strstr(const char *haystack, const char *needle)
 		haystack++, hs--;
 	}
 	return NULL;
+}
+#endif
+#ifndef HAVE_TEMPNAM
+char *tempnam(const char *dir, const char *pfx)
+{
+	static int counter = 0;
+	unsigned char *d, *s, *a;
+	int l;
+	if (!(d = getenv("TMPDIR"))) {
+		if (dir) d = (unsigned char *)dir;
+		else if (!(d = getenv("TMP")) && !(d = getenv("TEMP"))) {
+#ifdef P_tmpdir
+			d = P_tmpdir;
+#else
+			d = "/tmp";
+#endif
+		}
+	}
+	l = 0;
+	s = init_str();
+	add_to_str(&s, &l, d);
+	if (s[0] && s[strlen(s) - 1] != '/') add_chr_to_str(&s, &l, '/');
+	add_to_str(&s, &l, (unsigned char *)pfx);
+	add_num_to_str(&s, &l, counter++);
+	a = strdup(s);
+	mem_free(s);
+	return a;
 }
 #endif

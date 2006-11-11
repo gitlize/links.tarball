@@ -41,6 +41,10 @@
 
 #include "arrow.inc"
 
+#ifndef MAP_FAILED
+#define MAP_FAILED	((void *)-1L)
+#endif
+
 #ifdef GPM_HAVE_SMOOTH
 #define gpm_smooth GPM_SMOOTH
 #else

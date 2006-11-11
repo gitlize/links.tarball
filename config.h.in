@@ -176,6 +176,9 @@
 /* Define if you have the strtoul function.  */
 #undef HAVE_STRTOUL
 
+/* Define if you have the tempnam function.  */
+#undef HAVE_TEMPNAM
+
 /* Define if you have the uname function.  */
 #undef HAVE_UNAME
 
@@ -503,3 +506,7 @@
 
 /* */
 #undef RENAME_OVER_EXISTING_FILES
+
+/* */
+#undef HAVE_SOCKLEN_T
+

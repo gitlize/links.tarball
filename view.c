@@ -638,7 +638,9 @@ int is_in_range(struct f_data *f, int y, int yw, unsigned char *txt, int *min, i
 			continue;
 		}
 		for (i = 1; i < l; i++) if (s1[i].c != txt[i]) goto unable_to_handle_kernel_paging_request___oops;
-		if (s1[i].y < y || s1[i].y >= y + yw) continue;
+		for (i = 0; i < l; i++) if (s1[i].y >= y && s1[i].y < y + yw && s1[i].n) goto in_view;
+		continue;
+		in_view:
 		if (!min && !max) return 1;
 		found = 1;
 		for (i = 0; i < l; i++) if (s1[i].n) {
@@ -3779,7 +3781,7 @@ void save_formatted(struct session *ses, unsigned char *file)
 	int h;
 	struct f_data_c *f;
 	if (!(f = current_frame(ses)) || !f->f_data) return;
-	if ((h = create_download_file(ses->term, file, 0)) == -1) return;
+	if ((h = create_download_file(ses->term, file, 0)) < 0) return;
 	if (dump_to_file(f->f_data, h)) msg_box(ses->term, NULL, TEXT(T_SAVE_ERROR), AL_CENTER, TEXT(T_ERROR_WRITING_TO_FILE), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 	close(h);
 }

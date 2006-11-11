@@ -681,19 +681,23 @@ void draw_one_object_fn(struct terminal *t, struct draw_data *d)
 	drv->set_clip_area(t->dev, &clip);
 }
 
-void draw_one_object(struct f_data_c *fd, struct g_object *o)
+void draw_one_object(struct f_data_c *scr, struct g_object *o)
 {
 	struct draw_data d;
 	int *h1, *h2, h3;
-	d.fd = fd;
+	d.fd = scr;
 	d.o = o;
 	h1 = highlight_positions;
 	h2 = highlight_lengths;
 	h3 = n_highlight_positions;
-	highlight_positions = fd->f_data->search_positions;
-	highlight_lengths = fd->f_data->search_lengths;
-	n_highlight_positions = fd->f_data->n_search_positions;
-	draw_to_window(fd->ses->win, (void (*)(struct terminal *, void *))draw_one_object_fn, &d);
+	if (scr->ses->search_word && scr->ses->search_word[0]) {
+		g_get_search_data(scr->f_data);
+		g_get_search(scr->f_data, scr->ses->search_word);
+		highlight_positions = scr->f_data->search_positions;
+		highlight_lengths = scr->f_data->search_lengths;
+		n_highlight_positions = scr->f_data->n_search_positions;
+	}
+	draw_to_window(scr->ses->win, (void (*)(struct terminal *, void *))draw_one_object_fn, &d);
 	highlight_positions = h1;
 	highlight_lengths = h2;
 	n_highlight_positions = h3;

@@ -504,9 +504,6 @@ void num_wr(struct option *o, unsigned char **s, int *l)
 	add_knum_to_str(s, l, *(int *)o->ptr);
 }
 
-#define DBL_PRECISION 10000
-
-
 unsigned char *dbl_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *tok = get_token(&c);
@@ -531,13 +528,11 @@ unsigned char *dbl_rd(struct option *o, unsigned char *c)
 
 void dbl_wr(struct option *o, unsigned char **s, int *l)
 {
-	long y=*(double*)o->ptr;
-	long x=((*(double*)o->ptr)-y)*DBL_PRECISION;
+	char number[80];
+	snprintf(number, sizeof number, "%.4f", *(double*)o->ptr);
 
 	add_nm(o, s, l);
-	add_knum_to_str(s, l, y);
-	add_chr_to_str(s, l, '.');
-	add_knum_to_str(s, l, x);
+	add_to_str(s, l, number);
 }
 
 unsigned char *str_rd(struct option *o, unsigned char *c)

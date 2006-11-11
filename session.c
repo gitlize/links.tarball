@@ -728,14 +728,17 @@ int create_download_file(struct terminal *term, unsigned char *fi, int safe)
 			add_to_str(&file, &fl, fi + 1);
 		}
 	}
-	h = open(file, O_CREAT|O_WRONLY|O_TRUNC|(sf?O_EXCL:0), sf ? 0600 : 0666);
-	if (wd) set_cwd(wd), mem_free(wd);
+	h = open(file, O_CREAT|O_WRONLY|O_TRUNC|(safe?O_EXCL:0), sf ? 0600 : 0666);
 	if (h == -1) {
-		unsigned char *msg = stracpy(file);
-		unsigned char *msge = stracpy(strerror(errno));
+		unsigned char *msg, *msge;
+		if (errno == EEXIST && safe) {
+			h = -2;
+			goto x;
+		}
+		msg = stracpy(file);
+		msge = stracpy(strerror(errno));
 		msg_box(term, getml(msg, msge, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_CREATE_FILE), " ", msg, ": ", msge, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
-		if (file != fi) mem_free(file);
-		return -1;
+		goto x;
 	}
 	set_bin(h);
 	if (safe) goto x;
@@ -748,6 +751,7 @@ int create_download_file(struct terminal *term, unsigned char *fi, int safe)
 	download_dir[0] = 0;
 	x:
 	if (file != fi) mem_free(file);
+	if (wd) set_cwd(wd), mem_free(wd);
 	return h;
 }
 
@@ -810,7 +814,7 @@ void start_download(struct session *ses, unsigned char *file)
 	unsigned char *url = ses->dn_url;
 	if (!url) return;
 	kill_downloads_to_file(file);
-	if ((h = create_download_file(ses->term, file, 0)) == -1) return;
+	if ((h = create_download_file(ses->term, file, 0)) < 0) return;
 	down = mem_calloc(sizeof(struct download));
 	down->url = stracpy(url);
 	down->stat.end = (void (*)(struct status *, void *))download_data;
@@ -1689,18 +1693,27 @@ void continue_download(struct session *ses, unsigned char *file)
 {
 	struct download *down;
 	int h;
+	int namecount = 0;
 	unsigned char *url = ses->tq->url;
 	if (!url) return;
 	if (ses->tq_prog) {
+		new_name:
 		if (!(file = get_temp_name(url))) {
 			tp_cancel(ses);
 			return;
 		}
 	}
-	kill_downloads_to_file(file);
-	if ((h = create_download_file(ses->term, file, !!ses->tq_prog)) == -1) {
-		tp_cancel(ses);
+	if (!ses->tq_prog) kill_downloads_to_file(file);
+	if ((h = create_download_file(ses->term, file, !!ses->tq_prog)) < 0) {
+		if (h == -2 && ses->tq_prog) {
+			if (++namecount < DOWNLOAD_NAME_TRIES) {
+				mem_free(file);
+				goto new_name;
+			}
+			msg_box(ses->term, NULL, TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_CREATE_TEMPORARY_FILE), NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		}
 		if (ses->tq_prog) mem_free(file);
+		tp_cancel(ses);
 		return;
 	}
 	down = mem_calloc(sizeof(struct download));

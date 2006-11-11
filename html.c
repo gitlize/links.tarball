@@ -2032,7 +2032,10 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 			val = mem_realloc(val, (order + ALLOC_GR) * sizeof(unsigned char *));
 		}
 		val[order++] = v;
-		if ((vx = get_attr_val(t_attr, "label"))) new_menu_item(vx, order - 1, 0);
+		if ((vx = get_attr_val(t_attr, "label"))) {
+			new_menu_item(convert_string(ct, vx, strlen(vx), d_opt), order - 1, 0);
+			mem_free(vx);
+		}
 		if (!v || !vx) {
 			lbl = init_str(), lbl_l = 0;
 			vlbl = init_str(), vlbl_l = 0;
@@ -2052,7 +2055,8 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 	if (t_namelen == 8 && !casecmp(t_name, "OPTGROUP", 8)) {
 		char *la;
 		if (!(la = get_attr_val(t_attr, "label"))) la = stracpy("");
-		new_menu_item(la, -1, 0);
+		new_menu_item(convert_string(ct, la, strlen(la), d_opt), -1, 0);
+		mem_free(la);
 		group = 1;
 	}
 	goto see;

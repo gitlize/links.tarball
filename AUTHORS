@@ -342,3 +342,9 @@ Konstantin S. Kravtsov <k6@pisem.net>
 Lech Lorens <lech_lorens@interia.pl>
 	Optional scrollbars in frames
 
+Matthew Fischer <futhark@mchsi.com>
+	Fixed Japanese fonts
+
+Jindrich Makovicka <makovick@gmail.com>
+	Fixed memory corruption when redirecting URLs with user:password
+

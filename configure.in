@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre23)
+AM_INIT_AUTOMAKE(links, 2.1pre24)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -77,6 +77,21 @@ dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 AC_C_INLINE
 AC_TYPE_SIZE_T
+AC_CACHE_CHECK([for socklen_t], ac_cv_have_socklen_t,
+	AC_TRY_COMPILE([
+	#include <sys/types.h>
+	#include <sys/socket.h>
+	], [
+	int main() {
+		socklen_t a = 0;
+		return a;
+	}
+	], ac_cv_have_socklen_t=yes, ac_cv_have_socklen_t=no)
+)
+if test "$ac_cv_have_socklen_t" = yes; then
+	AC_DEFINE(HAVE_SOCKLEN_T)
+fi
+
 AC_HEADER_TIME
 AC_STRUCT_TM
 
@@ -162,6 +177,7 @@ AC_HAVE_FUNCS(getpid setpgid)
 AC_HAVE_FUNCS(popen)
 AC_HAVE_FUNCS(uname)
 AC_HAVE_FUNCS(getpagesize)
+AC_HAVE_FUNCS(tempnam)
 AC_HAVE_FUNCS(strptime)
 AC_HAVE_FUNCS(setlocale)
 AC_HAVE_FUNCS(nl_langinfo)

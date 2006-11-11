@@ -435,9 +435,10 @@ static inline void move_links(struct part *p, int xf, int yf, int xt, int yt)
 		int i;
 		struct link *link = &p->data->links[n];
 			/*printf("ml: %d %d %d %d",link->pos[0].x,link->pos[0].y,X(xf),Y(yf));fflush(stdout);sleep(1);*/
-		for (i = 0; i < link->n; i++) if (link->pos[i].y == Y(yf)) {
+		/*for (i = 0; i < link->n; i++) fprintf(stderr, "%d.%d -> %d.%d: %d.%d : %d %d\n", X(xf), Y(yf), X(xt), yt != -1 ? Y(yt) : -1, n, i, link->pos[i].x, link->pos[i].y);*/
+		for (i = 0; i < link->n; i++) if (link->pos[i].y >= Y(yf)) {
 			w = 1;
-			if (link->pos[i].x >= X(xf)) {
+			if (link->pos[i].y == Y(yf) && link->pos[i].x >= X(xf)) {
 				if (yt >= 0) link->pos[i].y = Y(yt), link->pos[i].x += -xf + xt;
 				else memmove(&link->pos[i], &link->pos[i+1], (link->n-i-1) * sizeof(struct point)), link->n--, i--;
 			}

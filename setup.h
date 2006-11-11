@@ -32,7 +32,7 @@
 
 #define LINKS_MANUAL_URL		(!strcmp(language_name(current_language),"Czech") || !strcmp(language_name(current_language),"Slovak")?\
 					"http://links.twibright.com/user.html":\
-					"http://links.sourceforge.net/docs/manual-0.90-en/")
+					"http://links.twibright.com/user_en.html")
 #define LINKS_HOMEPAGE_URL		(!strcmp(language_name(current_language),"Czech") || !strcmp(language_name(current_language),"Slovak")?\
 					"http://links.twibright.com/index_cz.php":\
 					"http://links.twibright.com/")
@@ -53,6 +53,8 @@
 
 #define MAX_REDIRECTS			10
 #define MAX_CACHED_REDIRECTS		5
+
+#define DOWNLOAD_NAME_TRIES		10000
 
 #define MEMORY_CACHE_GC_PERCENT		9/10
 #define MAX_CACHED_OBJECT		1/4

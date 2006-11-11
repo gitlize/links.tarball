@@ -28,9 +28,9 @@
 #ifndef _LINKS_H
 #define _LINKS_H
 
-#define LINKS_COPYRIGHT "(C) 1999 - 2005 Mikulas Patocka\n(C) 2000 - 2005 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2005 Mikulás Patocka\n(C) 2000 - 2005 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2005 Mikulá¹ Patoèka\n(C) 2000 - 2005 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT "(C) 1999 - 2006 Mikulas Patocka\n(C) 2000 - 2006 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2006 Mikulás Patocka\n(C) 2000 - 2006 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2006 Mikulá¹ Patoèka\n(C) 2000 - 2006 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -158,15 +158,26 @@ x #endif*/
 #endif /* #if defined(HAVE_PNG_H) */
 #endif /* #if defined(G) */
 
+#include <termios.h>
+
 #ifdef HAVE_LONG_LONG
 #define longlong long long
 #else
 #define longlong double
 #endif
 
-#define my_intptr_t long
+#ifndef HAVE_SOCKLEN_T
+#define socklen_t int
+#endif
 
-#include <termios.h>
+#ifndef PF_INET
+#define PF_INET AF_INET
+#endif
+#ifndef PF_UNIX
+#define PF_UNIX AF_UNIX
+#endif
+
+#define my_intptr_t long
 
 #include "os_depx.h"
 
@@ -212,6 +223,9 @@ size_t strcspn(const char *s, const char *reject);
 #endif
 #ifndef HAVE_STRSTR
 char *strstr(const char *haystack, const char *needle);
+#endif
+#ifndef HAVE_TEMPNAM
+char *tempnam(const char *dir, const char *pfx);
 #endif
 
 #define option option_dirty_workaround_for_name_clash_with_include_on_cygwin
@@ -301,29 +315,6 @@ do {									\
 
 extern long mem_amount;
 extern long last_mem_amount;
-
-#define ALLOC_MAGIC		0xa110c
-#define ALLOC_FREE_MAGIC	0xf4ee
-#define ALLOC_REALLOC_MAGIC	0x4ea110c
-
-#ifndef LEAK_DEBUG_LIST
-struct alloc_header {
-	int magic;
-	int size;
-};
-#else
-struct alloc_header {
-	struct alloc_header *next;
-	struct alloc_header *prev;
-	int magic;
-	int size;
-	int line;
-	unsigned char *file;
-	unsigned char *comment;
-};
-#endif
-
-#define L_D_S ((sizeof(struct alloc_header) + 15) & ~15)
 
 #endif
 

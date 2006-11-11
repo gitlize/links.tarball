@@ -1,3 +1,61 @@
+=== RELEASE 2.1pre24 ===
+
+Mon Nov  6 02:13:48 cet 2006 mikulas:
+
+	Fixed incorrect page displayed when search string ended with space and
+	the word was last on page
+
+Thu Oct 26 16:10:01 MET 2006 user:
+
+	More strict parsing of ftp list, fixes ftp.su.se
+
+Sun Oct 15 22:55:28 MET DST 2006 mikulas:
+
+	Allow cookie path to point to file, not only directory
+
+Wed Oct 11 00:17:27 MET DST 2006 mikulas:
+
+	Fixed quirk with displaying of links in text mode
+
+Mon Oct  9 23:33:03 MET 2006 Jakub Bogusz <qboosh@pld-linux.org>:
+
+	Updated Polish translation
+
+Mon Oct  9 21:55:24 MET 2006 Jindrich Makovicka <makovick@gmail.com>:
+
+	Fixed memory corruption when redirecting URLs with user:password
+
+Mon Sep 11 02:43:32 MET DST 2006 mikulas:
+
+	Test for socklen_t
+	Work without PF_INET (for Minix 3)
+	Cleaned up use of AF_ and PF_ constants
+
+Sat Sep  9 00:05:16 MET 2006 user:
+
+	Fixed double-to-string conversion for config files
+
+Fri Aug 25 00:48:05 MET 2006 user:
+
+	Parsing ftp directories starts to be difficult because fixing one bug
+	introduces other. Previous fix sometimes mistook size for year :-/
+
+Sun Aug 20 05:06:57 cet 2006 mikulas:
+
+	Correctly translate character set of "label" attribute
+
+Thu Aug 17 19:57:34 MET 2006 user:
+
+	Fixed incremental loading of XBM images
+
+Mon Aug  7 05:11:47 CEST 2006 Matthew Fischer <futhark@mchsi.com>:
+
+	Fixed Japanese fonts
+
+Mon Jul 31 00:32:58 MET 2006 user:
+
+	More cygwin fixes
+
 === RELEASE 2.1pre23 ===
 
 Thu Jul 27 04:53:01 CEST 2006 mikulas:
