@@ -940,9 +940,8 @@ void init_dither(int depth)
 		break;
 
 		default: 
-		fprintf(stderr,"init_dither: unsupported depth %d\n",depth);
 		internal("Graphics driver returned unsupported \
-pixel memory organisation");
+pixel memory organisation %d",depth);
 	}
 	make_round_tables();
 }

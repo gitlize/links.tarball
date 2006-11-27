@@ -11226,7 +11226,7 @@ struct translation translation_polish [] = {
   {T_ERROR_DOWNLOADING, "Wyst±pi³ b³±d podczas pobierania" },
   {T_ERROR_LOADING, "Wyst±pi³ b³±d podczas ³adowania" },
   {T_COULD_NOT_CREATE_FILE, "Nie mo¿na utworzyæ pliku" },
-  {T_COULD_NOT_CREATE_TEMPORARY_FILE, NULL },
+  {T_COULD_NOT_CREATE_TEMPORARY_FILE, "Nie mo¿na utworzyæ pliku tymczasowego" },
   {T_UNKNOWN_TYPE, "Nieznany typ" },
   {T_CONTEN_TYPE_IS, "Typ zawarto¶ci to" },
   {T_HAS_TYPE, "ma typ" },

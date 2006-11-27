@@ -1,3 +1,18 @@
+=== RELEASE 2.1pre25 ===
+
+Wed Nov 22 23:55:21 MET 2006 mikulas:
+
+	DirectFB no longer causes internal error on unsupported color depth.
+	Normal error reporting and trying other drivers is be done.
+
+Wed Nov 22 22:26:58 MET 2006 Jakub Bogusz <qboosh@pld-linux.org>:
+
+	Updated Polish Translation
+
+Sun Nov 12 17:23:46 MET 2006 user:
+
+	Fixed memory leak in http authentication
+
 === RELEASE 2.1pre24 ===
 
 Mon Nov  6 02:13:48 cet 2006 mikulas:

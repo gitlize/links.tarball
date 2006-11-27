@@ -894,10 +894,7 @@ int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 		/* Type still unknown */
 		ctype=get_content_type(goi->af->rq->ce->head,
 			goi->af->rq->url);
-#ifdef DEBUG
-		if (!ctype)
-			internal("NULL ctype in process_download()");
-#endif /* #ifdef DEBUG */
+		if (!ctype) ctype = stracpy("application/octet-stream");
 		type(cimg,ctype);
 	}
 		
