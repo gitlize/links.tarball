@@ -44,7 +44,7 @@ int check_protocol(unsigned char *p, int l)
 {
 	int i;
 	for (i = 0; protocols[i].prot; i++)
-		if (!casecmp(protocols[i].prot, p, l)) {
+		if (!casecmp(protocols[i].prot, p, l) && strlen(protocols[i].prot) == l) {
 			return i;
 		}
 	return -1;
@@ -500,7 +500,7 @@ void get_filename_from_url(unsigned char *url, unsigned char **s, int *l)
 	*l = uu - *s;
 }
 
-#define accept_char(x)	((x) != '"' && (x) != '&' && (x) != '/' && (x) != '<' && (x) != '>')
+#define accept_char(x)	((x) != '"' && (x) != '\'' && (x) != '&' && (x) != '<' && (x) != '>')
 #define special_char(x)	((x) == '%' || (x) == '#')
 
 void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encode_special)

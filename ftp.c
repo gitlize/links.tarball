@@ -579,7 +579,7 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 			}
 		}
 		add_conv_str(&str, &sl, buf, *d, 0);
-		add_to_str(&str, &sl, "<a href=\"");
+		add_to_str(&str, &sl, "<a href=\"./");
 		add_conv_str(&str, &sl, buf + *d, ee - *d, 1);
 		if (buf[0] == 'd') add_chr_to_str(&str, &sl, '/');
 		add_to_str(&str, &sl, "\">");

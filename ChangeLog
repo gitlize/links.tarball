@@ -1,3 +1,10 @@
+=== RELEASE 2.1pre26 ===
+
+Tue Nov 28 23:13:38 MET 2006 mikulas:
+
+	Fixed severe security bug: '"' and ';' in smb:// url could be used for
+	remote command execution.
+
 === RELEASE 2.1pre25 ===
 
 Wed Nov 22 23:55:21 MET 2006 mikulas:
