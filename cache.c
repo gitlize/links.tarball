@@ -78,6 +78,8 @@ int get_cache_entry(unsigned char *url, struct cache_entry **f)
 	e->count = cache_count++;
 	e->count2 = cache_count++;
 	e->refcount = 0;
+	e->decompressed = NULL;
+	e->decompressed_len = 0;
 	add_to_list(cache, e);
 	*f = e;
 	return 0;
@@ -97,6 +99,7 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 	int trunc = 0;
 	off_t ca;
 	if (!length) return 0;
+	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 	if (offset + length < 0 || offset + length < offset) overalloc();
 	if (offset + C_ALIGN(length) < 0 || offset + C_ALIGN(length) < offset) overalloc();
 	if (e->length < offset + length) e->length = offset + length;
@@ -210,6 +213,7 @@ void defrag_entry(struct cache_entry *e)
 void truncate_entry(struct cache_entry *e, off_t off, int final)
 {
 	struct fragment *f, *g;
+	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 	if (e->length > off) e->length = off, e->incomplete = 1;
 	foreach(f, e->frag) {
 		if (f->offset >= off) {
@@ -242,6 +246,7 @@ void truncate_entry(struct cache_entry *e, off_t off, int final)
 void free_entry_to(struct cache_entry *e, off_t off)
 {
 	struct fragment *f, *g;
+	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 	foreach(f, e->frag) {
 		if (f->offset + f->length <= off) {
 			sf(-f->length);
@@ -273,6 +278,7 @@ void delete_entry_content(struct cache_entry *e)
 		mem_free(e->last_modified);
 		e->last_modified = NULL;
 	}
+	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 }
 
 void delete_cache_entry(struct cache_entry *e)

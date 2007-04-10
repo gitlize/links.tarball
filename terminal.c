@@ -1163,10 +1163,17 @@ void set_terminal_title(struct terminal *term, unsigned char *title)
 		for (a = title, b = title; *a; a++) if (*a != 1) *b++ = *a;
 		*b = 0;
 	}
-	/*while ((a = strchr(title, 1))) memmove(a, a + 1, strlen(a + 1) + 1);*/
 	if (term->title && !strcmp(title, term->title)) goto ret;
 	if (term->title) mem_free(term->title);
 	term->title = stracpy(title);
+#ifdef SET_WINDOW_TITLE_UTF_8
+	{
+		struct conv_table *table;
+		mem_free(title);
+		table = get_translation_table(term->spec->charset, get_cp_index("utf-8"));
+		title = convert_string(table, term->title, strlen(term->title), NULL);
+	}
+#endif
 	if (!F) do_terminal_function(term, TERM_FN_TITLE, title);
 #ifdef G
 	else if (drv->set_title) drv->set_title(term->dev, title);

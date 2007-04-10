@@ -60,6 +60,7 @@ unsigned char *parse_http_header(unsigned char *head, unsigned char *item, unsig
 
 unsigned char *parse_header_param(unsigned char *x, unsigned char *e)
 {
+	unsigned char u;
 	size_t le = strlen(e);
 	int lp;
 	unsigned char *y = x;
@@ -70,9 +71,10 @@ unsigned char *parse_header_param(unsigned char *x, unsigned char *e)
 	if (casecmp(y, e, le)) goto a;
 	y += le;
 	while (*y && (*y <= ' ' || *y == '=')) y++;
-	if (!*y) return stracpy("");
+	u = ';';
+	if (*y == '\'' || *y == '"') u = *y++;
 	lp = 0;
-	while (y[lp] >= ' ' && y[lp] != ';') {
+	while (y[lp] >= ' ' && y[lp] != u) {
 		lp++;
 		if (lp == MAXINT) overalloc();
 	}
@@ -319,6 +321,17 @@ void http_send_header(struct connection *c)
 	}
 	
 	add_to_str(&hdr, &l, "Accept: */*\r\n");
+#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
+	add_to_str(&hdr, &l, "Accept-Encoding: ");
+#if defined(HAVE_ZLIB)
+	add_to_str(&hdr, &l, "gzip, deflate, ");
+#endif
+#if defined(HAVE_BZIP2)
+	add_to_str(&hdr, &l, "bzip2, ");
+#endif
+	hdr[l-2] = '\r';
+	hdr[l-1] = '\n';
+#endif
 	if (!(accept_charset)) {
 		int i;
 		unsigned char *cs, *ac;

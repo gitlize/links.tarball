@@ -1,7 +1,7 @@
 #!/bin/sh
 echo
 echo Generating language table.
-languages=`cat index.txt`
+languages=`cat index.txt|sed 's///g'`
 if [ -n "$languages" ]; then
 (
 n=0

@@ -54,6 +54,12 @@
  * pomoci malloc.
  */
 
+/* Pozor: po kazdem XSync se musi dat
+ * register_bottom_half(x_process_events, NULL);
+ * jinak to bude cekat na filedescriptoru, i kdyz to ma eventy uz ve fronte.
+ *	-- mikulas
+ */
+
 
 #include "cfg.h"
 
@@ -314,12 +320,14 @@ static inline int trans_key(unsigned char * str, int table)
 static int x_translate_key(XKeyEvent *e,int *key,int *flag)
 {
 	KeySym ks;
+	static XComposeStatus comp = { NULL, 0 };
 	static char str[16];
 	int table=x_input_encoding<0?drv->codepage:x_input_encoding;
 	int len;
 
-	len=XLookupString(e,str,15,&ks,NULL);
+	len=XLookupString(e,str,15,&ks,&comp);
 	str[len>15?15:len]=0;
+	if (!len) str[0]=ks, str[1]=0;
 	*flag=0;
 	*key=0;
 
@@ -519,15 +527,16 @@ static void x_process_events(void *data)
 	XEvent last_event;
 	struct graphics_device *gd;
 	int last_was_mouse;
-
+	int replay_event = 0;
 
 #ifdef SC_DEBUG
 	MESSAGE("x_process_event\n");
 #endif
 	last_was_mouse=0;
-	while (XPending(x_display))
+	while (XPending(x_display) || replay_event)
 	{
-		XNextEvent(x_display,&event);
+		if (replay_event) replay_event = 0;
+		else XNextEvent(x_display,&event);
 		if (last_was_mouse&&(event.type==ButtonPress||event.type==ButtonRelease))  /* this is end of mouse move block --- call mouse handler */
 		{
 			int a,b;
@@ -624,9 +633,15 @@ static void x_process_events(void *data)
 			if (!gd)break;
 			/* when window only moved and size is the same, do nothing */
 			if (gd->size.x2==event.xconfigure.width&&gd->size.y2==event.xconfigure.height)break;
+			configure_notify_again:
 			gd->size.x2=event.xconfigure.width;
 			gd->size.y2=event.xconfigure.height;
 			x_update_driver_param(event.xconfigure.width, event.xconfigure.height);
+			while (XCheckWindowEvent(x_display,*((Window *)(gd->driver_data)),ExposureMask,&event)==True) ;
+			if (XCheckWindowEvent(x_display,*((Window *)(gd->driver_data)),StructureNotifyMask,&event)==True) {
+				if (event.type==ConfigureNotify) goto configure_notify_again;
+				replay_event=1;
+			}
 			gd->resize_handler(gd);
 			break;
 
@@ -878,8 +893,8 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 
 	n_wins=0;
 
-#if defined(HAVE_SETLOCALE) && defined(LC_ALL)
-	setlocale(LC_ALL,"");
+#if defined(HAVE_SETLOCALE) && defined(LC_CTYPE)
+	setlocale(LC_CTYPE,"");
 #endif
 #ifdef X_DEBUG
 	{
@@ -1159,6 +1174,7 @@ visual_found:;
 
 
 	XSync(x_display,False);
+	register_bottom_half(x_process_events, NULL);
 	return NULL;
 }
 
@@ -1285,6 +1301,7 @@ nic_nebude_bobankove:;
 	);
 
 	XSync(x_display,False);
+	register_bottom_half(x_process_events, NULL);
 	n_wins++;
 	return gd;
 }
@@ -1301,6 +1318,7 @@ static void x_shutdown_device(struct graphics_device *gd)
 	n_wins--;
 	XDestroyWindow(x_display,*(Window*)(gd->driver_data));
 	XSync(x_display,False);
+	register_bottom_half(x_process_events, NULL);
 	
 	x_remove_from_table((Window*)(gd->driver_data));
 	mem_free(gd->driver_data);
@@ -1899,6 +1917,7 @@ void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 	XSetWMName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSetWMIconName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSync(x_display,False);
+	register_bottom_half(x_process_events, NULL);
 	mem_free(t);
 }
 
@@ -2047,6 +2066,7 @@ unsigned char *x_get_clipboard_text(void)
 	}
 
 no_new_sel:
+	register_bottom_half(x_process_events, NULL);
 	if (!x_my_clipboard) return NULL;
 	
 	ct=get_translation_table(x_input_encoding < 0 ? drv->codepage : x_input_encoding,utf8_table);

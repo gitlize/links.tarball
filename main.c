@@ -404,6 +404,8 @@ int main(int argc, char *argv[])
 	g_argc = argc;
 	g_argv = (unsigned char **)argv;
 
+	get_path_to_exe();
+
 	select_loop(init);
 	terminate_all_subsystems();
 

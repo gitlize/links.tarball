@@ -2,7 +2,7 @@
 echo
 echo Syncing other languages.
 mkdir ../intl-bak 2>/dev/null
-languages=`cat index.txt`
+languages=`cat index.txt|sed 's///g'`
 if [ -n "$languages" ]; then
 	for i in $languages; do
 		if [ "$i" != english ]; then

@@ -44,6 +44,7 @@ int dither_images=1;
 #ifdef G
 
 /* prototypes */
+int is_image_size_sane(int x, int y);
 void destroy_decoder (struct cached_image *);
 void img_destruct_image(struct g_object *);
 int img_scale_h(unsigned scale, int);
@@ -59,6 +60,12 @@ void img_draw_image (struct f_data_c *, struct g_object_image *, int, int);
 void find_or_make_cached_image(struct g_object_image *, unsigned char *, int);
 void buffer_to_bitmap(struct cached_image *);
 
+int is_image_size_sane(int x, int y)
+{
+	unsigned a = (unsigned)x * (unsigned)y * 6;
+	if (y && a / (unsigned)y / 6 != (unsigned)x) return 0;
+	return a < MAXINT;
+}
 
 /* This is a dummy */
 void img_draw_decoded_image(struct graphics_device *dev, struct decoded_image *d, int x, int y, int xw, int yw, int xo, int yo)
@@ -332,6 +339,10 @@ void header_dimensions_known(struct cached_image *cimg)
 			if (cimg->xww<=0) cimg->xww=1;
 			if (cimg->yww<=0) cimg->yww=1;
 		}
+	}
+	if (!is_image_size_sane(cimg->xww, cimg->yww)) {
+		cimg->xww = cimg->width;
+		cimg->yww = cimg->height;
 	}
 	if (cimg->width!=cimg->xww||cimg->height!=cimg->yww) cimg->strip_optimized=0;
 	cimg->gamma_stamp=gamma_stamp;
@@ -1249,6 +1260,12 @@ struct g_object_image *insert_image(struct g_part *p, struct image_description *
 		image->xw=img_scale_h(d_opt->image_scale, im->xsize);
 		image->yw=img_scale_v(d_opt->image_scale, im->ysize);
 		image->xyw_meaning=MEANING_DIMS;
+	}
+	if (image->xw >= 0 && image->yw >= 0) {
+		if (!is_image_size_sane(image->xw, image->yw)) {
+			mem_free(image);
+			return NULL;
+		}
 	}
 
 	/* Put the data for javascript inside */

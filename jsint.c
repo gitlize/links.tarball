@@ -94,10 +94,10 @@ void jsint_done_execution(struct f_data_c *);
 int jsint_can_access(struct f_data_c *, struct f_data_c *);
 struct f_data_c *jsint_find_recursive(struct f_data_c *, long);  /* line 89 */
 void *jsint_find_object(struct f_data_c *, long);
-long *__add_id(long *, int *, long );
-long *__add_fd_id(long *, int *, long, long, unsigned char *);
+long *add_id(long *, int *, long );
+long *add_fd_id(long *, int *, long, long, unsigned char *);
 void send_vodevri_v_novym_vokne(struct terminal *, void (*)(struct terminal *, unsigned char *, unsigned char *), struct session *);
-void __add_all_recursive_in_fd(long **, int *, struct f_data_c *, struct f_data_c *);
+void add_all_recursive_in_fd(long **, int *, struct f_data_c *, struct f_data_c *);
 
 
 void jsint_set_cookies(struct f_data_c *fd, int final_flush)
@@ -526,7 +526,7 @@ void jsint_scan_script_tags(struct f_data_c *fd)
 			if (!get_http_code(af->rq->ce->head, &code, &version)) {
 				if (code < 200 || code >= 300) goto se;
 			}
-			get_file(af->rq, &start, &end);
+			if (get_file(af->rq, &start, &end)) goto se;
 			if (start == end) goto se;
 		} else {
 			mem_free(val);
@@ -704,7 +704,7 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 }
 
 
-long *__add_id(long *field,int *len,long id)
+long *add_id(long *field,int *len,long id)
 {
 	long *p;
 	int a;
@@ -719,7 +719,7 @@ long *__add_id(long *field,int *len,long id)
 	return p;
 }
 
-long *__add_fd_id(long *field,int *len,long fd,long id, unsigned char *name)
+long *add_fd_id(long *field,int *len,long fd,long id, unsigned char *name)
 {
 	long *p;
 	int a;
@@ -743,7 +743,7 @@ static long js_upcall_get_frame_id(void *data);
  * in fd and all it's subframes with rq==NULL
  * js_ctx is f_data_c of the accessing script
  */
-static long *__find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, long *pole_vole, int *n_items, unsigned char *takhle_tomu_u_nas_nadavame)
+static long *find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, long *pole_vole, int *n_items, unsigned char *takhle_tomu_u_nas_nadavame)
 {
 	struct f_data_c *ff;
 	struct form_control *f;
@@ -754,7 +754,7 @@ static long *__find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, l
 	/* search frame */
 	foreach(ff,fd->subframes)
 		if (ff->loc&&ff->loc->name&&!strcmp(ff->loc->name,takhle_tomu_u_nas_nadavame)&&jsint_can_access(js_ctx,ff))	/* to je on! */
-			if (!(pole_vole=__add_id(pole_vole,n_items,js_upcall_get_frame_id(ff))))return NULL;
+			if (!(pole_vole=add_id(pole_vole,n_items,js_upcall_get_frame_id(ff))))return NULL;
 
 	if (!(fd->f_data))goto a_je_po_ptakach;
 
@@ -768,13 +768,13 @@ static long *__find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, l
 
 		gi = (struct g_object_image *)((char *)fi + ((char *)(&goi) - (char *)(&(goi.image_list))));
 		if (gi->name&&!strcmp(gi->name, takhle_tomu_u_nas_nadavame))
-			if (!(pole_vole=__add_id(pole_vole,n_items,JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE))))return NULL;
+			if (!(pole_vole=add_id(pole_vole,n_items,JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE))))return NULL;
 	}
 #endif
 	/* search forms */
 	foreachback(f,fd->f_data->forms)
 		if (f->form_name&&!strcmp(f->form_name,takhle_tomu_u_nas_nadavame))   /* tak tohle JE Jim Beam */
-			if (!(pole_vole=__add_id(pole_vole,n_items,((f->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM)))return NULL;
+			if (!(pole_vole=add_id(pole_vole,n_items,((f->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM)))return NULL;
 
 	/* search form elements */
 	foreachback(f,fd->f_data->forms)
@@ -798,13 +798,13 @@ static long *__find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, l
 				default: /* internal("Invalid form element type.\n"); */
 				tak_mu_to_ukaz=0;break;
 			}
-			if (tak_mu_to_ukaz&&!(pole_vole=__add_id(pole_vole,n_items,tak_mu_to_ukaz)))return NULL;
+			if (tak_mu_to_ukaz&&!(pole_vole=add_id(pole_vole,n_items,tak_mu_to_ukaz)))return NULL;
 		}
 		
 a_je_po_ptakach:
 	/* find in all rq==NULL */
 	foreach(ff,fd->subframes)
-		if (!(ff->rq)) pole_vole=__find_in_subframes(js_ctx,ff,pole_vole,n_items,takhle_tomu_u_nas_nadavame);
+		if (!(ff->rq)) pole_vole=find_in_subframes(js_ctx,ff,pole_vole,n_items,takhle_tomu_u_nas_nadavame);
 
 	
 	return pole_vole;
@@ -835,7 +835,7 @@ long *jsint_resolve(void *context, long obj_id, char *takhle_tomu_u_nas_nadavame
 		fd=jsint_find_document(obj_id);
 		if (!fd||!(jsint_can_access(js_ctx,fd)))break;
 		
-		pole_vole=__find_in_subframes(js_ctx, fd, pole_vole, n_items, takhle_tomu_u_nas_nadavame);
+		pole_vole=find_in_subframes(js_ctx, fd, pole_vole, n_items, takhle_tomu_u_nas_nadavame);
 		break;	
 
 		/* searched name can be a form element */
@@ -869,7 +869,7 @@ long *jsint_resolve(void *context, long obj_id, char *takhle_tomu_u_nas_nadavame
 							default: tak_mu_to_ukaz=0;break;
 							/* internal("Invalid form element type.\n"); */
 						}
-						if ((tak_mu_to_ukaz&JS_OBJ_MASK)&&!(pole_vole=__add_id(pole_vole,n_items,tak_mu_to_ukaz)))return NULL;
+						if ((tak_mu_to_ukaz&JS_OBJ_MASK)&&!(pole_vole=add_id(pole_vole,n_items,tak_mu_to_ukaz)))return NULL;
 					}
 			}
 		}
@@ -1188,7 +1188,7 @@ struct gimme_js_id
 
 /* tady se netestuje js_id, protoze BFU to chce killnout, tak to proste killne */
 /* aux function for all dialog upcalls */
-static void __js_kill_script_pressed(void *data)
+static void js_kill_script_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id *jsid=(struct gimme_js_id*)data;
@@ -1203,7 +1203,7 @@ static void __js_kill_script_pressed(void *data)
 
 
 /* aux function for js_upcall_confirm */
-static void __js_upcall_confirm_ok_pressed(void *data)
+static void js_upcall_confirm_ok_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id *jsid=(struct gimme_js_id*)data;
@@ -1217,7 +1217,7 @@ static void __js_upcall_confirm_ok_pressed(void *data)
 
 
 /* aux function for js_upcall_confirm */
-static void __js_upcall_confirm_cancel_pressed(void *data)
+static void js_upcall_confirm_cancel_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id *jsid=(struct gimme_js_id*)data;
@@ -1277,9 +1277,9 @@ void js_upcall_confirm(void *data)
 		txt,   /* message */
 		jsid,   /* data for button functions */
 		3,   /* # of buttons */
-		TEXT(T_OK),__js_upcall_confirm_ok_pressed,B_ENTER,  /* first button */
-		TEXT(T_CANCEL),__js_upcall_confirm_cancel_pressed,B_ESC,  /* second button */
-		TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL
+		TEXT(T_OK),js_upcall_confirm_ok_pressed,B_ENTER,  /* first button */
+		TEXT(T_CANCEL),js_upcall_confirm_cancel_pressed,B_ESC,  /* second button */
+		TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL
 	);
 
 	js_mem_free(s);
@@ -1287,7 +1287,7 @@ void js_upcall_confirm(void *data)
 
 
 /* aux function for js_upcall_alert */
-static void __js_upcall_alert_ok_pressed(void *data)
+static void js_upcall_alert_ok_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id *jsid=(struct gimme_js_id*)data;
@@ -1347,8 +1347,8 @@ void js_upcall_alert(void * data)
 		txt,   /* message */
 		jsid,   /* data for button functions */
 		2,   /* # of buttons */
-		TEXT(T_OK),__js_upcall_alert_ok_pressed,B_ENTER|B_ESC,
-		TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL
+		TEXT(T_OK),js_upcall_alert_ok_pressed,B_ENTER|B_ESC,
+		TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL
 	);
 
 	js_mem_free(s);
@@ -1359,7 +1359,7 @@ void js_upcall_alert(void * data)
 /* tady se netestuje js_id, protoze BFU zmacklo, ze chce zavrit okno a v
  * nekterych pripadech by ho to nezavrelo (kdyby se testovalo) a to by vypadalo
  * blbe */
-static void __js_upcall_close_window_yes_pressed(void *data)
+static void js_upcall_close_window_yes_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id *jsid=(struct gimme_js_id*)data;
@@ -1408,8 +1408,8 @@ void js_upcall_close_window(void *data)
 			TEXT(T_SCRIPT_TRYING_TO_CLOSE_WINDOW),   /* message */
 			jsid,   /* data for button functions */
 			2,   /* # of buttons */
-			TEXT(T_YES),__js_upcall_close_window_yes_pressed,NULL,
-			TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL
+			TEXT(T_YES),js_upcall_close_window_yes_pressed,NULL,
+			TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL
 		);
 		js_mem_free(s);
 	}
@@ -1437,7 +1437,7 @@ long js_upcall_get_window_id(void *data)
 
 
 /* aux function for js_upcall_get_string */
-static void __js_upcall_get_string_ok_pressed(void *data, unsigned char *str)
+static void js_upcall_get_string_ok_pressed(void *data, unsigned char *str)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id *jsid=(struct gimme_js_id*)data;
@@ -1501,9 +1501,9 @@ void js_upcall_get_string(void *data)
 		0,  /* max value */
 		NULL,  /* check fn */
 		TEXT(T_OK),   /* ok button */
-		__js_upcall_get_string_ok_pressed,
+		js_upcall_get_string_ok_pressed,
 		TEXT(T_KILL_SCRIPT),  /* cancel button */
-		__js_kill_script_pressed,
+		js_kill_script_pressed,
 		NULL
 	);
 	js_mem_free(s);
@@ -2528,13 +2528,13 @@ void js_upcall_click(void *bidak, long document_id, long elem_id)
 }
 
 #ifdef G
-static int __find_go_link_num;
-static struct g_object *__to_je_on_bidak;
-static void __find_go(struct g_object *p, struct g_object *c)
+static int find_go_link_num;
+static struct g_object *to_je_on_bidak;
+static void find_go(struct g_object *p, struct g_object *c)
 {
 	if (c->draw==(void (*)(struct f_data_c *, struct g_object *, int, int))g_text_draw)
-		if (((struct g_object_text*)c)->link_num==__find_go_link_num){__to_je_on_bidak=c;return;}
-	if (c->get_list)c->get_list(c,__find_go);
+		if (((struct g_object_text*)c)->link_num==find_go_link_num){to_je_on_bidak=c;return;}
+	if (c->get_list)c->get_list(c,find_go);
 }
 #endif
 
@@ -2582,12 +2582,12 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 					if (F)
 					{
 						fd->ses->locked_link=1;
-						__to_je_on_bidak=NULL;
-						__find_go_link_num=a;
+						to_je_on_bidak=NULL;
+						find_go_link_num=a;
 
 						/* tak tedka tu budu carovat g_object_text, kterej patri k tomuhle linku */
-						if (fd->f_data->root->get_list)fd->f_data->root->get_list(fd->f_data->root,__find_go);
-						fd->f_data->locked_on=__to_je_on_bidak;
+						if (fd->f_data->root->get_list)fd->f_data->root->get_list(fd->f_data->root,find_go);
+						fd->f_data->locked_on=to_je_on_bidak;
 					}
 #endif
 					if (l->js_event&&l->js_event->focus_code)
@@ -2836,7 +2836,7 @@ void send_vodevri_v_novym_vokne(struct terminal *term, void (*open_window)(struc
 }
 
 /* aux function for js_upcall_goto_url */
-static void __js_upcall_goto_url_ok_pressed(void *data)
+static void js_upcall_goto_url_ok_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id_string *jsid=(struct gimme_js_id_string*)data;
@@ -2860,7 +2860,7 @@ static void __js_upcall_goto_url_ok_pressed(void *data)
 
 
 /* aux function for js_upcall_goto_url */
-static void __js_upcall_goto_url_cancel_pressed(void *data)
+static void js_upcall_goto_url_cancel_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id *jsid=(struct gimme_js_id*)data;
@@ -2938,9 +2938,9 @@ void js_upcall_goto_url(void * data)
 			jsid->n?TEXT(T_JS_IS_ATTEMPTING_TO_OPEN_NEW_WINDOW_WITH_URL):TEXT(T_JS_IS_ATTEMPTING_TO_GO_TO_URL), " \"",jsid->string,"\".",NULL,   /* message */
 			jsid,   /* data for button functions */
 			3,   /* # of buttons */
-			TEXT(T_ALLOW),__js_upcall_goto_url_ok_pressed,B_ENTER,
-			TEXT(T_REJECT),__js_upcall_goto_url_cancel_pressed,B_ESC,
-			TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
+			TEXT(T_ALLOW),js_upcall_goto_url_ok_pressed,B_ENTER,
+			TEXT(T_REJECT),js_upcall_goto_url_cancel_pressed,B_ESC,
+			TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
 		);
 		js_mem_free(s);
 	}
@@ -2982,7 +2982,7 @@ int js_upcall_get_history_length(void *context)
 
 
 /* aux function for js_upcall_goto_history */
-static void __js_upcall_goto_history_ok_pressed(void *data)
+static void js_upcall_goto_history_ok_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id_string *jsid=(struct gimme_js_id_string*)data;
@@ -3094,9 +3094,9 @@ void js_upcall_goto_history(void * data)
 			TEXT(T_JS_IS_ATTEMPTING_TO_GO_INTO_HISTORY), txt, TEXT(T_TO_URL), " \"",url,"\".",NULL,   /* message */
 			jsid,   /* data for button functions */
 			3,   /* # of buttons */
-			TEXT(T_ALLOW),__js_upcall_goto_history_ok_pressed,B_ENTER,
-			TEXT(T_REJECT),__js_upcall_goto_url_cancel_pressed,B_ESC,
-			TEXT(T_KILL_SCRIPT), __js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
+			TEXT(T_ALLOW),js_upcall_goto_history_ok_pressed,B_ENTER,
+			TEXT(T_REJECT),js_upcall_goto_url_cancel_pressed,B_ESC,
+			TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
 		);
 		js_mem_free(s);
 	}
@@ -3308,7 +3308,7 @@ ty_uz_se_nevratis:
 
 
 /* adds all in given f_data_c, the f_data_c must be accessible by the javascript */
-void __add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct f_data_c *js_ctx)
+void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct f_data_c *js_ctx)
 {
 	struct f_data_c *ff;
 	struct form_control *fc;
@@ -3320,7 +3320,7 @@ void __add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, stru
        	/* add all accessible frames */
        	foreach(ff,fd->subframes)
        		if (jsint_can_access(js_ctx,ff))
-       			if (!((*field)=__add_fd_id(*field,len,js_upcall_get_frame_id(fd),js_upcall_get_frame_id(ff),ff->f_data?ff->f_data->opt.framename:NULL)))return;
+       			if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),js_upcall_get_frame_id(ff),ff->f_data?ff->f_data->opt.framename:NULL)))return;
 
 	if (!(fd->f_data))goto tady_uz_nic_peknyho_nebude;
 
@@ -3333,12 +3333,12 @@ void __add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, stru
 			struct g_object_image goi;
 	
 			gi = (struct g_object_image *)((char *)fi + ((char *)(&goi) - (char *)(&(goi.image_list))));
-			if (!((*field)=__add_fd_id(*field,len,js_upcall_get_frame_id(fd),JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE),gi->name)))return;
+			if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE),gi->name)))return;
 		}
 #endif
 	/* add all forms */
 	foreachback(fc,fd->f_data->forms)
-		if (!((*field)=__add_fd_id(*field,len,js_upcall_get_frame_id(fd),((fc->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM,fc->form_name)))return;
+		if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),((fc->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM,fc->form_name)))return;
 
 	/* add all form elements */
 	foreachback(fc,fd->f_data->forms)
@@ -3361,13 +3361,13 @@ void __add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, stru
 				default:/* internal("Invalid form element type.\n"); */
 				tak_mu_to_ukaz=0;break;
 			}
-			if (tak_mu_to_ukaz&&!((*field)=__add_fd_id(*field,len,js_upcall_get_frame_id(fd),tak_mu_to_ukaz,fc->name)))return;
+			if (tak_mu_to_ukaz&&!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),tak_mu_to_ukaz,fc->name)))return;
 		}
 	
 tady_uz_nic_peknyho_nebude:
 
 	foreach(ff,fd->subframes)
-		if (jsint_can_access(js_ctx,ff)) __add_all_recursive_in_fd(field,len,ff,js_ctx);
+		if (jsint_can_access(js_ctx,ff)) add_all_recursive_in_fd(field,len,ff,js_ctx);
 }
 
 /* returns allocated field of all objects in the document (document.all)
@@ -3393,7 +3393,7 @@ long * js_upcall_get_all(void *chuligane, long document_id, int *len)
 
 	pole_neorane=mem_alloc(sizeof(long));
 
-	__add_all_recursive_in_fd(&pole_neorane,len,fd,js_ctx);
+	add_all_recursive_in_fd(&pole_neorane,len,fd,js_ctx);
 
 	/* nothing was found */
 	if (!pole_neorane)return NULL;

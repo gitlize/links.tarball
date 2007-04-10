@@ -1006,6 +1006,7 @@ void dlg_set_history(struct dialog_item_data *di)
 	memcpy(di->cdata, s, l);
 	di->cdata[l] = 0;
 	di->cpos = l;
+	di->vpos = 0;
 }
 
 int dlg_mouse(struct dialog_data *dlg, struct dialog_item_data *di, struct event *ev)

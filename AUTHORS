@@ -348,3 +348,6 @@ Matthew Fischer <futhark@mchsi.com>
 Jindrich Makovicka <makovick@gmail.com>
 	Fixed memory corruption when redirecting URLs with user:password
 
+Carles Pina i Estany <carles@pina.cat>
+	Add more top-level domains
+

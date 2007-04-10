@@ -35,6 +35,12 @@ extern struct graphics_driver atheos_driver;
 extern struct graphics_driver sdl_driver;
 #endif
 
+/*
+ * On SPAD you must test first svgalib and then X (because X test is slow).
+ * On other systems you must test first X and then svgalib (because svgalib
+ *	would work in X too and its undesirable).
+ */
+
 struct graphics_driver *graphics_drivers[] = {
 #ifdef GRDRV_PMSHELL
 	&pmshell_driver,
@@ -42,8 +48,10 @@ struct graphics_driver *graphics_drivers[] = {
 #ifdef GRDRV_ATHEOS
 	&atheos_driver,
 #endif
+#ifndef SPAD
 #ifdef GRDRV_X
 	&x_driver,
+#endif
 #endif
 #ifdef GRDRV_DIRECTFB
 	&directfb_driver,
@@ -53,6 +61,11 @@ struct graphics_driver *graphics_drivers[] = {
 #endif
 #ifdef GRDRV_SVGALIB
 	&svga_driver,
+#endif
+#ifdef SPAD
+#ifdef GRDRV_X
+	&x_driver,
+#endif
 #endif
 #ifdef GRDRV_SDL
 	&sdl_driver,

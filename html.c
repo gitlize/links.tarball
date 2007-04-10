@@ -30,6 +30,7 @@ void html_underline(unsigned char *);
 void html_fixed(unsigned char *);
 void html_invert(unsigned char *);
 void html_a(unsigned char *);
+void html_a_special(unsigned char *, unsigned char *, unsigned char *);
 void html_sub(unsigned char *);
 void html_sup(unsigned char *);
 void html_font(unsigned char *);
@@ -937,6 +938,19 @@ void html_a(unsigned char *a)
 		special_f(ff, SP_TAG, al);
 		mem_free(al);
 	}
+}
+
+void html_a_special(unsigned char *a, unsigned char *next, unsigned char *eof)
+{
+	unsigned char *t;
+	while (next < eof && WHITECHAR(*next)) next++;
+	if (next > eof - 4) return;
+	if (!(next[0] == '<' && next[1] == '/' && upcase(next[2]) == 'A' && next[3] == '>')) return;
+	if (!has_attr(a, "href") || !format.link) return;
+	t = get_attr_val(a, "title");
+	if (!t) t = stracpy("[LINK]");
+	put_chrs(t, strlen(t), put_chars_f, ff);
+	mem_free(t);
 }
 
 void html_sub(unsigned char *a)
@@ -2749,6 +2763,7 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 						html_top.linebreak = ei->linebreak;
 					}
 					if (ei->func) ei->func(attr);
+					if (ei->func == html_a) html_a_special(attr, html, eof);
 					if (ei->func != html_br) was_br = 0;
 					if (a) par_format = pa;
 				}

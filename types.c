@@ -797,9 +797,16 @@ unsigned char *get_content_type_by_extension(unsigned char *url)
 	ext = NULL, extl = 0;
 	if (!(ct = get_url_data(url))) ct = url;
 	for (; *ct && !end_of_dir(url, *ct); ct++)
-		if (*ct == '.') ext = ct + 1;
-		else if (dir_sep(*ct)) ext = NULL;
-	if (ext) while (ext[extl] && !dir_sep(ext[extl]) && !end_of_dir(url, ext[extl])) extl++;
+		if (*ct == '.') {
+			if (ext) {
+				if (!casecmp(ct, ".gz", 3) && (!ct[3] || end_of_dir(url, ct[3]))) break;
+				if (!casecmp(ct, ".bz2", 4) && (!ct[4] || end_of_dir(url, ct[4]))) break;
+			}
+			ext = ct + 1;
+		} else if (dir_sep(*ct)) {
+			ext = NULL;
+		}
+	if (ext) while (ext[extl] && ext[extl] != '.' && !dir_sep(ext[extl]) && !end_of_dir(url, ext[extl])) extl++;
 	if ((extl == 3 && !casecmp(ext, "htm", 3)) ||
 	    (extl == 4 && !casecmp(ext, "html", 4))) return stracpy("text/html");
 	foreach(e, extensions) {
@@ -837,7 +844,7 @@ unsigned char *get_content_type_by_extension(unsigned char *url)
 unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 {
 	unsigned char *ct;
-	if (head && (ct = parse_http_header(head, "Content-Type", NULL))) {
+	if ((ct = parse_http_header(head, "Content-Type", NULL))) {
 		unsigned char *s;
 		if ((s = strchr(ct, ';'))) *s = 0;
 		while (*ct && ct[strlen(ct) - 1] <= ' ') ct[strlen(ct) - 1] = 0;
@@ -853,6 +860,30 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 	ct = get_content_type_by_extension(url);
 	if (ct) return ct;
 	return !force_html ? stracpy("text/plain") : stracpy("text/html");
+}
+
+unsigned char *get_content_encoding(unsigned char *head, unsigned char *url)
+{
+	unsigned char *ce, *ct, *ext;
+	unsigned l;
+	int code;
+	if ((ce = parse_http_header(head, "Content-Encoding", NULL))) return ce;
+	if ((ct = parse_http_header(head, "Content-Type", NULL))) {
+		unsigned char *s;
+		if ((s = strchr(ct, ';'))) *s = 0;
+		ce = NULL;
+		if (!strcasecmp(ct, "application/x-gzip")) ce = "gzip";
+		if (!strcasecmp(ct, "application/x-bzip2")) ce = "bzip2";
+		mem_free(ct);
+		if (ce) return stracpy(ce);
+	}
+	if (!get_http_code(head, &code, NULL) && code >= 300) return NULL;
+	if (!(ext = get_url_data(url))) ext = url;
+	if (strchr(ext, POST_CHAR)) return NULL;
+	l = strlen(ext);
+	if (l >= 3 && !strcasecmp(ext + l - 3, ".gz")) return stracpy("gzip");
+	if (l >= 4 && !strcasecmp(ext + l - 4, ".bz2")) return stracpy("bzip2");
+	return NULL;
 }
 
 /* returns field with associations */

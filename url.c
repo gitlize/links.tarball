@@ -44,7 +44,7 @@ int check_protocol(unsigned char *p, int l)
 {
 	int i;
 	for (i = 0; protocols[i].prot; i++)
-		if (!casecmp(protocols[i].prot, p, l) && strlen(protocols[i].prot) == l) {
+		if (!casecmp(protocols[i].prot, p, l) && strlen(protocols[i].prot) == (size_t)l) {
 			return i;
 		}
 	return -1;
@@ -435,10 +435,12 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 			unsigned char *f, *e;
 			int i;
 			for (e = ch + 1; *(f = e + strcspn(e, ".:/")) == '.'; e = f + 1) ;
-			for (i = 0; i < f - e; i++) if (e[i] >= '0' && e[i] <= '9') goto http;
-			if (f - e == 2) http: prefix = "http://", sl = 1;
+			for (i = 0; i < f - e; i++) if (e[i] < '0' || e[i] > '9') goto noip;
+			goto http;
+			noip:
+			if (f - e == 2 && casecmp(e, "gz", 2)) http: prefix = "http://", sl = 1;
 			else {
-				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", "arpa", "aero", "biz", "coop", "info", "museum", "name", "pro", NULL };
+				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", "arpa", "aero", "biz", "coop", "info", "museum", "name", "pro", "cat", "jobs", "mobi", "travel", "tel", NULL };
 				for (i = 0; tld[i]; i++) if ((size_t)(f - e) == strlen(tld[i]) && !casecmp(tld[i], e, f - e)) goto http;
 			}
 		}

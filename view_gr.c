@@ -445,13 +445,13 @@ void get_scrollbar_pos(int dsize, int total, int vsize, int vpos, int *start, in
 		*start = *end = 0;
 		return;
 	}
-	ssize = dsize * vsize / total;
+	ssize = (double)dsize * vsize / total;
 	if (ssize < G_SCROLL_BAR_MIN_SIZE) ssize = G_SCROLL_BAR_MIN_SIZE;
 	if (total == vsize) {
 		*start = 0; *end = dsize;
 		return;
 	}
-	*start = (dsize - ssize) * vpos / (total - vsize);
+	*start = (double)(dsize - ssize) * vpos / (total - vsize);
 	*end = *start + ssize;
 	if (*start > dsize) *start = dsize;
 	if (*start < 0) *start = 0;
@@ -459,8 +459,8 @@ void get_scrollbar_pos(int dsize, int total, int vsize, int vpos, int *start, in
 	if (*end < 0) *end = 0;
 	/*
 	else {
-		*start = vpos * dsize / total;
-		*end = (vpos + vsize) * dsize / total;
+		*start = (double)vpos * dsize / total;
+		*end = (double)(vpos + vsize) * dsize / total;
 	}
 	if (*end > dsize) *end = dsize;
 	*/
@@ -901,7 +901,7 @@ void process_sb_move(struct f_data_c *fd, int off)
 	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = rpos * (h ? fd->f_data->x : fd->f_data->y) / (w - 4);
 	*/
 	if (!(w - 4 - (en - st))) return;
-	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = rpos * (h ? fd->f_data->x - w : fd->f_data->y - w) / (w - 4 - (en - st));
+	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = rpos * (double)(h ? fd->f_data->x - w : fd->f_data->y - w) / (w - 4 - (en - st));
 	fd->vs->orig_view_pos = fd->vs->view_pos;
 	fd->vs->orig_view_posx = fd->vs->view_posx;
 	draw_graphical_doc(fd->ses->term, fd, 1);
@@ -1117,7 +1117,7 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 					g_get_search_data(fd->f_data);
 					end=t->srch_pos+g_find_text_pos(t, ev->x+fd->vs->view_posx);
 					fd->f_data->hlt_len=end-fd->f_data->hlt_pos;
-					if ((ev->b & BM_ACT) == B_UP) {
+					if ((ev->b & BM_ACT) == B_UP || (ev->b & BM_ACT) == B_DRAG) {
 						unsigned char *m = memacpy(fd->f_data->srch_string + fd->f_data->hlt_pos + (fd->f_data->hlt_len > 0 ? 0 : fd->f_data->hlt_len), fd->f_data->hlt_len > 0 ? fd->f_data->hlt_len : -fd->f_data->hlt_len);
 						if (m) {
 							unsigned char *p = m;

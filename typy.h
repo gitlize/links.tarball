@@ -6,13 +6,12 @@
 #ifndef TYPY_H
 #define TYPY_H
 
+#define UNDEFINED 0
 #define INTEGER 1
 #define FLOAT 2
-#define UNDEFINED 0
 #define NULLOVY 3
 #define BOOLEAN 4
 #define STRING 5
-#define REGEXP 16
 #define VARIABLE 6
 #define FUNKCE 7
 #define FUNKINT 8
@@ -24,6 +23,8 @@
 #define ARRAY 13
 #define PARLIST 14
 #define INTVAR 15
+#define REGEXP 16
+#define VARIABLE_METFUN 17
 
 #define MAINADDRSPC 10
 

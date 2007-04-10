@@ -111,16 +111,16 @@ unsigned char *init_seq = "\033[?1000h\033[?47h\0337";
 unsigned char *term_seq = "\033[2J\033[?1000l\033[?47l\0338\b \b";
 */
 
-unsigned char *init_seq = "\033)0\0337";
-unsigned char *init_seq_x_mouse = "\033[?1000h";
-unsigned char *init_seq_tw_mouse = "\033[?9h";
-unsigned char *term_seq = "\033[2J\0338\r \b";
-unsigned char *term_seq_x_mouse = "\033[?1000l\015       \015";
-unsigned char *term_seq_tw_mouse = "\033[?9l";
+unsigned char init_seq[] = "\033)0\0337";
+unsigned char init_seq_x_mouse[] = "\033[?1000h";
+unsigned char init_seq_tw_mouse[] = "\033[?9h";
+unsigned char term_seq[] = "\033[2J\0338\r \b";
+unsigned char term_seq_x_mouse[] = "\033[?1000l\015       \015";
+unsigned char term_seq_tw_mouse[] = "\033[?9l";
 
 /*unsigned char *term_seq = "\033[2J\033[?1000l\0338\b \b";*/
 
-void send_init_sequence(int h,int flags)
+void send_init_sequence(int h, int flags)
 {
 	hard_write(h, init_seq, strlen(init_seq));
 	if (flags & USE_TWIN_MOUSE) {
@@ -821,7 +821,8 @@ int process_queue(struct itrm *itrm)
 					case 24: ev.x = KBD_F12; break;
 					} break;
 				case 'R':
-						  resize_terminal (); break ;
+					resize_terminal();
+					break ;
 				case 'M': if (itrm->qlen - el < 3) goto ret;
 					if (v == 5) {
 						if (xterm_button == -1) xterm_button = 0; /* */

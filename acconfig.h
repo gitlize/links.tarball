@@ -62,6 +62,12 @@
 #undef HAVE_SSL
 
 /* */
+#undef HAVE_ZLIB
+
+/* */
+#undef HAVE_BZIP2
+
+/* */
 #undef X2
 
 /* */

@@ -181,7 +181,7 @@ lns*lookup(long,plns*,js_context*);
 lns*create(long,plns*,js_context*);
 plns*newnamespace(abuf*,abuf*,js_context*);
 void deletenamespace(plns*,js_context*,int only_content);
-#define RESOLV(A) if((A->typ==VARIABLE)||(A->typ==INTVAR)) \
+#define RESOLV(A) if((A->typ==VARIABLE)||(A->typ==VARIABLE_METFUN)||(A->typ==INTVAR)) \
 	vartoarg((lns*)A->argument,A,context);
 
 lns* buildin(char*,js_id_name**,plns*,js_context*);

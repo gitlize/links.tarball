@@ -8,7 +8,7 @@
 
 #define SYS_UNIX	1
 #define SYS_OS2		2
-#define SYS_WIN32	3
+#define SYS_WIN_32	3
 #define SYS_BEOS	4
 #define SYS_RISCOS	5
 #define SYS_ATHEOS	6
@@ -81,13 +81,14 @@ static inline int dir_sep(char x) { return x == '/' || x == '\\'; }
 static inline int dir_sep(char x) { return x == '/' || x == '\\'; }
 #define NEWLINE	"\r\n"
 /*#define NO_ASYNC_LOOKUP*/
-#define SYSTEM_ID SYS_WIN32
+#define SYSTEM_ID SYS_WIN_32
 #define SYSTEM_NAME "Win32"
 #define DEFAULT_SHELL "cmd.exe"
 #define GETSHELL getenv("COMSPEC")
 #define NO_FG_EXEC
 #define DOS_FS
-#define NO_FORK_ON_EXIT
+#define SET_WINDOW_TITLE_UTF_8
+#define ASSOC_CONS_XWIN
 #ifndef HAVE_PTHREADS
   #define HAVE_PTHREADS
 #endif

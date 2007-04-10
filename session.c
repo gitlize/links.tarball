@@ -11,7 +11,7 @@ struct list_head downloads = {&downloads, &downloads};
 void add_xnum_to_str(unsigned char **, int *, off_t);
 void add_time_to_str(unsigned char **, int *, ttime);
 unsigned char *get_stat_msg(struct status *, struct terminal *);
-void _print_screen_status(struct terminal *, struct session *);
+void x_print_screen_status(struct terminal *, struct session *);
 struct session *get_download_ses(struct download *);
 void abort_download(struct download *);
 void abort_and_delete_download(struct download *);
@@ -23,6 +23,7 @@ int dlg_undisplay_download(struct dialog_data *, struct dialog_item_data *);
 void download_abort_function(struct dialog_data *);
 void download_data(struct status *, struct download *);
 unsigned char *get_temp_name(unsigned char *);
+int f_is_cacheable(struct f_data *);
 int f_need_reparse(struct f_data *);
 struct f_data *format_html(struct f_data_c *, struct object_request *, unsigned char *, struct document_options *, int *);
 void count_frames(struct f_data_c *, int *);
@@ -157,11 +158,12 @@ unsigned char *get_stat_msg(struct status *stat, struct terminal *term)
 void change_screen_status(struct session *ses)
 {
 	struct status *stat = NULL;
-	if (ses->rq) stat = &ses->rq->stat;
-	else {
+	if (ses->rq) {
+		stat = &ses->rq->stat;
+	} else {
 		struct f_data_c *fd = current_frame(ses);
 		if (fd->rq) stat = &fd->rq->stat;
-		if (stat&& stat->state == S_OK && fd->af) {
+		if (stat && stat->state == S_OK && fd->af) {
 			struct additional_file *af;
 			foreach(af, fd->af->af) {
 				if (af->rq && af->rq->stat.state >= 0) stat = &af->rq->stat;
@@ -176,12 +178,14 @@ void change_screen_status(struct session *ses)
 	 */
 	ses->st = NULL;
 	if (stat) {
-		if (stat->state == S_OK)ses->st = print_current_link(ses);
-		if (!ses->st) ses->st = ses->default_status?stracpy(ses->default_status):get_stat_msg(stat, ses->term);
-	} else ses->st = stracpy(ses->default_status);
+		if (stat->state == S_OK) ses->st = print_current_link(ses);
+		if (!ses->st) ses->st = ses->default_status ? stracpy(ses->default_status) : get_stat_msg(stat, ses->term);
+	} else {
+		ses->st = stracpy(ses->default_status);
+	}
 }
 
-void _print_screen_status(struct terminal *term, struct session *ses)
+void x_print_screen_status(struct terminal *term, struct session *ses)
 {
 	unsigned char *m;
 	if (!F) {
@@ -220,7 +224,7 @@ void print_screen_status(struct session *ses)
 		if (!memcmp(&ses->term->dev->clip, &ses->term->dev->size, sizeof(struct rect))) ses->st_old = stracpy(ses->st);
 	}
 #endif
-	draw_to_window(ses->win, (void (*)(struct terminal *, void *))_print_screen_status, ses);
+	draw_to_window(ses->win, (void (*)(struct terminal *, void *))x_print_screen_status, ses);
 #ifdef G
 	skip_status:
 #endif
@@ -839,7 +843,14 @@ int f_is_finished(struct f_data *f)
 	struct additional_file *af;
 	if (!f || f->rq->state >= 0) return 0;
 	if (f->fd && f->fd->rq && f->fd->rq->state >= 0) return 0;
-	if (f->af) foreach(af, f->af->af) if (af->rq->state >= 0) return 0;
+	if (f->af) foreach(af, f->af->af) if (!af->rq || af->rq->state >= 0) return 0;
+	return 1;
+}
+
+int f_is_cacheable(struct f_data *f)
+{
+	if (!f || f->rq->state >= 0) return 0;
+	if (f->fd && f->fd->rq && f->fd->rq->state >= 0) return 0;
 	return 1;
 }
 
@@ -881,9 +892,14 @@ struct f_data *format_html(struct f_data_c *fd, struct object_request *rq, unsig
 		really_format_html(f->rq->ce, start, end, f, fd->ses ? fd != fd->ses->screen : 0);
 		if (stl != -1) mem_free(start);
 		f->use_tag = f->rq->ce->count;
-		if (f->af) foreach(af, f->af->af) if (af->rq->ce) {
-			af->use_tag = af->rq->ce->count;
-			af->use_tag2 = af->rq->ce->count2;
+		if (f->af) foreach(af, f->af->af) {
+			if (af->rq && af->rq->ce) {
+				af->use_tag = af->rq->ce->count;
+				af->use_tag2 = af->rq->ce->count2;
+			} else {
+				af->use_tag = 0;
+				af->use_tag2 = 0;
+			}
 		}
 	} else f->use_tag = 0;
 	f->time_to_get += get_time();
@@ -924,9 +940,18 @@ void f_data_attach(struct f_data_c *fd, struct f_data *f)
 	struct additional_file *af;
 	f->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
 	f->rq->data = fd;
-	if (f->af) foreach(af, f->af->af) {
-		af->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
-		af->rq->data = fd;
+	free_additional_files(&fd->af);
+	fd->af = f->af;
+	if (f->af) {
+		f->af->refcount++;
+		foreach(af, f->af->af) {
+			if (af->rq) {
+				af->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
+				af->rq->data = fd;
+			} else {
+				request_object(fd->ses->term, af->url, f->rq->url, PRI_IMG, NC_CACHE, f->rq->upcall, f->rq->data, &af->rq);
+			}
+		}
 	}
 }
 
@@ -950,7 +975,7 @@ void detach_f_data(struct f_data **ff)
 	f->locked_on = NULL;
 	free_list(f->image_refresh);
 #endif
-	if (f->uncacheable || !f_is_finished(f) || !f->ses) destroy_formatted(f);
+	if (f->uncacheable || !f_is_cacheable(f) || !f->ses) destroy_formatted(f);
 	else add_to_list(f->ses->format_cache, f);
 }
 
@@ -960,9 +985,11 @@ static inline int is_format_cache_entry_uptodate(struct f_data *f)
 	struct additional_file *af;
 	if (!ce || ce->count != f->use_tag) return 0;
 	if (f->af) foreach(af, f->af->af) {
-		struct cache_entry *ce = af->rq->ce;
-		if (af->need_reparse > 0) if (!ce || ce->count != af->use_tag) return 0;
-		if (af->unknown_image_size) if (!ce || ce->count2 != af->use_tag2) return 0;
+		struct cache_entry *ce = af->rq ? af->rq->ce : NULL;
+		tcount tag = ce ? ce->count : 0;
+		tcount tag2 = ce ? ce->count2 : 0;
+		if (af->need_reparse > 0) if (tag != af->use_tag) return 0;
+		if (af->unknown_image_size) if (tag2 != af->use_tag2) return 0;
 	}
 	return 1;
 }
@@ -1022,8 +1049,12 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 	}
 	if (opt->plain == 2) opt->margin = 0, opt->display_images = 1;
 	pr(
-	if (!jsint_get_source(fd, NULL, NULL) && fd->ses)
-		foreach(f, fd->ses->format_cache)
+	if (!jsint_get_source(fd, NULL, NULL) && fd->ses) {
+		if (fd->f_data && !strcmp(fd->f_data->rq->url, url) && !compare_opt(&fd->f_data->opt, opt) && is_format_cache_entry_uptodate(fd->f_data)) {
+			xpr();
+			return fd->f_data;
+		}
+		foreach(f, fd->ses->format_cache) {
 			if (!strcmp(f->rq->url, url) && !compare_opt(&f->opt, opt)) {
 				if (!is_format_cache_entry_uptodate(f)) {
 					struct f_data *ff = f;
@@ -1032,6 +1063,7 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 					destroy_formatted(ff);
 					continue;
 				}
+				detach_f_data(&fd->f_data);
 				del_from_list(f);
 				f->fd = fd;
 				if (cch) *cch = 1;
@@ -1039,7 +1071,9 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 				xpr();
 				return f;
 			}
-	) {};
+		}
+	}) {};
+	detach_f_data(&fd->f_data);
 	f = format_html(fd, rq, url, opt, cch);
 	if (f) f->fd = fd;
 	shrink_memory(SH_CHECK_QUOTA);
@@ -1193,7 +1227,6 @@ void html_interpret(struct f_data_c *fd)
 		for (i = 0; i < fd->f_data->nlinks; i++) copy_js_event_spec(&link_js[i], fd->f_data->links[i].js_event);
 		for (; i < fd->f_data->nlink_events; i++) copy_js_event_spec(&link_js[i], fd->f_data->link_events[i]);
 	}
-	detach_f_data(&fd->f_data);
 	if (!(fd->f_data = cached_format_html(fd, fd->rq, fd->rq->url, &o, &cch))) {
 		for (i = 0; i < nlink_js; i++) free_js_event_spec(link_js[i]);
 		mem_free(link_js);
@@ -1331,8 +1364,11 @@ void reinit_f_data_c(struct f_data_c *fd)
 #endif
 	fd->loc = NULL;
 	if (fd->f_data && fd->f_data->rq) fd->f_data->rq->upcall = NULL;
-	if (fd->f_data && fd->f_data->af) foreach(af, fd->f_data->af->af) af->rq->upcall = NULL;
-	if (fd->af) foreach(af, fd->af->af) af->rq->upcall = NULL;
+	if (fd->f_data && fd->f_data->af) foreach(af, fd->f_data->af->af) if (af->rq) {
+		af->rq->upcall = NULL;
+		if (af->rq->state != O_OK) release_object(&af->rq);
+	}
+	if (fd->af) foreach(af, fd->af->af) if(af->rq) af->rq->upcall = NULL;
 	detach_f_data(&fd->f_data);
 	if (fd->link_bg) mem_free(fd->link_bg), fd->link_bg = NULL;
 	fd->link_bg_n = 0;
@@ -1393,17 +1429,351 @@ int plain_type(struct session *ses, struct object_request *rq, unsigned char **p
 	return r;
 }
 
+#define DECODE_STEP	4096
+
+#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
+static void decompress_error(struct object_request *o, unsigned char *lib, unsigned char *msg)
+{
+	struct terminal *term;
+	struct window *win;
+	foreach(term, terminals) if (o->term == term->count) goto ok;
+	return;
+	ok:
+	foreach(win, term->windows) if (win->handler == dialog_func) {
+		struct dialog_data *d = win->data;
+		if (d->dlg->title == TEXT(T_DECOMPRESSION_ERROR)) {
+			return;
+		}
+	}
+	msg_box(term, NULL, TEXT(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_ERROR_DECOMPRESSING_), o->url, TEXT(T__wITH_), lib, ": ", msg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+}
+#endif
+
+#ifdef HAVE_ZLIB
+#include <zlib.h>
+static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t *p_len, int defl)
+{
+	char err;
+	char skip_gzip_header;
+	char old_zlib;
+	z_stream z;
+	off_t offset;
+	size_t header = 0;
+	int r;
+	unsigned char *p;
+	struct cache_entry *ce = o->ce;
+	struct fragment *f;
+	size_t size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
+	p = mem_alloc(size);
+	init_again:
+	err = 0;
+	skip_gzip_header = 0;
+	old_zlib = 0;
+	memset(&z, 0, sizeof z);
+	z.next_in = NULL;
+	z.avail_in = 0;
+	z.next_out = p;
+	z.avail_out = size;
+	z.zalloc = NULL;
+	z.zfree = NULL;
+	z.opaque = NULL;
+	r = inflateInit2(&z, defl == 1 ? 15 : defl == 2 ? -15 : 15 + 16);
+	init_failed:
+	switch (r) {
+		case Z_OK:		break;
+		case Z_MEM_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_OUT_OF_MEMORY));
+					err = 1;
+					goto after_inflateend;
+		case Z_STREAM_ERROR:	
+					if (!defl && !old_zlib) {
+						defrag_entry(ce);
+						r = inflateInit2(&z, -15);
+						skip_gzip_header = 1;
+						old_zlib = 1;
+						goto init_failed;
+					}
+					decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Invalid parameter");
+					err = 1;
+					goto after_inflateend;
+		case Z_VERSION_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Bad zlib version");
+					err = 1;
+					goto after_inflateend;
+		default:		decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateInit2");
+					err = 1;
+					goto after_inflateend;
+	}
+	offset = 0;
+	foreach(f, ce->frag) {
+		if (f->offset != offset) break;
+		z.next_in = f->data;
+		z.avail_in = f->length;
+		if (header && !offset) {
+			z.next_in = (unsigned char *)z.next_in + header;
+			z.avail_in -= header;
+		}
+		repeat_frag:
+		if (skip_gzip_header == 2) {
+			if (z.avail_in < 8) goto finish;
+			z.next_in = (unsigned char *)z.next_in + 8;
+			z.avail_in -= 8;
+			skip_gzip_header = 1;
+		}
+		if (skip_gzip_header) {
+			/* if zlib is old, we have to skip gzip header manually
+			   otherwise zlib 1.2.x can do it automatically */
+			unsigned char *head = z.next_in;
+			unsigned headlen = 10;
+			if (z.avail_in <= 11) goto finish;
+			if (head[0] != 0x1f || head[1] != 0x8b) {
+				decompress_error(o, "zlib", TEXT(T_COMPRESSED_ERROR));
+				err = 1;
+				goto finish;
+			}
+			if (head[2] != 8 || head[3] & 0xe0) {
+				decompress_error(o, "zlib", TEXT(T_UNKNOWN_COMPRESSION_METHOD));
+				err = 1;
+				goto finish;
+			}
+			if (head[3] & 0x04) {
+				headlen += 2 + head[10] + (head[11] << 8);
+				if (headlen >= z.avail_in) goto finish;
+			}
+			if (head[3] & 0x08) {
+				do {
+					headlen++;
+					if (headlen >= z.avail_in) goto finish;
+				} while (head[headlen - 1]);
+			}
+			if (head[3] & 0x10) {
+				do {
+					headlen++;
+					if (headlen >= z.avail_in) goto finish;
+				} while (head[headlen - 1]);
+			}
+			if (head[3] & 0x01) {
+				headlen += 2;
+				if (headlen >= z.avail_in) goto finish;
+			}
+			z.next_in = (unsigned char *)z.next_in + headlen;
+			z.avail_in -= headlen;
+			skip_gzip_header = 0;
+		}
+		r = inflate(&z, (void *)f->next == (void *)&ce->frag ? Z_SYNC_FLUSH : Z_NO_FLUSH);
+		switch (r) {
+			case Z_OK:		break;
+			case Z_BUF_ERROR:	break;
+			case Z_STREAM_END:	r = inflateEnd(&z);
+						if (r != Z_OK) goto end_failed;
+						r = inflateInit2(&z, old_zlib ? -15 : defl ? 15 : 15 + 16);
+						if (r != Z_OK) {
+							old_zlib = 0;
+							goto init_failed;
+						}
+						if (old_zlib) {
+							skip_gzip_header = 2;
+						}
+						break;
+			case Z_NEED_DICT:
+			case Z_DATA_ERROR:	if (defl == 1) {
+							defl = 2;
+							r = inflateEnd(&z);
+							if (r != Z_OK) goto end_failed;
+							goto init_again;
+						}
+						decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_COMPRESSED_ERROR));
+						err = 1;
+						goto finish;
+			case Z_STREAM_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflate");
+						err = 1;
+						goto finish;
+			case Z_MEM_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_OUT_OF_MEMORY));
+						err = 1;
+						goto finish;
+			default:		decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflate");
+						err = 1;
+						break;
+		}
+		if (!z.avail_out) {
+			p = mem_realloc(p, size + DECODE_STEP);
+			z.next_out = p + size;
+			z.avail_out = DECODE_STEP;
+			size += DECODE_STEP;
+		}
+		if (z.avail_in) goto repeat_frag;
+		/* In zlib 1.1.3, inflate(Z_SYNC_FLUSH) doesn't work.
+		   The following line fixes it --- for last fragment, loop until
+		   we get an eof. */
+		if (r == Z_OK && (void *)f->next == (void *)&ce->frag) goto repeat_frag;
+		/*{
+			static int x = 0;
+			if (++x < 100) goto repeat_frag;
+			x = 0;
+		}*/
+		offset += f->length;
+	}
+	finish:
+	r = inflateEnd(&z);
+	end_failed:
+	switch (r) {
+		case Z_OK:		break;
+		case Z_STREAM_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflateEnd");
+					err = 1;
+					break;
+		default:		decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateEnd");
+					err = 1;
+					break;
+	}
+	after_inflateend:
+	if (err && (unsigned char *)z.next_out == p) {
+		mem_free(p);
+		return 1;
+	}
+	*p_start = p;
+	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
+	return 0;
+}
+#endif
+
+#ifdef HAVE_BZIP2
+#include <bzlib.h>
+static int decode_bzip2(struct object_request *o, unsigned char **p_start, size_t *p_len)
+{
+	int err = 0;
+	bz_stream z;
+	off_t offset;
+	int r;
+	unsigned char *p;
+	struct cache_entry *ce = o->ce;
+	struct fragment *f;
+	size_t size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
+	p = mem_alloc(size);
+	memset(&z, 0, sizeof z);
+	z.next_in = NULL;
+	z.avail_in = 0;
+	z.next_out = p;
+	z.avail_out = size;
+	z.bzalloc = NULL;
+	z.bzfree = NULL;
+	z.opaque = NULL;
+	r = BZ2_bzDecompressInit(&z, 0, 0);
+	init_failed:
+	switch (r) {
+		case BZ_OK:		break;
+		case BZ_MEM_ERROR:	decompress_error(o, "bzip2", TEXT(T_OUT_OF_MEMORY));
+					err = 1;
+					goto after_inflateend;
+		case BZ_PARAM_ERROR:	
+					decompress_error(o, "bzip2", "Invalid parameter");
+					err = 1;
+					goto after_inflateend;
+		case BZ_CONFIG_ERROR:	decompress_error(o, "bzip2", "Bzlib is miscompiled");
+					err = 1;
+					goto after_inflateend;
+		default:		decompress_error(o, "bzip2", "Unknown return value on BZ2_bzDecompressInit");
+					err = 1;
+					goto after_inflateend;
+	}
+	offset = 0;
+	foreach(f, ce->frag) {
+		if (f->offset != offset) break;
+		z.next_in = f->data;
+		z.avail_in = f->length;
+		repeat_frag:
+		r = BZ2_bzDecompress(&z);
+		switch (r) {
+			case BZ_OK:		break;
+			case BZ_STREAM_END:
+						r = BZ2_bzDecompressEnd(&z);
+						if (r != BZ_OK) goto end_failed;
+						r = BZ2_bzDecompressInit(&z, 0, 0);
+						if (r != BZ_OK) goto init_failed;
+						break;
+			case BZ_DATA_ERROR_MAGIC:
+			case BZ_DATA_ERROR:	decompress_error(o, "bzip2", TEXT(T_COMPRESSED_ERROR));
+						err = 1;
+						goto finish;
+			case BZ_PARAM_ERROR:	decompress_error(o, "bzip2", "Internal error on BZ2_bzDecompress");
+						err = 1;
+						goto finish;
+			case BZ_MEM_ERROR:	decompress_error(o, "bzip2", TEXT(T_OUT_OF_MEMORY));
+						err = 1;
+						goto finish;
+			default:		decompress_error(o, "bzip2", "Unknown return value on BZ2_bzDecompress");
+						err = 1;
+						break;
+		}
+		if (!z.avail_out) {
+			p = mem_realloc(p, size + DECODE_STEP);
+			z.next_out = p + size;
+			z.avail_out = DECODE_STEP;
+			size += DECODE_STEP;
+		}
+		if (z.avail_in) goto repeat_frag;
+		offset += f->length;
+	}
+	finish:
+	r = BZ2_bzDecompressEnd(&z);
+	end_failed:
+	switch (r) {
+		case BZ_OK:		break;
+		case BZ_PARAM_ERROR:	decompress_error(o, "bzip2", "Internal error on BZ2_bzDecompressEnd");
+					err = 1;
+					break;
+		default:		decompress_error(o, "bzip2", "Unknown return value on BZ2_bzDecompressEnd");
+					err = 1;
+					break;
+	}
+	after_inflateend:
+	if (err && (unsigned char *)z.next_out == p) {
+		mem_free(p);
+		return 1;
+	}
+	*p_start = p;
+	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
+	return 0;
+}
+#endif
+
+
 int get_file(struct object_request *o, unsigned char **start, unsigned char **end)
 {
+	unsigned char *enc;
 	struct cache_entry *ce;
 	struct fragment *fr;
 	*start = *end = NULL;
 	if (!o || !o->ce) return 1;
 	ce = o->ce;
+	if (ce->decompressed) {
+		return_decompressed:
+		*start = ce->decompressed;
+		*end = ce->decompressed + ce->decompressed_len;
+		return 0;
+	}
+	enc = get_content_encoding(ce->head, ce->url);
+	if (enc) {
+#ifdef HAVE_ZLIB
+		if (!strcasecmp(enc, "gzip") || !strcasecmp(enc, "x-gzip") || !strcasecmp(enc, "deflate")) {
+			int defl = !strcasecmp(enc, "deflate");
+			mem_free(enc);
+			if (decode_gzip(o, &ce->decompressed, &ce->decompressed_len, defl)) goto uncompressed;
+			goto return_decompressed;
+		}
+#endif
+#ifdef HAVE_BZIP2
+		if (!strcasecmp(enc, "bzip2")) {
+			mem_free(enc);
+			if (decode_bzip2(o, &ce->decompressed, &ce->decompressed_len)) goto uncompressed;
+			goto return_decompressed;
+		}
+#endif
+		mem_free(enc);
+		goto uncompressed;
+	}
+	uncompressed:
 	defrag_entry(ce);
 	fr = ce->frag.next;
 	if ((void *)fr == &ce->frag || fr->offset || !fr->length) return 1;
-	else *start = fr->data, *end = fr->data + fr->length;
+	*start = fr->data, *end = fr->data + fr->length;
 	return 0;
 }
 
@@ -1420,7 +1790,7 @@ void refresh_timer(struct f_data_c *fd)
 	}
 }
 
-static int __frame_and_all_subframes_loaded(struct f_data_c *fd)
+static int frame_and_all_subframes_loaded(struct f_data_c *fd)
 {
 	struct f_data_c *f;
 	int loaded=fd->done||fd->rq==NULL;
@@ -1428,7 +1798,7 @@ static int __frame_and_all_subframes_loaded(struct f_data_c *fd)
 	if (loaded)		/* this frame is loaded */
 		foreach(f,fd->subframes)
 		{
-			loaded=__frame_and_all_subframes_loaded(f);
+			loaded=frame_and_all_subframes_loaded(f);
 			if (!loaded)break;
 		}
 	return loaded;
@@ -1502,7 +1872,7 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 
 		if (!fd->parent) goto hell;	/* this frame has no parent, skip */
 		if (!fd->parent->onload_frameset_code)goto hell;	/* no onload handler, skip all this */
-		all_loaded=__frame_and_all_subframes_loaded(fd->parent);
+		all_loaded=frame_and_all_subframes_loaded(fd->parent);
 		if (!all_loaded) goto hell;
 		/* parent has all subframes loaded */
 		jsint_execute_code(fd->parent,fd->parent->onload_frameset_code,strlen(fd->parent->onload_frameset_code),-1,-1,-1, NULL);
@@ -2019,6 +2389,11 @@ static inline int any_running_scripts(struct f_data_c *fd)
 	if (!fd->js) return 0;
 	return (fd->js->active) || (!list_empty(fd->js->queue));
 }
+#else
+static inline int any_running_scripts(struct f_data_c *fd)
+{
+	return 0;
+}
 #endif
 
 /* if from_goto_dialog is 1, set prev_url to NULL */
@@ -2028,7 +2403,7 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	unsigned char *prev_url;
 	void (*fn)(struct session *, unsigned char *);
 	if (!state2) state2 = ses_go_to_2nd_state;
-	if (ses->defered_url && defer) return;
+	if (ses->defered_url && defer && any_running_scripts(ses->screen)) return;
 	ses_destroy_defered_jump(ses);
 	if ((fn = get_external_protocol_function(url))) {
 		fn(ses, url);
@@ -2040,7 +2415,6 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 		print_error_dialog(ses, &stat, url);
 		return;
 	}
-#ifdef JS
 	if (defer && any_running_scripts(ses->screen)) {
 		ses->defered_url = u;
 		ses->defered_target = stracpy(target);
@@ -2049,7 +2423,6 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 		ses->defered_seq = jsint_execute_seq++;
 		return;
 	}
-#endif
 	pos = extract_position(u);
 	if (ses->wtd == state2 && !strcmp(ses->rq->orig_url, u) && !xstrcmp(ses->wtd_target, target) && ses->wtd_target_base == df) {
 		mem_free(u);
@@ -2094,7 +2467,7 @@ void ses_imgmap(struct session *ses)
 	struct f_data_c *fd;
 	if (ses->rq->state != O_OK && ses->rq->state != O_INCOMPLETE) return;
 	if (!(fd = current_frame(ses)) || !fd->f_data) return;
-	get_file(ses->rq, &start, &end);
+	if (get_file(ses->rq, &start, &end)) return;
 	d_opt = &fd->f_data->opt;
 	if (get_image_map(ses->rq->ce && ses->rq->ce->head ? ses->rq->ce->head : (unsigned char *)"", start, end, ses->goto_position, &menu, &ml, ses->imgmap_href_base, ses->imgmap_target_base, ses->term->spec->charset, ses->ds.assume_cp, ses->ds.hard_assume, 0)) {
 		ses_abort_1st_state_loading(ses);

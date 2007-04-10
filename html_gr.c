@@ -209,7 +209,7 @@ struct style *get_style_by_ta(struct text_attrib *ta)
 
 #define rm(x) ((x).width - (x).rightmargin * G_HTML_MARGIN > 0 ? (x).width - (x).rightmargin * G_HTML_MARGIN : 0)
 
-#ifndef __SPAD__
+#ifndef SPAD
 static inline int pw2(int a)
 {
 	int x = 1;
@@ -583,7 +583,7 @@ void do_image(struct g_part *p, struct image_description *im)
 			unsigned char *start, *end;
 			int i;
 			struct image_map *map;
-			get_file(af->rq, &start, &end);
+			if (get_file(af->rq, &start, &end)) goto ft;
 			if (start == end) goto ft;
 			if (get_image_map(ce->head, start, end, tag, &menu, &ml, format.href_base, format.target_base, 0, 0, 0, 1)) goto ft;
 			map = mem_alloc(sizeof(struct image_map));

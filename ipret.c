@@ -140,7 +140,7 @@ FILE *js_file;
 static int js_temp_var_for_vartest=0;
 
 #define VARTEST1(A)	js_temp_var_for_vartest=0; \
-			if(A->typ!=VARIABLE)\
+			if(A->typ!=VARIABLE && A->typ!=VARIABLE_METFUN)\
 			{	delarg(A,context); /* Konsolidace memory-leaku */ \
 				js_temp_var_for_vartest=1; \
 			}
@@ -165,7 +165,7 @@ static int js_temp_var_for_vartest=0;
 
 #define VARTEST3(A,B)	if(!js_all_conversions){VARTEST(A,B)}\
 			else \
-		if(A->typ!=VARIABLE) \
+		if(A->typ!=VARIABLE && A->typ!=VARIABLE_METFUN) \
 		{	pusha(A,context); \
 			sezvykan=1; \
 			context->current->in=0; \
@@ -510,15 +510,16 @@ void delarg(abuf*pom,js_context*context)
 			js_mem_free(pom);
 		break;
 		case VARIABLE:
+		case VARIABLE_METFUN:
 			zrusit=(lns*)pom->argument;
-			if(zrusit)
+			if(pom->typ == VARIABLE_METFUN)
 			{	if(((zrusit->type==INTVAR) ||(zrusit->type==FUNKINT))&&(zrusit->value==CIntMETFUN))
 				{	delarg((abuf*)zrusit->handler,context);
 					js_mem_free(zrusit); /* Kdyz zustane trcet na zasobniku
 						* interni funkce nebo metoda, tak ji je potreba znicit, stejne
 						* se nici okamzite po pouziti */
 				}
-			} else	my_internal("Killing null variable!\n",context);
+			}
 			js_mem_free(pom);
 		break;
 		case ARGUMENTY:
@@ -824,6 +825,7 @@ int to32int(abuf*buffer,js_context*context)
 			js_mem_free((void*)buffer->argument);
 		break;
 		case VARIABLE:
+		case VARIABLE_METFUN:
 		case INTVAR:
 			retval=vartoint((lns*)buffer->argument,context);
 		break;
@@ -3155,7 +3157,7 @@ void var(js_context*context) /* Tohle bude masite */
 		case 1:	debug("uz ji mam!\n");
 			context->current->in=0;
 			var=pulla(context);
-			if(var->typ==VARIABLE)
+			if(var->typ==VARIABLE || var->typ==VARIABLE_METFUN)
 				create(((lns*)var->argument)->identifier,context->lnamespace,context);
 			else	if((pop=((vrchol*)context->current->arg[0])->opcode)!=TLocAssign && pop!=TFUNCTIONDECL) 
 				{	
@@ -3450,7 +3452,7 @@ void for3(js_context*context)
 		break;
 		case 2:	debug("For3 vybiram prirazovanou promennou\n");
 			pombuf=pulla(context);
-			if(pombuf->typ!=VARIABLE)
+			if(pombuf->typ!=VARIABLE && pombuf->typ!=VARIABLE_METFUN)
 				js_error("for ... in should assign to variable!",context);
 			context->current->in=3;
 			context->current->arg[4]=(void*)pombuf->argument;
@@ -3853,7 +3855,7 @@ void funkce(js_context*context)/*function f(){}*/
 		break;
 		case 1:	debug("Definuji funkci\n");
 			arg=pulla(context);
-			if(arg->typ!=VARIABLE)
+			if(arg->typ!=VARIABLE&&arg->typ!=VARIABLE_METFUN)
 			{	delarg(arg,context);
 				if(!js_all_conversions)
 					js_error("Defining function nowhere ",context);
@@ -4320,7 +4322,7 @@ void member(js_context*context)/*a.b*/
 					return; /* Fixme - tady to urcite nebude dobre! */
 				}
 				nans=js_mem_alloc(sizeof(abuf));
-				nans->typ=VARIABLE;
+				nans->typ=VARIABLE_METFUN;
 				nans->argument=(long)(pomvar=js_mem_alloc(sizeof(lns)));
 				if(pomv== CSMIN_VALUE || pomv==CSMAX_VALUE || pomv==CSNaN || pomv==CSlength)
 					pomvar->type=INTVAR;
@@ -4930,6 +4932,7 @@ void functioncall(js_context*context)
 				case STRING:
 				break;
 				case VARIABLE:
+				case VARIABLE_METFUN:
 					debug("Tohle je experimentalni!\n");
 					key=vysl->argument;
 					variable=lookup(key,context->lnamespace,context);
@@ -4986,7 +4989,7 @@ void variable(js_context*context)/*Tohle bude deklovat promenne*/
 			context->current->in=0;
 			var=pulla(context);
 
-			if(var->typ==VARIABLE)
+			if(var->typ==VARIABLE || var->typ==VARIABLE_METFUN)
 				create(((lns*)var->argument)->identifier,context->lnamespace,context);
 			else	if(((vrchol*)context->current->arg[0])->opcode!=TLocAssign){
 				my_internal("Internal:Divny typ v inicializaci promenne!\n",context);

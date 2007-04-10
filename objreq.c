@@ -14,8 +14,6 @@ int auth_ok(struct dialog_data *, struct dialog_item_data *);
 int auth_window(struct object_request *, unsigned char *);
 
 
-
-
 struct list_head requests = {&requests, &requests};
 tcount obj_req_count = 1;
 

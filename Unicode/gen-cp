@@ -1,7 +1,7 @@
 #!/bin/sh
 echo
 echo Generating code page translation tables.
-codepages=`cat index.txt`
+codepages=`cat index.txt|sed 's///g'`
 if [ -n "$codepages" ]; then
 (
 n=0

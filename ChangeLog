@@ -1,3 +1,45 @@
+=== RELEASE 2.1pre27 ===
+
+Sat Apr  7 02:43:28 CEST 2007 mikulas:
+
+	Terminal resize, window title and clipboard support for Cygwin
+	Clipboard supports non-ascii characters badly, it is a limitation in
+	Cygwin
+
+Wed Apr  4 23:19:00 MET 2007 Carles Pina i Estany <carles@pina.cat>:
+
+	Add more top-level domains
+
+Sat Mar 31 03:02:40 CEST 2007 student:
+
+	win32.c file removed because in each new version of windows it doesn't
+	work. Don't even try to fix it unless you have computers with Windows
+	NT, Window 2000, Windows XP and Windows Vista side by side.
+
+	(new Cygwin emulates xterm-like mouse on the console, so it's not needed
+	for mouse)
+
+	Cygwin sometimes doesn't send SIGWINCH, it is its bug, so I didn't try
+	to fix it in links. Press twice Alt-Enter if links doesn't notify window
+	size change
+
+Sun Mar 25 22:26:41 MET 2007 mikulas:
+
+	Fixed bad behaviour of scrollbars on very large documents due to integer
+	overflow
+
+Wed Mar 21 22:15:25 MET 2007 mikulas:
+
+	Support for zlib, gzip and bzip2 files
+
+Wed Mar 21 04:37:42 MET 2007 mikulas:
+
+	Limit image scaling to prevent allocation overflow
+
+Tue Feb  6 00:23:43 MET 2007 mikulas:
+
+	Allow quotation marks in Refresh URL parameter --- fixes Google Picasa
+
 === RELEASE 2.1pre26 ===
 
 Tue Nov 28 23:13:38 MET 2006 mikulas:
@@ -16,7 +58,7 @@ Wed Nov 22 22:26:58 MET 2006 Jakub Bogusz <qboosh@pld-linux.org>:
 
 	Updated Polish Translation
 
-Sun Nov 12 17:23:46 MET 2006 user:
+Sun Nov 12 17:23:46 MET 2006 mikulas:
 
 	Fixed memory leak in http authentication
 
@@ -27,7 +69,7 @@ Mon Nov  6 02:13:48 cet 2006 mikulas:
 	Fixed incorrect page displayed when search string ended with space and
 	the word was last on page
 
-Thu Oct 26 16:10:01 MET 2006 user:
+Thu Oct 26 16:10:01 MET 2006 mikulas:
 
 	More strict parsing of ftp list, fixes ftp.su.se
 
@@ -53,11 +95,11 @@ Mon Sep 11 02:43:32 MET DST 2006 mikulas:
 	Work without PF_INET (for Minix 3)
 	Cleaned up use of AF_ and PF_ constants
 
-Sat Sep  9 00:05:16 MET 2006 user:
+Sat Sep  9 00:05:16 MET 2006 mikulas:
 
 	Fixed double-to-string conversion for config files
 
-Fri Aug 25 00:48:05 MET 2006 user:
+Fri Aug 25 00:48:05 MET 2006 mikulas:
 
 	Parsing ftp directories starts to be difficult because fixing one bug
 	introduces other. Previous fix sometimes mistook size for year :-/
@@ -66,7 +108,7 @@ Sun Aug 20 05:06:57 cet 2006 mikulas:
 
 	Correctly translate character set of "label" attribute
 
-Thu Aug 17 19:57:34 MET 2006 user:
+Thu Aug 17 19:57:34 MET 2006 mikulas:
 
 	Fixed incremental loading of XBM images
 
@@ -74,7 +116,7 @@ Mon Aug  7 05:11:47 CEST 2006 Matthew Fischer <futhark@mchsi.com>:
 
 	Fixed Japanese fonts
 
-Mon Jul 31 00:32:58 MET 2006 user:
+Mon Jul 31 00:32:58 MET 2006 mikulas:
 
 	More cygwin fixes
 
@@ -95,7 +137,7 @@ Sun Jul 16 00:08:30 cet 2006 mikulas:
 	Better ftp directory parsing (process correctly file names starting with
 		year)
 
-Sat Jul 15 16:37:36 MET 2006 user:
+Sat Jul 15 16:37:36 MET 2006 mikulas:
 
 	Bigger default textarea
 
@@ -111,7 +153,7 @@ Tue Jun 27 23:14:35 cet 2006 mikulas:
 
 	View &nbsp; as space when searching
 
-Sun Jun 18 16:11:57 MET 2006 user:
+Sun Jun 18 16:11:57 MET 2006 mikulas:
 
 	Command "kill background connections" aborts also keepalive connections
 
@@ -146,7 +188,7 @@ Fri Jun  9 18:32:55 cet 2006 mikulas:
 
 	Accept broken meta refresh tags (fixes www.seznam.cz)
 
-Fri Jun  9 02:14:42 MET 2006 user:
+Fri Jun  9 02:14:42 MET 2006 mikulas:
 
 	Shift-Q exits without question
 
@@ -185,12 +227,12 @@ Sat Apr 29 12:45:07 CEST 2006 clock:
 	Fixed ignorance of aspect ratio for images where only one dimension
 	is specified.
 
-Thu Apr 27 03:08:27 MET 2006 user:
+Thu Apr 27 03:08:27 MET 2006 mikulas:
 
 	Fixed crash when deleting item at the top of the window in bookmarks
 	or associations or extensions
 
-Thu Apr 20 18:27:07 MET 2006 user:
+Thu Apr 20 18:27:07 MET 2006 mikulas:
 
 	Ignore space at the end of url
 
@@ -198,17 +240,17 @@ Wed Apr  5 04:28:09 cet 2006 mikulas:
 
 	Fixed memory leak on image with no src attribute and usemap attribute
 
-Tue Apr  4 00:37:49 MET 2006 user:
+Tue Apr  4 00:37:49 MET 2006 mikulas:
 
 	Support 4th and 6th mouse button on svgalib
 
 === RELEASE 2.1pre21 ===
 
-Sun Apr  2 19:37:50 MET 2006 user:
+Sun Apr  2 19:37:50 MET 2006 mikulas:
 
 	Fixed some quirks when URL contained multiple '#' characters
 
-Sun Apr  2 19:08:45 MET 2006 user:
+Sun Apr  2 19:08:45 MET 2006 mikulas:
 
 	Better parsing of FTP directories (fixes Quick 'n Easy FTP Server)
 
@@ -229,7 +271,7 @@ Thu Mar 23 15:20:22 CET 2006 mikulas:
 	Do not send Accept-Language to a buggy Netscape-Enterprise server
 	Do not send "en" language twice in Accept-Language
 
-Mon Mar 20 01:14:58 MET 2006 user:
+Mon Mar 20 01:14:58 MET 2006 mikulas:
 
 	Changes license to allow linking with OpenSSL
 
@@ -295,7 +337,7 @@ Sun Feb  5 18:54:52 MET 2006 mikulas:
 
 	Case-insensitive search of all characters
 
-Wed Jan 25 16:26:35 MET 2006 user:
+Wed Jan 25 16:26:35 MET 2006 mikulas:
 
 	Fixed some quirks in graphics user interface:
 		selection didn't work when javascript was not compiled in
@@ -307,16 +349,16 @@ Wed Jan 25 05:18:08 CET 2006 mikulas:
 
 	Updated manpage
 
-Mon Jan 23 18:22:41 MET 2006 user:
+Mon Jan 23 18:22:41 MET 2006 mikulas:
 
 	Fixed textarea content corruption due to overlapping areas in memcpy
 
-Thu Jan 19 18:13:52 MET 2006 user:
+Thu Jan 19 18:13:52 MET 2006 mikulas:
 
 	Disallow access to proxy:// urls from user interface
 	(they are internal-only)
 
-Thu Jan 19 17:57:13 MET 2006 user:
+Thu Jan 19 17:57:13 MET 2006 mikulas:
 
 	Accept urls http://host.domain#position
 
@@ -324,12 +366,12 @@ Sun Jan 15 16:29:19 MET 2006 mikulas:
 
 	Find X-window in X11R7 directory
 
-Sun Jan 15 05:51:13 MET 2006 user:
+Sun Jan 15 05:51:13 MET 2006 mikulas:
 
 	Preserve config, history and bookmarks in case of IO error (including
 	full disk)
 
-Fri Dec 30 17:31:26 MET 2005 user:
+Fri Dec 30 17:31:26 MET 2005 mikulas:
 
 	Guess content-type by extension on misconfigured servers that
 	return text/plain or application/octet-stream
@@ -343,7 +385,7 @@ Thu Dec 22 15:14:00 MET 2005 mikulas:
 	Discard mouse events while user viewer is in foreground (but due to some
 	quirks in gpm/svgalib, it may still produce spurious mouse-click events)
 
-Thu Dec 22 13:36:38 MET 2005 user:
+Thu Dec 22 13:36:38 MET 2005 mikulas:
 
 	Fixed bug with downloads and cyclic redirects (now, as when loading
 	real documents, it turns off cache and displays error if it doesn't
@@ -355,7 +397,7 @@ Wed Dec  7 21:21:18 MET 2005 E. Rosten <er258@eng.cam.ac.uk>:
 
 	Blocklist blocks all accesses, not only images
 
-Wed Dec  7 00:41:09 MET 2005 user:
+Wed Dec  7 00:41:09 MET 2005 mikulas:
 
 	Fixed proper position after go-back if the file was not in cache
 	Fixed incorrect initial position on some pages with long tables during
@@ -389,19 +431,19 @@ Sat Nov 12 23:34:13 cet 2005 mikulas:
 	Remove username and password from referer
 	An option to send real referer only to the same server
 
-Sat Nov 12 20:37:06 MET 2005 user:
+Sat Nov 12 20:37:06 MET 2005 mikulas:
 
 	Allow user and password in http url --- http://user:password@host/
 
-Wed Nov  9 20:20:45 MET 2005 user:
+Wed Nov  9 20:20:45 MET 2005 mikulas:
 
 	In graphics mode, prefer "title" to "alt" in <img> tag
 
-Thu Nov  3 00:22:18 MET 2005 user:
+Thu Nov  3 00:22:18 MET 2005 mikulas:
 
 	Status line is redrawn only when it changes --- prevents cursor flicker
 
-Wed Nov  2 15:36:17 MET 2005 user:
+Wed Nov  2 15:36:17 MET 2005 mikulas:
 
 	Do not use HTTP/1.1 on lighttpd server
 
@@ -410,11 +452,11 @@ Mon Oct 24 22:19:33 CEST 2005 mikulas:
 	Account document.write content to javascript memory quota
 	Print javascript memory in "memory info" dialog window
 
-Mon Oct 24 16:32:40 MET 2005 user:
+Mon Oct 24 16:32:40 MET 2005 mikulas:
 
 	Recognise "title" attribute in <LINK> tag
 
-Mon Oct 24 16:23:41 MET 2005 user:
+Mon Oct 24 16:23:41 MET 2005 mikulas:
 
 	Accept application/xhtml as html type
 
@@ -426,7 +468,7 @@ Sat Oct 22 17:16:52 MET 2005 Rezzie <rezzie@telkom.net>:
 
 	Updated Indonesian translation
 
-Fri Oct 21 15:58:56 MET 2005 user:
+Fri Oct 21 15:58:56 MET 2005 mikulas:
 
 	&quote;
 
@@ -438,7 +480,7 @@ Wed Oct 12 13:27:52 MET 2005 Jakub Bogusz <qboosh@pld-linux.org>:
 
 	Updated Polish translation
 
-Tue Oct 11 17:23:26 MET 2005 user:
+Tue Oct 11 17:23:26 MET 2005 mikulas:
 
 	An optional retry on internal server errors
 
@@ -456,11 +498,11 @@ Fri Sep  9 00:37:42 CEST 2005 mikulas:
 
 	Fix crash when directory disappeared while opening it
 
-Tue Sep  6 16:14:26 MET 2005 user:
+Tue Sep  6 16:14:26 MET 2005 mikulas:
 
 	HTTP 307 redirect (as equivalent of 302)
 
-Sun Aug 21 19:18:34 MET 2005 user:
+Sun Aug 21 19:18:34 MET 2005 mikulas:
 
 	sponsored by Arida Technology (www.arida-technology.com)
 	Keyboard handlers in javascript
@@ -484,7 +526,7 @@ Sat Jul 30 00:01:55 MET DST 2005 mikulas:
 
 	Fixed reverse numbering of form fields in javascript
 
-Fri Jul 29 22:45:30 MET 2005 user:
+Fri Jul 29 22:45:30 MET 2005 mikulas:
 
 	Fixed cursor position in bookmarks after HOME, END, PAGE UP, PAGE DOWN
 
@@ -492,7 +534,7 @@ Thu Jun 23 04:05:45 cet 2005 mikulas:
 
 	<sub>, <sup> and alignment images to top and middle of line
 
-Wed Jun 22 18:15:11 MET 2005 user:
+Wed Jun 22 18:15:11 MET 2005 mikulas:
 
 	Implemented <hr> in graphics mode
 
@@ -500,7 +542,7 @@ Mon Jun 20 15:57:00 cet 2005 mikulas:
 
 	Do not make whitechar-elimination on invisible form entries
 
-Sat Jun 18 18:16:24 MET 2005 user:
+Sat Jun 18 18:16:24 MET 2005 mikulas:
 
 	Allow '#' in smb files and directories
 
@@ -508,7 +550,7 @@ Fri Jun 17 23:10:24 MET 2005 Simen Graaten <simeng@slarkware.com>:
 
 	Updated Norwegian translation
 
-Mon Jun  6 18:47:37 MET 2005 user:
+Mon Jun  6 18:47:37 MET 2005 mikulas:
 
 	Do not respond to unknown authentication methods with basic response
 
@@ -516,7 +558,7 @@ Sun May 29 05:43:58 cet 2005 mikulas:
 
 	Do always use cache when going back
 
-Sun May 22 21:03:16 MET 2005 user:
+Sun May 22 21:03:16 MET 2005 mikulas:
 
 	Allow '#' in ftp password
 
@@ -524,7 +566,7 @@ Wed May 18 01:18:58 cet 2005 mikulas:
 
 	Allow image map elements without href and only with javascript
 
-Thu May 12 04:15:43 MET 2005 user:
+Thu May 12 04:15:43 MET 2005 mikulas:
 
 	Fixed crash with -anonymous and "frame at full-screen" in menu
 
@@ -532,7 +574,7 @@ Sun May  8 15:37:22 cet 2005 mikulas:
 
 	Fix lockup with terminal height only 1 or 2 characters
 
-Fri May  6 20:06:50 MET 2005 user:
+Fri May  6 20:06:50 MET 2005 mikulas:
 
 	Make '*' work in graphics mode too
 	Fixed badly displayed images when image displaying was toggled
@@ -541,7 +583,7 @@ Thu Apr 21 21:52:28 cet 2005 mikulas:
 
 	Do not count time that connection waits in queue
 
-Fri Apr 15 17:37:51 MET 2005 user:
+Fri Apr 15 17:37:51 MET 2005 mikulas:
 
 	Do not parse <TITLE> inside <SCRIPT>
 
@@ -557,7 +599,7 @@ Thu Mar 24 04:06:53 MET 2005 Federico G. Schwindt <fgsch@lodoss.net>:
 
 	Use MD5 functions from libc when available
 
-Mon Mar  7 22:36:45 MET 2005 user:
+Mon Mar  7 22:36:45 MET 2005 mikulas:
 
 	Support for another smb client --- smbc by Martin Zlomek
 
@@ -586,11 +628,11 @@ Wed Feb 23 16:25:41 MET 2005 mikulas:
 
 	Allow cookies without a value
 
-Mon Feb 14 13:15:00 MET 2005 user:
+Mon Feb 14 13:15:00 MET 2005 mikulas:
 
 	When server returns cookie values as "deleted", delete it
 
-Tue Feb  1 18:22:11 MET 2005 user:
+Tue Feb  1 18:22:11 MET 2005 mikulas:
 
 	Fixed non-working find next/previous in view menu
 
@@ -621,7 +663,7 @@ Sat Jan 22 03:55:08 cet 2005 mikulas:
 
 	Send Accept-Language
 
-Sat Jan 22 02:05:47 MET 2005 user:
+Sat Jan 22 02:05:47 MET 2005 mikulas:
 
 	Display is scrolled to see the whole textarea when modifying it
 
@@ -634,7 +676,7 @@ Wed Jan 19 01:39:44 MET 2005 mikulas:
 	-dump url
 	Completed option documentation in links -h
 
-Sun Jan 16 23:57:58 MET 2005 user:
+Sun Jan 16 23:57:58 MET 2005 mikulas:
 
 	Fixed bug in svgalib accelerator (tested for different operations)
 
@@ -655,7 +697,7 @@ Sun Jan  2 18:51:15 cet 2005 mikulas:
 
 	Do not cache redirects if redirect loop is going to happen
 
-Wed Nov 17 15:16:01 MET 2004 user:
+Wed Nov 17 15:16:01 MET 2004 mikulas:
 
 	Support for mms:// urls
 
@@ -663,7 +705,7 @@ Tue Nov 16 15:18:55 MET 2004 mikulas:
 
 	Send content-type when uploading files
 
-Tue Nov  9 00:12:05 MET 2004 user:
+Tue Nov  9 00:12:05 MET 2004 mikulas:
 
 	^O to go to next form field in braill mode
 
@@ -671,7 +713,7 @@ Sun Oct 31 17:17:53 MET 2004 mikulas:
 
 	Correct jump at tag if it points to position, that moves during loading
 
-Sat Oct 23 22:14:03 MET 2004 user:
+Sat Oct 23 22:14:03 MET 2004 mikulas:
 
 	Disallow opening new windows in anonymous mode
 
@@ -699,7 +741,7 @@ Fri Oct 22 20:11:56 MET DST 2004 mikulas:
 	Fixed a lot of cases where overflowed integer arithmetic could cause
 	memory allocation corruption
 
-Sat Oct 16 21:38:00 MET 2004 user:
+Sat Oct 16 21:38:00 MET 2004 mikulas:
 
 	Allow browsing local and ftp files with '#' in filename
 
@@ -707,23 +749,23 @@ Mon Oct 11 01:26:54 CEST 2004 Karel Karlik <kkar8447@ss1000.ms.mff.cuni.cz>:
 
 	Fixed framebuffer in 15 and 16-bit modes
 
-Wed Oct  6 00:39:27 MET 2004 user:
+Wed Oct  6 00:39:27 MET 2004 mikulas:
 
 	Improved parsing of ftp directories in Windows NT format
 
-Sun Oct  3 17:37:32 MET 2004 user:
+Sun Oct  3 17:37:32 MET 2004 mikulas:
 
 	Correct reporting of error on ftp directories
 
-Sat Oct  2 04:29:40 MET 2004 user:
+Sat Oct  2 04:29:40 MET 2004 mikulas:
 
 	Ctrl-U cuts into clipboard
 
-Fri Oct  1 15:51:37 MET 2004 user:
+Fri Oct  1 15:51:37 MET 2004 mikulas:
 
 	Display the whole page when connection to an image stucks
 
-Thu Sep 23 18:47:11 MET 2004 user:
+Thu Sep 23 18:47:11 MET 2004 mikulas:
 
 	Resolving of double '..' in references
 
@@ -747,7 +789,7 @@ Sun Aug 29 17:43:39 MET DST 2004 mikulas:
 
 	Fix crash when saving options in svgalib due to missing shell
 
-Thu Jul 29 13:03:07 MET 2004 user:
+Thu Jul 29 13:03:07 MET 2004 mikulas:
 
 	Allowed dots in extensions (for example "ps.gz")
 
@@ -759,25 +801,25 @@ Sat Jul 24 14:56:13 MET DST 2004 mikulas:
 
 	Fixed an error when signal interrupted another syscall
 
-Sat Jul 24 02:15:35 MET 2004 user:
+Sat Jul 24 02:15:35 MET 2004 mikulas:
 
 	Fixed bad error codes because of errno modified by signal handler
 
-Fri Jul 23 21:29:22 MET 2004 user:
+Fri Jul 23 21:29:22 MET 2004 mikulas:
 
 	Fixed links stuck after Ctrl-Z when one code path lasted more than
 	1 second (because of pagefault, too high cpu load or similar)
 
-Fri Jul 23 20:15:29 MET 2004 user:
+Fri Jul 23 20:15:29 MET 2004 mikulas:
 
 	Fixed incorrectly displayed character entities (&) in attributes (img
 	alt, etc.)
 
-Tue Jun 29 03:35:32 MET 2004 user:
+Tue Jun 29 03:35:32 MET 2004 mikulas:
 
 	Fixed overflow when accessing local files >= 2G
 
-Mon Jun 28 01:34:45 MET 2004 user:
+Mon Jun 28 01:34:45 MET 2004 mikulas:
 
 	Ctrl-K cuts current line
 
@@ -785,11 +827,11 @@ Sat Jun 26 13:54:53 MET DST 2004 mikulas:
 
 	Send Content-Type when uploading files
 
-Sat Jun 26 02:24:32 MET 2004 user:
+Sat Jun 26 02:24:32 MET 2004 mikulas:
 
 	y and t move word forward and backward in braille terminal
 
-Sat Jun 26 00:35:17 MET 2004 user:
+Sat Jun 26 00:35:17 MET 2004 mikulas:
 
 	Resolve dot-number IP address on systems when gethostbyname and
 	gethostbyaddr can't resolve it
@@ -806,12 +848,12 @@ Sun Jun 20 15:58:08 MET DST 2004 Sam <sam@frida.fri.utc.sk>:
 
 	SDL graphics driver
 
-Sat Jun 19 18:10:05 MET 2004 user:
+Sat Jun 19 18:10:05 MET 2004 mikulas:
 
 	Fixed case when '&' entities or special characters were in ftp or disk
 	filenames
 
-Sat Jun 19 18:09:50 MET 2004 user:
+Sat Jun 19 18:09:50 MET 2004 mikulas:
 
 	Fixed compilation problem on AIX
 
@@ -819,15 +861,15 @@ Thu Jun 17 20:32:59 MET DST 2004 mikulas:
 
 	Correct handling of Ctrl-Z when executing user viewer
 
-Fri Jun 11 03:17:20 MET 2004 user:
+Fri Jun 11 03:17:20 MET 2004 mikulas:
 
 	Fixed incorrect error handling in smb
 
-Sun Jun  6 03:12:00 MET 2004 user:
+Sun Jun  6 03:12:00 MET 2004 mikulas:
 
 	Allow '@' in ftp password in url
 
-Thu Jun  3 22:39:24 MET 2004 user:
+Thu Jun  3 22:39:24 MET 2004 mikulas:
 
 	Allow characters >= 128 in ftp filenames
 

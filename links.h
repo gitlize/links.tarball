@@ -839,6 +839,7 @@ void check_shell_security(unsigned char **);
 int check_shell_url(unsigned char *);
 void block_stdin(void);
 void unblock_stdin(void);
+void get_path_to_exe(void);
 int exe(char *, int);
 int resize_window(int, int);
 int can_resize_window(int);
@@ -930,6 +931,8 @@ struct cache_entry {
 	tcount count;
 	tcount count2;
 	int refcount;
+	unsigned char *decompressed;
+	size_t decompressed_len;
 #ifdef HAVE_SSL
 	unsigned char *ssl_info;
 #endif
@@ -1343,6 +1346,13 @@ extern struct os2_key os2xtd[256];
 
 struct itrm;
 
+extern unsigned char init_seq[];
+extern unsigned char init_seq_x_mouse[];
+extern unsigned char init_seq_tw_mouse[];
+extern unsigned char term_seq[];
+extern unsigned char term_seq_x_mouse[];
+extern unsigned char term_seq_tw_mouse[];
+
 #if defined(GRDRV_SVGALIB) || defined(GRDRV_FB)
 extern int kbd_set_raw;
 struct itrm *handle_svgalib_keyboard(void (*)(void *, unsigned char *, int));
@@ -1350,8 +1360,6 @@ void svgalib_free_trm(struct itrm *);
 void svgalib_block_itrm(struct itrm *);
 int svgalib_unblock_itrm(struct itrm *);
 #endif
-
-
 
 
 struct rgb {
@@ -1990,6 +1998,7 @@ int language_index(unsigned char *);
 
 #define _(_x_, _y_) get_text_translation(_x_, _y_)
 #define TEXT(x) (dummyarray + x)
+#define TEXT_(x) (dummyarray + x) /* TEXT causes name clash on windows */
 
 /* af_unix.c */
 
@@ -2061,6 +2070,7 @@ extern struct list_head tn3270_prog;
 extern struct list_head mms_prog;
 
 unsigned char *get_content_type(unsigned char *, unsigned char *);
+unsigned char *get_content_encoding(unsigned char *head, unsigned char *url);
 struct assoc *get_type_assoc(struct terminal *term, unsigned char *, int *);
 void update_assoc(struct assoc *);
 void update_ext(struct extension *);

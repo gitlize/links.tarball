@@ -610,38 +610,38 @@ void terminal_options(struct terminal *term, void *xxx, struct session *ses)
 
 unsigned char *jsopt_labels[] = { TEXT(T_KILL_ALL_SCRIPTS), TEXT(T_ENABLE_JAVASCRIPT), TEXT(T_VERBOSE_JS_ERRORS), TEXT(T_VERBOSE_JS_WARNINGS), TEXT(T_ENABLE_ALL_CONVERSIONS), TEXT(T_ENABLE_GLOBAL_NAME_RESOLUTION), TEXT(T_MANUAL_JS_CONTROL), TEXT(T_JS_RECURSION_DEPTH), TEXT(T_JS_MEMORY_LIMIT_KB), NULL };
 
-static int __kill_script_opt;
+static int kill_script_opt;
 static unsigned char js_fun_depth_str[7];
 static unsigned char js_memory_limit_str[7];
 
 
-static inline void __kill_js_recursively(struct f_data_c *fd)
+static inline void kill_js_recursively(struct f_data_c *fd)
 {
 	struct f_data_c *f;
 
-	if (fd->js)js_downcall_game_over(fd->js->ctx);
-	foreach(f,fd->subframes)__kill_js_recursively(f);
+	if (fd->js) js_downcall_game_over(fd->js->ctx);
+	foreach(f,fd->subframes) kill_js_recursively(f);
 }
 
 
-static inline void __quiet_kill_js_recursively(struct f_data_c *fd)
+static inline void quiet_kill_js_recursively(struct f_data_c *fd)
 {
 	struct f_data_c *f;
 
 	if (fd->js)js_downcall_game_over(fd->js->ctx);
-	foreach(f,fd->subframes)__quiet_kill_js_recursively(f);
+	foreach(f,fd->subframes) quiet_kill_js_recursively(f);
 }
 
 
 void refresh_javascript(struct session *ses)
 {
 	if (ses->screen->f_data)jsint_scan_script_tags(ses->screen);
-	if (__kill_script_opt)
-		__kill_js_recursively(ses->screen);
+	if (kill_script_opt)
+		kill_js_recursively(ses->screen);
 	if (!js_enable) /* vypnuli jsme skribt */
 	{
 		if (ses->default_status)mem_free(ses->default_status),ses->default_status=NULL;
-		__quiet_kill_js_recursively(ses->screen);
+		quiet_kill_js_recursively(ses->screen);
 	}
 
 	js_fun_depth=strtol(js_fun_depth_str,0,10);
@@ -656,7 +656,7 @@ void refresh_javascript(struct session *ses)
 void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 {
 	struct dialog *d;
-	__kill_script_opt=0;
+	kill_script_opt=0;
 	snprintf(js_fun_depth_str,7,"%d",js_fun_depth);
 	snprintf(js_memory_limit_str,7,"%d",js_memory_limit);
 	d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
@@ -668,7 +668,7 @@ void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 	d->items[0].type = D_CHECKBOX;
 	d->items[0].gid = 0;
 	d->items[0].dlen = sizeof(int);
-	d->items[0].data = (void *)&__kill_script_opt;
+	d->items[0].data = (void *)&kill_script_opt;
 	d->items[1].type = D_CHECKBOX;
 	d->items[1].gid = 0;
 	d->items[1].dlen = sizeof(int);
