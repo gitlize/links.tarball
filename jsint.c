@@ -965,12 +965,7 @@ void js_upcall_document_write(void *p, unsigned char *str, int len)
 	if (js->active->write_pos < 0) internal("js_upcall_document_write: js->active trashed");
 	if (!js->src) {
 		unsigned char *s, *eof;
-		struct fragment *f;
-		if (!fd->rq || !fd->rq->ce) return;
-		defrag_entry(fd->rq->ce);
-		f = fd->rq->ce->frag.next;
-		if ((void *)f == &fd->rq->ce->frag || f->offset) return;
-		s = f->data, eof = f->data + f->length;
+		if (get_file(fd->rq, &s, &eof)) return;
 		if (!(js->src = memacpy(s, eof - s))) return;
 		js->srclen = eof - s;
 	}

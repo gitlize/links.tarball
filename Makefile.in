@@ -100,8 +100,8 @@ html_tbl.o http.o https.o img.o imgcache.o ipret.o javascr.o \
 javascript.o jpeg.o jsint.o kbd.o language.o links_icon.o listedit.o \
 lru.o mailto.o main.o md5.o md5hl.o menu.o memory.o ns.o objreq.o \
 os_dep.o pmshell.o png.o pomocny.o regexp.o sched.o select.o session.o \
-smb.o svgalib.o terminal.o tiff.o types.o url.o view.o view_gr.o \
-x.o xbm.o
+smb.o svgalib.o terminal.o tiff.o types.o url.o view.o view_gr.o x.o \
+xbm.o
 @ATHEOS_GR_TRUE@links_DEPENDENCIES =  atheos.o
 links_LDFLAGS = 
 CFLAGS = @CFLAGS@

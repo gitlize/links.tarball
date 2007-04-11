@@ -38,7 +38,7 @@ extern struct graphics_driver sdl_driver;
 /*
  * On SPAD you must test first svgalib and then X (because X test is slow).
  * On other systems you must test first X and then svgalib (because svgalib
- *	would work in X too and its undesirable).
+ *	would work in X too and it's undesirable).
  */
 
 struct graphics_driver *graphics_drivers[] = {

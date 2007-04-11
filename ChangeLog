@@ -1,3 +1,14 @@
+=== RELEASE 2.1pre28 ===
+
+Wed Apr 11 01:39:36 cet 2007 mikulas:
+
+	Fixed a bug in decompression and javascript document.write introduced in
+	previous release (compressed data were displayed after document.write)
+
+	(BTW. because the javascript interpreter has bugs, Martin Pergel has not
+	time for it and the code is so messy that it couldn't be understand by
+	anyone else, javascript will likely be removed in next release)
+
 === RELEASE 2.1pre27 ===
 
 Sat Apr  7 02:43:28 CEST 2007 mikulas:
