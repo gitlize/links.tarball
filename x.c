@@ -1773,6 +1773,29 @@ int x_hscroll(struct graphics_device *dev, struct rect_set **set, int sc)
 			default:
 			continue;
 		}
+		if (r.x1 < dev->clip.x1 || r.x2 > dev->clip.x2 ||
+		    r.y1 < dev->clip.y1 || r.y2 > dev->clip.y2) {
+			switch(ev.type)
+			{
+				case GraphicsExpose:
+				ev.xgraphicsexpose.x = 0;
+				ev.xgraphicsexpose.y = 0;
+				ev.xgraphicsexpose.width = dev->size.x2;
+				ev.xgraphicsexpose.height = dev->size.y2;
+				break;
+
+				case Expose:
+				ev.xexpose.x = 0;
+				ev.xexpose.y = 0;
+				ev.xexpose.width = dev->size.x2;
+				ev.xexpose.height = dev->size.y2;
+				break;
+			}
+			XPutBackEvent(x_display, &ev);
+			mem_free(*set);
+			*set = NULL;
+			break;
+		}
 		add_to_rect_set(set,&r);
 	}
 
@@ -1830,6 +1853,29 @@ int x_vscroll(struct graphics_device *dev, struct rect_set **set, int sc)
 
 			default:
 			continue;
+		}
+		if (r.x1 < dev->clip.x1 || r.x2 > dev->clip.x2 ||
+		    r.y1 < dev->clip.y1 || r.y2 > dev->clip.y2) {
+			switch(ev.type)
+			{
+				case GraphicsExpose:
+				ev.xgraphicsexpose.x = 0;
+				ev.xgraphicsexpose.y = 0;
+				ev.xgraphicsexpose.width = dev->size.x2;
+				ev.xgraphicsexpose.height = dev->size.y2;
+				break;
+
+				case Expose:
+				ev.xexpose.x = 0;
+				ev.xexpose.y = 0;
+				ev.xexpose.width = dev->size.x2;
+				ev.xexpose.height = dev->size.y2;
+				break;
+			}
+			XPutBackEvent(x_display, &ev);
+			mem_free(*set);
+			*set = NULL;
+			break;
 		}
 		add_to_rect_set(set,&r);
 	}

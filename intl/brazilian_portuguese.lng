@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Bloquear o terminal enquanto o programa
 T_RUN_ON_TERMINAL, "Executar no terminal",
 T_RUN_IN_XWINDOW, "Executar no X-Window",
 T_ASK_BEFORE_OPENING, "Perguntar antes de abrir",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Apagar associação",
 T_ASSOCIATION, "associação",
 T_EXTENSION_S, "Extensão(ões)",

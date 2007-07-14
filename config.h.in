@@ -65,12 +65,6 @@
 /* The number of bytes in a unsigned short.  */
 #undef SIZEOF_UNSIGNED_SHORT
 
-/* Define if you have the MD5Data function.  */
-#undef HAVE_MD5DATA
-
-/* Define if you have the MD5Init function.  */
-#undef HAVE_MD5INIT
-
 /* Define if you have the calloc function.  */
 #undef HAVE_CALLOC
 
@@ -130,9 +124,6 @@
 
 /* Define if you have the raise function.  */
 #undef HAVE_RAISE
-
-/* Define if you have the regcomp function.  */
-#undef HAVE_REGCOMP
 
 /* Define if you have the resume_thread function.  */
 #undef HAVE_RESUME_THREAD
@@ -254,9 +245,6 @@
 /* Define if you have the <math.h> header file.  */
 #undef HAVE_MATH_H
 
-/* Define if you have the <md5.h> header file.  */
-#undef HAVE_MD5_H
-
 /* Define if you have the <ndir.h> header file.  */
 #undef HAVE_NDIR_H
 
@@ -272,14 +260,8 @@
 /* Define if you have the <netinet/ip.h> header file.  */
 #undef HAVE_NETINET_IP_H
 
-/* Define if you have the <pcre.h> header file.  */
-#undef HAVE_PCRE_H
-
 /* Define if you have the <png.h> header file.  */
 #undef HAVE_PNG_H
-
-/* Define if you have the <regex.h> header file.  */
-#undef HAVE_REGEX_H
 
 /* Define if you have the <setjmp.h> header file.  */
 #undef HAVE_SETJMP_H
@@ -362,14 +344,8 @@
 /* Define if you have the m library (-lm).  */
 #undef HAVE_LIBM
 
-/* Define if you have the md library (-lmd).  */
-#undef HAVE_LIBMD
-
 /* Define if you have the nsl library (-lnsl).  */
 #undef HAVE_LIBNSL
-
-/* Define if you have the pcre library (-lpcre).  */
-#undef HAVE_LIBPCRE
 
 /* Define if you have the png library (-lpng).  */
 #undef HAVE_LIBPNG

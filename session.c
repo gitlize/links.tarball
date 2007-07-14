@@ -13,16 +13,19 @@ void add_time_to_str(unsigned char **, int *, ttime);
 unsigned char *get_stat_msg(struct status *, struct terminal *);
 void x_print_screen_status(struct terminal *, struct session *);
 struct session *get_download_ses(struct download *);
+void delete_download_file(struct download *down);
+void close_download_file(struct download *down);
 void abort_download(struct download *);
 void abort_and_delete_download(struct download *);
-void kill_downloads_to_file(unsigned char *);
+void kill_downloads_to_file(unsigned char *, unsigned char *);
 void undisplay_download(struct download *);
 int dlg_abort_download(struct dialog_data *, struct dialog_item_data *);
 int dlg_abort_and_delete_download(struct dialog_data *, struct dialog_item_data *);
 int dlg_undisplay_download(struct dialog_data *, struct dialog_item_data *);
 void download_abort_function(struct dialog_data *);
 void download_data(struct status *, struct download *);
-unsigned char *get_temp_name(unsigned char *);
+void increase_download_file(unsigned char **f);
+unsigned char *get_temp_name(unsigned char *, unsigned char *);
 int f_is_cacheable(struct f_data *);
 int f_need_reparse(struct f_data *);
 struct f_data *format_html(struct f_data_c *, struct object_request *, unsigned char *, struct document_options *, int *);
@@ -33,6 +36,7 @@ int shrink_format_cache(int);
 void create_new_frames(struct f_data_c *, struct frameset_desc *, struct document_options *);
 void image_timer(struct f_data_c *);
 int plain_type(struct session *, struct object_request *, unsigned char **);
+int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *err);
 void refresh_timer(struct f_data_c *);
 void subst_location(struct f_data_c *, struct location *, struct location *);
 struct location *copy_sublocations(struct session *, struct location *, struct location *, struct location *);
@@ -47,6 +51,7 @@ void tp_save(struct session *);
 void tp_open(struct session *);
 int ses_abort_1st_state_loading(struct session *);
 void tp_display(struct session *);
+int direct_download_possible(struct object_request *rq, struct assoc *a);
 int prog_sel_save(struct dialog_data *, struct dialog_item_data*);
 int prog_sel_display(struct dialog_data *, struct dialog_item_data*);
 int prog_sel_cancel(struct dialog_data *, struct dialog_item_data*);
@@ -291,17 +296,41 @@ struct session *get_download_ses(struct download *down)
 	return NULL;
 }
 
+void close_download_file(struct download *down)
+{
+	if (down->handle != -1) prealloc_truncate(down->handle, down->last_pos - down->file_shift), close(down->handle), down->handle = -1;
+}
+
+void delete_download_file(struct download *down)
+{
+	unsigned char *file = stracpy(down->orig_file);
+	unsigned char *wd = get_cwd();
+	set_cwd(down->cwd);
+	while (1) {
+		unsigned char *f = translate_download_file(file);
+		unlink(f);
+		mem_free(f);
+		if (!strcmp(file, down->file)) break;
+		increase_download_file(&file);
+	}
+	mem_free(file);
+	if (wd) set_cwd(wd), mem_free(wd);
+}
+
 void abort_download(struct download *down)
 {
 	if (down->win) delete_window(down->win);
 	if (down->ask) delete_window(down->ask);
 	if (down->stat.state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
 	mem_free(down->url);
-	if (down->handle != -1) prealloc_truncate(down->handle, down->last_pos), close(down->handle);
+	close_download_file(down);
 	if (down->prog) {
-		unlink(down->file);
+		delete_download_file(down);
+
 		mem_free(down->prog);
 	}
+	mem_free(down->cwd);
+	mem_free(down->orig_file);
 	mem_free(down->file);
 	del_from_list(down);
 	mem_free(down);
@@ -309,23 +338,27 @@ void abort_download(struct download *down)
 
 void abort_and_delete_download(struct download *down)
 {
-	if (down->win) delete_window(down->win);
-	if (down->ask) delete_window(down->ask);
-	if (down->stat.state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
-	mem_free(down->url);
-	if (down->handle != -1) prealloc_truncate(down->handle, down->last_pos), close(down->handle);
-	unlink(down->file);
-	if (down->prog)
-		mem_free(down->prog);
-	mem_free(down->file);
-	del_from_list(down);
-	mem_free(down);
+	if (!down->prog) down->prog = DUMMY;
+	abort_download(down);
 }
 
-void kill_downloads_to_file(unsigned char *file)
+void kill_downloads_to_file(unsigned char *file, unsigned char *cwd)
 {
 	struct download *down;
-	foreach(down, downloads) if (!strcmp(down->file, file)) down = down->prev, abort_download(down->next);
+	foreach(down, downloads) {
+		if (strcmp(down->cwd, cwd)) {
+#if defined(DOS_FS)
+			if (file[0] && file[1] == ':' && dir_sep(file[2])) goto abs;
+#elif defined(SPAD)
+			if (_is_absolute(file) == _ABS_TOTAL) goto abs;
+#else
+			if (file[0] == '/') goto abs;
+#endif
+			continue;
+		}
+		abs:
+		if (!strcmp(down->file, file) || !strcmp(down->orig_file, file)) down = down->prev, abort_download(down->next);
+	}
 }
 
 void undisplay_download(struct download *down)
@@ -609,77 +642,117 @@ time_t parse_http_date(char *date)	/* this functions is bad !!! */
 	return t;
 }
 
+static int download_write(struct download *down, void *ptr, off_t to_write)
+{
+	int w;
+	if (to_write != (int)to_write || (int)to_write < 0) to_write = MAXINT;
+	try_write_again:
+	errno = 0;
+	w = write(down->handle, ptr, to_write);
+	if (w <= -!to_write) {
+#ifdef EFBIG
+		if (errno == EFBIG && !down->prog) {
+			if (to_write > 1) {
+				to_write >>= 1;
+				goto try_write_again;
+			}
+			if (down->last_pos == down->file_shift) goto no_e2big;
+			close_download_file(down);
+			increase_download_file(&down->file);
+			if ((down->handle = create_download_file(get_download_ses(down), down->cwd, down->file, 0, down->last_pos - down->file_shift)) < 0) return -1;
+			down->file_shift = down->last_pos;
+			goto try_write_again;
+			no_e2big:;
+		}
+#endif
+		if (get_download_ses(down)) {
+			unsigned char *emsg = stracpy(errno ? strerror(errno) : "Zero returned");
+			unsigned char *msg = stracpy(down->file);
+			msg_box(get_download_ses(down)->term, getml(msg, emsg, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_WRITE_TO_FILE), " ", msg, ": ", emsg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		}
+		return -1;
+	}
+	down->last_pos += w;
+	return 0;
+}
+
 void download_data(struct status *stat, struct download *down)
 {
 	struct cache_entry *ce;
 	struct fragment *frag;
-	if (stat->state >= S_WAIT && stat->state < S_TRANS) goto end_store;
 	if (!(ce = stat->ce)) goto end_store;
-	if (ce->last_modified) down->remotetime = parse_http_date(ce->last_modified);
+	if (stat->state >= S_WAIT && stat->state < S_TRANS) goto end_store;
+	if (!down->remotetime && ce->last_modified) down->remotetime = parse_http_date(ce->last_modified);
 /*	  fprintf(stderr,"\nFEFE date %s\n",ce->last_modified); */
-	if (ce->redirect) {
-		if (down->redirect_cnt++ < MAX_REDIRECTS) {
-			unsigned char *u, *p, *pos;
-			unsigned char *prev_down_url;
-			int cache;
-			if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
-			u = join_urls(down->url, ce->redirect);
-			if (!u) goto x;
-			if ((pos = extract_position(u))) mem_free(pos);
-			if (!http_bugs.bug_302_redirect) if (!ce->redirect_get && (p = strchr(down->url, POST_CHAR))) add_to_strn(&u, p);
-			prev_down_url = down->url;
-			down->url = u;
-			down->stat.state = S_WAIT_REDIR;
-			if (down->win) {
-				struct event ev = { EV_REDRAW, 0, 0, 0 };
-				ev.x = down->win->term->x;
-				ev.y = down->win->term->y;
-				down->win->handler(down->win, &ev, 0);
+	if (!down->last_pos) {
+		unsigned char *enc = get_content_encoding(ce->head, ce->url);
+		if (enc) {
+			if (!encoding_2_extension(enc)) down->decompress = 1;
+			mem_free(enc);
+		}
+		if (ce->redirect) {
+			if (down->redirect_cnt++ < MAX_REDIRECTS) {
+				unsigned char *u, *p, *pos;
+				unsigned char *prev_down_url;
+				int cache;
+				if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
+				u = join_urls(down->url, ce->redirect);
+				if (!u) goto x;
+				if ((pos = extract_position(u))) mem_free(pos);
+				if (!http_bugs.bug_302_redirect) if (!ce->redirect_get && (p = strchr(down->url, POST_CHAR))) add_to_strn(&u, p);
+				prev_down_url = down->url;
+				down->url = u;
+				down->stat.state = S_WAIT_REDIR;
+				if (down->win) {
+					struct event ev = { EV_REDRAW, 0, 0, 0 };
+					ev.x = down->win->term->x;
+					ev.y = down->win->term->y;
+					down->win->handler(down->win, &ev, 0);
+				}
+				cache = NC_CACHE;
+				if (!strcmp(down->url, prev_down_url) || down->redirect_cnt >= MAX_CACHED_REDIRECTS) cache = NC_RELOAD;
+				mem_free(prev_down_url);
+				load_url(down->url, NULL, &down->stat, PRI_DOWNLOAD, cache);
+				return;
+			} else {
+				if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
+				stat->state = S_CYCLIC_REDIRECT;
+				goto end_store;
 			}
-			cache = NC_CACHE;
-			if (!strcmp(down->url, prev_down_url) || down->redirect_cnt >= MAX_CACHED_REDIRECTS) cache = NC_RELOAD;
-			mem_free(prev_down_url);
-			load_url(down->url, NULL, &down->stat, PRI_DOWNLOAD, cache);
-			return;
-		} else {
-			if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
-			stat->state = S_CYCLIC_REDIRECT;
-			goto end_store;
 		}
 	}
 	x:
-	foreach(frag, ce->frag) while (frag->offset <= down->last_pos && frag->offset + frag->length > down->last_pos) {
-		int w;
+	if (!down->decompress) foreach(frag, ce->frag) while (frag->offset <= down->last_pos && frag->offset + frag->length > down->last_pos) {
 #ifdef HAVE_OPEN_PREALLOC
 		if (!down->last_pos && (!down->stat.prg || down->stat.prg->size > 0)) {
 			struct stat st;
 			if (fstat(down->handle, &st) || !S_ISREG(st.st_mode)) goto skip_prealloc;
-			close(down->handle);
-			down->handle = open_prealloc(down->file, O_CREAT|O_WRONLY|O_TRUNC, 0666, down->stat.prg ? down->stat.prg->size : ce->length);
-			if (down->handle == -1) goto error;
-			set_bin(down->handle);
+			close_download_file(down);
+			delete_download_file(down);
+			if ((down->handle = create_download_file(get_download_ses(down), down->cwd, down->file, !!down->prog, down->stat.prg ? down->stat.prg->size : ce->length)) < 0) goto det_abt;
 			skip_prealloc:;
 		}
 #endif
-		w = write(down->handle, frag->data + (down->last_pos - frag->offset), frag->length - (down->last_pos - frag->offset));
-		if (w == -1) {
-#ifdef HAVE_OPEN_PREALLOC
-			error:
-#endif
-			if (!list_empty(sessions)) {
-				unsigned char *emsg = stracpy(strerror(errno));
-				unsigned char *msg = stracpy(down->file);
-				msg_box(get_download_ses(down)->term, getml(msg, emsg, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_WRITE_TO_FILE), " ", msg, ": ", emsg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
-			}
+		if (download_write(down, frag->data + (down->last_pos - frag->offset), frag->length - (down->last_pos - frag->offset))) {
+			det_abt:
 			detach_connection(stat, down->last_pos);
 			abort_download(down);
 			return;
 		}
-		down->last_pos += w;
 	}
 	detach_connection(stat, down->last_pos);
 	end_store:;
 	if (stat->state < 0) {
+		if (down->decompress) {
+			struct session *ses = get_download_ses(down);
+			unsigned char *start, *end;
+			int err;
+			get_file_by_term(ses ? ses->term : NULL, ce, &start, &end, &err);
+			if (err) goto det_abt;
+			while (down->last_pos < end - start) {
+				if (download_write(down, start + down->last_pos, end - start - down->last_pos)) goto det_abt;
+			}
+		}
 		if (stat->state != S_OK) {
 			unsigned char *t = get_err_msg(stat->state);
 			if (t) {
@@ -689,14 +762,24 @@ void download_data(struct status *stat, struct download *down)
 			}
 		} else {
 			if (down->prog) {
-				prealloc_truncate(down->handle, down->last_pos);
-				close(down->handle), down->handle = -1;
-				exec_on_terminal(get_download_ses(down)->term, down->prog, down->file, !!down->prog_flags);
+				close_download_file(down);
+				exec_on_terminal(get_download_ses(down)->term, down->prog, down->orig_file, !!down->prog_flag_block);
 				mem_free(down->prog), down->prog = NULL;
 			} else if (down->remotetime && download_utime) {
 				struct utimbuf foo;
+				unsigned char *file = stracpy(down->orig_file);
+				unsigned char *wd = get_cwd();
+				set_cwd(down->cwd);
 				foo.actime = foo.modtime = down->remotetime;
-				utime(down->file, &foo);
+				while (1) {
+					unsigned char *f = translate_download_file(file);
+					utime(file, &foo);
+					mem_free(f);
+					if (!strcmp(file, down->file)) break;
+					increase_download_file(&file);
+				}
+				mem_free(file);
+				if (wd) set_cwd(wd), mem_free(wd);
 			}
 		}
 		abort_download(down);
@@ -710,59 +793,84 @@ void download_data(struct status *stat, struct download *down)
 	}
 }
 
-int create_download_file(struct terminal *term, unsigned char *fi, int safe)
+unsigned char *translate_download_file(unsigned char *fi)
 {
-	unsigned char *file = fi;
+	unsigned char *file = stracpy("");
+	unsigned char *h;
+	if (fi[0] == '~' && dir_sep(fi[1]) && (h = getenv("HOME"))) {
+		add_to_strn(&file, h);
+		fi++;
+	}
+	add_to_strn(&file, fi);
+	return file;
+}
+
+int create_download_file(struct session *ses, unsigned char *cwd, unsigned char *fi, int safe, off_t siz)
+{
 	unsigned char *wd;
+	unsigned char *file;
 	int h;
-	int i;
 #ifdef NO_FILE_SECURITY
 	int sf = 0;
 #else
 	int sf = safe;
 #endif
 	wd = get_cwd();
-	set_cwd(term->cwd);
-	if (file[0] == '~' && dir_sep(file[1])) {
-		unsigned char *h = getenv("HOME");
-		if (h) {
-			int fl = 0;
-			file = init_str();
-			add_to_str(&file, &fl, h);
-			add_to_str(&file, &fl, fi + 1);
-		}
+	set_cwd(cwd);
+	file = translate_download_file(fi);
+#ifdef HAVE_OPEN_PREALLOC
+	if (siz) {
+		h = open_prealloc(file, O_CREAT|O_WRONLY|O_TRUNC|(safe?O_EXCL:0), sf ? 0600 : 0666, siz);
+	} else
+#endif
+	{
+		h = open(file, O_CREAT|O_WRONLY|O_TRUNC|(safe?O_EXCL:0), sf ? 0600 : 0666);
 	}
-	h = open(file, O_CREAT|O_WRONLY|O_TRUNC|(safe?O_EXCL:0), sf ? 0600 : 0666);
 	if (h == -1) {
 		unsigned char *msg, *msge;
 		if (errno == EEXIST && safe) {
 			h = -2;
 			goto x;
 		}
+		if (!ses) goto x;
 		msg = stracpy(file);
 		msge = stracpy(strerror(errno));
-		msg_box(term, getml(msg, msge, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_CREATE_FILE), " ", msg, ": ", msge, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(ses->term, getml(msg, msge, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_CREATE_FILE), " ", msg, ": ", msge, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 		goto x;
 	}
 	set_bin(h);
-	if (safe) goto x;
-	if (strlen(file) > MAX_STR_LEN) memcpy(download_dir, file, MAX_STR_LEN - 1), download_dir[MAX_STR_LEN - 1] = 0;
-	else strcpy(download_dir, file);
-	for (i = strlen(download_dir) - 1; i >= 0; i--) if (dir_sep(download_dir[i])) {
-		download_dir[i + 1] = 0;
-		goto x;
-	}
-	download_dir[0] = 0;
 	x:
-	if (file != fi) mem_free(file);
+	mem_free(file);
 	if (wd) set_cwd(wd), mem_free(wd);
 	return h;
 }
 
-unsigned char *get_temp_name(unsigned char *url)
+void increase_download_file(unsigned char **f)
 {
-	int l, nl;
-	unsigned char *name, *fn, *fnn, *fnnn, *s;
+	unsigned char *p = NULL, *pp = *f;
+	unsigned char *q;
+	while ((pp = strstr(pp, ".part-"))) p = pp += 6;
+	if (!p || !*p) {
+		no_suffix:
+		add_to_strn(f, ".part-2");
+		return;
+	}
+	for (q = p; *q; q++) if (*q < '0' || *q > '9') goto no_suffix;
+	for (q--; q >= p; q--) {
+		if (*q < '9') {
+			(*q)++;
+			return;
+		}
+		*q = '0';
+	}
+	*p = '1';
+	add_to_strn(f, "0");
+}
+
+unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
+{
+	int nl;
+	unsigned char *name, *fn, *fnx;
 	unsigned char *nm = tempnam(NULL, "links");
 	if (!nm) return NULL;
 #ifdef OS2
@@ -772,14 +880,15 @@ unsigned char *get_temp_name(unsigned char *url)
 	nl = 0;
 	add_to_str(&name, &nl, nm);
 	free(nm);
-	get_filename_from_url(url, &fn, &l);
-	fnnn = NULL;
-	for (fnn = fn; fnn < fn + l; fnn++) if (*fnn == '.') fnnn = fnn;
-	if (fnnn && (s = memacpy(fnnn, l - (fnnn - fn)))) {
-		check_shell_security(&s);
-		add_to_str(&name, &nl, s);
-		mem_free(s);
+	fn = get_filename_from_url(url, head, 1);
+	fnx = strchr(fn, '.');
+	if (fnx) {
+#ifdef OS2
+		if (strlen(fnx) > 4) fnx[4] = 0;
+#endif
+		add_to_str(&name, &nl, fnx);
 	}
+	mem_free(fn);
 	return name;
 }
 
@@ -817,13 +926,17 @@ void start_download(struct session *ses, unsigned char *file)
 	int h;
 	unsigned char *url = ses->dn_url;
 	if (!url) return;
-	kill_downloads_to_file(file);
-	if ((h = create_download_file(ses->term, file, 0)) < 0) return;
+	kill_downloads_to_file(file, ses->term->cwd);
+	if ((h = create_download_file(ses, ses->term->cwd, file, 0, 0)) < 0) return;
 	down = mem_calloc(sizeof(struct download));
 	down->url = stracpy(url);
 	down->stat.end = (void (*)(struct status *, void *))download_data;
 	down->stat.data = down;
+	down->decompress = 0;
 	down->last_pos = 0;
+	down->file_shift = 0;
+	down->cwd = stracpy(ses->term->cwd);
+	down->orig_file = stracpy(file);
 	down->file = stracpy(file);
 	down->handle = h;
 	down->ses = ses;
@@ -1432,26 +1545,27 @@ int plain_type(struct session *ses, struct object_request *rq, unsigned char **p
 #define DECODE_STEP	4096
 
 #if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
-static void decompress_error(struct object_request *o, unsigned char *lib, unsigned char *msg)
+static void decompress_error(struct terminal *term, struct cache_entry *ce, unsigned char *lib, unsigned char *msg, int *errp)
 {
-	struct terminal *term;
 	struct window *win;
-	foreach(term, terminals) if (o->term == term->count) goto ok;
-	return;
-	ok:
-	foreach(win, term->windows) if (win->handler == dialog_func) {
+	unsigned char *u, *uu;
+	if (!term) return;
+	if (errp) *errp = 1;
+	else foreach(win, term->windows) if (win->handler == dialog_func) {
 		struct dialog_data *d = win->data;
 		if (d->dlg->title == TEXT(T_DECOMPRESSION_ERROR)) {
 			return;
 		}
 	}
-	msg_box(term, NULL, TEXT(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_ERROR_DECOMPRESSING_), o->url, TEXT(T__wITH_), lib, ": ", msg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	u = stracpy(ce->url);
+	if ((uu = strchr(u, POST_CHAR))) *uu = 0;
+	msg_box(term, getml(u, NULL), TEXT(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_ERROR_DECOMPRESSING_), u, TEXT(T__wITH_), lib, ": ", msg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 #endif
 
 #ifdef HAVE_ZLIB
 #include <zlib.h>
-static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t *p_len, int defl)
+static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int defl, int *errp)
 {
 	char err;
 	char skip_gzip_header;
@@ -1461,7 +1575,6 @@ static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t
 	size_t header = 0;
 	int r;
 	unsigned char *p;
-	struct cache_entry *ce = o->ce;
 	struct fragment *f;
 	size_t size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
 	p = mem_alloc(size);
@@ -1481,7 +1594,7 @@ static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t
 	init_failed:
 	switch (r) {
 		case Z_OK:		break;
-		case Z_MEM_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_OUT_OF_MEMORY));
+		case Z_MEM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_OUT_OF_MEMORY), errp);
 					err = 1;
 					goto after_inflateend;
 		case Z_STREAM_ERROR:	
@@ -1492,13 +1605,13 @@ static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t
 						old_zlib = 1;
 						goto init_failed;
 					}
-					decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Invalid parameter");
+					decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Invalid parameter", errp);
 					err = 1;
 					goto after_inflateend;
-		case Z_VERSION_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Bad zlib version");
+		case Z_VERSION_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Bad zlib version", errp);
 					err = 1;
 					goto after_inflateend;
-		default:		decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateInit2");
+		default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateInit2", errp);
 					err = 1;
 					goto after_inflateend;
 	}
@@ -1525,12 +1638,12 @@ static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t
 			unsigned headlen = 10;
 			if (z.avail_in <= 11) goto finish;
 			if (head[0] != 0x1f || head[1] != 0x8b) {
-				decompress_error(o, "zlib", TEXT(T_COMPRESSED_ERROR));
+				decompress_error(term, ce, "zlib", TEXT(T_COMPRESSED_ERROR), errp);
 				err = 1;
 				goto finish;
 			}
 			if (head[2] != 8 || head[3] & 0xe0) {
-				decompress_error(o, "zlib", TEXT(T_UNKNOWN_COMPRESSION_METHOD));
+				decompress_error(term, ce, "zlib", TEXT(T_UNKNOWN_COMPRESSION_METHOD), errp);
 				err = 1;
 				goto finish;
 			}
@@ -1580,16 +1693,16 @@ static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t
 							if (r != Z_OK) goto end_failed;
 							goto init_again;
 						}
-						decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_COMPRESSED_ERROR));
+						decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_COMPRESSED_ERROR), errp);
 						err = 1;
 						goto finish;
-			case Z_STREAM_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflate");
+			case Z_STREAM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflate", errp);
 						err = 1;
 						goto finish;
-			case Z_MEM_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_OUT_OF_MEMORY));
+			case Z_MEM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_OUT_OF_MEMORY), errp);
 						err = 1;
 						goto finish;
-			default:		decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflate");
+			default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflate", errp);
 						err = 1;
 						break;
 		}
@@ -1616,10 +1729,10 @@ static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t
 	end_failed:
 	switch (r) {
 		case Z_OK:		break;
-		case Z_STREAM_ERROR:	decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflateEnd");
+		case Z_STREAM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflateEnd", errp);
 					err = 1;
 					break;
-		default:		decompress_error(o, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateEnd");
+		default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateEnd", errp);
 					err = 1;
 					break;
 	}
@@ -1636,14 +1749,13 @@ static int decode_gzip(struct object_request *o, unsigned char **p_start, size_t
 
 #ifdef HAVE_BZIP2
 #include <bzlib.h>
-static int decode_bzip2(struct object_request *o, unsigned char **p_start, size_t *p_len)
+static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int *errp)
 {
 	int err = 0;
 	bz_stream z;
 	off_t offset;
 	int r;
 	unsigned char *p;
-	struct cache_entry *ce = o->ce;
 	struct fragment *f;
 	size_t size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
 	p = mem_alloc(size);
@@ -1659,17 +1771,17 @@ static int decode_bzip2(struct object_request *o, unsigned char **p_start, size_
 	init_failed:
 	switch (r) {
 		case BZ_OK:		break;
-		case BZ_MEM_ERROR:	decompress_error(o, "bzip2", TEXT(T_OUT_OF_MEMORY));
+		case BZ_MEM_ERROR:	decompress_error(term, ce, "bzip2", TEXT(T_OUT_OF_MEMORY), errp);
 					err = 1;
 					goto after_inflateend;
 		case BZ_PARAM_ERROR:	
-					decompress_error(o, "bzip2", "Invalid parameter");
+					decompress_error(term, ce, "bzip2", "Invalid parameter", errp);
 					err = 1;
 					goto after_inflateend;
-		case BZ_CONFIG_ERROR:	decompress_error(o, "bzip2", "Bzlib is miscompiled");
+		case BZ_CONFIG_ERROR:	decompress_error(term, ce, "bzip2", "Bzlib is miscompiled", errp);
 					err = 1;
 					goto after_inflateend;
-		default:		decompress_error(o, "bzip2", "Unknown return value on BZ2_bzDecompressInit");
+		default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompressInit", errp);
 					err = 1;
 					goto after_inflateend;
 	}
@@ -1689,16 +1801,16 @@ static int decode_bzip2(struct object_request *o, unsigned char **p_start, size_
 						if (r != BZ_OK) goto init_failed;
 						break;
 			case BZ_DATA_ERROR_MAGIC:
-			case BZ_DATA_ERROR:	decompress_error(o, "bzip2", TEXT(T_COMPRESSED_ERROR));
+			case BZ_DATA_ERROR:	decompress_error(term, ce, "bzip2", TEXT(T_COMPRESSED_ERROR), errp);
 						err = 1;
 						goto finish;
-			case BZ_PARAM_ERROR:	decompress_error(o, "bzip2", "Internal error on BZ2_bzDecompress");
+			case BZ_PARAM_ERROR:	decompress_error(term, ce, "bzip2", "Internal error on BZ2_bzDecompress", errp);
 						err = 1;
 						goto finish;
-			case BZ_MEM_ERROR:	decompress_error(o, "bzip2", TEXT(T_OUT_OF_MEMORY));
+			case BZ_MEM_ERROR:	decompress_error(term, ce, "bzip2", TEXT(T_OUT_OF_MEMORY), errp);
 						err = 1;
 						goto finish;
-			default:		decompress_error(o, "bzip2", "Unknown return value on BZ2_bzDecompress");
+			default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompress", errp);
 						err = 1;
 						break;
 		}
@@ -1716,10 +1828,10 @@ static int decode_bzip2(struct object_request *o, unsigned char **p_start, size_
 	end_failed:
 	switch (r) {
 		case BZ_OK:		break;
-		case BZ_PARAM_ERROR:	decompress_error(o, "bzip2", "Internal error on BZ2_bzDecompressEnd");
+		case BZ_PARAM_ERROR:	decompress_error(term, ce, "bzip2", "Internal error on BZ2_bzDecompressEnd", errp);
 					err = 1;
 					break;
-		default:		decompress_error(o, "bzip2", "Unknown return value on BZ2_bzDecompressEnd");
+		default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompressEnd", errp);
 					err = 1;
 					break;
 	}
@@ -1734,15 +1846,13 @@ static int decode_bzip2(struct object_request *o, unsigned char **p_start, size_
 }
 #endif
 
-
-int get_file(struct object_request *o, unsigned char **start, unsigned char **end)
+int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *errp)
 {
 	unsigned char *enc;
-	struct cache_entry *ce;
 	struct fragment *fr;
+	if (errp) *errp = 0;
 	*start = *end = NULL;
-	if (!o || !o->ce) return 1;
-	ce = o->ce;
+	if (!ce) return 1;
 	if (ce->decompressed) {
 		return_decompressed:
 		*start = ce->decompressed;
@@ -1755,14 +1865,14 @@ int get_file(struct object_request *o, unsigned char **start, unsigned char **en
 		if (!strcasecmp(enc, "gzip") || !strcasecmp(enc, "x-gzip") || !strcasecmp(enc, "deflate")) {
 			int defl = !strcasecmp(enc, "deflate");
 			mem_free(enc);
-			if (decode_gzip(o, &ce->decompressed, &ce->decompressed_len, defl)) goto uncompressed;
+			if (decode_gzip(term, ce, &ce->decompressed, &ce->decompressed_len, defl, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
 #ifdef HAVE_BZIP2
 		if (!strcasecmp(enc, "bzip2")) {
 			mem_free(enc);
-			if (decode_bzip2(o, &ce->decompressed, &ce->decompressed_len)) goto uncompressed;
+			if (decode_bzip2(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
@@ -1775,6 +1885,17 @@ int get_file(struct object_request *o, unsigned char **start, unsigned char **en
 	if ((void *)fr == &ce->frag || fr->offset || !fr->length) return 1;
 	*start = fr->data, *end = fr->data + fr->length;
 	return 0;
+}
+
+int get_file(struct object_request *o, unsigned char **start, unsigned char **end)
+{
+	struct terminal *term;
+	*start = *end = NULL;
+	if (!o) return 1;
+	foreach(term, terminals) if (o->term == term->count) goto ok;
+	term = NULL;
+	ok:
+	return get_file_by_term(term, o->ce, start, end, NULL);
 }
 
 void refresh_timer(struct f_data_c *fd)
@@ -2061,20 +2182,28 @@ void tp_cancel(struct session *ses)
 
 void continue_download(struct session *ses, unsigned char *file)
 {
+	unsigned char *enc;
 	struct download *down;
 	int h;
 	int namecount = 0;
 	unsigned char *url = ses->tq->url;
-	if (!url) return;
 	if (ses->tq_prog) {
+		if (ses->tq_prog_flag_direct && ses->tq->state != O_OK && !strchr(url, POST_CHAR) && !check_shell_url(url)) {
+			unsigned char *prog = subst_file(ses->tq_prog, url, 0);
+			exec_on_terminal(ses->term, prog, "", !!ses->tq_prog_flag_block);
+			mem_free(prog);
+			tp_cancel(ses);
+			abort_background_connections();
+			return;
+		}
 		new_name:
-		if (!(file = get_temp_name(url))) {
+		if (!(file = get_temp_name(url, ses->tq->ce ? ses->tq->ce->head : NULL))) {
 			tp_cancel(ses);
 			return;
 		}
 	}
-	if (!ses->tq_prog) kill_downloads_to_file(file);
-	if ((h = create_download_file(ses->term, file, !!ses->tq_prog)) < 0) {
+	if (!ses->tq_prog) kill_downloads_to_file(file, ses->term->cwd);
+	if ((h = create_download_file(ses, ses->term->cwd, file, !!ses->tq_prog, 0)) < 0) {
 		if (h == -2 && ses->tq_prog) {
 			if (++namecount < DOWNLOAD_NAME_TRIES) {
 				mem_free(file);
@@ -2090,7 +2219,11 @@ void continue_download(struct session *ses, unsigned char *file)
 	down->url = stracpy(url);
 	down->stat.end = (void (*)(struct status *, void *))download_data;
 	down->stat.data = down;
+	down->decompress = 0;
 	down->last_pos = 0;
+	down->file_shift = 0;
+	down->cwd = stracpy(ses->term->cwd);
+	down->orig_file = stracpy(file);
 	down->file = stracpy(file);
 	down->handle = h;
 	down->ses = ses;
@@ -2100,7 +2233,18 @@ void continue_download(struct session *ses, unsigned char *file)
 		mem_free(ses->tq_prog);
 		ses->tq_prog = NULL;
 	}
-	down->prog_flags = ses->tq_prog_flags;
+	down->prog_flag_block = ses->tq_prog_flag_block;
+
+	enc = ses->tq->ce ? get_content_encoding(ses->tq->ce->head, ses->tq->ce->url) : NULL;
+	if (enc) {
+		if (encoding_2_extension(enc)) {
+			if (down->prog) down->decompress = 1;
+		} else {
+			down->decompress = 1;
+		}
+		mem_free(enc);
+	}
+
 	add_to_list(downloads, down);
 	release_object_get_stat(&ses->tq, &down->stat, PRI_DOWNLOAD);
 	display_download(ses->term, down, ses);
@@ -2110,7 +2254,7 @@ void continue_download(struct session *ses, unsigned char *file)
 void tp_save(struct session *ses)
 {
 	if (ses->tq_prog) mem_free(ses->tq_prog), ses->tq_prog = NULL;
-	query_file(ses, ses->tq->url, continue_download, tp_cancel);
+	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, continue_download, tp_cancel);
 }
 
 void tp_open(struct session *ses)
@@ -2139,13 +2283,23 @@ void tp_display(struct session *ses)
 	ses_go_forward(ses, 1, 0);
 }
 
+int direct_download_possible(struct object_request *rq, struct assoc *a)
+{
+	unsigned char *proto = get_protocol_name(rq->url);
+	int ret = 0;
+	if (!proto) return 0;
+	if (a->accept_http && !strcasecmp(proto, "http")) ret = 1;
+	if (a->accept_ftp && !strcasecmp(proto, "ftp")) ret = 1;
+	mem_free(proto);
+	return ret;
+}
 
 int prog_sel_save(struct dialog_data *dlg, struct dialog_item_data* idata)
 {
 	struct session *ses=(struct session *)(dlg->dlg->udata2);
 
 	if (ses->tq_prog) mem_free(ses->tq_prog), ses->tq_prog = NULL;
-	query_file(ses, ses->tq->url, continue_download, tp_cancel);
+	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, continue_download, tp_cancel);
 
 	cancel_dialog(dlg,idata);
 	return 0;
@@ -2164,7 +2318,6 @@ int prog_sel_display(struct dialog_data *dlg, struct dialog_item_data* idata)
 	return 0;
 }
 
-
 int prog_sel_cancel(struct dialog_data *dlg, struct dialog_item_data* idata)
 {
 	struct session *ses=(struct session *)(dlg->dlg->udata2);
@@ -2174,19 +2327,17 @@ int prog_sel_cancel(struct dialog_data *dlg, struct dialog_item_data* idata)
 	return 0;
 }
 
-
 int prog_sel_open(struct dialog_data *dlg, struct dialog_item_data* idata)
 {
 	struct assoc *a=(struct assoc*)idata->item->udata;
 	struct session *ses=(struct session *)(dlg->dlg->udata2);
 
 	if (!a) internal("This should not happen.\n");
-	ses->tq_prog = stracpy(a->prog), ses->tq_prog_flags = a->block;
+	ses->tq_prog = stracpy(a->prog), ses->tq_prog_flag_block = a->block, ses->tq_prog_flag_direct = direct_download_possible(ses->tq, a);
 	tp_open(ses);
 	cancel_dialog(dlg,idata);
 	return 0;
 }
-
 
 void vysad_dvere(struct dialog_data *dlg)
 {
@@ -2297,11 +2448,11 @@ void type_query(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 
 	if (n>1){vysad_okno(ses,ct,a,n);return;}
 	
-	if (a) ses->tq_prog = stracpy(a[0].prog), ses->tq_prog_flags = a[0].block;
+	if (a) ses->tq_prog = stracpy(a[0].prog), ses->tq_prog_flag_block = a[0].block, ses->tq_prog_flag_direct = direct_download_possible(ses->tq, a);
 	if (a && !a[0].ask) {
 		tp_open(ses);
-		if (n)mem_free(a);
-		if (ct)mem_free(ct);
+		if (n) mem_free(a);
+		if (ct) mem_free(ct);
 		return;
 	}
 	m1 = stracpy(ct);
@@ -2699,7 +2850,7 @@ void destroy_session(struct session *ses)
 void win_func(struct window *win, struct event *ev, int fw)
 {
 	struct session *ses = win->data;
-	switch (ev->ev) {
+	switch ((int)ev->ev) {
 		case EV_ABORT:
 			if (ses) destroy_session(ses);
 			break;

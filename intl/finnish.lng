@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Lukitse terminaali kun ohjelma on ajoss
 T_RUN_ON_TERMINAL, "Aja terminaalilla",
 T_RUN_IN_XWINDOW, "Aja X-ikkunassa",
 T_ASK_BEFORE_OPENING, "Kysy ennen avausta",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Poista kytkent‰",
 T_ASSOCIATION, "Kytkent‰",
 T_EXTENSION_S, "Tiedostop‰‰tteet",

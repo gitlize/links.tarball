@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Блак╕раваць тэрм╕нал на час працы прагр
 T_RUN_ON_TERMINAL, "Запусц╕ць на тэрм╕нале",
 T_RUN_IN_XWINDOW, "Запусц╕ць у X-Window",
 T_ASK_BEFORE_OPENING, "Запыт перад адкрыццём",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Выдал╕ць супаста╝ленне",
 T_ASSOCIATION, "Супаста╝ленне",
 T_EXTENSION_S, "Расшыренн╕",

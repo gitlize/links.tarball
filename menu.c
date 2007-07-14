@@ -2389,6 +2389,7 @@ struct does_file_exist_s{
 	struct session *ses;
 	unsigned char *file;
 	unsigned char *url;
+	unsigned char *head;
 };
 
 void does_file_exist(struct does_file_exist_s *, unsigned char *);  /* prototype */
@@ -2396,7 +2397,16 @@ void does_file_exist(struct does_file_exist_s *, unsigned char *);  /* prototype
 static void does_file_exist_ok(void *data)
 {
 	struct does_file_exist_s *h=(struct does_file_exist_s *)data;
-	if (h->fn) h->fn(h->ses, h->file);
+	if (h->fn) {
+		unsigned char *d = h->file;
+		unsigned char *dd;
+		for (dd = h->file; *dd; dd++) if (dir_sep(*dd)) d = dd + 1;
+		if (d - h->file < MAX_STR_LEN) {
+			memcpy(download_dir, h->file, d - h->file);
+			download_dir[d - h->file] = 0;
+		}
+		h->fn(h->ses, h->file);
+	}
 }
 
 static void does_file_exist_cancel(void *data)
@@ -2408,11 +2418,12 @@ static void does_file_exist_cancel(void *data)
 static void does_file_exist_rename(void *data)
 {
 	struct does_file_exist_s *h=(struct does_file_exist_s *)data;
-	query_file(h->ses, h->url, (void (*)(struct session *, unsigned char *))h->fn, (void (*)(struct session *))h->cancel);
+	query_file(h->ses, h->url, h->head, (void (*)(struct session *, unsigned char *))h->fn, (void (*)(struct session *))h->cancel);
 }
 
 void does_file_exist(struct does_file_exist_s *d, unsigned char *file)
 {
+	unsigned char *f;
 	struct session *ses=d->ses;
 	struct stat s;
 	int r;
@@ -2425,13 +2436,14 @@ void does_file_exist(struct does_file_exist_s *d, unsigned char *file)
 	h->ses=ses;
 	h->file=stracpy(file);
 	h->url=stracpy(d->url);
+	h->head = stracpy(d->head);
 
 	foreach(down, downloads) 
-		if (!strcmp(down->file, file))
+		if (!strcmp(down->file, file) || !strcmp(down->orig_file, file))
 		{
 			msg_box(
 				ses->term,
-				getml(h->file, h->url, h, NULL),
+				getml(h->file, h->url, h, h->head, NULL),
 				TEXT(T_FILE_ALREADY_EXISTS),
 				AL_CENTER|AL_EXTD_TEXT,
 				TEXT(T_FILE), " ", h->file, " ", TEXT(T_ALREADY_EXISTS_AS_DOWNLOAD), " ", TEXT(T_DO_YOU_WISH_TO_OVERWRITE), NULL,
@@ -2444,9 +2456,13 @@ void does_file_exist(struct does_file_exist_s *d, unsigned char *file)
 			return;
 		}
 	
-	if ((r=stat(file, &s)))
+	f = translate_download_file(file);
+	r=stat(f, &s);
+	mem_free(f);
+	if (r)
 	{
-		if (d->fn) d->fn(ses, file);
+		does_file_exist_ok(h);
+		if (h->head) mem_free(h->head);
 		mem_free(h->file);
 		mem_free(h->url);
 		mem_free(h);
@@ -2454,7 +2470,7 @@ void does_file_exist(struct does_file_exist_s *d, unsigned char *file)
 	}
 	msg_box(
 		ses->term,
-		getml(h->file, h->url, h, NULL),
+		getml(h->file, h->url, h, h->head, NULL),
 		TEXT(T_FILE_ALREADY_EXISTS),
 		AL_CENTER|AL_EXTD_TEXT, 
 		TEXT(T_FILE), " ", h->file, " ", TEXT(T_ALREADY_EXISTS), " ", TEXT(T_DO_YOU_WISH_TO_OVERWRITE), NULL,
@@ -2476,28 +2492,29 @@ static void query_file_cancel(struct does_file_exist_s *d)
 }
 
 
-void query_file(struct session *ses, unsigned char *url, void (*std)(struct session *, unsigned char *), void (*cancel)(struct session *))
+void query_file(struct session *ses, unsigned char *url, unsigned char *head, void (*std)(struct session *, unsigned char *), void (*cancel)(struct session *))
 {
 	unsigned char *file, *def;
 	int dfl = 0;
-	int l;
 	struct does_file_exist_s *h;
 
 	h=mem_alloc(sizeof(struct does_file_exist_s));
 
-	get_filename_from_url(url, &file, &l);
+	file = get_filename_from_url(url, head, 0);
 	def = init_str();
 	add_to_str(&def, &dfl, download_dir);
 	if (*def && !dir_sep(def[strlen(def) - 1])) add_chr_to_str(&def, &dfl, '/');
-	add_bytes_to_str(&def, &dfl, file, l);
+	add_to_str(&def, &dfl, file);
+	mem_free(file);
 
 	h->fn=(void (*)(void *, unsigned char *))std;
 	h->cancel=(void (*)(void *))cancel;
 	h->ses=ses;
 	h->file=NULL;
 	h->url=stracpy(url);
+	h->head = stracpy(head);
 
-	input_field(ses->term, getml(h->url, h, NULL), TEXT(T_DOWNLOAD), TEXT(T_SAVE_TO_FILE), h, &file_history, MAX_INPUT_URL_LEN, def, 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *))does_file_exist, TEXT(T_CANCEL), (void (*)(void *))query_file_cancel, NULL);
+	input_field(ses->term, getml(h->url, h, h->head, NULL), TEXT(T_DOWNLOAD), TEXT(T_SAVE_TO_FILE), h, &file_history, MAX_INPUT_URL_LEN, def, 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *))does_file_exist, TEXT(T_CANCEL), (void (*)(void *))query_file_cancel, NULL);
 	mem_free(def);
 }
 

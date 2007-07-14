@@ -1462,7 +1462,7 @@ unsigned char *png_data, int png_length, struct style *style)
 		if (color_type==PNG_COLOR_TYPE_PALETTE){
 			png_set_expand(png_ptr);
 #ifdef HAVE_PNG_SET_RGB_TO_GRAY
-			png_set_rgb_to_gray(png_ptr,1,54.0/256,183.0/256);
+			png_set_rgb_to_gray(png_ptr,1,54.0*256,183.0*256);
 #else
 			goto end;
 #endif
@@ -1473,7 +1473,7 @@ unsigned char *png_data, int png_length, struct style *style)
 		if (color_type==PNG_COLOR_TYPE_RGB ||
 			color_type==PNG_COLOR_TYPE_RGB_ALPHA){
 #ifdef HAVE_PNG_SET_RGB_TO_GRAY
-			png_set_rgb_to_gray(png_ptr, 1, 54.0/256, 183.0/256);
+			png_set_rgb_to_gray(png_ptr, 1, 54.0*256, 183.0*256);
 #else
 			goto end;
 #endif

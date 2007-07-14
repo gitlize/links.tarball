@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Блокиране на терминала по време на рабо
 T_RUN_ON_TERMINAL, "Стартирай в терминал",
 T_RUN_IN_XWINDOW, "Стартирай в X-Window",
 T_ASK_BEFORE_OPENING, "Запрос перед открытием",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Удалить сопоставление",
 T_ASSOCIATION, "Асоциация",
 T_EXTENSION_S, "Разширение(я)",

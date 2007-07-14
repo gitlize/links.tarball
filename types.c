@@ -25,6 +25,7 @@ void ext_edit_done(void *);
 void ext_edit_abort(struct dialog_data *);
 int is_in_list(unsigned char *, unsigned char *, int);
 unsigned char *get_content_type_by_extension(unsigned char *url);
+unsigned char *get_extension_by_content_type(unsigned char *ct);
 
 
 struct list assoc={&assoc,&assoc,0,-1,NULL};
@@ -66,17 +67,12 @@ struct list_description assoc_ld={
 	1,
 };
 
-
-
-
-
 void *assoc_default_value(struct session* ses, unsigned char type)
 {
 	type=type;
 	ses=ses;
 	return NULL;
 }
-
 
 void *assoc_new_item(void *ignore)
 {
@@ -89,11 +85,12 @@ void *assoc_new_item(void *ignore)
 	new->prog = stracpy("");
 	new->block = new->xwin = new->cons = 1;
 	new->ask = 1;
-	new->type=0;
+	new->accept_http = 0;
+	new->accept_ftp = 0;
+	new->type = 0;
 	new->system = SYSTEM_ID;
 	return new;
 }
-
 
 void assoc_delete_item(void *data)
 {
@@ -109,7 +106,6 @@ void assoc_delete_item(void *data)
 	mem_free(del);
 }
 
-
 void assoc_copy_item(void *in, void *out)
 {
 	struct assoc *item_in=(struct assoc *)in;
@@ -119,6 +115,8 @@ void assoc_copy_item(void *in, void *out)
 	item_out->xwin=item_in->xwin;
 	item_out->block=item_in->block;
 	item_out->ask=item_in->ask;
+	item_out->accept_http=item_in->accept_http;
+	item_out->accept_ftp=item_in->accept_ftp;
 	item_out->system=item_in->system;
 
 	if (item_out->label)mem_free(item_out->label);
@@ -129,7 +127,6 @@ void assoc_copy_item(void *in, void *out)
 	item_out->ct=stracpy(item_in->ct);
 	item_out->prog=stracpy(item_in->prog);
 }
-
 
 /* allocate string and print association into it */
 /* x: 0=type all, 1=type title only */
@@ -156,7 +153,6 @@ unsigned char *assoc_type_item(struct terminal *term, void *data, int x)
 	return txt1;
 }
 
-
 void menu_assoc_manager(struct terminal *term,void *fcp,struct session *ses)
 {
 	create_list_window(&assoc_ld,&assoc,term,ses);
@@ -174,6 +170,8 @@ unsigned char *ct_msg[] = {
 	TEXT(T_RUN_IN_XWINDOW),
 #endif
 	TEXT(T_ASK_BEFORE_OPENING),
+	TEXT(T_ACCEPT_HTTP),
+	TEXT(T_ACCEPT_FTP),
 };
 
 void assoc_edit_item_fn(struct dialog_data *dlg)
@@ -182,7 +180,7 @@ void assoc_edit_item_fn(struct dialog_data *dlg)
 	int max = 0, min = 0;
 	int w, rw;
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
-	int p = 1;
+	int p = 3;
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef ASSOC_BLOCK
 	p++;
@@ -243,7 +241,7 @@ void assoc_edit_done(void *data)
 	struct conv_table *table;
 	unsigned char *label, *ct, *prog;
 
-	label=(unsigned char *)&d->items[10];
+	label=(unsigned char *)&d->items[12];
 	ct=label+MAX_STR_LEN;
 	prog=ct+MAX_STR_LEN;
 
@@ -261,7 +259,6 @@ void assoc_edit_done(void *data)
 	d->udata=0;  /* for abort function */
 }
 
-
 /* destroys an item, this function is called when edit window is aborted */
 void assoc_edit_abort(struct dialog_data *data)
 {
@@ -272,7 +269,6 @@ void assoc_edit_abort(struct dialog_data *data)
 	if (item)assoc_delete_item(item);
 }
 
-
 void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title)
 {
 	int p;
@@ -282,9 +278,9 @@ void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct d
 	struct assoc_ok_struct *s;
 	unsigned char *ct, *prog, *label;
 
-	d = mem_calloc(sizeof(struct dialog) + 10 * sizeof(struct dialog_item) + 3 * MAX_STR_LEN);
+	d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item) + 3 * MAX_STR_LEN);
 
-	label=(unsigned char *)&d->items[10];
+	label=(unsigned char *)&d->items[12];
 	ct=label+MAX_STR_LEN;
 	prog=ct+MAX_STR_LEN;
 
@@ -347,6 +343,12 @@ void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct d
 	d->items[p].type = D_CHECKBOX;
 	d->items[p].data = (unsigned char *)&new->ask;
 	d->items[p++].dlen = sizeof(int);
+	d->items[p].type = D_CHECKBOX;
+	d->items[p].data = (unsigned char *)&new->accept_http;
+	d->items[p++].dlen = sizeof(int);
+	d->items[p].type = D_CHECKBOX;
+	d->items[p].data = (unsigned char *)&new->accept_ftp;
+	d->items[p++].dlen = sizeof(int);
 	d->items[p].type = D_BUTTON;
 	d->items[p].gid = B_ENTER;
 	d->items[p].fn = ok_dialog;
@@ -392,7 +394,16 @@ void update_assoc(struct assoc *new)
 {
 	struct assoc *repl;
 	if (!new->label[0] || !new->ct[0] || !new->prog[0]) return;
-	foreach(repl, assoc) if (!strcmp(repl->label, new->label) && !strcmp(repl->ct, new->ct) && !strcmp(repl->prog, new->prog) && repl->block == new->block && repl->cons == new->cons && repl->xwin == new->xwin && repl->ask == new->ask && repl->system == new->system) {
+	foreach(repl, assoc) if (!strcmp(repl->label, new->label)
+			      && !strcmp(repl->ct, new->ct)
+			      && !strcmp(repl->prog, new->prog)
+			      && repl->block == new->block
+			      && repl->cons == new->cons
+			      && repl->xwin == new->xwin
+			      && repl->ask == new->ask
+			      && repl->accept_http == new->accept_http
+			      && repl->accept_ftp == new->accept_ftp
+			      && repl->system == new->system) {
 		del_from_list(repl);
 		add_to_list(assoc, repl);
 		return;
@@ -406,8 +417,10 @@ void update_assoc(struct assoc *new)
 	repl->cons = new->cons;
 	repl->xwin = new->xwin;
 	repl->ask = new->ask;
+	repl->accept_http = new->accept_http;
+	repl->accept_ftp = new->accept_ftp;
 	repl->system = new->system;
-	repl->type=0;
+	repl->type = 0;
 	/*new->system = new->system; co to je? */
 }
 
@@ -841,6 +854,48 @@ unsigned char *get_content_type_by_extension(unsigned char *url)
 	return NULL;
 }
 
+unsigned char *get_extension_by_content_type(unsigned char *ct)
+{
+	struct extension *e;
+	unsigned char *x, *y;
+	if (!strcasecmp(ct, "text/html")) return stracpy("html");
+	foreach(e, extensions) {
+		if (!strcasecmp(e->ct, ct)) {
+			x = stracpy(e->ext);
+			if ((y = strchr(x, ','))) *y = 0;
+			return x;
+		}
+	}
+	if (!strcasecmp(ct, "image/jpeg") ||
+	    !strcasecmp(ct, "image/jpg") ||
+	    !strcasecmp(ct, "image/jpe") ||
+	    !strcasecmp(ct, "image/pjpe") ||
+	    !strcasecmp(ct, "image/pjpeg") ||
+	    !strcasecmp(ct, "image/pjpg"))
+		return stracpy("jpg");
+	if (!strcasecmp(ct, "image/png") ||
+	    !strcasecmp(ct, "image/x-png"))
+		return stracpy("png");
+	if (!strcasecmp(ct, "image/gif"))
+		return stracpy("gif");
+	if (!strcasecmp(ct, "image/x-bitmap"))
+		return stracpy("xbm");
+	if (!strcasecmp(ct, "image/tiff") ||
+	    !strcasecmp(ct, "image/tif"))
+		return stracpy("tiff");
+	if (!cmpbeg(ct, "application/x-")) {
+		x = stracpy(ct + strlen("application/x-"));
+		if (strcasecmp(x, "gz") &&
+		    strcasecmp(x, "gzip") &&
+		    strcasecmp(x, "bz2") &&
+		    strcasecmp(x, "bzip2")) {
+			return x;
+		}
+		mem_free(x);
+	}
+	return NULL;
+}
+
 unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 {
 	unsigned char *ct;
@@ -883,6 +938,13 @@ unsigned char *get_content_encoding(unsigned char *head, unsigned char *url)
 	l = strlen(ext);
 	if (l >= 3 && !strcasecmp(ext + l - 3, ".gz")) return stracpy("gzip");
 	if (l >= 4 && !strcasecmp(ext + l - 4, ".bz2")) return stracpy("bzip2");
+	return NULL;
+}
+
+unsigned char *encoding_2_extension(unsigned char *encoding)
+{
+	if (!strcasecmp(encoding, "gzip") || !strcasecmp(encoding, "x-gzip")) return "gz";
+	if (!strcasecmp(encoding, "bzip2")) return "bz2";
 	return NULL;
 }
 
@@ -965,4 +1027,44 @@ unsigned char *get_prog(struct list_head *l)
 int is_html_type(unsigned char *ct)
 {
 	return !strcasecmp(ct, "text/html") || !casecmp(ct, "application/xhtml", strlen("application/xhtml"));
+}
+
+unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, int tmp)
+{
+	unsigned char *u, *s, *e, *f, *x;
+	unsigned char *ct, *want_ext;
+	if (!(u = get_url_data(url))) u = url;
+	for (e = s = u; *e && !end_of_dir(url, *e); e++) {
+		if (dir_sep(*e)) s = e + 1;
+	}
+	f = memacpy(s, e - s);
+	want_ext = stracpy("");
+	ct = get_content_type(head, url);
+	if (ct) {
+		x = get_extension_by_content_type(ct);
+		if (x) {
+			add_to_strn(&want_ext, ".");
+			add_to_strn(&want_ext, x);
+			mem_free(x);
+		}
+		mem_free(ct);
+	}
+	if (!tmp) {
+		ct = get_content_encoding(head, url);
+		if (ct) {
+			x = encoding_2_extension(ct);
+			if (x) {
+				add_to_strn(&want_ext, ".");
+				add_to_strn(&want_ext, x);
+			}
+			mem_free(ct);
+		}
+	}
+	if (strlen(want_ext) > strlen(f) || strcasecmp(want_ext, f + strlen(f) - strlen(want_ext))) {
+		x = strrchr(f, '.');
+		if (x) *x = 0;
+		add_to_strn(&f, want_ext);
+	}
+	mem_free(want_ext);
+	return f;
 }

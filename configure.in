@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre28)
+AM_INIT_AUTOMAKE(links, 2.1pre29)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -32,7 +32,6 @@ AC_HEADER_STDC
 AC_PROG_GCC_TRADITIONAL
 
 dnl Check for libraries
-#AC_CHECK_LIB(fl,main,AC_DEFINE(JS) LIBS="$LIBS -lfl",AC_MSG_WARN(You don't have libfl; you won't be able to run javascript))
 
 AC_CACHE_CHECK([for EMX], ac_cv_have_emx,
 	AC_TRY_COMPILE(, [#ifndef __EMX__
@@ -71,7 +70,7 @@ AC_CHECK_HEADERS(sys/cygwin.h)
 AC_CHECK_HEADERS(io.h)
 AC_CHECK_HEADERS(setjmp.h)
 AC_CHECK_HEADERS(langinfo.h)
-AC_CHECK_HEADERS(md5.h)
+dnl javascript AC_CHECK_HEADERS(md5.h)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -198,8 +197,8 @@ fi
 dnl Checks for libraries.
 AC_CHECK_LIB(m, atan)
 
-AC_CHECK_LIB(md, MD5Data)
-AC_HAVE_FUNCS(MD5Init MD5Data)
+dnl javascript AC_CHECK_LIB(md, MD5Data)
+dnl javascript AC_HAVE_FUNCS(MD5Init MD5Data)
 
 AC_CHECK_FUNC(socket, cf_result=yes, cf_result=no)
 if test "$cf_result" = no; then
@@ -248,42 +247,42 @@ if test "$cf_debuglevel" != -1 && test "$cf_debuglevel" != 0 && test "$cf_debugl
 fi
 AC_DEFINE_UNQUOTED(DEBUGLEVEL, $cf_debuglevel)
 
-AC_MSG_CHECKING([if you want to enable javascript])
-cf_use_javascript=no
-AC_ARG_ENABLE(javascript, [  --enable-javascript     use javascript interpreter], cf_use_javascript=$enableval)
-AC_MSG_RESULT($cf_use_javascript)
-if test "$cf_use_javascript" = yes; then
-	AC_DEFINE(JS)
-	AC_MSG_CHECKING([if you want to link with system libfl])
-	cf_use_libfl=no
-	AC_ARG_WITH(libfl, [  --with-libfl            use libfl],cf_use_libfl="$withval")
-	AC_MSG_RESULT($cf_use_libfl)
-	if test "$cf_use_libfl" != no; then
-		LIBS="$LIBS -lfl"
-	else
-		AC_DEFINE(CHCEME_FLEXI_LIBU)
-	fi
-
-	reg_exp_mode="NONE"
-	PKG_CHECK_MODULES(LIBPCRE,libpcre,pkgconfig_libpcre=yes,pkgconfig_libpcre=no)
-	if test "$pkgconfig_libpcre" = "yes"; then
-		CPPFLAGS="$CPPFLAGS $LIBPCRE_CFLAGS"
-		LIBS="$LIBPCRE_LIBS $LIBS"
-	fi
-	AC_CHECK_LIB(pcre, pcre_compile)
-	AC_CHECK_HEADERS(pcre.h)
-	if test "$ac_cv_lib_pcre_pcre_compile" = yes && test "$ac_cv_header_pcre_h" = yes; then
-		AC_DEFINE(HAVE_PCRE)
-		reg_exp_mode="PCRE"
-	else
-		AC_HAVE_FUNCS(regcomp)
-		AC_CHECK_HEADERS(regex.h)
-		if test "$ac_cv_func_regcomp" = yes && test "$ac_cv_header_regex_h" = yes; then
-			AC_DEFINE(HAVE_REGEX)
-			reg_exp_mode="LIBC"
-		fi
-	fi
-fi
+dnl javascript AC_MSG_CHECKING([if you want to enable javascript])
+dnl javascript cf_use_javascript=no
+dnl javascript AC_ARG_ENABLE(javascript, [  --enable-javascript     use javascript interpreter], cf_use_javascript=$enableval)
+dnl javascript AC_MSG_RESULT($cf_use_javascript)
+dnl javascript if test "$cf_use_javascript" = yes; then
+dnl javascript 	AC_DEFINE(JS)
+dnl javascript 	AC_MSG_CHECKING([if you want to link with system libfl])
+dnl javascript 	cf_use_libfl=no
+dnl javascript 	AC_ARG_WITH(libfl, [  --with-libfl            use libfl],cf_use_libfl="$withval")
+dnl javascript 	AC_MSG_RESULT($cf_use_libfl)
+dnl javascript 	if test "$cf_use_libfl" != no; then
+dnl javascript 		LIBS="$LIBS -lfl"
+dnl javascript 	else
+dnl javascript 		AC_DEFINE(CHCEME_FLEXI_LIBU)
+dnl javascript 	fi
+dnl javascript 
+dnl javascript 	reg_exp_mode="NONE"
+dnl javascript 	PKG_CHECK_MODULES(LIBPCRE,libpcre,pkgconfig_libpcre=yes,pkgconfig_libpcre=no)
+dnl javascript 	if test "$pkgconfig_libpcre" = "yes"; then
+dnl javascript 		CPPFLAGS="$CPPFLAGS $LIBPCRE_CFLAGS"
+dnl javascript 		LIBS="$LIBPCRE_LIBS $LIBS"
+dnl javascript 	fi
+dnl javascript 	AC_CHECK_LIB(pcre, pcre_compile)
+dnl javascript 	AC_CHECK_HEADERS(pcre.h)
+dnl javascript 	if test "$ac_cv_lib_pcre_pcre_compile" = yes && test "$ac_cv_header_pcre_h" = yes; then
+dnl javascript 		AC_DEFINE(HAVE_PCRE)
+dnl javascript 		reg_exp_mode="PCRE"
+dnl javascript 	else
+dnl javascript 		AC_HAVE_FUNCS(regcomp)
+dnl javascript 		AC_CHECK_HEADERS(regex.h)
+dnl javascript 		if test "$ac_cv_func_regcomp" = yes && test "$ac_cv_header_regex_h" = yes; then
+dnl javascript 			AC_DEFINE(HAVE_REGEX)
+dnl javascript 			reg_exp_mode="LIBC"
+dnl javascript 		fi
+dnl javascript 	fi
+dnl javascript fi
 
 cf_use_graphics=no
 AC_MSG_CHECKING([if you want to use graphics])
@@ -657,10 +656,10 @@ if test "$cf_have_ssl" = yes; then echo "SSL support:		YES"; else echo "SSL supp
 compression="`echo "$compression"|sed 's/^ //'`"
 if test -z "$compression"; then compression="NONE"; fi
 	echo "Supported compression:	$compression"
-if test "$cf_use_javascript" = yes; then
-	echo "Javascript enabled:	YES"
-	echo "Regular expressions:	$reg_exp_mode"
-else echo "Javascript enabled:	NO"; fi
+dnl javascript if test "$cf_use_javascript" = yes; then
+dnl javascript 	echo "Javascript enabled:	YES"
+dnl javascript 	echo "Regular expressions:	$reg_exp_mode"
+dnl javascript else echo "Javascript enabled:	NO"; fi
 if test "$cf_use_graphics" = yes; then 
 	echo "Graphics enabled:	YES"
 	echo "Graphics drivers:	`echo "$drivers"|sed 's/^ //'`"

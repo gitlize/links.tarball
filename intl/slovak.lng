@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Zablokuj terminál, poèas behu programu"
 T_RUN_ON_TERMINAL, "Spusti» v termináli",
 T_RUN_IN_XWINDOW, "Spusti» v X-Windows okne",
 T_ASK_BEFORE_OPENING, "Opýta» sa pred otvorením",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Zmaza» priradenie",
 T_ASSOCIATION, "priradenie",
 T_EXTENSION_S, "Prípona(y)",

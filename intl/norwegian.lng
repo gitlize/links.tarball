@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Blokker terminalen mens programmet kjør
 T_RUN_ON_TERMINAL, "Kjør i terminal",
 T_RUN_IN_XWINDOW, "Kjør i et X-vindu",
 T_ASK_BEFORE_OPENING, "Spør før åpning",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Slett tilknytning",
 T_ASSOCIATION, "tilknytning",
 T_EXTENSION_S, "Etternavn",

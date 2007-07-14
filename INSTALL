@@ -1,4 +1,4 @@
-Links 2.1pre28 -- How To Install
+Links 2.1pre29 -- How To Install
 --------------------------------
 
 Follow this step-by-step:
@@ -7,7 +7,8 @@ Follow this step-by-step:
    "library-dev(el)":
 
    libpng - required to compile links in graphics mode (not required in text
-            mode).
+	    mode). Libpng 2.1.18 has a bug and must be patched by the patch
+	    PATCH-libpng-1.2.18 which is shipped with Links.
    IJG libjpeg - if you want to display JPEG's (probably yes).
    TIFF Library - if you want TIFFs.
    SVGAlib - if you want Links to be able to display on SVGAlib.
@@ -48,6 +49,9 @@ Follow this step-by-step:
     Download libpng-1.2.3, zlib-1.1.4, libjpeg-6b and libtiff-v3.5.7
     archives and unpack them. Build the libraries according to their
     instructions to get static (*.a) library in each.
+
+    Please note libpng-1.2.18 is buggy and must be patched with
+    PATCH-libpng-1.2.18 which is shipped with Links.
 
     export CPPFLAGS="-I../zlib-1.1.4 -I../libpng-1.2.3 -I../jpeg-6b
 	-I../tiff-v3.5.7/libtiff"
@@ -91,5 +95,11 @@ OS/2 - copy file links.exe somewhere to your path or create CMD file that runs
 
 WARNING: EMX has nasty limit of open files. Links will work badly or won't work
 	with default settings. Set variable EMXOPT=-h100 before you run links.
+
+libpng-1.2.18 -  "Error when loading compiled-in font: png_do_rgb_to_gray found
+	         nongray pixel. libpng error: png_do_rgb_to_gray found nongray
+		 pixel Abort." This is caused by a bug in libpng and
+		 PATCH-libpng-1.2.18 shipped with Links must be used to patch
+		 libpng to fix the bug.
 
 vim: textwidth=80

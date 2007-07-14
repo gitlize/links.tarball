@@ -948,7 +948,7 @@ void html_a_special(unsigned char *a, unsigned char *next, unsigned char *eof)
 	if (!(next[0] == '<' && next[1] == '/' && upcase(next[2]) == 'A' && next[3] == '>')) return;
 	if (!has_attr(a, "href") || !format.link) return;
 	t = get_attr_val(a, "title");
-	if (!t) t = stracpy("[LINK]");
+	if (!t) return;
 	put_chrs(t, strlen(t), put_chars_f, ff);
 	mem_free(t);
 }

@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Terminál zárolás a program futása közbe
 T_RUN_ON_TERMINAL, "Futtatás terminálban",
 T_RUN_IN_XWINDOW, "Futtatás X-Windowban",
 T_ASK_BEFORE_OPENING, "Kérdés megnyitás elõtt.",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Kapcsolatok törlése",
 T_ASSOCIATION, "Kapcsolatok",
 T_EXTENSION_S, "Kiterjesztés(ek)",

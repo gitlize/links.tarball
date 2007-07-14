@@ -207,7 +207,7 @@ restart_again:
 	{
 		unsigned char *p;
 		int a;
-		int d,b;
+		int d=0,b=10;
 		if (!deco->in_data_block)
 		{
 			p=memchr(deco->buffer,'{',deco->buffer_pos);

@@ -40,6 +40,8 @@ void cfmakeraw(struct termios *t);
 #define strncasecmp strnicmp
 #define read _read
 #define write _write
+#define getcwd _getcwd2
+#define chdir _chdir2
 #endif
 
 #ifdef BEOS

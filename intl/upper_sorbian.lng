@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Terminal blokowaæ, doni¾ program d¼ì³a"
 T_RUN_ON_TERMINAL, "W terminalu startowaæ",
 T_RUN_IN_XWINDOW, "W X-Woknje startowaæ",
 T_ASK_BEFORE_OPENING, "Wopra¹ej so pøed woèinjenjom",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Asociaciju znièiæ",
 T_ASSOCIATION, "Asociacija",
 T_EXTENSION_S, "Ekstensija",

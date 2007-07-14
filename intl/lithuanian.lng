@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Uþblokuoti terminalà kol naudojama prog
 T_RUN_ON_TERMINAL, "Naudoti terminale",
 T_RUN_IN_XWINDOW, "Naudoti X-Window aplinkoje",
 T_ASK_BEFORE_OPENING, "Atsiklausti prieð atidarant",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Iðtrinti asociacijà",
 T_ASSOCIATION, "Asociacija",
 T_EXTENSION_S, "Priesaga(os)",

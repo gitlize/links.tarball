@@ -62,6 +62,14 @@ int get_e(char *env)
 	return 0;
 }
 
+void ignore_signals(void)
+{
+	signal(SIGPIPE, SIG_IGN);
+#ifdef SIGXFSZ
+	signal(SIGXFSZ, SIG_IGN);
+#endif
+}
+
 char *clipboard = NULL;
 
 #if defined(WIN32)
@@ -165,7 +173,7 @@ void winch_thread(void)
 	static int old_xsize, old_ysize;
 	static int cur_xsize, cur_ysize;
 
-	signal(SIGPIPE, SIG_IGN);
+	ignore_signals();
 	if (get_terminal_size(0, &old_xsize, &old_ysize)) return;
 	while (1) {
 		if (get_terminal_size(0, &cur_xsize, &cur_ysize)) return;
@@ -853,6 +861,7 @@ void set_window_title(unsigned char *title)
 
 int resize_window(int x, int y)
 {
+	int xfont, yfont;
 	A_DECL(VIOMODEINFO, vmi);
 	resize_count++;
 	if (is_xterm()) return -1;
@@ -860,15 +869,19 @@ int resize_window(int x, int y)
 	if (VioGetMode(vmi, 0)) return -1;
 	vmi->col = x;
 	vmi->row = y;
-	if (VioSetMode(vmi, 0)) return -1;
-	/*
-	unsigned char cmdline[16];
-	sprintf(cmdline, "mode ");
-	snprint(cmdline + 5, 5, x);
-	strcat(cmdline, ",");
-	snprint(cmdline + strlen(cmdline), 5, y);
-	*/
-	return 0;
+	/*debug("%d %d %d", vmi->buf_length, vmi->full_length, vmi->partial_length);*/
+	for (xfont = 9; xfont >= 8; xfont--)
+		for (yfont = 16; yfont >= 8; yfont--) {
+			vmi->hres = x * xfont;
+			vmi->vres = y * yfont;
+			if (vmi->vres <= 400) vmi->vres = 400;
+			else if (vmi->vres <= 480) vmi->vres = 480;
+			vmi->buf_length = vmi->full_length = vmi->partial_length = x * ((vmi->vres + yfont - 1) / yfont) * 2;
+			vmi->full_length = (vmi->full_length + 4095) & ~4095;
+			vmi->partial_length = (vmi->partial_length + 4095) & ~4095;
+			if (!VioSetMode(vmi, 0)) return 0;
+		}
+	return -1;
 }
 
 #endif
@@ -885,7 +898,7 @@ struct tdata {
 
 void bgt(struct tdata *t)
 {
-	signal(SIGPIPE, SIG_IGN);
+	ignore_signals();
 	t->fn(t->data, t->h);
 	write(t->h, "x", 1);
 	close(t->h);
@@ -1038,7 +1051,7 @@ void input_thread(void *p)
 {
 	char c[2];
 	int h = (int)p;
-	signal(SIGPIPE, SIG_IGN);
+	ignore_signals();
 	while (1) {
 		/*c[0] = _read_kbd(0, 1, 1);
 		if (c[0]) if (write(h, c, 1) <= 0) break;
@@ -1094,7 +1107,7 @@ void mouse_thread(void *p)
 	A_DECL(USHORT, rd);
 	A_DECL(USHORT, mask);
 	struct event ev;
-	signal(SIGPIPE, SIG_IGN);
+	ignore_signals();
 	ev.ev = EV_MOUSE;
 	if (MouOpen(NULL, mh)) goto ret;
 	mouse_h = *mh;

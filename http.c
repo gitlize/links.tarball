@@ -17,6 +17,8 @@ struct http_connection_info {
 
 /* prototypes */
 int check_http_server_bugs(unsigned char *, struct http_connection_info *, unsigned char *);
+void add_url_to_str(unsigned char **, int *, unsigned char *);
+void http_send_header(struct connection *);
 void http_end_request(struct connection *, int);
 int is_line_in_buffer(struct read_buffer *);
 void read_http_data(struct connection *, struct read_buffer *);
@@ -108,6 +110,7 @@ struct {
 	{ "Netscape-Enterprise", BL_HTTP10 | BL_NO_ACCEPT_LANGUAGE },
 	{ "Apache Coyote", BL_HTTP10 },
 	{ "lighttpd", BL_HTTP10 },
+	{ "FORPSI", BL_NO_RANGE },
 	{ NULL, 0 }
 };
 
@@ -123,7 +126,7 @@ int check_http_server_bugs(unsigned char *url, struct http_connection_info *info
 	if (bugs && (server = get_host_name(url))) {
 		add_blacklist_entry(server, bugs);
 		mem_free(server);
-		return 1;
+		return bugs & ~BL_NO_RANGE;
 	}
 	return 0;	
 }
@@ -145,8 +148,6 @@ void http_end_request(struct connection *c, int notrunc)
 	} else abort_connection(c);
 }
 
-void http_send_header(struct connection *);
-
 void http_func(struct connection *c)
 {
 	/*setcstate(c, S_CONN);*/
@@ -167,6 +168,22 @@ void proxy_func(struct connection *c)
 	http_func(c);
 }
 
+void add_url_to_str(unsigned char **str, int *l, unsigned char *url)
+{
+	unsigned char *sp;
+	for (sp = url; *sp && *sp != POST_CHAR; sp++) {
+		if (*sp <= ' ') {
+			char esc[4];
+			sprintf(esc, "%%%02X", (int)*sp);
+			add_to_str(str, l, esc);
+		} else if (*sp == '\\') {
+			add_chr_to_str(str, l, '/');
+		} else {
+			add_chr_to_str(str, l, *sp);
+		}
+	}
+}
+
 void http_get_header(struct connection *);
 
 void http_send_header(struct connection *c)
@@ -176,7 +193,7 @@ void http_send_header(struct connection *c)
 	int http10 = http_bugs.http10;
 	struct cache_entry *e = NULL;
 	unsigned char *hdr;
-	unsigned char *h, *u, *uu, *sp;
+	unsigned char *h, *u;
 	int l = 0;
 	int la;
 	unsigned char *post;
@@ -215,20 +232,7 @@ void http_send_header(struct connection *c)
 		http_end_request(c, 0);
 		return;
 	}
-	if (!post) uu = stracpy(u);
-	else uu = memacpy(u, post - u - 1);
-	a:
-	for (sp = uu; *sp; sp++) if (*sp <= ' ') {
-		unsigned char *nu = mem_alloc(strlen(uu) + 3);
-		memcpy(nu, uu, sp - uu);
-		sprintf(nu + (sp - uu), "%%%02X", (int)*sp);
-		strcat(nu, sp + 1);
-		mem_free(uu);
-		uu = nu;
-		goto a;
-	} else if (*sp == '\\') *sp = '/';
-	add_to_str(&hdr, &l, uu);
-	mem_free(uu);
+	add_url_to_str(&hdr, &l, u);
 	if (!http10) add_to_str(&hdr, &l, " HTTP/1.1\r\n");
 	else add_to_str(&hdr, &l, " HTTP/1.0\r\n");
 	if ((h = get_host_name(host))) {
@@ -279,8 +283,7 @@ void http_send_header(struct connection *c)
 		
 		case REFERER_SAME_URL:
 		add_to_str(&hdr, &l, "Referer: ");
-		if (!post) add_to_str(&hdr, &l, host);
-		else add_bytes_to_str(&hdr, &l, host, post - host - 1);
+		add_url_to_str(&hdr, &l, host);
 		add_to_str(&hdr, &l, "\r\n");
 		break;
 
@@ -300,20 +303,17 @@ void http_send_header(struct connection *c)
 		}
 		case REFERER_REAL:
 		{
-			unsigned char *post2;
 			unsigned char *ref;
 			unsigned char *user, *ins;
 			int ulen;
-			if (!(c->prev_url))break;   /* no referrer */
+			if (!(c->prev_url)) break;   /* no referrer */
 
 			ref = stracpy(c->prev_url);
-			post2 = strchr(ref, POST_CHAR);
-			if (post2) *post2 = 0;
-			if (!parse_url(post2, NULL, &user, &ulen, NULL, NULL, &ins, NULL, NULL, NULL, NULL, NULL, NULL) && ulen && ins) {
+			if (!parse_url(ref, NULL, &user, &ulen, NULL, NULL, &ins, NULL, NULL, NULL, NULL, NULL, NULL) && ulen && ins) {
 				memmove(user, ins, strlen(ins) + 1);
 			}
 			add_to_str(&hdr, &l, "Referer: ");
-			add_to_str(&hdr, &l, ref);
+			add_url_to_str(&hdr, &l, ref);
 			add_to_str(&hdr, &l, "\r\n");
 			mem_free(ref);
 		}
@@ -363,25 +363,28 @@ void http_send_header(struct connection *c)
 		else add_to_str(&hdr, &l, "close\r\n");
 	}
 	if ((e = c->cache)) {
+		int code, vers;
+		if (get_http_code(e->head, &code, &vers) || code >= 400) goto skip_ifmod_and_range;
 		if (!e->incomplete && e->head && c->no_cache <= NC_IF_MOD) {
 			unsigned char *m;
 			if (e->last_modified) m = stracpy(e->last_modified);
 			else if ((m = parse_http_header(e->head, "Date", NULL))) ;
 			else if ((m = parse_http_header(e->head, "Expires", NULL))) ;
-			else goto skip;
+			else goto skip_ifmod;
 			add_to_str(&hdr, &l, "If-Modified-Since: ");
 			add_to_str(&hdr, &l, m);
 			add_to_str(&hdr, &l, "\r\n");
 			mem_free(m);
 		}
-		skip:;
+		skip_ifmod:;
 	}
-	if (c->no_cache >= NC_PR_NO_CACHE) add_to_str(&hdr, &l, "Pragma: no-cache\r\nCache-Control: no-cache\r\n");
-	if (c->from && c->no_cache < NC_IF_MOD) {
+	if (c->from && c->no_cache < NC_IF_MOD && !(info->bl_flags & BL_NO_RANGE)) {
 		add_to_str(&hdr, &l, "Range: bytes=");
 		add_num_to_str(&hdr, &l, c->from);
 		add_to_str(&hdr, &l, "-\r\n");
 	}
+	skip_ifmod_and_range:
+	if (c->no_cache >= NC_PR_NO_CACHE) add_to_str(&hdr, &l, "Pragma: no-cache\r\nCache-Control: no-cache\r\n");
 	if ((h = get_auth_string(c->url))) {
 		add_to_str(&hdr, &l, h);
 		mem_free(h);
@@ -757,7 +760,10 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	if ((d = parse_http_header(e->head, "Accept-Ranges", NULL))) {
 		if (!strcasecmp(d, "none") && !c->unrestartable) c->unrestartable = 1;
 		mem_free(d);
-	} else if (!c->unrestartable && !c->from) c->unrestartable = 1;
+	} else {
+		if (!c->unrestartable && !c->from) c->unrestartable = 1;
+	}
+	if (info->bl_flags & BL_NO_RANGE && !c->unrestartable) c->unrestartable = 1;
 	if ((d = parse_http_header(e->head, "Transfer-Encoding", NULL))) {
 		if (!strcasecmp(d, "chunked")) {
 			info->length = -2;

@@ -621,13 +621,15 @@ unsigned char *type_rd(struct option *o, unsigned char *c)
 	if (!(new.ct = get_token(&c))) goto err;
 	if (!(new.prog = get_token(&c))) goto err;
 	if (!(w = get_token(&c))) goto err;
-	if (getnum(w, &n, 0, 32)) goto err_f;
+	if (getnum(w, &n, 0, 128)) goto err_f;
 	mem_free(w);
 	new.cons = !!(n & 1);
 	new.xwin = !!(n & 2);
 	new.ask = !!(n & 4);
 	if ((n & 8) || (n & 16)) new.block = !!(n & 16);
 	else new.block = !new.xwin || new.cons;
+	new.accept_http = !!(n & 32);
+	new.accept_ftp = !!(n & 64);
 	if (!(w = get_token(&c))) goto err;
 	if (strlen(w) != 1 || w[0] < '0' || w[0] > '9') goto err_f;
 	new.system = w[0] - '0';
@@ -669,9 +671,6 @@ void block_wr(struct option *o, unsigned char **s, int *l)
 	}
 }
 
-
-
-
 void type_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct assoc *a;
@@ -683,7 +682,7 @@ void type_wr(struct option *o, unsigned char **s, int *l)
 		add_to_str(s, l, " ");
 		add_quoted_to_str(s, l, a->prog);
 		add_to_str(s, l, " ");
-		add_num_to_str(s, l, (!!a->cons) + (!!a->xwin) * 2 + (!!a->ask) * 4 + (!a->block) * 8 + (!!a->block) * 16);
+		add_num_to_str(s, l, (!!a->cons) + (!!a->xwin) * 2 + (!!a->ask) * 4 + (!a->block) * 8 + (!!a->block) * 16 + (!!a->accept_http) * 32 + (!!a->accept_ftp) * 64);
 		add_to_str(s, l, " ");
 		add_num_to_str(s, l, a->system);
 	}
@@ -1432,6 +1431,8 @@ int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=b
 int js_all_conversions=1;
 int js_global_resolve=1;	/* resolvovani v globalnim adresnim prostoru, kdyz BFU vomitne document */
 int js_manual_confirmation=1; /* !0==annoying dialog on every goto url etc. */
+int js_fun_depth=100;
+int js_memory_limit=5*1024;  /* in kilobytes, should be in range 1M-20M (1MB=1024*1024B) */
 
 int display_optimize=0;	/*0=CRT, 1=LCD RGB, 2=LCD BGR */
 int gamma_bits=2;	/*0 --- 8, 1 --- 16, 2 --- auto */

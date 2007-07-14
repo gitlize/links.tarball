@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Заустави терминал за време рада програм
 T_RUN_ON_TERMINAL, "Покрени у терминалу",
 T_RUN_IN_XWINDOW, "Покрени у Икс прозору",
 T_ASK_BEFORE_OPENING, "Питај пре отварања",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Обриши придружење",
 T_ASSOCIATION, "придружење",
 T_EXTENSION_S, "Врсте",

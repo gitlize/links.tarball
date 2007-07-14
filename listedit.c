@@ -1564,7 +1564,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 	rd.ld=ld;
 	rd.dlg=dlg;
 
-	switch(ev->ev)
+	switch ((int)ev->ev)
 	{
 		case EV_KBD:
 		if (ld->type==1)  /* tree list */

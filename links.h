@@ -837,6 +837,7 @@ int is_safe_in_shell(unsigned char);
 int is_safe_in_url(unsigned char);
 void check_shell_security(unsigned char **);
 int check_shell_url(unsigned char *);
+void ignore_signals(void);
 void block_stdin(void);
 void unblock_stdin(void);
 void get_path_to_exe(void);
@@ -1141,6 +1142,7 @@ void free_blacklist(void);
 #define BL_HTTP10		1
 #define BL_NO_ACCEPT_LANGUAGE	2
 #define BL_NO_CHARSET		4
+#define BL_NO_RANGE		8
 
 /* url.c */
 
@@ -1154,6 +1156,7 @@ static inline int end_of_dir(unsigned char *url, unsigned char c)
 }
 
 int parse_url(unsigned char *, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **);
+unsigned char *get_protocol_name(unsigned char *);
 unsigned char *get_host_name(unsigned char *);
 unsigned char *get_host_and_pass(unsigned char *);
 unsigned char *get_user_name(unsigned char *);
@@ -1166,7 +1169,7 @@ unsigned char *get_url_data(unsigned char *);
 unsigned char *join_urls(unsigned char *, unsigned char *);
 unsigned char *translate_url(unsigned char *, unsigned char *);
 unsigned char *extract_position(unsigned char *);
-void get_filename_from_url(unsigned char *, unsigned char **, int *);
+unsigned char *get_filename_from_url(unsigned char *, unsigned char *, int);
 void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encode_special);
 
 /* connect.c */
@@ -2040,6 +2043,8 @@ struct assoc {
 	int xwin;
 	int block;
 	int ask;
+	int accept_http;
+	int accept_ftp;
 	int system;
 };
 
@@ -2071,6 +2076,7 @@ extern struct list_head mms_prog;
 
 unsigned char *get_content_type(unsigned char *, unsigned char *);
 unsigned char *get_content_encoding(unsigned char *head, unsigned char *url);
+unsigned char *encoding_2_extension(unsigned char *);
 struct assoc *get_type_assoc(struct terminal *term, unsigned char *, int *);
 void update_assoc(struct assoc *);
 void update_ext(struct extension *);
@@ -2870,12 +2876,16 @@ struct download {
 	struct download *prev;
 	unsigned char *url;
 	struct status stat;
+	char decompress;
+	unsigned char *cwd;
+	unsigned char *orig_file;
 	unsigned char *file;
 	off_t last_pos;
+	off_t file_shift;
 	int handle;
 	int redirect_cnt;
 	unsigned char *prog;
-	int prog_flags;
+	int prog_flag_block;
 	time_t remotetime;
 	struct session *ses;
 	struct window *win;
@@ -2907,7 +2917,8 @@ struct session {
 	int reloadlevel;
 	struct object_request *tq;
 	unsigned char *tq_prog;
-	int tq_prog_flags;
+	int tq_prog_flag_block;
+	int tq_prog_flag_direct;
 	unsigned char *dn_url;
 	unsigned char *search_word;
 	unsigned char *last_search_word;
@@ -2952,6 +2963,7 @@ unsigned char *encode_url(unsigned char *);
 unsigned char *decode_url(unsigned char *);
 unsigned char *subst_file(unsigned char *, unsigned char *, int);
 int are_there_downloads(void);
+unsigned char *translate_download_file(unsigned char *);
 void free_strerror_buf(void);
 unsigned char *get_err_msg(int);
 void print_screen_status(struct session *);
@@ -2963,7 +2975,7 @@ void display_download(struct terminal *, struct download *, struct session *);
 struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq, unsigned char *url, struct document_options *opt, int *cch);
 struct f_data_c *create_f_data_c(struct session *, struct f_data_c *);
 void reinit_f_data_c(struct f_data_c *);
-int create_download_file(struct terminal *, unsigned char *, int);
+int create_download_file(struct session *, unsigned char *, unsigned char *, int, off_t);
 void *create_session_info(int, unsigned char *, unsigned char *, int *);
 void win_func(struct window *, struct event *, int);
 void goto_url_f(struct session *, void (*)(struct session *), unsigned char *, unsigned char *, struct f_data_c *, int, int, int, int);
@@ -3426,7 +3438,7 @@ void activate_bfu_technology(struct session *, int);
 void dialog_goto_url(struct session *ses, char *url);
 void dialog_save_url(struct session *ses);
 void free_history_lists(void);
-void query_file(struct session *, unsigned char *, void (*)(struct session *, unsigned char *), void (*)(struct session *));
+void query_file(struct session *, unsigned char *, unsigned char *, void (*)(struct session *, unsigned char *), void (*)(struct session *));
 void search_dlg(struct session *, struct f_data_c *, int);
 void search_back_dlg(struct session *, struct f_data_c *, int);
 void exit_prog(struct terminal *, void *, struct session *);
@@ -3701,25 +3713,11 @@ void img_destruct_cached_image(struct cached_image *img);
 struct jpg_decoder{
 	struct jpeg_decompress_struct *cinfo;
 	struct jerr_struct *jerr;
-	int state; /* 0: header 1: start 2: scanlines 3: end */
+	unsigned char state; /* 0: header 1: start 2: scanlines 3: end 4,5: also
+			something */
 	int skip_bytes;
 	unsigned char *jdata;
-	unsigned char *scanlines[16]; 
-	/* The first is either allocate or is NULL.
-         *
-	 * If the image is grayscale, as soon as the width is
-	 * known, scanlines[0] is allocated and scanlines[1]
-	 * throught scanlines[15] are pointers inside the block
-	 * allocated into scanlines[0]. So do not call mem_free
-	 * on scanlines[1] to scanlines [15] unless you desire a
-	 * segfault.
-	 *
-         * If the image is color, nothing is allocated and
-	 * they are filled with 16 consecutive rows (or less
-         * if there are less of them), the function is called
-         * and as soon as it returns the [0] is immediately
-         * set to NULL.
-	 */	 
+	unsigned char *scanlines[16];
 };
 
 /* Functions exported by jpeg.c for higher layers */

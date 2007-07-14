@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Blokeeri terminal, kui programm jookseb
 T_RUN_ON_TERMINAL, "Käivita terminalil",
 T_RUN_IN_XWINDOW, "Käivita X-i aknas",
 T_ASK_BEFORE_OPENING, "Küsi kinnitust enne avamist",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "Kustutada failide seos",
 T_ASSOCIATION, "Failide seosed",
 T_EXTENSION_S, "Laiend(id)",

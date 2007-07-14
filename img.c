@@ -106,8 +106,6 @@ void destroy_decoder (struct cached_image *cimg)
 			mem_free(jd->cinfo);
 			mem_free(jd->jerr);
 			if (jd->jdata) mem_free(jd->jdata);
-			if (jd->scanlines[0])
-				mem_free(jd->scanlines[0]);
 			break;
 #endif /* #ifdef HAVE_JPEG */
 		case IM_GIF:
@@ -880,7 +878,7 @@ void type(struct cached_image *cimg, unsigned char *content_type)
  */
 int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 {
-	unsigned char *data, *ctype;
+	unsigned char *data, *dataend, *ctype;
 	int length;
 	struct cached_image *cimg = goi->cimg;
 	int chopped=0;
@@ -914,20 +912,8 @@ int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 	 */
 
 	if (!((cimg->state^8)&9)){
-		if (goi->af->rq->state==O_LOADING
-			||goi->af->rq->state==O_OK
-			||goi->af->rq->state==O_INCOMPLETE){
-			/* Cache is valid */
-			defrag_entry(goi->af->rq->ce);
-			/* Now it is defragmented and we can suck on the resulting
-			 * single fragment
-			 */
-		
-		}else goto end;
-		if ((goi->af->rq->ce->frag.next)==&(goi->af->rq->ce->frag)) goto end;
-			/* No fragments */
-		data=(*(struct fragment *)(goi->af->rq->ce->frag.next)).data;
-		length=(*(struct fragment *)(goi->af->rq->ce->frag.next)).length;
+		if (get_file(goi->af->rq, &data, &dataend)) goto end;
+		length = dataend - data;
 		if (length<=cimg->last_length) goto end; /* No new data */
 
 		data+=cimg->last_length;

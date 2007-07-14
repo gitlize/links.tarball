@@ -32,6 +32,8 @@
 
 #include "links.h" 
 
+tcount jsint_execute_seq = 0;
+
 #ifdef JS
 
 #include "struct.h"
@@ -42,8 +44,6 @@
 vypisuje to: jaky kod byl zarazen do fronty. jaky kod byl predan interpretu do js_execute_code. jaky kod byl vykonan a ukoncen intepretem jsint_done_execution
 #define TRACE_EXECUTE
 */
-
-tcount jsint_execute_seq = 0;
 
 struct js_request {
 	struct js_request *next;

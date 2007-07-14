@@ -226,6 +226,8 @@ T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING, "Blocheazã terminalul cînd ruleazã progr
 T_RUN_ON_TERMINAL, "Ruleazã în terminal",
 T_RUN_IN_XWINDOW, "Ruleazã în X-Window",
 T_ASK_BEFORE_OPENING, "Întreabã înainte de a deschide",
+T_ACCEPT_HTTP, NULL,
+T_ACCEPT_FTP, NULL,
 T_DELETE_ASSOCIATION, "ªterge asocierea",
 T_ASSOCIATION, "Asocierea",
 T_EXTENSION_S, "Extensia(extensiile)",

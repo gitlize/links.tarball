@@ -172,9 +172,7 @@ static inline int dir_sep(char x) { return x == '/'; }
 #define DONT_USE_AF_UNIX
 #endif
 #define ASSOC_BLOCK
-/*
 #define ASSOC_CONS_XWIN
-*/
 #define NO_FORK_ON_EXIT
 
 #endif

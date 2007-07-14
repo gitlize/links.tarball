@@ -35,7 +35,6 @@ struct {
 /* prototypes */
 int check_protocol(unsigned char *, int);
 int get_prot_info(unsigned char *, int *, void (**)(struct connection *), void (**)(struct session *ses, unsigned char *), int *);
-unsigned char *get_protocol_name(unsigned char *);
 void translate_directories(unsigned char *);
 void insert_wd(unsigned char **, unsigned char *);
 
@@ -395,6 +394,8 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 {
 	unsigned char *ch;
 	unsigned char *nu, *da;
+	unsigned char *prefix;
+	int sl;
 	while (*url == ' ') url++;
 	if (*url && url[strlen(url) - 1] == ' ') {
 		nu = stracpy(url);
@@ -428,9 +429,9 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		mem_free(nu);
 	}
 	ch = url + strcspn(url, ".:/@");
+	prefix = "file://";
+	sl = 0;
 	if (*ch != ':' || *(url + strcspn(url, "/@")) == '@') {
-		unsigned char *prefix = "file://";
-		int sl = 0;
 		if (*url != '.' && *ch == '.') {
 			unsigned char *f, *e;
 			int i;
@@ -438,13 +439,17 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 			for (i = 0; i < f - e; i++) if (e[i] < '0' || e[i] > '9') goto noip;
 			goto http;
 			noip:
-			if (f - e == 2 && casecmp(e, "gz", 2)) http: prefix = "http://", sl = 1;
-			else {
+			if (f - e == 2 && casecmp(e, "gz", 2)) {
+				http:
+				prefix = "http://", sl = 1;
+			} else {
 				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", "arpa", "aero", "biz", "coop", "info", "museum", "name", "pro", "cat", "jobs", "mobi", "travel", "tel", NULL };
 				for (i = 0; tld[i]; i++) if ((size_t)(f - e) == strlen(tld[i]) && !casecmp(tld[i], e, f - e)) goto http;
 			}
 		}
 		if (*ch == '@' || *ch == ':' || !cmpbeg(url, "ftp.")) prefix = "ftp://", sl = 1;
+		goto set_prefix;
+		set_prefix:
 		nu = stracpy(prefix);
 		add_to_strn(&nu, url);
 		if (sl && !strchr(url, '/')) add_to_strn(&nu, "/");
@@ -456,6 +461,13 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		}
 		return nu;
 	}
+	sl = 1;
+#ifdef DOS_FS
+	if (ch == url + 1) goto set_prefix;
+#endif
+#ifdef SPAD
+	if (_is_local(url)) goto set_prefix;
+#endif
 	if (!(nu = memacpy(url, ch - url + 1))) return NULL;
 	add_to_strn(&nu, "//");
 	add_to_strn(&nu, ch + 1);
@@ -487,19 +499,6 @@ unsigned char *extract_position(unsigned char *url)
 	r[u - uu - 1] = 0;
 	memmove(uu, u, strlen(u) + 1);
 	return r;
-}
-
-void get_filename_from_url(unsigned char *url, unsigned char **s, int *l)
-{
-	int lo = !casecmp(url, "file://", 7);
-	unsigned char *uu;
-	if (!(uu = get_url_data(url))) uu = url;
-	*s = uu;
-	while (*uu && !end_of_dir(url, *uu)) {
-		if (dsep(*uu)) *s = uu + 1;
-		uu++;
-	}
-	*l = uu - *s;
 }
 
 #define accept_char(x)	((x) != '"' && (x) != '\'' && (x) != '&' && (x) != '<' && (x) != '>')

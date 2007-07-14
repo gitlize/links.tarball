@@ -468,7 +468,7 @@ void empty_window_handler(struct window *win, struct event *ev, int fwd)
 	void (*fn)(void *) = ewd->fn;
 	void *data = ewd->data;
 	if (ewd->b) return;
-	switch (ev->ev) {
+	switch ((int)ev->ev) {
 		case EV_INIT:
 		case EV_RESIZE:
 		case EV_REDRAW:
@@ -802,8 +802,8 @@ unsigned char frame_restrict[48] = {
 		}									\
 	} else if (s->mode == TERM_VT100) {						\
 		if ((int)(ch >> 15) != mode) {						\
-			if (!(mode = ch >> 15)) add_to_str(&a, &l, "\x0f");		\
-			else add_to_str(&a, &l, "\x0e");				\
+			if (!(mode = ch >> 15)) add_to_str(&a, &l, "\017");		\
+			else add_to_str(&a, &l, "\016");				\
 		}									\
 		if (mode && c >= 176 && c < 224) c = frame_vt100[c - 176];		\
 	} else if (s->mode == TERM_KOI8 && (ch >> 15) && c >= 176 && c < 224) { c = frame_koi[c - 176];\
@@ -876,7 +876,7 @@ void redraw_screen(struct terminal *term)
 		if (s->col) add_to_str(&a, &l, "\033[37;40m");
 		add_to_str(&a, &l, "\033[0m");
 		if (s->mode == TERM_LINUX && s->m11_hack) add_to_str(&a, &l, "\033[10m");
-		if (s->mode == TERM_VT100) add_to_str(&a, &l, "\x0f");
+		if (s->mode == TERM_VT100) add_to_str(&a, &l, "\017");
 	}
 	term->lcx = cx;
 	term->lcy = cy;

@@ -447,7 +447,7 @@ void menu_func(struct window *win, struct event *ev, int fwd)
 	struct menu *menu = win->data;
 	struct window *w1;
 	menu->win = win;
-	switch (ev->ev) {
+	switch ((int)ev->ev) {
 		case EV_INIT:
 		case EV_RESIZE:
 			get_parent_ptr(win, &menu->xp, &menu->yp);
@@ -676,7 +676,7 @@ void mainmenu_func(struct window *win, struct event *ev, int fwd)
 	int s = 0;
 	struct mainmenu *menu = win->data;
 	menu->win = win;
-	switch(ev->ev) {
+	switch ((int)ev->ev) {
 		case EV_INIT:
 		case EV_RESIZE:
 #ifdef G
@@ -1155,7 +1155,7 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 		return;
 	}
 	
-	switch (ev->ev) {
+	switch ((int)ev->ev) {
 		case EV_INIT:
 			for (i = 0; i < dlg->n; i++) {
 				struct dialog_item_data *di = &dlg->items[i];

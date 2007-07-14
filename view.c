@@ -3550,7 +3550,7 @@ void frm_download(struct session *ses, struct f_data_c *fd)
 			ses->dn_url = NULL;
 			return;
 		}
-		query_file(ses, ses->dn_url, start_download, NULL);
+		query_file(ses, ses->dn_url, NULL, start_download, NULL);
 	}
 }
 
@@ -3578,7 +3578,7 @@ void frm_download_image(struct session *ses, struct f_data_c *fd)
 			ses->dn_url = NULL;
 			return;
 		}
-		query_file(ses, ses->dn_url, start_download, NULL);
+		query_file(ses, ses->dn_url, NULL, start_download, NULL);
 	}
 }
 
@@ -3589,7 +3589,7 @@ void send_download_image(struct terminal *term, void *xxx, struct session *ses)
 	if (fd->vs->current_link == -1) return;
 	if (ses->dn_url) mem_free(ses->dn_url);
 	if ((ses->dn_url = stracpy(fd->f_data->links[fd->vs->current_link].where_img)))
-		query_file(ses, ses->dn_url, start_download, NULL);
+		query_file(ses, ses->dn_url, NULL, start_download, NULL);
 }
 
 void send_download(struct terminal *term, void *xxx, struct session *ses)
@@ -3599,7 +3599,7 @@ void send_download(struct terminal *term, void *xxx, struct session *ses)
 	if (fd->vs->current_link == -1) return;
 	if (ses->dn_url) mem_free(ses->dn_url);
 	if ((ses->dn_url = get_link_url(ses, fd, &fd->f_data->links[fd->vs->current_link], NULL)))
-		query_file(ses, ses->dn_url, start_download, NULL);
+		query_file(ses, ses->dn_url, NULL, start_download, NULL);
 }
 
 void send_submit(struct terminal *term, void *xxx, struct session *ses)
@@ -3753,7 +3753,7 @@ void save_url(struct session *ses, unsigned char *url)
 	}
 	if (ses->dn_url) mem_free(ses->dn_url);
 	ses->dn_url = u;
-	query_file(ses, ses->dn_url, start_download, NULL);
+	query_file(ses, ses->dn_url, NULL, start_download, NULL);
 }
 
 void send_image(struct terminal *term, void *xxx, struct session *ses)
@@ -3773,7 +3773,7 @@ void save_as(struct terminal *term, void *xxx, struct session *ses)
 	l = cur_loc(ses);
 	if (ses->dn_url) mem_free(ses->dn_url);
 	if ((ses->dn_url = stracpy(ses->screen->rq->url)))
-		query_file(ses, ses->dn_url, start_download, NULL);
+		query_file(ses, ses->dn_url, NULL, start_download, NULL);
 }
 
 void save_formatted(struct session *ses, unsigned char *file)
@@ -3781,7 +3781,7 @@ void save_formatted(struct session *ses, unsigned char *file)
 	int h;
 	struct f_data_c *f;
 	if (!(f = current_frame(ses)) || !f->f_data) return;
-	if ((h = create_download_file(ses->term, file, 0)) < 0) return;
+	if ((h = create_download_file(ses, ses->term->cwd, file, 0, 0)) < 0) return;
 	if (dump_to_file(f->f_data, h)) msg_box(ses->term, NULL, TEXT(T_SAVE_ERROR), AL_CENTER, TEXT(T_ERROR_WRITING_TO_FILE), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 	close(h);
 }
@@ -3790,7 +3790,7 @@ void menu_save_formatted(struct terminal *term, void *xxx, struct session *ses)
 {
 	struct f_data_c *f;
 	if (!(f = current_frame(ses)) || !f->f_data) return;
-	query_file(ses, f->rq->url, save_formatted, NULL);
+	query_file(ses, f->rq->url, NULL, save_formatted, NULL);
 }
 
 void link_menu(struct terminal *term, void *xxx, struct session *ses)

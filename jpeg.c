@@ -106,11 +106,13 @@ g19_2000:
 	jd->state=0;
 	jd->skip_bytes=0;
 	jd->jdata=NULL;
-	jd->scanlines[0]=NULL; /* This flags emptiness */
+	/* Scanlines can be left unititialized */
 }
 
 /* This is here because libjpeg doesn't support transformation from CMYK
- * to RGB so that we must do it ourselves. */
+ * to RGB so that we must do it ourselves.
+ *
+ * data must be non-NULL. */
 void cmyk_to_rgb(unsigned char *data, int pixels)
 {
 	for (;pixels;pixels--, data+=4)
@@ -129,6 +131,7 @@ void cmyk_to_rgb(unsigned char *data, int pixels)
 	}
 }
 
+/* data must be non-NULL */
 void gray_to_rgb(unsigned char *data, int pixels)
 {
 	unsigned char *dest;
@@ -204,7 +207,7 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 	if (deco->jdata){
 		/* If there is already some decoder buffer, we have to
 		 * allocate more space */
-		memcpy(deco->jdata,global_cinfo->src->next_input_byte,
+		memmove(deco->jdata,global_cinfo->src->next_input_byte,
 			global_cinfo->src->bytes_in_buffer);
 		deco->jdata=mem_realloc(
 			deco->jdata, global_cinfo->src->bytes_in_buffer+length);
@@ -241,14 +244,10 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 		/* jpeg_start_decompress */
 		if (jpeg_start_decompress(global_cinfo)==FALSE)
 			break;
-		cimg->width=global_cinfo->output_width;
 
-		/* If the image is grayscale then as soon as the width
-		 * is known, the scanlines are allocated to the space
-	         * needed for grayscale data.
-	         */	 
-		   
+		cimg->width=global_cinfo->output_width;
 		cimg->height=global_cinfo->output_height;
+
 		switch(cimg->buffer_bytes_per_pixel=
 			global_cinfo->output_components)
 		{
@@ -330,15 +329,13 @@ susp0:
 			<global_cinfo->output_height){
 			int a, lines;
 
-#ifdef DEBUG
-			if (deco->scanlines[0])
-				internal("Prebouchavam dec->scanlines v barevne sekci");
-#endif /* #ifdef DEBUG */
-			for (a=0;a<16;a++) deco->scanlines[a]=cimg->buffer
+			for (a=0;a<16;a++){
+				deco->scanlines[a]=cimg->buffer
 				+(global_cinfo
 				->output_scanline+a)
 				*global_cinfo->output_width*cimg->
 					buffer_bytes_per_pixel;
+			}
 		
          		if ((lines=
 				jpeg_read_scanlines(
@@ -347,11 +344,9 @@ susp0:
 				cimg->rows_added=1;
 				
 				fix_data(deco, lines);
-				deco->scanlines[0]=NULL;
 			}else{
 				/* No lines have been written into cimg
 				 * buffer */
-				deco->scanlines[0]=NULL;
                 	 	/* We are suspended and we want more data */
          	 		goto susp0; /* Break the outer 
 					     * switch statement */

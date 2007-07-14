@@ -26,7 +26,7 @@ void log_data(unsigned char *data, int len)
 		sleep(1);
 		hlaseno = 1;
 	}
-	if ((fd = open(LOG_TRANSFER, O_WRONLY | O_APPEND | O_CREAT, 0622)) != -1) {
+	if ((fd = open(LOG_TRANSFER, O_WRONLY | O_APPEND | O_CREAT, 0600)) != -1) {
 		set_bin(fd);
 		write(fd, data, len);
 		close(fd);

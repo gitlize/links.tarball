@@ -98,7 +98,7 @@ fi &&
 export CFLAGS="$CFLAGS -Wall -g -O2 -pipe -ansi -U__STRICT_ANSI__ -fno-common" &&
 #export CFLAGS="-Wall -g -O2 -pipe"
 export CXXFLAGS="$CXXFLAGS -Wall -g -O2 -pipe" &&
-./configure --enable-graphics --enable-javascript &&
+./configure --enable-graphics &&
 $make clean &&
 $make &&
 if [ "$1" = reconf ]; then
@@ -110,6 +110,6 @@ if [ "$1" = reconf ]; then
 	sed -n '{h;s/X11R6/X11R7/p;x;p;}' <configure >configure.tmp &&
 	mv -f configure.tmp configure &&
 	chmod a+x configure &&
-	./configure --enable-graphics --enable-javascript
+	./configure --enable-graphics
 	if [ $? != 0 ]; then echo CONFIGURE FAILED; exit 1; fi
 fi

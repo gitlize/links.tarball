@@ -1,5 +1,87 @@
 === RELEASE 2.1pre28 ===
 
+Sun Jul  8 01:05:08 MET DST 2007 mikulas:
+
+	Fixed bad redraw of X window when Expose event come for some area while
+	scrolling different area
+
+Sat Jul  7 04:06:52 cet 2007 mikulas:
+
+	Accept drive letters without file: prefix in OS/2 and Win32
+
+Sat Jul  7 03:50:27 cet 2007 mikulas:
+
+	Use _getcwd2 on OS/2 --- it returns path including the driver letter
+
+Sat Jul  7 02:19:35 cet 2007 mikulas:
+
+	Set extension of downloaded or viewed files according to content-type,
+	not according to URL extension
+
+Sun May 27 17:15:00 MET 2007 mikulas:
+
+	Fixed bad displaying of jpeg images on machines where memcpy operates in
+	different order
+
+Sun May 27 14:06:41 MET DST 2007 mikulas:
+
+	Fixed crash on invalid jpeg files (found by Michael Scherer
+	<misc@zarb.org> with http://fusil.hachoir.org/)
+
+Wed May 23 00:41:53 MET 2007 mikulas:
+
+	Do not send If-Modified-Since or Range in HTTP request if cached page
+	has an error code
+
+Tue May 15 23:15:21 MET 2007 mikulas:
+
+	Fixed some quirks with download file handling --- when each terminal had
+	different CWD, downloaded files were not deleted
+
+	When getting EFBIG error (file size exceeded), continue download in
+	another file
+
+Fri May 11 22:39:02 MET 2007 mikulas:
+
+	A possibility to pass HTTP or FTP URLs directly to external programs
+	(programs such as mpg321, ogg123, mplayer can play directly from the
+	network)
+
+Thu May 10 23:07:47 cet 2007 mikulas:
+
+	Fixed inability to display images compressed on the fly by the server
+	(it is pointless to try to compress already compressed images, but some
+	servers do it anyway)
+
+Wed May  9 00:32:17 CEST 2007 mikulas:
+
+	Escape Referer: correctly
+
+Wed May  9 00:32:09 CEST 2007 mikulas:
+
+	Fixed bug that it couldn't be compiled without optimization without
+	javascript
+
+Mon Apr 30 03:48:40 cet 2007 mikulas:
+
+	Blacklist FORPSI server --- do not send Range: to it
+
+Mon Apr 16 01:49:07 MET DST 2007 mikulas:
+
+	Javascript was removed. The reason is that it is very buggy, Martin
+	Pergel doesn't have time to develop it and code is so messy that no one
+	else can understand it.
+
+	If you use links for special purposes (embedded devices, etc.), you can
+	bring javascript back by copying javascript files from previous release,
+	removing "dnl javascript" lines from configure.in, adding *.c and *.h
+	files to Makefile.am and re-running automake and autoconf.
+	
+	Javascript hooks from main code were not removed --- they just won't be
+	maintained.
+
+=== RELEASE 2.1pre28 ===
+
 Wed Apr 11 01:39:36 cet 2007 mikulas:
 
 	Fixed a bug in decompression and javascript document.write introduced in
@@ -531,7 +613,7 @@ Thu Aug  4 18:11:37 CEST 2005 mikulas:
 
 	Fixed compilation problem without javascript
 
-=== Release 2.1pre18
+=== RELEASE 2.1pre18 ===
 
 Sat Jul 30 00:01:55 MET DST 2005 mikulas:
 
@@ -619,7 +701,7 @@ Wed Mar  2 23:39:30 CET 2005 mikulas:
 	Fixed crash of javascript with debuglevel<2 (uninitialized memory)
 	Fixed possible touching of data beyond allocated space in javascript
 
-=== Release 2.1pre17
+=== RELEASE 2.1pre17 ===
 
 Wed Feb 23 19:46:01 MET 2005 mikulas:
 
@@ -660,7 +742,7 @@ Thu Jan 27 00:23:09 CET 2005 Brain
 
 	javascript: set form action 
 
-=== Release 2.1pre16
+=== RELEASE 2.1pre16 ===
 
 Sat Jan 22 20:27:41 cet 2005 mikulas:
 
@@ -892,7 +974,7 @@ Mon May 17 17:10:22 MET DST 2004 Serge Winitzki <serge at cosmos dot phy dot tuf
 
 	Updated German and Russian localization
 
-=== Release 2.1pre15
+=== RELEASE 2.1pre15 ===
 
 Wed Apr 28 17:08:38 CEST 2004 BRain
 	
@@ -1060,7 +1142,7 @@ Tue Nov 18 15:59:14 GMT 2003 mikulas:
 
 	FreeBSD frames
 
-=== Release 2.1pre14
+=== RELEASE 2.1pre14 ===
 
 Wed Nov  5 03:43:33 MET 2003 Wojciech Puchar <wojtek@tensor.3miasto.net>:
 
@@ -1119,7 +1201,7 @@ Mon Oct 13 03:58:59 MET DST 2003 mikulas:
 
 	Do not retry DNS failures
 
-=== Release 2.1pre13
+=== RELEASE 2.1pre13 ===
 
 Thu Oct  9 22:37:06 MET DST 2003 mikulas:
 
@@ -1171,7 +1253,7 @@ Thu Sep 25 00:37:12 cet 2003 mikulas:
 
 	Fixed screen sometimes not updating highlighted link
 
-=== Release 2.1pre12
+=== RELEASE 2.1pre12 ===
 
 Sun Sep 14 20:28:13 MET DST 2003 mikulas:
 
@@ -1272,7 +1354,7 @@ Sat May 24 18:50:35 cet 2003 mikulas:
 	Fixed numbers on links not consistent with internal order. Still not
 	perfect but better than it used to be.
 
-=== Release 2.1pre11
+=== RELEASE 2.1pre11 ===
 
 Thu May 22 02:58:00 MET DST 2003 mikulas:
 
@@ -1293,7 +1375,7 @@ Wed May 21 19:38:29 MET DST 2003 Thomas Klausner <tk@giga.or.at>
 	Support for 16-bit 565 RGB big endian
 	Fix for 24-bit RGB big endian
 
-=== Release 2.1pre10
+=== RELEASE 2.1pre10 ===
 
 Sun May 18 12:20:48 MET DST 2003 Brain:
 
@@ -1324,7 +1406,7 @@ Fri May  2 08:27:01 MET DST 2003 Brain:
 	
 	Submit/clean form in link menu of form elements
 
-=== Release 2.1pre9
+=== RELEASE 2.1pre9 ===
 
 Wed Feb 26 19:43:00 CET 2003 mikulas:
 
@@ -1390,7 +1472,7 @@ Thu Feb 27 18:14:11 MET 2003 Serge Winitzki <serge at cosmos dot phy dot tufts d
 
 	Updated Russian localization
 
-=== Release 2.1pre8
+=== RELEASE 2.1pre8 ===
 
 Wed Feb 19 21:56:32 cet 2003 mikulas:
 
@@ -1469,21 +1551,21 @@ Mon Nov 11 16:30:27 CET 2002 mikulas
 	Apage Coyote added to list of buggy http/1.1 servers
 	(http://abclinuxu.cz)
 
-=== Release 2.1pre7
+=== RELEASE 2.1pre7 ===
 
 Fri Nov  8 15:31:06 CET 2002 Clock
 
 	Regenerated font_include.c to comply with the
 	fonts.
 
-=== Release 2.1pre6
+=== RELEASE 2.1pre6 ===
 
 Sun Nov  3 11:04:26 CET 2002 Clock
 	
 	Fixed invalid Unicode/cp1252.cp which caused 2.1pre5 to
 	be uncompilable
 
-=== Release 2.1pre5
+=== RELEASE 2.1pre5 ===
 	
 Wed Oct 30 17:22:26 CET 2002 Koblinger Egmont <egmont@cs.bme.hu>
 
@@ -1505,7 +1587,7 @@ Mon Oct 14 11:00:17 CEST 2002 Yevgeny Gromov <yevgeny@tut.by>
 
 	Belarusian translation updated and new charset koi8_ru
 
-=== Release 2.1pre4
+=== RELEASE 2.1pre4 ===
 	
 Mon Sep 30 13:22:34 cet 2002 Wojciech Bojdol <wojbol@htc.net.pl>
 

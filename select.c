@@ -63,7 +63,7 @@ long select_info(int type)
 	struct cache_entry *ce;
 	switch (type) {
 		case CI_FILES:
-			for (j = 0; j < FD_SETSIZE; j++)
+			for (j = 0; j < (int)FD_SETSIZE; j++)
 				if (threads[j].read_func || threads[j].write_func || threads[j].error_func) i++;
 			return i;
 		case CI_TIMERS:
@@ -196,7 +196,7 @@ void kill_timer(int id)
 
 void *get_handler(int fd, int tp)
 {
-	if (fd < 0 || fd >= FD_SETSIZE) {
+	if (fd < 0 || fd >= (int)FD_SETSIZE) {
 		internal("get_handler: handle %d >= FD_SETSIZE %d", fd, FD_SETSIZE);
 		return NULL;
 	}
@@ -212,7 +212,7 @@ void *get_handler(int fd, int tp)
 
 void set_handlers(int fd, void (*read_func)(void *), void (*write_func)(void *), void (*error_func)(void *), void *data)
 {
-	if (fd < 0 || fd >= FD_SETSIZE) {
+	if (fd < 0 || fd >= (int)FD_SETSIZE) {
 		internal("set_handlers: handle %d >= FD_SETSIZE %d", fd, FD_SETSIZE);
 		return;
 	}
@@ -367,7 +367,7 @@ void select_loop(void (*init)(void))
 	FD_ZERO(&w_error);
 	w_max = 0;
 	last_time = get_time();
-	signal(SIGPIPE, SIG_IGN);
+	ignore_signals();
 	if (c_pipe(signal_pipe)) {
 		error("ERROR: can't create pipe for signal handling");
 		retval = RET_FATAL;
