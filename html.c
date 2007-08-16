@@ -2107,7 +2107,7 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 	format.attr |= AT_BOLD | AT_FIXED;
 	format.fontsize = 3;
 	mw = 0;
-	for (i = 0; i < order; i++) if (lbls[i] && strlen(lbls[i]) > (size_t)mw) mw = strlen(lbls[i]);
+	for (i = 0; i < order; i++) if (lbls[i] && utf8len(lbls[i]) > mw) mw = utf8len(lbls[i]);
 	for (i = 0; i < mw; i++) put_chrs("_", 1, put_chars_f, f);
 	kill_html_stack_item(&html_top);
 	put_chrs("]", 1, put_chars_f, f);

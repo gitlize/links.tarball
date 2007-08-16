@@ -1,4 +1,4 @@
-Links 2.1pre29 -- How To Install
+Links 2.1pre30 -- How To Install
 --------------------------------
 
 Follow this step-by-step:
@@ -6,13 +6,21 @@ Follow this step-by-step:
    them. On a package-driven distribution, you will need both "library" and
    "library-dev(el)":
 
+   Mandatory libraries
+   -------------------
    libpng - required to compile links in graphics mode (not required in text
 	    mode). Libpng 2.1.18 has a bug and must be patched by the patch
 	    PATCH-libpng-1.2.18 which is shipped with Links.
    IJG libjpeg - if you want to display JPEG's (probably yes).
    TIFF Library - if you want TIFFs.
    SVGAlib - if you want Links to be able to display on SVGAlib.
-   OpenSSL - if you want SSL connections.
+   OpenSSL and zlib - if you want SSL connections. zlib is not necessary if you
+                      know the SSL is compiled without zlib.
+
+   Optional libraries
+   ------------------
+   zlib - shows gzipped pages
+   libbz2 - shows bzipped content
 
    If any of the library is not present on the system or is unusably old and you cannot install it
    (typically because you are not a root), then go to 11) Compiling with

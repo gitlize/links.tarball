@@ -288,6 +288,7 @@ int unblock_itrm(int fd)
 	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm->free_trm, itrm);
 	handle_terminal_resize(itrm->ctl_in, resize_terminal);
 	unblock_stdin();
+	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))mouse_queue_event, itrm);
 	resize_terminal();
 	return 0;
 }
@@ -303,6 +304,7 @@ void block_itrm(int fd)
 	unhandle_terminal_resize(itrm->ctl_in);
 	send_term_sequence(itrm->std_out,itrm->flags);
 	ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
+	if (itrm->mouse_h) unhandle_mouse(itrm->mouse_h), itrm->mouse_h = NULL;
 	set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm->free_trm, itrm);
 }
 

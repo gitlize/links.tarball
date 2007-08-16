@@ -481,7 +481,7 @@ void download_window_function(struct dialog_data *dlg)
 			unsigned char q[64];
 			int p, s, ss, m;
 			y += G_BFU_FONT_SIZE;
-			sprintf(q, "] %3d%%", (int)((longlong)100 * (longlong)stat->prg->pos / (longlong)stat->prg->size));
+			sprintf(q, "]%3d%%", (int)((longlong)100 * (longlong)stat->prg->pos / (longlong)stat->prg->size));
 			s = g_text_width(bfu_style_bw_mono, "[");
 			ss = g_text_width(bfu_style_bw_mono, q);
 			p = w - s - ss;
@@ -883,10 +883,14 @@ unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
 	fn = get_filename_from_url(url, head, 1);
 	fnx = strchr(fn, '.');
 	if (fnx) {
+		unsigned char *s;
 #ifdef OS2
 		if (strlen(fnx) > 4) fnx[4] = 0;
 #endif
-		add_to_str(&name, &nl, fnx);
+		s = stracpy(fnx);
+		check_shell_security(&s);
+		add_to_str(&name, &nl, s);
+		mem_free(s);
 	}
 	mem_free(fn);
 	return name;

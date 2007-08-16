@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre29)
+AM_INIT_AUTOMAKE(links, 2.1pre30)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"

@@ -1,4 +1,20 @@
-=== RELEASE 2.1pre28 ===
+=== RELEASE 2.1pre30 ===
+
+Mon Aug  6 04:01:05 MET 2007 PROGMAN:
+
+	Fixed security bug in pre29 (not in any previous versions):
+	special characters in URL could be passed to a shell when spawning
+	user viewer
+
+Sat Jul 28 02:28:15 MET 2007 PROGMAN:
+
+	Fixed needlessly large selection boxes in graphics mode
+
+Mon Jul 16 02:41:18 MET 2007 mikulas:
+
+	Release mouse when spawning OS shell or user viewers
+
+=== RELEASE 2.1pre29 ===
 
 Sun Jul  8 01:05:08 MET DST 2007 mikulas:
 
@@ -11,7 +27,7 @@ Sat Jul  7 04:06:52 cet 2007 mikulas:
 
 Sat Jul  7 03:50:27 cet 2007 mikulas:
 
-	Use _getcwd2 on OS/2 --- it returns path including the driver letter
+	Use _getcwd2 on OS/2 --- it returns path including the drive letter
 
 Sat Jul  7 02:19:35 cet 2007 mikulas:
 
