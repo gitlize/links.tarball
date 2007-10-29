@@ -44,6 +44,8 @@
 #define LINKS_PORT			23755
 #define MAX_BIND_TRIES			3
 
+#define FG_POLL_TIME			500
+
 #define DNS_TIMEOUT			3600000UL
 
 #define HTTP_KEEPALIVE_TIMEOUT		60000
@@ -101,7 +103,7 @@
 #define G_BFU_DEFAULT_FONT		"century-medium-roman-serif-vari"
 #define G_BFU_DEFAULT_FONT_SIZE		16
 #define G_DEFAULT_BFU_FG_COLOR		0x000000
-#define G_DEFAULT_BFU_BG_COLOR		(getenv("USER") && (!strcasecmp(getenv("USER"), "mikulas") || !strcasecmp(getenv("USER"), "mpat7421")) ? 0xffffff : 0xdddddd)
+#define G_DEFAULT_BFU_BG_COLOR		0xe0e0e0
 
 #define G_MENU_LEFT_BORDER		8
 #define G_MENU_LEFT_INNER_BORDER	8
@@ -138,7 +140,7 @@
 #define G_SCROLL_BAR_WIDTH		12
 #define G_SCROLL_BAR_MIN_SIZE		20
 #define G_DEFAULT_SCROLL_BAR_FRAME_COLOR	0x000000
-#define G_DEFAULT_SCROLL_BAR_AREA_COLOR		(getenv("USER") && (!strcasecmp(getenv("USER"), "mikulas") || !strcasecmp(getenv("USER"), "mpat7421"))  ? 0xffffff : 0xaaaaaa)
+#define G_DEFAULT_SCROLL_BAR_AREA_COLOR		0xc0c0c0
 #define G_DEFAULT_SCROLL_BAR_BAR_COLOR		0x000000
 
 #define G_HTML_DEFAULT_FAMILY		"century"

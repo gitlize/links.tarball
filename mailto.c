@@ -52,6 +52,10 @@ void tn_func(struct session *ses, unsigned char *url, struct list_head *prog, un
 	int hl, pl;
 	unsigned char *hh, *pp;
 	int f = 1;
+	if (only_proxies) {
+		msg_box(ses->term, NULL, TEXT(T_ERROR), AL_CENTER, TEXT(T_NO_PROXY), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		return;
+	}
 	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, &h, &hl, &p, &pl, NULL, NULL, NULL) || !hl) goto fail;
 	if (!(hh = memacpy(h, hl))) goto fail;
 	if (pl && !(pp = memacpy(p, pl))) goto fail1;
@@ -87,6 +91,10 @@ void tn3270_func(struct session *ses, unsigned char *url)
 
 void mms_func(struct session *ses, unsigned char *url)
 {
+	if (only_proxies) {
+		msg_box(ses->term, NULL, TEXT(T_ERROR), AL_CENTER, TEXT(T_NO_PROXY), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		return;
+	}
 	if (check_shell_url(url)) {
 		msg_box(ses->term, NULL, TEXT(T_BAD_URL_SYNTAX), AL_CENTER, TEXT(T_MMS_URL_CONTAINS_INACCEPTABLE_CHARACTERS), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return;

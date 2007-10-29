@@ -1092,6 +1092,11 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Host and port number of the FTP proxy, or blank.\n"
 "    (default: blank)\n"
 "\n"
+" -only-proxies <0>/<1>\n"
+"    (default 0)\n"
+"  \"1\" causes that Links won't initiate any non-proxy connection.\n"
+"    It is useful for anonymization with tor or similar networks.\n"
+"\n"
 " -download-dir <path>\n"
 "  Default download directory.\n"
 "    (default: actual dir)\n"
@@ -1124,6 +1129,12 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Do not send Accept-Charset field of HTTP header. Because it is too long\n"
 "    some servers will deny the request. Other servers will convert content\n"
 "    to plain ascii when Accept-Charset is missing.\n"
+"\n"
+" -http-bugs.no-compression <0>/<1>\n"
+"    (default 0)\n"
+"  \"1\" causes that links won't advertise HTTP compression support (but it\n"
+"    will still accept compressed data). Use it when you communicate with\n"
+"    server that has broken compression support.\n"
 "\n"
 " -http-bugs.retry-internal-errors <0>/<1>\n"
 "    (default 0)\n"
@@ -1424,7 +1435,7 @@ int default_left_margin = HTML_LEFT_MARGIN;
 
 unsigned char http_proxy[MAX_STR_LEN] = "";
 unsigned char ftp_proxy[MAX_STR_LEN] = "";
-unsigned char no_proxy_for[MAX_STR_LEN] = "";
+int only_proxies = 0;
 int js_enable=1;   /* 0=disable javascript */
 int js_verbose_errors=0;   /* 1=create dialog on every javascript error, 0=be quiet and continue */
 int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=be quiet and continue */
@@ -1444,7 +1455,7 @@ unsigned char download_dir[MAX_STR_LEN] = "";
 struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 1 };
 
 /* These are workarounds for some CGI script bugs */
-struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 0, 1, "", "", REFERER_NONE };
+struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 0, 0, 1, "", "", REFERER_NONE };
 /*int bug_302_redirect = 0;*/
 	/* When got 301 or 302 from POST request, change it to GET
 	   - this violates RFC2068, but some buggy message board scripts rely on it */
@@ -1485,6 +1496,7 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &image_cache_size, "image_cache_size", "image-cache-size"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_proxy, "http_proxy", "http-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, ftp_proxy, "ftp_proxy", "ftp-proxy"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &only_proxies, "only_proxies", "only-proxies"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, download_dir, "download_dir", "download-dir"},
 	{1, gen_cmd, lang_rd, lang_wr, 0, 0, &current_language, "language", "language"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.http10, "http_bugs.http10", "http-bugs.http10"},
@@ -1492,6 +1504,7 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_post_no_keepalive, "http_bugs.bug_post_no_keepalive", "http-bugs.bug-post-no-keepalive"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.no_compression, "http_bugs.no_compression", "http-bugs.no-compression"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.retry_internal_errors, "http_bugs.retry_internal_errors", "http-bugs.retry-internal-errors"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.aggressive_cache, "http_bugs.aggressive_cache", "http-bugs.aggressive-cache"},
 	{1, gen_cmd, num_rd, num_wr, 0, 4, &http_bugs.referer, "http_referer", "http-referer"},

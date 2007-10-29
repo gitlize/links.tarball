@@ -322,15 +322,22 @@ void http_send_header(struct connection *c)
 	
 	add_to_str(&hdr, &l, "Accept: */*\r\n");
 #if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
-	add_to_str(&hdr, &l, "Accept-Encoding: ");
+	if (!http_bugs.no_compression && !(info->bl_flags & BL_NO_COMPRESSION)) {
+		int q = strlen(c->url);
+		if (q >= 2 && !strcasecmp(c->url + q - 2, ".Z")) goto skip_compress;
+		if (q >= 3 && !strcasecmp(c->url + q - 3, ".gz")) goto skip_compress;
+		if (q >= 4 && !strcasecmp(c->url + q - 4, ".bz2")) goto skip_compress;
+		add_to_str(&hdr, &l, "Accept-Encoding: ");
 #if defined(HAVE_ZLIB)
-	add_to_str(&hdr, &l, "gzip, deflate, ");
+		add_to_str(&hdr, &l, "gzip, deflate, ");
 #endif
 #if defined(HAVE_BZIP2)
-	add_to_str(&hdr, &l, "bzip2, ");
+		add_to_str(&hdr, &l, "bzip2, ");
 #endif
-	hdr[l-2] = '\r';
-	hdr[l-1] = '\n';
+		hdr[l-2] = '\r';
+		hdr[l-1] = '\n';
+		skip_compress:;
+	}
 #endif
 	if (!(accept_charset)) {
 		int i;
@@ -378,10 +385,20 @@ void http_send_header(struct connection *c)
 		}
 		skip_ifmod:;
 	}
-	if (c->from && c->no_cache < NC_IF_MOD && !(info->bl_flags & BL_NO_RANGE)) {
+	if (c->from && (c->est_length == -1 || c->from < c->est_length) && c->no_cache < NC_IF_MOD && !(info->bl_flags & BL_NO_RANGE)) {
+/* If the cached entity is compressed and we turned off compression,
+   request the whole file */
+		if ((info->bl_flags & BL_NO_COMPRESSION || http_bugs.no_compression) && e) {
+			unsigned char *d;
+			if ((d = parse_http_header(e->head, "Transfer-Encoding", NULL))) {
+				mem_free(d);
+				goto skip_range;
+			}
+		}
 		add_to_str(&hdr, &l, "Range: bytes=");
 		add_num_to_str(&hdr, &l, c->from);
 		add_to_str(&hdr, &l, "-\r\n");
+		skip_range:;
 	}
 	skip_ifmod_and_range:
 	if (c->no_cache >= NC_PR_NO_CACHE) add_to_str(&hdr, &l, "Pragma: no-cache\r\nCache-Control: no-cache\r\n");
@@ -529,6 +546,14 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 int get_header(struct read_buffer *rb)
 {
 	int i;
+	if (rb->len <= 0) return 0;
+	if (rb->data[0] != 'H') return -2;
+	if (rb->len <= 1) return 0;
+	if (rb->data[1] != 'T') return -2;
+	if (rb->len <= 2) return 0;
+	if (rb->data[2] != 'T') return -2;
+	if (rb->len <= 3) return 0;
+	if (rb->data[3] != 'P') return -2;
 	for (i = 0; i < rb->len; i++) {
 		unsigned char a = rb->data[i];
 		if (/*a < ' ' && a != 10 && a != 13*/!a) return -1;
@@ -584,14 +609,20 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		setcstate(c, state);
 		return;
 	}
-	if (get_http_code(rb->data, &h, &version) || h == 101) {
+	if (a != -2) {
+		head = mem_alloc(a + 1);
+		memcpy(head, rb->data, a); head[a] = 0;
+		kill_buffer_data(rb, a);
+	} else {
+		head = stracpy("HTTP/0.9 200 OK\r\nContent-Type: text/html\r\n\r\n");
+	}
+	if (get_http_code(head, &h, &version) || h == 101) {
+		mem_free(head);
 		setcstate(c, S_HTTP_ERROR);
 		abort_connection(c);
 		return;
 	}
-	head = mem_alloc(a + 1);
-	memcpy(head, rb->data, a); head[a] = 0;
-	if (check_http_server_bugs(host, c->info, head)) {
+	if (check_http_server_bugs(host, c->info, head) && is_connection_restartable(c)) {
 		mem_free(head);
 		setcstate(c, S_RESTART);
 		retry_connection(c);
@@ -606,7 +637,6 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 	if (h == 100) {
 		mem_free(head);
 		state = S_PROC;
-		kill_buffer_data(rb, a);
 		goto again;
 	}
 	if (h < 200) {
@@ -708,7 +738,6 @@ void http_got_header(struct connection *c, struct read_buffer *rb)
 		}
 	}
 	if (!e->expire_time && strchr(c->url, POST_CHAR)) e->expire_time = 1;
-	kill_buffer_data(rb, a);
 	info->close = 0;
 	info->length = -1;
 	info->version = version;

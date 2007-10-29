@@ -28,10 +28,13 @@
 
 void er(int, unsigned char *, va_list); /* prototype */
 
+char dummy_val;
+volatile char *dummy_ptr = &dummy_val;
 
 void do_not_optimize_here(void *p)
 {
-	/* stop GCC optimization - avoid bugs in it */
+	*dummy_ptr = 0;
+	/* break ANSI aliasing */
 }
 
 #ifdef LEAK_DEBUG

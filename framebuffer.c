@@ -67,6 +67,7 @@ int fb_console;
 struct itrm *fb_kbd;
 
 struct graphics_device *fb_old_vd;
+struct graphics_device *fb_block_dev;
 
 int fb_handler;
 char *fb_mem, *fb_vmem;
@@ -1564,6 +1565,7 @@ static void fb_set_clip_area(struct graphics_device *dev, struct rect *r)
 static int fb_block(struct graphics_device *dev)
 {
 	if (fb_old_vd) return 1;
+	fb_block_dev = dev;
 	unhandle_fb_mouse();
 	fb_old_vd = current_virtual_device;
 	current_virtual_device=NULL;
@@ -1574,15 +1576,16 @@ static int fb_block(struct graphics_device *dev)
 	return 0;
 }
 
-static void fb_unblock(struct graphics_device *dev)
+static int fb_unblock(struct graphics_device *dev)
 {
 #ifdef DEBUG
 	if (current_virtual_device) {
 		/*internal("fb_unblock called without fb_block");*/
-		return;
+		return 0;
 	}
 #endif /* #ifdef DEBUG */
-	if (svgalib_unblock_itrm(fb_kbd)) return;
+	if (dev != fb_block_dev) return -2;
+	if (svgalib_unblock_itrm(fb_kbd)) return -1;
 	current_virtual_device = fb_old_vd;
 	fb_old_vd = NULL;
 	if (have_cmap) set_palette(&global_pal);
@@ -1592,6 +1595,7 @@ static void fb_unblock(struct graphics_device *dev)
 	if (border_left | border_top | border_right | border_bottom) memset(fb_mem,0,fb_mem_size);
 	if (current_virtual_device) current_virtual_device->redraw_handler(current_virtual_device
 			,&current_virtual_device->size);
+	return 0;
 }
 
 

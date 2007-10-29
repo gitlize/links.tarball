@@ -122,22 +122,26 @@ unsigned char term_seq_tw_mouse[] = "\033[?9l";
 
 void send_init_sequence(int h, int flags)
 {
+	want_draw();
 	hard_write(h, init_seq, strlen(init_seq));
 	if (flags & USE_TWIN_MOUSE) {
 		hard_write(h, init_seq_tw_mouse, strlen(init_seq_tw_mouse));
 	} else {
 		hard_write(h, init_seq_x_mouse, strlen(init_seq_x_mouse));
 	}
+	done_draw();
 }
 
 void send_term_sequence(int h,int flags)
 {
+	want_draw();
 	hard_write(h, term_seq, strlen(term_seq));
 	if (flags & USE_TWIN_MOUSE) {
 		hard_write(h, term_seq_tw_mouse, strlen(term_seq_tw_mouse));
 	} else {
 		hard_write(h, term_seq_x_mouse, strlen(term_seq_x_mouse));
 	}
+	done_draw();
 }
 
 void resize_terminal(void)
@@ -282,7 +286,7 @@ int unblock_itrm(int fd)
 	struct itrm *itrm = ditrm;
 	if (!itrm) return -1;
 	if (itrm->ctl_in >= 0 && setraw(itrm->ctl_in, NULL)) return -1;
-	if (itrm->blocked != fd + 1) return -1;
+	if (itrm->blocked != fd + 1) return -2;
 	itrm->blocked = 0;
 	send_init_sequence(itrm->std_out,itrm->flags);
 	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm->free_trm, itrm);

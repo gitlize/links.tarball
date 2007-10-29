@@ -92,6 +92,9 @@
 /* Define if you have the nl_langinfo function.  */
 #undef HAVE_NL_LANGINFO
 
+/* Define if you have the png_create_info_struct function.  */
+#undef HAVE_PNG_CREATE_INFO_STRUCT
+
 /* Define if you have the png_get_bit_depth function.  */
 #undef HAVE_PNG_GET_BIT_DEPTH
 

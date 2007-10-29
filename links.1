@@ -145,6 +145,11 @@ Host and port number of the FTP proxy, or blank.
 (default: blank)
 
 .TP
+\f3-only-proxies \f2<0>/<1>\f1
+"1" causes that Links won't initiate any non-proxy connection.
+It is useful for anonymization with tor or similar networks.
+
+.TP
 \f3-download-dir \f2<path>\f1
 Default download directory.
 (default: actual dir)
@@ -182,6 +187,12 @@ No keepalive connection after post requests. For some buggy servers.
 Do not send Accept-Charset field of HTTP header. Because it is too long
 some servers will deny the request. Other servers will convert content
 to plain ascii when Accept-Charset is missing.
+
+.TP
+\f3-http-bugs.no-compression \f2<0>/<1>\f1
+(default 0) "1" causes that links won't advertise HTTP compression support (but
+it will still accept compressed data). Use it when you communicate with server
+that has broken compression support.
 
 .TP
 \f3-http-bugs.retry-internal-errors \f2<0>/<1>\f1

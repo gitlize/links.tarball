@@ -1,12 +1,60 @@
+=== RELEASE 2.1pre31 ===
+
+Sat Oct 27 02:52:07 CEST 2007 mikulas:
+
+	Some newer Linuxes unfortunatelly do not send SIGCONT when running
+	process is brougt to foreground with 'fg' command. So implement 0.5s
+	polling to test if we're on foreground.
+
+Wed Oct 24 03:41:19 MET 2007 mikulas:
+
+	Do not request compression for files with .Z, .gz or .bz2 suffix
+	--- some servers will compress them again
+
+Wed Oct 24 03:16:43 MET 2007 mikulas:
+
+	Support HTTP/0.9 (without header)
+
+Mon Oct 22 18:35:16 MET 2007 mikulas:
+
+	In case of non-restartable connection, proceed with the connection
+	even if the server is on blacklist
+
+Mon Oct 22 02:00:13 MET 2007 mikulas:
+
+	An option to disallow non-proxy connections (for anonymization via tor
+	or similar services)
+
+Sat Oct 20 22:08:02 MET 2007 mikulas:
+
+	Turn off compression if the server closes the connection prematurely
+	Some servers errorneously send the size of uncompressed data
+
+Sat Oct 13 18:19:45 MET 2007 mikulas:
+
+	An option to disable compression. Disable compression automatically for
+	a given server if links receives errorneous compressed data
+
+Mon Sep 17 03:59:33 CEST 2007 mikulas:
+
+	Break ansi aliasing on ICC 10 with -ipo
+	Empty function call was not enough to break it
+
+Fri Sep  7 00:00:29 MET 2007 mikulas:
+
+	When the connection dies after the last received byte, do not send
+	"Range:" header in retry request --- servers don't like "Range" pointing
+	after the last byte
+
 === RELEASE 2.1pre30 ===
 
-Mon Aug  6 04:01:05 MET 2007 PROGMAN:
+Mon Aug  6 04:01:05 MET 2007 mikulas:
 
 	Fixed security bug in pre29 (not in any previous versions):
 	special characters in URL could be passed to a shell when spawning
 	user viewer
 
-Sat Jul 28 02:28:15 MET 2007 PROGMAN:
+Sat Jul 28 02:28:15 MET 2007 mikulas:
 
 	Fixed needlessly large selection boxes in graphics mode
 

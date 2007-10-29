@@ -406,6 +406,12 @@ void run_connection(struct connection *c)
 		del_connection(c);
 		return;
 	}
+
+	if (only_proxies && casecmp(c->url, "proxy://", 8)) {
+		setcstate(c, S_NO_PROXY);
+		del_connection(c);
+		return;
+	}
 	
 	if (!(func = get_protocol_handle(c->url))) {
 		setcstate(c, S_BAD_URL);
@@ -607,10 +613,14 @@ int load_url(unsigned char *url, unsigned char * prev_url, struct status *stat, 
 		return 0;
 	}
 	skip_cache:
-	if (!(u = get_proxy(url))) {
-		if (stat) stat->end(stat, stat->data);
-		return -1;
+	if (!casecmp(url, "proxy://", 8)) {
+		if (stat) {
+			stat->state = S_BAD_URL;
+			if (stat->end) stat->end(stat, stat->data);
+		}
+		return 0;
 	}
+	u = get_proxy(url);
 	foreach(c, queue) if (!c->detached && !strcmp(c->url, u)) {
 		mem_free(u);
 		if (getpri(c) > pri) {
@@ -888,6 +898,7 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_NO_SSL,		TEXT(T_NO_SSL)},
 
 	{S_BLOCKED_URL,		TEXT(T_BLOCKED_URL)},
+	{S_NO_PROXY,		TEXT(T_NO_PROXY)},
 	{S_NO_SMB_CLIENT,	TEXT(T_NO_SMB_CLIENT)},
 	{0,			NULL}
 };

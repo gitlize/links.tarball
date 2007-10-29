@@ -1076,6 +1076,7 @@ static inline int getpri(struct connection *c)
 #define S_CYCLIC_REDIRECT	-1013
 #define S_LARGE_FILE		-1014
 #define S_BLOCKED_URL		-1015
+#define S_NO_PROXY		-1016
 
 #define S_HTTP_ERROR		-1100
 #define S_HTTP_100		-1101
@@ -1143,6 +1144,7 @@ void free_blacklist(void);
 #define BL_NO_ACCEPT_LANGUAGE	2
 #define BL_NO_CHARSET		4
 #define BL_NO_RANGE		8
+#define BL_NO_COMPRESSION	16
 
 /* url.c */
 
@@ -1494,7 +1496,7 @@ struct graphics_driver{
 	void (*set_clip_area)(struct graphics_device *dev, struct rect *r);
 
 	int (*block)(struct graphics_device *dev);	/* restore old videomode and disable drawing on terminal */
-	void (*unblock)(struct graphics_device *dev);	/* reenable the terminal */
+	int (*unblock)(struct graphics_device *dev);	/* reenable the terminal (return -1 if failed) */
 
 	void (*set_title)(struct graphics_device *dev, unsigned char *title);
 		/* set window title. title is in utf-8 encoding -- you should recode it to device charset */
@@ -1565,7 +1567,7 @@ void shutdown_graphics(void);
 void update_driver_param(void);
 
 int dummy_block(struct graphics_device *);
-void dummy_unblock(struct graphics_device *);
+int dummy_unblock(struct graphics_device *);
 
 extern struct graphics_device **virtual_devices;
 extern int n_virtual_devices;
@@ -4212,6 +4214,7 @@ extern struct rgb default_vlink_g;
 
 extern unsigned char http_proxy[];
 extern unsigned char ftp_proxy[];
+extern int only_proxies;
 #ifdef JS
 extern int js_enable;
 extern int js_verbose_errors;
@@ -4227,6 +4230,7 @@ struct http_bugs {
 	int bug_302_redirect;
 	int bug_post_no_keepalive;
 	int no_accept_charset;
+	int no_compression;
 	int retry_internal_errors;
 	int aggressive_cache;
 	unsigned char fake_useragent[MAX_STR_LEN];

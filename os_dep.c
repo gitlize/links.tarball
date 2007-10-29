@@ -1477,6 +1477,49 @@ static void gpm_mouse_in(struct gpm_mouse_spec *gms)
 	gms->fn(gms->data, (char *)&ev, sizeof(struct event));
 }
 
+/* GPM installs its own signal handlers and we don't want them */
+
+sigset_t gpm_sigset;
+char gpm_sigset_valid;
+#ifdef SIGWINCH
+struct sigaction gpm_winch;
+char gpm_winch_valid;
+#endif
+#ifdef SIGTSTP
+struct sigaction gpm_tstp;
+char gpm_tstp_valid;
+#endif
+
+static void save_gpm_signals(void)
+{
+	sigset_t sig;
+	sigemptyset(&sig);
+#ifdef SIGWINCH
+	sigaddset(&sig, SIGWINCH);
+#endif
+#ifdef SIGTSTP
+	sigaddset(&sig, SIGTSTP);
+#endif
+	gpm_sigset_valid = !sigprocmask(SIG_BLOCK, &sig, &gpm_sigset);
+#ifdef SIGWINCH
+	gpm_winch_valid = !sigaction(SIGWINCH, NULL, &gpm_winch);
+#endif
+#ifdef SIGTSTP
+	gpm_tstp_valid = !sigaction(SIGTSTP, NULL, &gpm_tstp);
+#endif
+}
+
+static void restore_gpm_signals(void)
+{
+#ifdef SIGWINCH
+	if (gpm_winch_valid) sigaction(SIGWINCH, &gpm_winch, NULL);
+#endif
+#ifdef SIGTSTP
+	if (gpm_tstp_valid) sigaction(SIGTSTP, &gpm_tstp, NULL);
+#endif
+	if (gpm_sigset_valid) sigprocmask(SIG_SETMASK, &gpm_sigset, NULL);
+}
+
 void *handle_mouse(int cons, void (*fn)(void *, unsigned char *, int), void *data)
 {
 	int h;
@@ -1486,7 +1529,10 @@ void *handle_mouse(int cons, void (*fn)(void *, unsigned char *, int), void *dat
 	conn.defaultMask = GPM_MOVE;
 	conn.minMod = 0;
 	conn.maxMod = 0;
-	if ((h = Gpm_Open(&conn, cons)) < 0) return NULL;
+	save_gpm_signals();
+	h = Gpm_Open(&conn, cons);
+	restore_gpm_signals();
+	if (h < 0) return NULL;
 	gms = mem_alloc(sizeof(struct gpm_mouse_spec));
 	gms->h = h;
 	gms->fn = fn;
@@ -1499,7 +1545,9 @@ void unhandle_mouse(void *h)
 {
 	struct gpm_mouse_spec *gms = h;
 	set_handlers(gms->h, NULL, NULL, NULL, NULL);
+	save_gpm_signals();
 	Gpm_Close();
+	restore_gpm_signals();
 	mem_free(gms);
 }
 

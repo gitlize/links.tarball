@@ -1551,6 +1551,7 @@ void draw_dlg(struct dialog_data *dlg)
 		TXT_X = dlg->x + (dlg->xw - tl) / 2;
 		TXT_Y = dlg->y + G_DIALOG_TOP_BORDER + (G_DIALOG_HLINE_SPACE + 1) / 2 - G_BFU_FONT_SIZE / 2;
 		if (TXT_Y < dlg->y) TXT_Y = dlg->y;
+		if (TXT_Y < dlg->y + G_DIALOG_TOP_BORDER + G_DIALOG_HLINE_SPACE + 1 - G_BFU_FONT_SIZE) TXT_Y = dlg->y + G_DIALOG_TOP_BORDER + G_DIALOG_HLINE_SPACE + 1 - G_BFU_FONT_SIZE;
 		set_window_pos(dlg->win, dlg->x, dlg->y, dlg->x + dlg->xw, dlg->y + dlg->yw);
 
 		restrict_clip_area(dev, &r, TXT_X, TXT_Y, TXT_X + tl, TXT_Y + G_BFU_FONT_SIZE);

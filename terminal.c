@@ -12,7 +12,6 @@ void erase_screen(struct terminal *);
 void redraw_windows(struct terminal *);
 void empty_window_handler(struct window *, struct event *, int);
 struct term_spec *get_term_spec(unsigned char *);
-inline int getcompcode(int);
 void unblock_terminal(struct terminal *);
 
 
@@ -753,7 +752,7 @@ void in_term(struct terminal *term)
 	goto test_queue;
 }
 
-inline int getcompcode(int c)
+static inline int getcompcode(int c)
 {
 	return (c<<1 | (c&4)>>2) & 7;
 }

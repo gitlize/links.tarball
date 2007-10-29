@@ -12,6 +12,7 @@ void unhandle_basic_signals(struct terminal *);
 void sig_terminate(struct terminal *);
 void sig_intr(struct terminal *);
 void sig_ctrl_c(struct terminal *);
+void poll_fg(void *);
 void handle_basic_signals(struct terminal *);
 void end_dump(struct object_request *, void *);
 void init(void);
@@ -45,6 +46,8 @@ void sig_ign(void *x)
 {
 }
 
+int fg_poll_timer = -1;
+
 void sig_tstp(struct terminal *t)
 {
 #ifdef SIGSTOP
@@ -56,9 +59,11 @@ void sig_tstp(struct terminal *t)
 		block_itrm(1);
 	}
 #ifdef G
-	else drv->block(NULL);
+	else {
+		drv->block(NULL);
+	}
 #endif
-#if defined (SIGCONT) && defined(SIGTTOU)
+#if defined (SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
 	if (!(newpid = fork())) {
 		while (1) {
 			sleep(1);
@@ -67,10 +72,32 @@ void sig_tstp(struct terminal *t)
 	}
 #endif
 	raise(SIGSTOP);
-#if defined (SIGCONT) && defined(SIGTTOU)
+#if defined (SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
 	if (newpid != -1) kill(newpid, SIGKILL);
 #endif
 #endif
+	if (fg_poll_timer != -1) kill_timer(fg_poll_timer);
+	fg_poll_timer = install_timer(FG_POLL_TIME, poll_fg, t);
+}
+
+void poll_fg(void *t)
+{
+	int r;
+	fg_poll_timer = -1;
+	if (!F) {
+		r = unblock_itrm(1);
+#ifdef G
+	} else {
+		r = drv->unblock(NULL);
+#endif
+	}
+	if (r == -1) {
+		fg_poll_timer = install_timer(FG_POLL_TIME, poll_fg, t);
+	}
+	if (r == -2) {
+		/* This will unblock externally spawned viewer, if it exists */
+		kill(0, SIGCONT);
+	}
 }
 
 void sig_cont(struct terminal *t)
@@ -120,6 +147,7 @@ void unhandle_terminal_signals(struct terminal *term)
 #ifdef SIGCONT
 	install_signal_handler(SIGCONT, NULL, NULL, 0);
 #endif
+	if (fg_poll_timer != -1) kill_timer(fg_poll_timer), fg_poll_timer = -1;
 }
 
 void unhandle_basic_signals(struct terminal *term)
@@ -139,6 +167,7 @@ void unhandle_basic_signals(struct terminal *term)
 #ifdef SIGCONT
 	install_signal_handler(SIGCONT, NULL, NULL, 0);
 #endif
+	if (fg_poll_timer != -1) kill_timer(fg_poll_timer), fg_poll_timer = -1;
 }
 
 int terminal_pipe[2];
@@ -408,6 +437,8 @@ int main(int argc, char *argv[])
 
 	select_loop(init);
 	terminate_all_subsystems();
+
+	if (fg_poll_timer != -1) kill_timer(fg_poll_timer), fg_poll_timer = -1;
 
 	check_memory_leaks();
 	return retval;

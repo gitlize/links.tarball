@@ -1118,6 +1118,7 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 {
 	long color_bg, color_fg;
 	struct cached_image *cimg = goi->cimg;
+	struct rect r;
 	/* refresh_image(fdatac, goi, 1000); To sem asi napsal mikulas jako
 	 * navod, jak se vola to refresh_image.  Nicmene ja jsem milostive
 	 * usoudil, ze zadnejch 1000, ale 0.
@@ -1132,9 +1133,18 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 	}
 
 	if (!(goi->xw&&goi->yw)) return; /* At least one dimension is zero */
+
+
+	memcpy(&r, &fdatac->ses->term->dev->clip, sizeof(struct rect));
+	if (fdatac->vs->g_display_link && fdatac->active && fdatac->vs->current_link != -1 && fdatac->vs->current_link == goi->link_num) {
+		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
+			goi->yw,color_bg,color_fg,2);
+		restrict_clip_area(fdatac->ses->term->dev, &r, x + 2, y + 2, x + goi->xw - 2, y + goi->yw - 2);
+	}
+
 	global_goi=goi;
 	global_cimg=goi->cimg;
-	if (img_process_download(goi, fdatac)) goto draw_only_frame; /* Choked with data, will not
+	if (img_process_download(goi, fdatac)) goto ret; /* Choked with data, will not
 							* draw. */
 	/* Now we will only draw... */
 	if (cimg->state<12){
@@ -1155,11 +1165,8 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 		internal("Invalid state in img_draw_image");
 	}
 #endif /* #ifdef DEBUG */
-	draw_only_frame:
-	if (fdatac->vs->g_display_link && fdatac->active && fdatac->vs->current_link != -1 && fdatac->vs->current_link == goi->link_num) {
-		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
-			goi->yw,color_bg,color_fg,2);
-	}
+	ret:;
+	drv->set_clip_area(fdatac->ses->term->dev, &r);
 }
 
 /* Prior to calling this function you have to fill out
@@ -1294,6 +1301,8 @@ next_chunk:
 	return image;
 }
 
+#ifdef JS
+
 void change_image (struct g_object_image *goi, unsigned char *url, unsigned char *src, struct f_data
 		*fdata)
 {
@@ -1314,6 +1323,8 @@ void change_image (struct g_object_image *goi, unsigned char *url, unsigned char
 
 	refresh_image(fdata->fd,(struct g_object*)goi,1);
 }
+
+#endif
 
 #endif
 

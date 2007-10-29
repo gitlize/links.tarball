@@ -82,8 +82,9 @@ int dummy_block(struct graphics_device *dev)
 	return 0;
 }
 
-void dummy_unblock(struct graphics_device *dev)
+int dummy_unblock(struct graphics_device *dev)
 {
+	return 0;
 }
 
 unsigned char *list_graphics_drivers(void)

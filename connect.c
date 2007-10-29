@@ -352,6 +352,26 @@ void read_select(struct connection *c)
 				rb->done(c, rb);
 				return;
 			}
+			if (!rd) {
+/* Many servers supporting compression have a bug
+   --- they send the size of uncompressed data.
+   Turn off compression support once before the final retry.
+*/
+				unsigned char *prot, *h;
+				int is_restartable;
+				c->tries++;
+				is_restartable = is_connection_restartable(c) && c->tries < 10;
+				c->tries--;
+				if (!is_restartable && (prot = get_protocol_name(c->url))) {
+					if (!strcasecmp(prot, "http")) {
+						if ((h = get_host_name(c->url))) {
+							add_blacklist_entry(h, BL_NO_COMPRESSION);
+							mem_free(h);
+						}
+					}
+					mem_free(prot);
+				}
+			}
 			setcstate(c, rd ? -errno : S_CANT_READ);
 			/*mem_free(rb);*/
 			retry_connection(c);

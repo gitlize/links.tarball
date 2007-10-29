@@ -1552,7 +1552,13 @@ int plain_type(struct session *ses, struct object_request *rq, unsigned char **p
 static void decompress_error(struct terminal *term, struct cache_entry *ce, unsigned char *lib, unsigned char *msg, int *errp)
 {
 	struct window *win;
-	unsigned char *u, *uu;
+	unsigned char *u, *uu, *server;
+	if ((u = parse_http_header(ce->head, "Content-Encoding", NULL))) {
+		mem_free(u);
+		if ((server = get_host_name(ce->url))) {
+			add_blacklist_entry(server, BL_NO_COMPRESSION);
+		}
+	}
 	if (!term) return;
 	if (errp) *errp = 1;
 	else foreach(win, term->windows) if (win->handler == dialog_func) {

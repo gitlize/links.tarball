@@ -2484,6 +2484,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 		/* To ensure hide_mouse and show_mouse will do nothing */
 	}
 	signal(SIGPIPE, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
 	install_signal_handler(SIGINT, (void (*)(void *))svga_ctrl_c, ditrm, 0);
 	return NULL;
 }
@@ -2544,12 +2545,12 @@ static int vga_block(struct graphics_device *dev)
 	return overridden;
 }
 
-static void vga_unblock(struct graphics_device *dev)
+static int vga_unblock(struct graphics_device *dev)
 {
 #ifdef DEBUG
 	if (current_virtual_device) {
 		internal("vga_unblock called without vga_block");
-		return;
+		return 0;
 	}
 #endif /* #ifdef DEBUG */
 	flags&=~2;
@@ -2564,6 +2565,7 @@ static void vga_unblock(struct graphics_device *dev)
 	svgalib_unblock_itrm(ditrm);
 	if (current_virtual_device) current_virtual_device->redraw_handler(current_virtual_device
 			,&current_virtual_device->size);
+	return 0;
 }
 
 static void *svga_prepare_strip(struct bitmap *bmp, int top, int lines)

@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre30)
+AM_INIT_AUTOMAKE(links, 2.1pre31)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -581,8 +581,11 @@ fi
 		fi
 	fi
 	AC_CHECK_HEADERS(png.h libpng/png.h)
-	AC_CHECK_LIB(png, png_create_info_struct)
-	if test "$ac_cv_header_png_h" != yes && test "$ac_cv_header_libpng_png_h" != yes || test "$ac_cv_lib_png_png_create_info_struct" != yes; then
+	AC_HAVE_FUNCS(png_create_info_struct)
+	if test "$ac_cv_func_png_create_info_struct" != yes; then
+		AC_CHECK_LIB(png, png_create_info_struct)
+	fi
+	if test "$ac_cv_header_png_h" != yes -a "$ac_cv_header_libpng_png_h" != yes || test "$ac_cv_func_png_create_info_struct" != yes -a "$ac_cv_lib_png_png_create_info_struct" != yes; then
 		AC_ERROR([You need libpng to compile Links in graphics mode])
 	fi
 
