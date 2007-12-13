@@ -871,7 +871,13 @@ unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
 {
 	int nl;
 	unsigned char *name, *fn, *fnx;
-	unsigned char *nm = tempnam(NULL, "links");
+	unsigned char *nm;
+	unsigned char *directory = NULL;
+#ifdef WIN32
+	directory = getenv("TMP");
+	if (!directory) directory = getenv("TEMP");
+#endif
+	nm = tempnam(directory, "links");
 	if (!nm) return NULL;
 #ifdef OS2
 	if (strlen(nm) > 4 && !strcasecmp(nm + strlen(nm) - 4, ".tmp")) nm[strlen(nm) - 4] = 0;

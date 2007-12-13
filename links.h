@@ -28,9 +28,9 @@
 #ifndef _LINKS_H
 #define _LINKS_H
 
-#define LINKS_COPYRIGHT "(C) 1999 - 2006 Mikulas Patocka\n(C) 2000 - 2006 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2006 Mikulás Patocka\n(C) 2000 - 2006 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2006 Mikulá¹ Patoèka\n(C) 2000 - 2006 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT "(C) 1999 - 2007 Mikulas Patocka\n(C) 2000 - 2007 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2007 Mikulás Patocka\n(C) 2000 - 2007 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2007 Mikulá¹ Patoèka\n(C) 2000 - 2007 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -835,6 +835,7 @@ void set_window_title(unsigned char *);
 unsigned char *get_window_title(void);
 int is_safe_in_shell(unsigned char);
 int is_safe_in_url(unsigned char);
+unsigned char *escape_path(unsigned char *);
 void check_shell_security(unsigned char **);
 int check_shell_url(unsigned char *);
 void ignore_signals(void);
@@ -1154,7 +1155,7 @@ struct session;
 
 static inline int end_of_dir(unsigned char *url, unsigned char c)
 {
-	return c == POST_CHAR || c == '#' || ((c == ';' || c == '?') && (!url || !casecmp(url, (unsigned char *)"http://", 7)));
+	return c == POST_CHAR || c == '#' || ((c == ';' || c == '?') && (!url || !casecmp(url, (unsigned char *)"http", 4)));
 }
 
 int parse_url(unsigned char *, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **, int *, unsigned char **);

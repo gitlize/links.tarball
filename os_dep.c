@@ -55,6 +55,20 @@ int check_shell_url(unsigned char *url)
 	return 0;
 }
 
+unsigned char *escape_path(unsigned char *path)
+{
+	unsigned char *result;
+	size_t i;
+	if (strchr(path, '"')) return stracpy(path);
+	for (i = 0; path[i]; i++) if (!is_safe_in_url(path[i])) goto do_esc;
+	return stracpy(path);
+	do_esc:
+	result = stracpy("\"");
+	add_to_strn(&result, path);
+	add_to_strn(&result, "\"");
+	return result;
+}
+
 int get_e(char *env)
 {
 	char *v;
@@ -117,6 +131,37 @@ void prealloc_truncate(int h, off_t siz)
 
 /* Terminal size */
 
+#ifdef WIN32
+
+/* Cygwin has a bug and loses WIGWINCH sometimes, so poll it */
+
+static void winch_thread(void *p, int l)
+{
+	static int old_xsize, old_ysize;
+	static int cur_xsize, cur_ysize;
+	if (get_terminal_size(0, &old_xsize, &old_ysize)) return;
+	while (1) {
+		if (get_terminal_size(1, &cur_xsize, &cur_ysize)) return;
+		if ((old_xsize != cur_xsize) || (old_ysize != cur_ysize)) {
+			old_xsize = cur_xsize;
+			old_ysize = cur_ysize;
+			raise(SIGWINCH);
+		}
+		sleep(1);
+	}
+}
+
+static void win32_resize_poll(void)
+{
+	static int winch_thread_running = 0;
+	if (!winch_thread_running) {
+		if (start_thread(winch_thread, NULL, 0) >= 0)
+			winch_thread_running = 1;
+	}
+}
+
+#endif
+
 #if defined(UNIX) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(WIN32) || defined(SPAD)
 
 void sigwinch(void *s)
@@ -127,6 +172,9 @@ void sigwinch(void *s)
 void handle_terminal_resize(int fd, void (*fn)(void))
 {
 	install_signal_handler(SIGWINCH, sigwinch, fn, 0);
+#ifdef WIN32
+	win32_resize_poll();
+#endif
 }
 
 void unhandle_terminal_resize(int fd)
@@ -174,9 +222,9 @@ void winch_thread(void)
 	static int cur_xsize, cur_ysize;
 
 	ignore_signals();
-	if (get_terminal_size(0, &old_xsize, &old_ysize)) return;
+	if (get_terminal_size(1, &old_xsize, &old_ysize)) return;
 	while (1) {
-		if (get_terminal_size(0, &cur_xsize, &cur_ysize)) return;
+		if (get_terminal_size(1, &cur_xsize, &cur_ysize)) return;
 		if ((old_xsize != cur_xsize) || (old_ysize != cur_ysize)) {
 			old_xsize = cur_xsize;
 			old_ysize = cur_ysize;
@@ -225,18 +273,12 @@ int get_terminal_size(int fd, int *x, int *y)
 		/* fd = STDIN_FILENO; */
 		arc = ptioctl(1, TIOCGWINSZ, &win);
 		if (arc) {
-/*
-			debug("%d", errno);
-*/
 			*x = 80;
 			*y = 24;
 			return 0;
 		}
 		*y = win.ws_row;
 		*x = win.ws_col;
-/*
-		debug("%d %d", *x, *y);
-*/
 		goto set_default;
 #else
 		*x = 80; *y = 24;
@@ -477,30 +519,52 @@ int resize_window(int x, int y)
 
 #elif defined(WIN32)
 
+static int is_winnt(void)
+{
+	OSVERSIONINFO v;
+	v.dwOSVersionInfoSize = sizeof v;
+	if (!GetVersionEx(&v)) return 0;
+	return v.dwPlatformId >= VER_PLATFORM_WIN32_NT;
+}
+
+#define WIN32_START_STRING	"start /wait "
+
 int exe(char *path, int fg)
 {
-	int r;
-	unsigned char *x1 = DEFAULT_SHELL;
-	/* The reason for <nul:
-		CMD.EXE must start without stdin, otherwise it toggles flags
-		on current console with SetConsoleMode and disables mouse
-		processing within cygwin */
-	unsigned char *x = *path != '"' ? " <nul /c start /wait " : " <nul /c start /wait \"\" ";
-	unsigned char *p = malloc((strlen(x1) + strlen(x) + strlen(path)) * 2 +
-1);
-	fg=fg;  /* ignore flag */
-	if (!p) return -1;
-	strcpy(p, x1);
-	strcat(p, x);
-	strcat(p, path);
-	x = p;
-	while (*x) {
-		if (*x == '\\') memmove(x + 1, x, strlen(x) + 1), x++;
-		x++;
+	/* This is very tricky. We must have exactly 3 arguments, the first
+	   one shell and the second one "/c", otherwise Cygwin would quote
+	   the arguments and trash them */
+	int ct;
+	char buffer[1024];
+	char buffer2[1024];
+	pid_t pid;
+	unsigned char *x1;
+	char *arg;
+	x1 = GETSHELL;
+	if (!x1) x1 = DEFAULT_SHELL;
+	arg = alloca(strlen(WIN32_START_STRING) + 3 + strlen(path) + 1);
+	strcpy(arg, WIN32_START_STRING);
+	if (*path == '"' && strlen(x1) >= 7 && !strcasecmp(x1 + strlen(x1) - 7, "cmd.exe")) strcat(arg, "\"\" ");
+	strcat(arg, path);
+	ct = GetConsoleTitle(buffer, sizeof buffer);
+	if (!(pid = fork())) {
+		int i;
+	/* Win98 crashes if we spawn command.com and have some sockets open */
+		for (i = 0; i < FD_SETSIZE; i++) close(i);
+		open("nul", O_RDONLY);
+		open("nul", O_WRONLY);
+		open("nul", O_WRONLY);
+		execlp(x1, x1, "/c", arg, NULL);
+		_exit(1);
 	}
-	r = system(p);
-	free(p);
-	return r;
+	if (!is_winnt()) {
+		sleep(1);
+		if (ct && GetConsoleTitle(buffer2, sizeof buffer2) && !casecmp(buffer2, "start", 5)) {
+			SetConsoleTitle(buffer);
+		}
+	}
+	if (pid != -1) waitpid(pid, NULL, 0);
+	return 0;
 }
 
 unsigned char *get_clipboard_text(struct terminal *term)
@@ -593,17 +657,63 @@ unsigned char *get_window_title(void)
 	return convert_string(ct, buffer, r, NULL);
 }
 
+static void call_resize(unsigned char *x1, int x, int y)
+{
+	pid_t pid;
+	unsigned char arg[40];
+	sprintf(arg, "mode %d,%d", x, y);
+	if (!(pid = fork())) {
+		int i;
+	/* Win98 crashes if we spawn command.com and have some sockets open */
+		for (i = 0; i < FD_SETSIZE; i++) if (i != 1 && i != 2) close(i);
+		open("nul", O_WRONLY);
+		execlp(x1, x1, "/c", arg, NULL);
+		_exit(1);
+	}
+	if (pid != -1) waitpid(pid, NULL, 0);
+}
+
 int resize_window(int x, int y)
 {
-	unsigned char *s = init_str();
-	int l = 0;
-	add_to_str(&s, &l, DEFAULT_SHELL);
-	add_to_str(&s, &l, "<nul /c mode ");
-	add_num_to_str(&s, &l, x);
-	add_to_str(&s, &l, ",");
-	add_num_to_str(&s, &l, y);
-	system(s);
-	mem_free(s);
+	int old_x, old_y;
+	int ct = 0, fullscreen = 0;
+	char buffer[1024];
+	unsigned char *x1;
+	if (is_xterm()) return -1;
+	if (get_terminal_size(1, &old_x, &old_y)) return -1;
+	x1 = GETSHELL;
+	if (!x1) x1 = DEFAULT_SHELL;
+	if (!is_winnt()) {
+		ct = GetConsoleTitle(buffer, sizeof buffer);
+	}
+
+	call_resize(x1, x, y);
+	if (!is_winnt()) {
+		int new_x, new_y;
+	/* If we resize console on Win98 in fullscreen mode, it won't be
+	   notified by Cygwin (it is valid for all Cygwin apps). So we must
+	   switch to windowed mode, resize it again (twice, because resizing
+	   to the same size won't have an effect) and switch back to full-screen
+	   mode. */
+	/* I'm not sure what's the behavior on WinNT 4. Anybody wants to test?
+	   */
+		if (!fullscreen && !get_terminal_size(1, &new_x, &new_y) && (new_x != x || new_y != y)) {
+			fullscreen = 1;
+			keybd_event(VK_MENU, 0x38, 0, 0);
+			keybd_event(VK_RETURN, 0x1c, 0, 0);
+			keybd_event(VK_RETURN, 0x1c, KEYEVENTF_KEYUP, 0);
+			keybd_event(VK_MENU, 0x38, KEYEVENTF_KEYUP, 0);
+			if (y != 25) call_resize(x1, 80, 25);
+			else call_resize(x1, 80, 50);
+			call_resize(x1, x, y);
+			if (get_terminal_size(1, &new_x, &new_y) || new_x != x || new_y != y) call_resize(x1, old_x, old_y);
+			keybd_event(VK_MENU, 0x38, 0, 0);
+			keybd_event(VK_RETURN, 0x1c, 0, 0);
+			keybd_event(VK_RETURN, 0x1c, KEYEVENTF_KEYUP, 0);
+			keybd_event(VK_MENU, 0x38, KEYEVENTF_KEYUP, 0);
+		}
+		if (ct) SetConsoleTitle(buffer);
+	}
 	return 0;
 }
 
@@ -1596,7 +1706,8 @@ void exec_new_links(struct terminal *term, unsigned char *xterm, unsigned char *
 {
 	unsigned char *str;
 	str = mem_alloc(strlen(xterm) + 1 + strlen(exe) + 1 + strlen(param) + 1);
-	sprintf(str, "%s %s %s", xterm, exe, param);
+	if (*xterm) sprintf(str, "%s %s %s", xterm, exe, param);
+	else sprintf(str, "%s %s", exe, param);
 	exec_on_terminal(term, str, "", 2);
 	mem_free(str);
 }

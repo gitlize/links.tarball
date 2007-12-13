@@ -341,7 +341,7 @@ static inline int xxstrcmp(unsigned char *s1, unsigned char *s2, int l2)
 int get_entity_number(unsigned char *st, int l)
 {
 	int n = 0;
-	if (st[0] == 'x') {
+	if (upcase(st[0]) == 'X') {
 		st++, l--;
 		if (!l || l > 4) return -1;
 		do {

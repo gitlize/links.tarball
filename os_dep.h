@@ -89,6 +89,7 @@ static inline int dir_sep(char x) { return x == '/' || x == '\\'; }
 #define DOS_FS
 #define SET_WINDOW_TITLE_UTF_8
 #define ASSOC_CONS_XWIN
+#define OS_BAD_SIGNALS
 #ifndef HAVE_PTHREADS
   #define HAVE_PTHREADS
 #endif

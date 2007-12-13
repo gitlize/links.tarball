@@ -564,7 +564,7 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 	/*add_to_str(&str, &sl, "   ");*/
 	f = *d;
 	if (*d && *d < p && WHITECHAR(buf[*d - 1])) {
-		int ee;
+		int ee, dir;
 		ppp:
 		for (ee = *d; ee <= p - 4; ee++)
 			if (!memcmp(buf + ee, " -> ", 4)) goto syml;
@@ -578,10 +578,16 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 				add_to_str(&str, &sl, "<a href=\"../\">..</a>\n");
 			}
 		}
+		dir = buf[0] == 'd';
+		if (!dir) {
+			unsigned char *p = memacpy(buf, *d);
+			if (strstr(p, "<DIR>")) dir = 1;
+			mem_free(p);
+		};
 		add_conv_str(&str, &sl, buf, *d, 0);
 		add_to_str(&str, &sl, "<a href=\"./");
 		add_conv_str(&str, &sl, buf + *d, ee - *d, 1);
-		if (buf[0] == 'd') add_chr_to_str(&str, &sl, '/');
+		if (dir) add_chr_to_str(&str, &sl, '/');
 		add_to_str(&str, &sl, "\">");
 		add_conv_str(&str, &sl, buf + *d, ee - *d, 0);
 		add_to_str(&str, &sl, "</a>");

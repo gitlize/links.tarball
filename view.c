@@ -2241,6 +2241,7 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 					if (ffs) ffs->state = 0;
 					re = 1;
 				}
+			fs = find_form_state(f, link->form);
 			fs->state = 1;
 			if (F && re) {
 				draw_fd(f);
@@ -3666,8 +3667,10 @@ void send_open_in_new_xterm(struct terminal *term, void (*open_window)(struct te
         if (ses->dn_url) mem_free(ses->dn_url);
         if ((ses->dn_url = get_link_url(ses, fd, &fd->f_data->links[fd->vs->current_link], NULL))) {
 		unsigned char *enc_url = encode_url(ses->dn_url);
-		open_window(term, path_to_exe, enc_url);
+		unsigned char *path = escape_path(path_to_exe);
+		open_window(term, path, enc_url);
 		mem_free(enc_url);
+		mem_free(path);
 	}
 }
 
@@ -3679,7 +3682,7 @@ void send_open_in_new_xterm_target(struct terminal *term, void (*open_window)(st
         if (fd->vs->current_link == -1) return;
         if (ses->dn_url) mem_free(ses->dn_url);
         if ((ses->dn_url = get_link_url(ses, fd, &fd->f_data->links[fd->vs->current_link], NULL))) {
-		unsigned char *params;
+		unsigned char *params, *path;
 		unsigned char *enc_url= encode_url(ses->dn_url);
 		if (ses->wtd_target&&*ses->wtd_target)
 		{
@@ -3695,20 +3698,25 @@ void send_open_in_new_xterm_target(struct terminal *term, void (*open_window)(st
 		}
 		else
 			params=enc_url;
-		open_window(term, path_to_exe, params);
+		path = escape_path(path_to_exe);
+		open_window(term, path, params);
 		mem_free(params);
+		mem_free(path);
 	}
 }
 
 void send_open_new_xterm(struct terminal *term, void (*open_window)(struct terminal *, unsigned char *, unsigned char *), struct session *ses)
 {
 	int l;
+	unsigned char *path;
         if (ses->dn_url) mem_free(ses->dn_url);
 	ses->dn_url = init_str();
 	l = 0;
         add_to_str(&ses->dn_url, &l, "-base-session ");
 	add_num_to_str(&ses->dn_url, &l, ses->id);
-	open_window(term, path_to_exe, ses->dn_url);
+	path = escape_path(path_to_exe);
+	open_window(term, path, ses->dn_url);
+	mem_free(path);
 }
 
 void open_in_new_window(struct terminal *term, void (*xxx)(struct terminal *, void (*)(struct terminal *, unsigned char *, unsigned char *), struct session *ses), struct session *ses)
@@ -3773,7 +3781,7 @@ void save_as(struct terminal *term, void *xxx, struct session *ses)
 	l = cur_loc(ses);
 	if (ses->dn_url) mem_free(ses->dn_url);
 	if ((ses->dn_url = stracpy(ses->screen->rq->url)))
-		query_file(ses, ses->dn_url, NULL, start_download, NULL);
+		query_file(ses, ses->dn_url, ses->screen->rq->ce ? ses->screen->rq->ce->head : NULL, start_download, NULL);
 }
 
 void save_formatted(struct session *ses, unsigned char *file)

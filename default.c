@@ -304,13 +304,23 @@ int write_to_config_file(unsigned char *name, unsigned char *c)
 unsigned char *get_home(int *n)
 {
 	struct stat st;
-	unsigned char *home = stracpy(getenv("HOME"));
+	unsigned char *home = NULL;
 	unsigned char *home_links;
 	unsigned char *config_dir = stracpy(getenv("CONFIG_DIR"));
 
 	if (n) *n = 1;
-	if (!home) {
-		int i;
+#ifdef WIN32
+	if (!home) home = stracpy(getenv("APPDATA"));
+#endif
+	if (!home) home = stracpy(getenv("HOME"));
+	if (!home
+#ifdef WIN32
+/* When we run in Cygwin without Cygwin environment, it reports home "/".
+   Unfortunatelly, it can't write anything to that directory */
+		|| !strcmp(home, "/")
+#endif
+		) {
+  		int i;
 		home = stracpy(path_to_exe);
 		if (!home) {
 			if (config_dir) mem_free(config_dir);
@@ -349,6 +359,10 @@ unsigned char *get_home(int *n)
 		goto first_failed;
 	}
 	if (S_ISDIR(st.st_mode)) goto home_ok;
+	/* This is a Cygwin hack! Cygwin reports stat for "links" if no
+	   "links" exists and only "links.exe" does. So try to create directory
+	   anyway. */
+	if (!mkdir(home_links, 0777)) goto home_creat;
 	first_failed:
 	mem_free(home_links);
 	home_links = stracpy(home);
@@ -364,6 +378,7 @@ unsigned char *get_home(int *n)
 		goto failed;
 	}
 	if (S_ISDIR(st.st_mode)) goto home_ok;
+	if (!mkdir(home_links, 0777)) goto home_creat;
 	failed:
 	mem_free(home_links);
 	mem_free(home);

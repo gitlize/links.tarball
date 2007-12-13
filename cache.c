@@ -212,6 +212,7 @@ void defrag_entry(struct cache_entry *e)
 
 void truncate_entry(struct cache_entry *e, off_t off, int final)
 {
+	int modified = 0;
 	struct fragment *f, *g;
 	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 	if (e->length > off) e->length = off, e->incomplete = 1;
@@ -219,15 +220,17 @@ void truncate_entry(struct cache_entry *e, off_t off, int final)
 		if (f->offset >= off) {
 			del:
 			while ((void *)f != &e->frag) {
+				modified = 1;
 				sf(-f->length);
 				g = f->next;
 				del_from_list(f);
 				mem_free(f);
 				f = g;
 			}
-			return;
+			goto ret;
 		}
 		if (f->offset + f->length > off) {
+			modified = 1;
 			sf(-(f->offset + f->length - off));
 			f->length = off - f->offset;
 			if (final) {
@@ -240,6 +243,11 @@ void truncate_entry(struct cache_entry *e, off_t off, int final)
 			f = f->next;
 			goto del;
 		}
+	}
+	ret:
+	if (modified) {
+		e->count = cache_count++;
+		e->count2 = cache_count++;
 	}
 }
 

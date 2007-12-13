@@ -1,4 +1,4 @@
-Links 2.1pre31 -- How To Install
+Links 2.1pre32 -- How To Install
 --------------------------------
 
 Follow this step-by-step:
@@ -28,8 +28,7 @@ Follow this step-by-step:
 1) Do not forget to run "ldconfig" if you have installed any new libraries :-)
 2) "./configure --help"
    Read the output and choose which options you want to give ./configure.
-   Probably you will want --enable-graphics and --enable-javascript and some
-   more
+   Probably you will want --enable-graphics
 3) "./configure <your options>"
 4) Check the output of ./configure (in the table at the end) whether you really
    get what you want

@@ -246,7 +246,7 @@ void smb_func(struct connection *c)
 			internal("unsuported smb client");
 		}
 		v[n++] = NULL;
-		execvp(v[0], (char **)v);
+		execvp(v[0], (char **)(void *)v);
 		fprintf(stderr, "client not found");
 		fflush(stderr);
 		_exit(1);

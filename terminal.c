@@ -402,7 +402,7 @@ void add_window_at_pos(struct terminal *term, void (*handler)(struct window *, s
 
 void add_window(struct terminal *term, void (*handler)(struct window *, struct event *, int), void *data)
 {
-	add_window_at_pos(term, handler, data, (struct window *)&term->windows);
+	add_window_at_pos(term, handler, data, (struct window *)(void *)&term->windows);
 }
 
 void delete_window(struct window *win)
@@ -738,8 +738,8 @@ void in_term(struct terminal *term)
 			ev->y = term->y;
 			goto send_redraw;
 		}
-		else if (ev->ev == EV_KBD && ev->x == KBD_CTRL_C) ((struct window *)&term->windows)->prev->handler(term->windows.prev, ev, 0);
-		else ((struct window *)&term->windows)->next->handler(term->windows.next, ev, 0);
+		else if (ev->ev == EV_KBD && ev->x == KBD_CTRL_C) ((struct window *)(void *)&term->windows)->prev->handler(term->windows.prev, ev, 0);
+		else ((struct window *)(void *)&term->windows)->next->handler(term->windows.next, ev, 0);
 	}
 	if (ev->ev == EV_ABORT) {
 		destroy_terminal(term);

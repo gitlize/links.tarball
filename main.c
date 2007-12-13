@@ -96,7 +96,9 @@ void poll_fg(void *t)
 	}
 	if (r == -2) {
 		/* This will unblock externally spawned viewer, if it exists */
+#ifdef SIGCONT
 		kill(0, SIGCONT);
+#endif
 	}
 }
 

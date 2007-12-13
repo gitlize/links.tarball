@@ -858,7 +858,7 @@ unsigned char *get_extension_by_content_type(unsigned char *ct)
 {
 	struct extension *e;
 	unsigned char *x, *y;
-	if (!strcasecmp(ct, "text/html")) return stracpy("html");
+	if (is_html_type(ct)) return stracpy("html");
 	foreach(e, extensions) {
 		if (!strcasecmp(e->ct, ct)) {
 			x = stracpy(e->ext);
@@ -920,6 +920,7 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 unsigned char *get_content_encoding(unsigned char *head, unsigned char *url)
 {
 	unsigned char *ce, *ct, *ext;
+	unsigned char *u;
 	unsigned l;
 	int code;
 	if ((ce = parse_http_header(head, "Content-Encoding", NULL))) return ce;
@@ -934,7 +935,7 @@ unsigned char *get_content_encoding(unsigned char *head, unsigned char *url)
 	}
 	if (!get_http_code(head, &code, NULL) && code >= 300) return NULL;
 	if (!(ext = get_url_data(url))) ext = url;
-	if (strchr(ext, POST_CHAR)) return NULL;
+	for (u = ext; *u; u++) if (end_of_dir(url, *u)) return NULL;
 	l = strlen(ext);
 	if (l >= 3 && !strcasecmp(ext + l - 3, ".gz")) return stracpy("gzip");
 	if (l >= 4 && !strcasecmp(ext + l - 4, ".bz2")) return stracpy("bzip2");
@@ -1026,13 +1027,18 @@ unsigned char *get_prog(struct list_head *l)
 
 int is_html_type(unsigned char *ct)
 {
-	return !strcasecmp(ct, "text/html") || !casecmp(ct, "application/xhtml", strlen("application/xhtml"));
+	return !strcasecmp(ct, "text/html") || !strcasecmp(ct, "text/x-server-parsed-html") || !casecmp(ct, "application/xhtml", strlen("application/xhtml"));
 }
 
 unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, int tmp)
 {
 	unsigned char *u, *s, *e, *f, *x;
 	unsigned char *ct, *want_ext;
+	if ((ct = parse_http_header(head, "Content-Disposition", NULL))) {
+		x = parse_header_param(ct, "filename");
+		mem_free(ct);
+		if (x) return x;
+	}
 	if (!(u = get_url_data(url))) u = url;
 	for (e = s = u; *e && !end_of_dir(url, *e); e++) {
 		if (dir_sep(*e)) s = e + 1;

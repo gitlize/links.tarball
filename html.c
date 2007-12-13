@@ -2424,12 +2424,14 @@ void html_link(unsigned char *a)
 	}
 	if (!(url = get_url_val(a, "href"))) return;
 	if (!(name = get_attr_val(a, "rel"))) if (!(name = get_attr_val(a, "rev"))) name = stracpy(url);
+	if (!strcasecmp(name, "stylesheet") || !strcasecmp(name, "alternate stylesheet") || !strcasecmp(name, "made") || !strcasecmp(name, "shortcut icon")) goto skip;
 	if ((title = get_attr_val(a, "title"))) {
 		add_to_strn(&name, ": ");
 		add_to_strn(&name, title);
 		mem_free(title);
 	}
-	if (strcasecmp(name, "STYLESHEET") && strcasecmp(name, "made") && strcasecmp(name, "SHORTCUT ICON")) put_link_line("Link: ", name, url, format.target_base);
+	put_link_line("Link: ", name, url, format.target_base);
+	skip:
 	mem_free(name);
 	mem_free(url);
 }

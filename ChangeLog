@@ -1,3 +1,56 @@
+=== RELEASE 2.1pre32 ===
+
+Thu Dec 13 04:44:01 MET 2007 mikulas:
+
+	Do not display links to alternate stylesheets
+
+Tue Dec 11 06:37:56 MET 2007 mikulas:
+
+	Use Content-Disposition as a suggestion for downloaded file name
+
+Sun Dec  9 04:52:37 MET 2007 mikulas:
+
+	Fixed write to freed memory resulting in misbehavior of radio buttons
+	and a possible crash
+
+Wed Dec  5 23:26:55 MET 2007 mikulas:
+
+	Make it run without Cygwin environment (only with Cygwin DLLs)
+	Workaround for flaws in Cygwin Unix emulation:
+		SIGWINCH is sometimes lost
+		Signal handlers write to a pipe and it should wake select() up,
+			sometimes, it doesn't
+		exec("command.com") crashes Windows 98 when some sockets are
+			open
+
+Wed Dec  5 18:05:00 MET 2007 mikulas:
+
+	Do not search for compressed-file extension (.gz, .bz2) in URLs
+	containing '?', '&' or ';' --- they are likely scripts and they should
+	provide information about compression in the header.
+
+Tue Dec  4 04:09:51 MET 2007 mikulas:
+
+	When the document was truncated to zero size on reload and no data were
+	received, links didn't invalidate formatted document cache
+
+Wed Nov  7 00:20:12 MET 2007 mikulas:
+
+	Accept capital 'X' as a hex number mark in html entities
+
+Fri Nov  2 19:53:01 MET 2007 mikulas:
+
+	Do not print links to stylesheet to the document
+
+Fri Nov  2 19:52:22 MET 2007 mikulas:
+
+	Slightly improve parsing of ftp --- when the line contains "<DIR>", we
+	can assume that it is a directory
+
+Tue Oct 30 21:22:27 cet 2007 mikulas:
+
+	Previous release didn't compile on OS/2 due to missing SIGCONT
+
 === RELEASE 2.1pre31 ===
 
 Sat Oct 27 02:52:07 CEST 2007 mikulas:

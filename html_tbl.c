@@ -1434,7 +1434,14 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	html_stack_dup();
 	html_top.dontkill = 1;
 	par_format.align = AL_LEFT;
-	gf_val((void *)(t->p = p), (void *)(t->gp = gp));
+#ifdef G
+	if (F) {
+		t->gp = gp;
+	} else
+#endif
+	{
+		t->p = p;
+	}
 	t->bordercolor = get_attr_val(attr, "bordercolor");
 	t->align = align;
 	t->border = border;
