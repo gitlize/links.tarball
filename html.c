@@ -2416,15 +2416,27 @@ void html_link(unsigned char *a)
 {
 	unsigned char *name, *url, *title;
 	if ((name = get_attr_val(a, "type"))) {
-		if (casecmp(a, "text/css", 8)) {
+		if (strcasecmp(name, "text/html")) {
 			mem_free(name);
 			return;
 		}
 		mem_free(name);
 	}
 	if (!(url = get_url_val(a, "href"))) return;
-	if (!(name = get_attr_val(a, "rel"))) if (!(name = get_attr_val(a, "rev"))) name = stracpy(url);
-	if (!strcasecmp(name, "stylesheet") || !strcasecmp(name, "alternate stylesheet") || !strcasecmp(name, "made") || !strcasecmp(name, "shortcut icon")) goto skip;
+	if (!(name = get_attr_val(a, "rel")))
+		if (!(name = get_attr_val(a, "rev")))
+			if (!(name = get_attr_val(a, "ref")))
+				name = stracpy(url);
+	if (!strcasecmp(name, "stylesheet") ||
+	    !strcasecmp(name, "alternate stylesheet") ||
+	    !strcasecmp(name, "made") ||
+	    !strcasecmp(name, "icon") ||
+	    !strcasecmp(name, "shortcut icon") ||
+	    !strcasecmp(name, "apple-touch-icon") ||
+	    !strcasecmp(name, "meta") ||
+	    !strcasecmp(name, "pingback") ||
+	    !strcasecmp(name, "File-List") ||
+	    !casecmp(name, "schema", 6)) goto skip;
 	if ((title = get_attr_val(a, "title"))) {
 		add_to_strn(&name, ": ");
 		add_to_strn(&name, title);

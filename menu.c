@@ -43,12 +43,13 @@ void httpopt_fn(struct dialog_data *);
 int dlg_http_options(struct dialog_data *, struct dialog_item_data *);
 void ftpopt_fn(struct dialog_data *);
 int dlg_ftp_options(struct dialog_data *, struct dialog_item_data *);
+int dlg_proxy_options(struct dialog_data *, struct dialog_item_data *);
 void refresh_video(struct session *);
 void videoopt_fn(struct dialog_data *);
 void remove_zeroes(unsigned char *);
 void video_options(struct terminal *, void *, struct session *);
 void refresh_net(void *);
-void netopt_fn(struct dialog_data *);
+void proxy_fn(struct dialog_data *);
 void net_options(struct terminal *, void *, void *);
 void netprog_fn(struct dialog_data *);
 void net_programs(struct terminal *, void *, void *);
@@ -1160,37 +1161,34 @@ void refresh_net(void *xxx)
 	max_tries = atoi(max_t_str);
 	receive_timeout = atoi(time_str);
 	unrestartable_receive_timeout = atoi(unrtime_str);
+	abort_all_keepalive_connections();
 	register_bottom_half(check_queue, NULL);
 }
 
-unsigned char *net_msg[] = {
+unsigned char *proxy_msg[] = {
 	TEXT(T_HTTP_PROXY__HOST_PORT),
 	TEXT(T_FTP_PROXY__HOST_PORT),
+	TEXT(T_SOCKS_4A_PROXY__USER_HOST_PORT),
 	TEXT(T_ONLY_PROXIES),
-	TEXT(T_MAX_CONNECTIONS),
-	TEXT(T_MAX_CONNECTIONS_TO_ONE_HOST),
-	TEXT(T_RETRIES),
-	TEXT(T_RECEIVE_TIMEOUT_SEC),
-	TEXT(T_TIMEOUT_WHEN_UNRESTARTABLE),
-	TEXT(T_ASYNC_DNS_LOOKUP),
-	TEXT(T_SET_TIME_OF_DOWNLOADED_FILES),
-	"",
-	"",
 };
 
-void netopt_fn(struct dialog_data *dlg)
+#define N_N	3
+
+void proxy_fn(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
 	int max = 0, min = 0;
 	int w, rw;
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	max_text_width(term, net_msg[0], &max, AL_LEFT);
-	min_text_width(term, net_msg[0], &min, AL_LEFT);
-	max_text_width(term, net_msg[1], &max, AL_LEFT);
-	min_text_width(term, net_msg[1], &min, AL_LEFT);
-	max_group_width(term, net_msg + 2, dlg->items + 2, dlg->n - 4, &max);
-	min_group_width(term, net_msg + 2, dlg->items + 2, dlg->n - 4, &min);
+	max_text_width(term, proxy_msg[0], &max, AL_LEFT);
+	min_text_width(term, proxy_msg[0], &min, AL_LEFT);
+	max_text_width(term, proxy_msg[1], &max, AL_LEFT);
+	min_text_width(term, proxy_msg[1], &min, AL_LEFT);
+	max_text_width(term, proxy_msg[2], &max, AL_LEFT);
+	min_text_width(term, proxy_msg[2], &min, AL_LEFT);
+	max_group_width(term, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, &max);
+	min_group_width(term, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, &min);
 	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
 	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
 	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
@@ -1199,11 +1197,13 @@ void netopt_fn(struct dialog_data *dlg)
 	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
 	rw = 0;
-	dlg_format_text_and_field(dlg, NULL, net_msg[0], &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, proxy_msg[0], &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
-	dlg_format_text_and_field(dlg, NULL, net_msg[1], &dlg->items[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, proxy_msg[1], &dlg->items[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
-	dlg_format_group(dlg, NULL, net_msg + 2, dlg->items + 2, dlg->n - 4, 0, &y, w, &rw);
+	dlg_format_text_and_field(dlg, NULL, proxy_msg[2], &dlg->items[2], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_group(dlg, NULL, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, 0, &y, w, &rw);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -1213,14 +1213,67 @@ void netopt_fn(struct dialog_data *dlg)
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text_and_field(dlg, term, net_msg[0], &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, proxy_msg[0], &dlg->items[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text_and_field(dlg, term, net_msg[1], &dlg->items[1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, proxy_msg[1], &dlg->items[1], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_group(dlg, term, net_msg + 2, &dlg->items[2], dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL);
+	dlg_format_text_and_field(dlg, term, proxy_msg[2], &dlg->items[2], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_group(dlg, term, proxy_msg + N_N, &dlg->items[N_N], dlg->n - 2 - N_N, dlg->x + DIALOG_LB, &y, w, NULL);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, &dlg->items[dlg->n - 2], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
+
+int dlg_proxy_options(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	struct proxies *p = (struct proxies *)di->cdata;
+	struct dialog *d;
+	snprint(max_c_str, 3, max_connections);
+	snprint(max_cth_str, 3, max_connections_to_host);
+	snprint(max_t_str, 3, max_tries);
+	snprint(time_str, 5, receive_timeout);
+	snprint(unrtime_str, 5, unrestartable_receive_timeout);
+	d = mem_calloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
+	d->title = TEXT(T_PROXIES);
+	d->fn = proxy_fn;
+	d->refresh = (void (*)(void *))refresh_net;
+	d->items[0].type = D_FIELD;
+	d->items[0].dlen = MAX_STR_LEN;
+	d->items[0].data = p->http_proxy;
+	d->items[1].type = D_FIELD;
+	d->items[1].dlen = MAX_STR_LEN;
+	d->items[1].data = p->ftp_proxy;
+	d->items[2].type = D_FIELD;
+	d->items[2].dlen = MAX_STR_LEN;
+	d->items[2].data = p->socks_proxy;
+	d->items[3].type = D_CHECKBOX;
+	d->items[3].data = (unsigned char *)&p->only_proxies;
+	d->items[3].dlen = sizeof(int);
+	d->items[4].type = D_BUTTON;
+	d->items[4].gid = B_ENTER;
+	d->items[4].fn = ok_dialog;
+	d->items[4].text = TEXT(T_OK);
+	d->items[5].type = D_BUTTON;
+	d->items[5].gid = B_ESC;
+	d->items[5].fn = cancel_dialog;
+	d->items[5].text = TEXT(T_CANCEL);
+	d->items[6].type = D_END;
+	do_dialog(dlg->win->term, d, getml(d, NULL));
+	return 0;
+}
+
+unsigned char *net_msg[] = {
+	TEXT(T_MAX_CONNECTIONS),
+	TEXT(T_MAX_CONNECTIONS_TO_ONE_HOST),
+	TEXT(T_RETRIES),
+	TEXT(T_RECEIVE_TIMEOUT_SEC),
+	TEXT(T_TIMEOUT_WHEN_UNRESTARTABLE),
+	TEXT(T_ASYNC_DNS_LOOKUP),
+	TEXT(T_SET_TIME_OF_DOWNLOADED_FILES),
+	"",
+	"",
+	"",
+};
 
 void net_options(struct terminal *term, void *xxx, void *yyy)
 {
@@ -1230,78 +1283,78 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	snprint(max_t_str, 3, max_tries);
 	snprint(time_str, 5, receive_timeout);
 	snprint(unrtime_str, 5, unrestartable_receive_timeout);
-	d = mem_calloc(sizeof(struct dialog) + 15 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 	d->title = TEXT(T_NETWORK_OPTIONS);
-	d->fn = netopt_fn;
+	d->fn = group_fn;
+	d->udata = net_msg;
 	d->refresh = (void (*)(void *))refresh_net;
 	d->items[0].type = D_FIELD;
-	d->items[0].dlen = MAX_STR_LEN;
-	d->items[0].data = http_proxy;
+	d->items[0].data = max_c_str;
+	d->items[0].dlen = 3;
+	d->items[0].fn = check_number;
+	d->items[0].gid = 1;
+	d->items[0].gnum = 99;
 	d->items[1].type = D_FIELD;
-	d->items[1].dlen = MAX_STR_LEN;
-	d->items[1].data = ftp_proxy;
-	d->items[2].type = D_CHECKBOX;
-	d->items[2].data = (unsigned char *)&only_proxies;
-	d->items[2].dlen = sizeof(int);
+	d->items[1].data = max_cth_str;
+	d->items[1].dlen = 3;
+	d->items[1].fn = check_number;
+	d->items[1].gid = 1;
+	d->items[1].gnum = 99;
+	d->items[2].type = D_FIELD;
+	d->items[2].data = max_t_str;
+	d->items[2].dlen = 3;
+	d->items[2].fn = check_number;
+	d->items[2].gid = 0;
+	d->items[2].gnum = 16;
 	d->items[3].type = D_FIELD;
-	d->items[3].data = max_c_str;
-	d->items[3].dlen = 3;
+	d->items[3].data = time_str;
+	d->items[3].dlen = 5;
 	d->items[3].fn = check_number;
 	d->items[3].gid = 1;
-	d->items[3].gnum = 99;
+	d->items[3].gnum = 1800;
 	d->items[4].type = D_FIELD;
-	d->items[4].data = max_cth_str;
-	d->items[4].dlen = 3;
+	d->items[4].data = unrtime_str;
+	d->items[4].dlen = 5;
 	d->items[4].fn = check_number;
 	d->items[4].gid = 1;
-	d->items[4].gnum = 99;
-	d->items[5].type = D_FIELD;
-	d->items[5].data = max_t_str;
-	d->items[5].dlen = 3;
-	d->items[5].fn = check_number;
-	d->items[5].gid = 0;
-	d->items[5].gnum = 16;
-	d->items[6].type = D_FIELD;
-	d->items[6].data = time_str;
-	d->items[6].dlen = 5;
-	d->items[6].fn = check_number;
-	d->items[6].gid = 1;
-	d->items[6].gnum = 1800;
-	d->items[7].type = D_FIELD;
-	d->items[7].data = unrtime_str;
-	d->items[7].dlen = 5;
-	d->items[7].fn = check_number;
-	d->items[7].gid = 1;
-	d->items[7].gnum = 1800;
-	d->items[8].type = D_CHECKBOX;
-	d->items[8].data = (unsigned char *)&async_lookup;
-	d->items[8].dlen = sizeof(int);
-	d->items[9].type = D_CHECKBOX;
-	d->items[9].data = (unsigned char *)&download_utime;
-	d->items[9].dlen = sizeof(int);
+	d->items[4].gnum = 1800;
+	d->items[5].type = D_CHECKBOX;
+	d->items[5].data = (unsigned char *)&async_lookup;
+	d->items[5].dlen = sizeof(int);
+	d->items[6].type = D_CHECKBOX;
+	d->items[6].data = (unsigned char *)&download_utime;
+	d->items[6].dlen = sizeof(int);
+	d->items[7].type = D_BUTTON;
+	d->items[7].gid = 0;
+	d->items[7].fn = dlg_proxy_options;
+	d->items[7].text = TEXT(T_PROXIES);
+	d->items[7].data = (unsigned char *)&proxies;
+	d->items[7].dlen = sizeof(struct proxies);
+	d->items[8].type = D_BUTTON;
+	d->items[8].gid = 0;
+	d->items[8].fn = dlg_http_options;
+	d->items[8].text = TEXT(T_HTTP_OPTIONS);
+	d->items[8].data = (unsigned char *)&http_bugs;
+	d->items[8].dlen = sizeof(struct http_bugs);
+	d->items[9].type = D_BUTTON;
+	d->items[9].gid = 0;
+	d->items[9].fn = dlg_ftp_options;
+	d->items[9].text = TEXT(T_FTP_OPTIONS);
+	d->items[9].data = (unsigned char *)&ftp_options;
+	d->items[9].dlen = sizeof(struct ftp_options);
 	d->items[10].type = D_BUTTON;
-	d->items[10].gid = 0;
-	d->items[10].fn = dlg_http_options;
-	d->items[10].text = TEXT(T_HTTP_OPTIONS);
-	d->items[10].data = (unsigned char *)&http_bugs;
-	d->items[10].dlen = sizeof(struct http_bugs);
+	d->items[10].gid = B_ENTER;
+	d->items[10].fn = ok_dialog;
+	d->items[10].text = TEXT(T_OK);
 	d->items[11].type = D_BUTTON;
-	d->items[11].gid = 0;
-	d->items[11].fn = dlg_ftp_options;
-	d->items[11].text = TEXT(T_FTP_OPTIONS);
-	d->items[11].data = (unsigned char *)&ftp_options;
-	d->items[11].dlen = sizeof(struct ftp_options);
-	d->items[12].type = D_BUTTON;
-	d->items[12].gid = B_ENTER;
-	d->items[12].fn = ok_dialog;
-	d->items[12].text = TEXT(T_OK);
-	d->items[13].type = D_BUTTON;
-	d->items[13].gid = B_ESC;
-	d->items[13].fn = cancel_dialog;
-	d->items[13].text = TEXT(T_CANCEL);
-	d->items[14].type = D_END;
+	d->items[11].gid = B_ESC;
+	d->items[11].fn = cancel_dialog;
+	d->items[11].text = TEXT(T_CANCEL);
+	d->items[12].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
 }
+
+#undef N_N
 
 unsigned char *prg_msg[] = {
 	TEXT(T_MAILTO_PROG),
@@ -1491,10 +1544,10 @@ void cache_opt(struct terminal *term, void *xxx, void *yyy)
 	d->title = TEXT(T_CACHE_OPTIONS);
 	d->fn = group_fn;
 #ifdef G
-	if (F)d->udata = g_cache_texts;
+	if (F) d->udata = g_cache_texts;
 	else
 #endif
-	d->udata=cache_texts;
+	d->udata = cache_texts;
 	d->refresh = (void (*)(void *))cache_refresh;
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = 8;

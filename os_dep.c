@@ -24,6 +24,10 @@ void exec_new_links(struct terminal *, unsigned char *, unsigned char *, unsigne
 void open_in_new_twterm(struct terminal *, unsigned char *, unsigned char *);
 void open_in_new_xterm(struct terminal *, unsigned char *, unsigned char *);
 void open_in_new_screen(struct terminal *, unsigned char *, unsigned char *);
+void open_in_new_vio(struct terminal *, unsigned char *, unsigned char *);
+void open_in_new_fullscreen(struct terminal *, unsigned char *, unsigned char *);
+void open_in_new_win32(struct terminal *, unsigned char *, unsigned char *);
+void open_in_new_be(struct terminal *, unsigned char *, unsigned char *);
 void open_in_new_g(struct terminal *, unsigned char *, unsigned char *);
 
 
@@ -96,6 +100,7 @@ char *clipboard = NULL;
 #define INCL_VIO
 #define INCL_DOSPROCESS
 #define INCL_DOSERRORS
+#define INCL_DOSMODULEMGR
 #define INCL_WIN
 #define INCL_WINCLIPBOARD
 #define INCL_WINSWITCHLIST
@@ -133,7 +138,7 @@ void prealloc_truncate(int h, off_t siz)
 
 #ifdef WIN32
 
-/* Cygwin has a bug and loses WIGWINCH sometimes, so poll it */
+/* Cygwin has a bug and loses SIGWINCH sometimes, so poll it */
 
 static void winch_thread(void *p, int l)
 {
@@ -213,7 +218,7 @@ int winch_thread_running = 0;
 
 #define WINCH_SLEEPTIME 500 /* time in ms for winch thread to sleep */
 
-void winch_thread(void)
+static void winch_thread(void)
 {
 	/* A thread which regularly checks whether the size of 
 	   window has changed. Then raise SIGWINCH or notifiy
@@ -238,7 +243,7 @@ void winch_thread(void)
 	}
 }
 
-void winch(void *s)
+static void winch(void *s)
 {
 	char c;
 	while (can_read(winch_pipe[0]) && read(winch_pipe[0], &c, 1) == 1);
@@ -414,6 +419,23 @@ void get_path_to_exe(void)
 		path_to_exe = g_argv[0];
 		return;
 	}
+	path_to_exe = path;
+}
+
+#elif defined(OS2)
+
+void get_path_to_exe(void)
+{
+	/* If you spawn links with quotation marks from cmd.exe,
+	   the quotation marks will be present in g_argv[0] ... and will
+	   prevent executing it */
+	static char path[270];
+	PPIB pib = NULL;
+	path_to_exe = g_argv[0];
+	/*if (!strchr(path_to_exe, ' ') && !strchr(path_to_exe, '"')) return;*/
+	DosGetInfoBlocks(NULL, &pib);
+	if (!pib) return;
+	if (DosQueryModuleName(pib->pib_hmte, sizeof path, path)) return;
 	path_to_exe = path;
 }
 
@@ -1006,7 +1028,7 @@ struct tdata {
 
 #if defined(HAVE_BEGINTHREAD) || defined(BEOS) || defined(HAVE_PTHREADS) || defined(HAVE_ATHEOS_THREADS_H)
 
-void bgt(struct tdata *t)
+static void bgt(struct tdata *t)
 {
 	ignore_signals();
 	t->fn(t->data, t->h);
@@ -1016,7 +1038,7 @@ void bgt(struct tdata *t)
 }
 
 #ifdef HAVE_PTHREADS
-void *bgpt(struct tdata *t)
+static void *bgpt(struct tdata *t)
 {
 	bgt(t);
 	return NULL;
@@ -1025,7 +1047,7 @@ void *bgpt(struct tdata *t)
 
 #ifdef HAVE_ATHEOS_THREADS_H
 #include <atheos/threads.h>
-uint32 abgt(void *t)
+static uint32 abgt(void *t)
 {
 	bgt(t);
 	return 0;
@@ -1157,7 +1179,7 @@ int start_thread(void (*fn)(void *, int), void *ptr, int l)
 int tp = -1;
 int ti = -1;
 
-void input_thread(void *p)
+static void input_thread(void *p)
 {
 	char c[2];
 	int h = (int)p;
@@ -1208,7 +1230,7 @@ struct os2_mouse_spec {
 	int terminate;
 };
 
-void mouse_thread(void *p)
+static void mouse_thread(void *p)
 {
 	int status;
 	struct os2_mouse_spec *oms = p;
@@ -1268,7 +1290,7 @@ void mouse_thread(void *p)
 	/*free(oms);*/
 }
 
-void mouse_handle(struct os2_mouse_spec *oms)
+static void mouse_handle(struct os2_mouse_spec *oms)
 {
 	int r;
 	if ((r = read(oms->p[0], oms->buffer + oms->bufptr, sizeof(struct event) - oms->bufptr)) <= 0) {
@@ -1734,12 +1756,20 @@ void open_in_new_screen(struct terminal *term, unsigned char *exe, unsigned char
 #ifdef OS2
 void open_in_new_vio(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
-	exec_new_links(term, "cmd /c start /c /f /win", exe, param);
+	unsigned char *x = stracpy("\"");
+	add_to_strn(&x, exe);
+	add_to_strn(&x, "\"");
+	exec_new_links(term, "start \"Links\" /c /f /win", x, param);
+	mem_free(x);
 }
 
 void open_in_new_fullscreen(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
-	exec_new_links(term, "cmd /c start /c /f /fs", exe, param);
+	unsigned char *x = stracpy("\"");
+	add_to_strn(&x, exe);
+	add_to_strn(&x, "\"");
+	exec_new_links(term, "start \"Links\" /c /f /fs", x, param);
+	mem_free(x);
 }
 #endif
 

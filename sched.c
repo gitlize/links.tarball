@@ -28,7 +28,6 @@ int connection_disappeared(struct connection *, tcount);
 struct h_conn *is_host_on_list(struct connection *);
 void stat_timer(struct connection *);
 struct k_conn *is_host_on_keepalive_list(struct connection *);
-void abort_all_keepalive_connections(void);
 void check_keepalive_connections(void);
 void free_connection_data(struct connection *);
 void del_connection(struct connection *);
@@ -212,6 +211,10 @@ void free_connection_data(struct connection *c)
 	if (c->buffer) {
 		mem_free(c->buffer);
 		c->buffer = NULL;
+	}
+	if (c->newconn) {
+		mem_free(c->newconn);
+		c->newconn = NULL;
 	}
 	if (c->info) {
 		mem_free(c->info);
@@ -407,7 +410,9 @@ void run_connection(struct connection *c)
 		return;
 	}
 
-	if (only_proxies && casecmp(c->url, "proxy://", 8)) {
+	safe_strncpy(c->socks_proxy, proxies.socks_proxy, sizeof c->socks_proxy);
+
+	if (proxies.only_proxies && casecmp(c->url, "proxy://", 8) && (!*c->socks_proxy || url_bypasses_socks(c->url))) {
 		setcstate(c, S_NO_PROXY);
 		del_connection(c);
 		return;
@@ -567,8 +572,8 @@ unsigned char *get_proxy(unsigned char *url)
 	size_t l = strlen(url);
 	unsigned char *proxy = NULL;
 	unsigned char *u;
-	if (*http_proxy && l >= 7 && !casecmp(url, "http://", 7)) proxy = http_proxy;
-	if (*ftp_proxy && l >= 6 && !casecmp(url, "ftp://", 6)) proxy = ftp_proxy;
+	if (*proxies.http_proxy && l >= 7 && !casecmp(url, "http://", 7)) proxy = proxies.http_proxy;
+	if (*proxies.ftp_proxy && l >= 6 && !casecmp(url, "ftp://", 6)) proxy = proxies.ftp_proxy;
 	u = mem_alloc(l + 1 + (proxy ? strlen(proxy) + 9 : 0));
 	if (proxy) strcpy(u, "proxy://"), strcat(u, proxy), strcat(u, "/");
 	else *u = 0;
@@ -655,6 +660,7 @@ int load_url(unsigned char *url, unsigned char * prev_url, struct status *stat, 
 	c->dnsquery = NULL;
 	c->info = NULL;
 	c->buffer = NULL;
+	c->newconn = NULL;
 	c->cache = NULL;
 	c->tries = 0;
 	init_list(c->statuss);
@@ -856,6 +862,7 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_WAIT,		TEXT(T_WAITING_IN_QUEUE)},
 	{S_DNS,			TEXT(T_LOOKING_UP_HOST)},
 	{S_CONN,		TEXT(T_MAKING_CONNECTION)},
+	{S_SOCKS_NEG,		TEXT(T_SOCKS_NEGOTIATION)},
 	{S_SSL_NEG,		TEXT(T_SSL_NEGOTIATION)},
 	{S_SENT,		TEXT(T_REQUEST_SENT)},
 	{S_LOGIN,		TEXT(T_LOGGING_IN)},
@@ -896,6 +903,11 @@ struct s_msg_dsc msg_dsc[] = {
 
 	{S_SSL_ERROR,		TEXT(T_SSL_ERROR)},
 	{S_NO_SSL,		TEXT(T_NO_SSL)},
+	{S_BAD_SOCKS_VERSION,	TEXT(T_BAD_SOCKS_VERSION)},
+	{S_SOCKS_REJECTED,	TEXT(T_SOCKS_REJECTED_OR_FAILED)},
+	{S_SOCKS_NO_IDENTD,	TEXT(T_SOCKS_NO_IDENTD)},
+	{S_SOCKS_BAD_USERID,	TEXT(T_SOCKS_BAD_USERID)},
+	{S_SOCKS_UNKNOWN_ERROR,	TEXT(T_SOCKS_UNKNOWN_ERROR)},
 
 	{S_BLOCKED_URL,		TEXT(T_BLOCKED_URL)},
 	{S_NO_PROXY,		TEXT(T_NO_PROXY)},

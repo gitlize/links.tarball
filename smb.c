@@ -1,5 +1,7 @@
 #include "links.h"
 
+#ifndef DISABLE_SMB
+
 #define SMBCLIENT	0
 #define SMBC		1
 #define N_CLIENTS	2
@@ -630,3 +632,5 @@ void end_smb_connection(struct connection *c)
 	abort_connection(c);
 	return;
 }
+
+#endif

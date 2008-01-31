@@ -29,11 +29,11 @@ struct sockaddr *s_unix = NULL;
 socklen_t s_unix_l;
 int s_unix_fd = -1;
 
-#ifdef USE_AF_UNIX
-
 /* prototypes */
 int get_address(void);
 void unlink_unix(void);
+
+#ifdef USE_AF_UNIX
 
 int get_address(void)
 {

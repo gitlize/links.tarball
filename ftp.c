@@ -37,6 +37,7 @@ struct ftp_connection_info *add_file_cmd_to_str(struct connection *);
 void ftp_retr_1(struct connection *);
 void ftp_retr_file(struct connection *, struct read_buffer *);
 void ftp_got_final_response(struct connection *, struct read_buffer *);
+void created_data_connection(struct connection *);
 void got_something_from_data_connection(struct connection *);
 void ftp_end_request(struct connection *);
 int get_ftp_response(struct connection *, struct read_buffer *, int);
@@ -236,6 +237,7 @@ struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 	l = 0;
 	s = init_str();
 	inf->pasv = ftp_options.passive_ftp;
+	if (*c->socks_proxy) inf->pasv = 1;
 	c->info = inf;
 	if (!inf->pasv) if ((ps = get_pasv_socket(c, c->sock1, &c->sock2, pc))) {
 		mem_free(d);
@@ -414,6 +416,7 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 			case 2:		/* PORT */
 				if (g >= 400) { setcstate(c, S_FTP_PORT); abort_connection(c); return; }
 				if (inf->pasv) {
+#if 0
 					struct sockaddr_in sa;
 					if (!pc[0] && !pc[1] && !pc[2] && !pc[3] && !pc[4] && !pc[5]) {
 						setcstate(c, S_FTP_ERROR);
@@ -445,6 +448,9 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 					}
 					inf->d = 1;
 					set_handlers(c->sock2, (void (*)(void *))got_something_from_data_connection, NULL, NULL, c);
+#else
+					make_connection(c, (pc[4] << 8) + pc[5], &c->sock2, created_data_connection);
+#endif
 				}
 				goto rep;
 			case 3:		/* REST / CWD */
@@ -666,6 +672,19 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 	*pos += sl;
 	mem_free(str);
 	goto again;
+}
+
+void created_data_connection(struct connection *c)
+{
+	struct ftp_connection_info *inf = c->info;
+#ifdef HAVE_IPTOS
+	if (ftp_options.set_tos) {
+		int on = IPTOS_THROUGHPUT;
+		setsockopt(c->sock2, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int));
+	}
+#endif
+	inf->d = 1;
+	set_handlers(c->sock2, (void (*)(void *))got_something_from_data_connection, NULL, NULL, c);
 }
 
 void got_something_from_data_connection(struct connection *c)

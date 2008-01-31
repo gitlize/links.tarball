@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre32)
+AM_INIT_AUTOMAKE(links, 2.1pre33)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -38,7 +38,7 @@ AC_CACHE_CHECK([for EMX], ac_cv_have_emx,
 	kill me!
 	#endif ], ac_cv_have_emx=yes, ac_cv_have_emx=no)
 )
-test "$ac_cv_have_emx" = yes && LDFLAGS=`echo "$LDFLAGS" | sed "s/-Zexe//g" | sed "s/-Zbin-files//g"`
+test "$ac_cv_have_emx" = yes && LDFLAGS="`echo "$LDFLAGS" | sed "s/-Zexe//g" | sed "s/-Zbin-files//g"` -Zcrtdll"
 
 AC_CACHE_CHECK([for typeof], ac_cv_have_typeof,
 	AC_TRY_COMPILE(, [int a;
@@ -647,7 +647,6 @@ fi
 AM_CONDITIONAL(ATHEOS_GR, test "$cf_have_atheos" = yes)
 
 test "$ac_cv_have_emx" = yes && LDFLAGS="$LDFLAGS -Zexe"
-test "$ac_cv_have_emx" = yes && LDFLAGS=`echo "$LDFLAGS" | sed "s/-Zbin-files//g"`
 
 AC_OUTPUT(Makefile)
 

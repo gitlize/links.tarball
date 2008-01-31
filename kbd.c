@@ -790,6 +790,7 @@ int process_queue(struct itrm *itrm)
 				el = 4;
 			} else if (get_esc_code(itrm->kqueue, itrm->qlen, &c, &v, &el)) goto ret;
 			else switch (c) {
+				case '@': ev.x = KBD_INS; break;
 				case 'A': ev.x = KBD_UP; break;
 				case 'B': ev.x = KBD_DOWN; break;
 				case 'C': ev.x = KBD_RIGHT; break;
@@ -798,8 +799,17 @@ int process_queue(struct itrm *itrm)
 				case 'e': ev.x = KBD_END; break;
 				case 'H':
 				case 0: ev.x = KBD_HOME; break;
+				case 'V':
 				case 'I': ev.x = KBD_PAGE_UP; break;
+				case 'U':
 				case 'G': ev.x = KBD_PAGE_DOWN; break;
+				case 'P': ev.x = KBD_F1; break;
+				case 'Q': ev.x = KBD_F2; break;
+				case 'S': ev.x = KBD_F4; break;
+				case 'T': ev.x = KBD_F5; break;
+				case 'W': ev.x = KBD_F8; break;
+				case 'X': ev.x = KBD_F9; break;
+				case 'Y': ev.x = KBD_F11; break;
 
 				case 'z': switch (v) {
 					case 247: ev.x = KBD_INS; break;
@@ -868,6 +878,10 @@ int process_queue(struct itrm *itrm)
 			if (itrm->kqueue[1] == '\033') {
 				if (itrm->qlen >= 3 && (itrm->kqueue[2] == '[' || itrm->kqueue[2] == 'O')) el = 1;
 				ev.x = KBD_ESC;
+				goto l2;
+			} else if (itrm->kqueue[1] == 127) {
+				ev.x = KBD_DEL;
+				ev.y = 0;
 				goto l2;
 			} else {
 				ev.x = itrm->kqueue[1];

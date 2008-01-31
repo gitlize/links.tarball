@@ -75,6 +75,7 @@ static inline int dir_sep(char x) { return x == '/' || x == '\\'; }
 #define NO_FILE_SECURITY
 #define NO_FORK_ON_EXIT
 #define ASSOC_CONS_XWIN
+#define DISABLE_SMB
 
 #elif defined(WIN32)
 

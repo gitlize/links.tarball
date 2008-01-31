@@ -130,7 +130,7 @@ int auth_window(struct object_request *rq, unsigned char *realm)
 	ok:
 	ses = ((struct window *)term->windows.prev)->data;
 	ct = get_convert_table(rq->stat.ce->head, term->spec->charset, ses->ds.assume_cp, NULL, NULL, ses->ds.hard_assume);
-	if (rq->stat.ce->http_code == 407) host = stracpy(http_proxy);
+	if (rq->stat.ce->http_code == 407) host = stracpy(proxies.http_proxy);
 	else {
 		host = get_host_name(rq->url);
 		if (!host) return -1;

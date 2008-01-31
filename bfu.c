@@ -732,7 +732,7 @@ void mainmenu_func(struct window *win, struct event *ev, int fwd)
 					}
 			}
 			if (!s) {
-				delete_window_ev(win, ev->x != KBD_ESC ? ev : NULL);
+				delete_window_ev(win, (ev->x >= KBD_F1 && ev->x <= KBD_F12) || ev->y & KBD_ALT ? ev : NULL);
 				break;
 			}
 			draw_to_window(win, (void (*)(struct terminal *, void *))display_mainmenu, menu);

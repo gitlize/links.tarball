@@ -124,6 +124,18 @@ unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsign
 	unsigned char *s = init_str();
 	int l = 0;
 	struct graphics_driver **gd;
+#if defined(GRDRV_PMSHELL) && defined(GRDRV_X)
+	if (is_xterm()) {
+		static int swapped = 0;
+		if (!swapped) {
+			for (gd = graphics_drivers; *gd; gd++) {
+				if (*gd == &pmshell_driver) *gd = &x_driver;
+				else if (*gd == &x_driver) *gd = &pmshell_driver;
+			}
+			swapped = 1;
+		}
+	}
+#endif
 	for (gd = graphics_drivers; *gd; gd++) {
 		if (!driver || !*driver || !strcasecmp((*gd)->name, driver)) {
 			unsigned char *r;

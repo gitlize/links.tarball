@@ -39,6 +39,9 @@ ULONG pm_frame = (FCF_TITLEBAR | FCF_SYSMENU | FCF_SIZEBORDER | FCF_MINMAX | FCF
 
 ULONG pm_msg_frame = 0;
 
+MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2);
+MRESULT EXPENTRY pm_msg_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2);
+
 #define E_KEY		1
 #define E_MOUSE		2
 #define E_REDRAW	3
@@ -71,7 +74,7 @@ struct pm_window {
 
 struct pm_window *pm_windows[WIN_HASH];
 
-void pm_hash_window(struct pm_window *win)
+static void pm_hash_window(struct pm_window *win)
 {
 	int pos = win->hc & (WIN_HASH - 1);
 	win->prv = &pm_windows[pos];
@@ -79,7 +82,7 @@ void pm_hash_window(struct pm_window *win)
 	pm_windows[pos] = win;
 }
 
-void pm_unhash_window(struct pm_window *win)
+static void pm_unhash_window(struct pm_window *win)
 {
 	if (win->nxt) win->nxt->prv = win->prv;
 	*win->prv = win->nxt;
@@ -121,7 +124,7 @@ int pm_cp;
 
 struct list_head pm_event_windows = { &pm_event_windows, &pm_event_windows };
 
-void pm_send_event(struct pm_window *win, int t, int x1, int y1, int x2, int y2)
+static void pm_send_event(struct pm_window *win, int t, int x1, int y1, int x2, int y2)
 {
 	/* must be called with pm_lock */
 	struct pm_event *ev;
@@ -138,7 +141,7 @@ void pm_send_event(struct pm_window *win, int t, int x1, int y1, int x2, int y2)
 	}
 }
 
-void pm_send_mouse_event(struct pm_window *win, int x1, int y1, int b)
+static void pm_send_mouse_event(struct pm_window *win, int x1, int y1, int b)
 {
 	if (!list_empty(win->queue)) {
 		struct pm_event *last = win->queue.next;
@@ -151,7 +154,7 @@ void pm_send_mouse_event(struct pm_window *win, int x1, int y1, int b)
 	pm_send_event(win, E_MOUSE, x1, y1, b, 0);
 }
 
-void pm_cancel_event(struct pm_window *win, int t, struct pm_event **pev)
+static void pm_cancel_event(struct pm_window *win, int t, struct pm_event **pev)
 {
 	struct pm_event *ev;
 	if (pev) *pev = NULL;
@@ -165,7 +168,7 @@ void pm_cancel_event(struct pm_window *win, int t, struct pm_event **pev)
 	}
 }
 
-void pm_resize(struct pm_window *win, RECTL *r)
+static void pm_resize(struct pm_window *win, RECTL *r)
 {
 	struct pm_event *ev;
 	win->x = r->xRight;
@@ -178,7 +181,7 @@ void pm_resize(struct pm_window *win, RECTL *r)
 	} else pm_send_event(win, E_RESIZE, 0, 0, r->xRight, r->yTop);
 }
 
-void pm_redraw(struct pm_window *win, RECTL *r)
+static void pm_redraw(struct pm_window *win, RECTL *r)
 {
 	struct pm_event *ev;
 	pm_cancel_event(win, E_RESIZE, &ev);
@@ -399,13 +402,13 @@ MRESULT EXPENTRY pm_msg_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 	return WinDefWindowProc(hwnd, msg, mp1, mp2);
 }
 
-void pm_send_msg(int msg, void *param)
+static void pm_send_msg(int msg, void *param)
 {
 	WinPostMsg(hwnd_msg, WM_USER, (MPARAM)msg, (MPARAM)param);
 	pm_wait;
 }
 
-void pm_dispatcher(void *p)
+static void pm_dispatcher(void *p)
 {
 	QMSG msg;
 	pm_status = NULL;
@@ -468,13 +471,13 @@ void pm_dispatcher(void *p)
 	return;
 }
 
-void pm_pipe_error(void *p)
+static void pm_pipe_error(void *p)
 {
 	error("exception on pm pipe");
 	set_handlers(pm_pipe[0], NULL, NULL, NULL, NULL);
 }
 
-void pm_handler(void *p)
+static void pm_handler(void *p)
 {
 	unsigned char c;
 	struct pm_window *win = NULL;
@@ -529,7 +532,7 @@ int pm_bitmap_count;
 
 pid_t pm_child_pid;
 
-void pm_sigcld(void *p)
+static void pm_sigcld(void *p)
 {
 	int st;
 	pid_t w;
@@ -541,7 +544,7 @@ void pm_sigcld(void *p)
 int pm_sin, pm_sout, pm_serr, pm_ip[2], pm_op[2], pm_ep[2];
 int pm_cons_ok = 0;
 	
-void pm_setup_console()
+static void pm_setup_console(void)
 {
 	if (pm_cons_ok) goto fail9;
 	if ((pm_sin = dup(0)) < 0) goto fail;
@@ -573,7 +576,7 @@ fail1:	close(pm_sin);
 fail:	pm_cons_ok = 0;
 }
 
-void pm_do_console()
+static void pm_do_console(void)
 {
 #define CONS_BUF 20
 	unsigned char buffer[CONS_BUF];
@@ -606,12 +609,12 @@ void pm_do_console()
 	br:;
 }
 
-unsigned char *pm_get_driver_param(void)
+static unsigned char *pm_get_driver_param(void)
 {
 	return NULL;
 }
 
-unsigned char *pm_init_driver(unsigned char *param, unsigned char *display)
+static unsigned char *pm_init_driver(unsigned char *param, unsigned char *display)
 {
 	unsigned char *s;
 	pm_bitmap_count = 0;
@@ -645,11 +648,12 @@ unsigned char *pm_init_driver(unsigned char *param, unsigned char *display)
 		memcpy(arg, g_argv, g_argc * sizeof(char *));
 		arg[g_argc] = NULL;
 		pm_child_pid = -1;
-		install_signal_handler(SIGCLD, pm_sigcld, NULL, 1);
+		install_signal_handler(SIGCHLD, pm_sigcld, NULL, 1);
 		pm_setup_console();
 		pm_child_pid = pid = spawnvp(P_PM, path_to_exe, arg);
 		mem_free(arg);
 		if (pid < 0) {
+			set_sigcld();
 			pm_setup_console();
 			goto f;
 		}
@@ -710,7 +714,7 @@ unsigned char *pm_init_driver(unsigned char *param, unsigned char *display)
 	return stracpy(s);
 }
 
-struct graphics_device *pm_init_device()
+static struct graphics_device *pm_init_device(void)
 {
 	RECTL rect;
 	struct graphics_device *dev;
@@ -748,7 +752,7 @@ struct graphics_device *pm_init_device()
 	
 }
 
-void pm_shutdown_device(struct graphics_device *dev)
+static void pm_shutdown_device(struct graphics_device *dev)
 {
 	struct pm_window *win = pm_win(dev);
 	WinReleasePS(win->ps);
@@ -765,7 +769,7 @@ void pm_shutdown_device(struct graphics_device *dev)
 	mem_free(dev);
 }
 
-void pm_shutdown_driver()
+static void pm_shutdown_driver(void)
 {
 	pm_send_msg(MSG_SHUTDOWN_THREAD, NULL);
 	GpiDestroyPS(hps_mem);
@@ -779,7 +783,7 @@ void pm_shutdown_driver()
 	if (pm_bitmap_count) internal("pm_shutdown_driver: %d bitmaps leaked", pm_bitmap_count);
 }
 
-void pm_set_window_title(struct graphics_device *dev, unsigned char *title)
+static void pm_set_window_title(struct graphics_device *dev, unsigned char *title)
 {
 	static int idx = -1;
 	struct conv_table *ct = get_translation_table(idx >= 0 ? idx : (idx = get_cp_index("utf-8")), pm_cp);
@@ -787,13 +791,14 @@ void pm_set_window_title(struct graphics_device *dev, unsigned char *title)
 	w.win = pm_win(dev);
 	w.text = convert_string(ct, title, strlen(title), NULL);
 	clr_white(w.text);
+	if (strlen(w.text) > 512) w.text[512] = 0;
 	pm_send_msg(MSG_SET_WINDOW_TITLE, &w);
 	pm_unlock;
 	mem_free(w.text);
 }
 
 /*
-int pm_get_filled_bitmap(struct bitmap *bmp, long color)
+static int pm_get_filled_bitmap(struct bitmap *bmp, long color)
 {
 	 * Mikulas jestlize plati ze get_color u pmshell nic nedela (jen oanduje
 	 * 0xffffff), tak tady zavolej (*get_color_fn)(color) z dither.c a ta
@@ -803,7 +808,7 @@ int pm_get_filled_bitmap(struct bitmap *bmp, long color)
 	return 0;
 }*/
 
-int pm_get_empty_bitmap(struct bitmap *bmp)
+static int pm_get_empty_bitmap(struct bitmap *bmp)
 {
 	debug_call(("get_empty_bitmap (%dx%d)\n", bmp->x, bmp->y));
 	if ((unsigned)bmp->x > MAXINT / (pmshell_driver.depth & 7) - 4) overalloc();
@@ -815,7 +820,7 @@ int pm_get_empty_bitmap(struct bitmap *bmp)
 	return 1;
 }
 
-void pm_register_bitmap(struct bitmap *bmp)
+static void pm_register_bitmap(struct bitmap *bmp)
 {
 	HBITMAP hbm;
 	debug_call(("register_bitmap (%dx%d)\n", bmp->x, bmp->y));
@@ -828,7 +833,7 @@ void pm_register_bitmap(struct bitmap *bmp)
 	debug_call(("done\n"));
 }
 
-void *pm_prepare_strip(struct bitmap *bmp, int top, int lines)
+static void *pm_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
 	if (-bmp->skip && (unsigned)-bmp->skip * (unsigned)lines / (unsigned)-bmp->skip != (unsigned)lines) overalloc();
 	if ((unsigned)-bmp->skip * (unsigned)lines > MAXINT) overalloc();
@@ -836,8 +841,7 @@ void *pm_prepare_strip(struct bitmap *bmp, int top, int lines)
 	return (char *)bmp->data - bmp->skip * (lines - 1);
 }
 
-
-void pm_commit_strip(struct bitmap *bmp, int top, int lines)
+static void pm_commit_strip(struct bitmap *bmp, int top, int lines)
 {
 	LONG s;
 	HBITMAP old;
@@ -849,7 +853,7 @@ void pm_commit_strip(struct bitmap *bmp, int top, int lines)
 	mem_free(bmp->data);
 }
 
-void pm_unregister_bitmap(struct bitmap *bmp)
+static void pm_unregister_bitmap(struct bitmap *bmp)
 {
 	debug_call(("unregister_bitmap (%dx%d)\n", bmp->x, bmp->y));
 	pm_bitmap_count--;
@@ -857,7 +861,7 @@ void pm_unregister_bitmap(struct bitmap *bmp)
 	debug_call(("done\n"));
 }
 
-void pm_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x, int y)
+static void pm_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x, int y)
 {
 	POINTL p;
 	debug_call(("draw_bitmap (%dx%d -> %x,%x)\n", bmp->x, bmp->y, x, y));
@@ -867,7 +871,7 @@ void pm_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x, int 
 	debug_call(("done\n"));
 }
 
-void pm_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmp, int n, int x, int y)
+static void pm_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmp, int n, int x, int y)
 {
 	HPS ps = pm_win(dev)->ps;
 	POINTL p;
@@ -881,12 +885,12 @@ void pm_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmp, int n, in
 	debug_call(("done\n"));
 }
 
-long pm_get_color(int rgb)
+static long pm_get_color(int rgb)
 {
 	return rgb & 0xffffff;
 }
 
-void pm_fill_area(struct graphics_device *dev, int x1, int y1, int x2, int y2, long color)
+static void pm_fill_area(struct graphics_device *dev, int x1, int y1, int x2, int y2, long color)
 {
 	RECTL r;
 	debug_call(("fill_area (%d,%d)->(%d,%d)\n", x1, y1, x2, y2));
@@ -898,7 +902,7 @@ void pm_fill_area(struct graphics_device *dev, int x1, int y1, int x2, int y2, l
 	debug_call(("done\n"));
 }
 
-void pm_draw_hline(struct graphics_device *dev, int x1, int y, int x2, long color)
+static void pm_draw_hline(struct graphics_device *dev, int x1, int y, int x2, long color)
 {
 	HPS ps = pm_win(dev)->ps;
 	POINTL p;
@@ -916,7 +920,7 @@ void pm_draw_hline(struct graphics_device *dev, int x1, int y, int x2, long colo
 	debug_call(("done\n"));
 }
 
-void pm_draw_vline(struct graphics_device *dev, int x, int y1, int y2, long color)
+static void pm_draw_vline(struct graphics_device *dev, int x, int y1, int y2, long color)
 {
 	HPS ps = pm_win(dev)->ps;
 	POINTL p;
@@ -934,7 +938,7 @@ void pm_draw_vline(struct graphics_device *dev, int x, int y1, int y2, long colo
 	debug_call(("done\n"));
 }
 
-void pm_hscroll_redraws(struct pm_window *win, struct rect *r, int dir)
+static void pm_hscroll_redraws(struct pm_window *win, struct rect *r, int dir)
 {
 	struct pm_event *e;
 	pm_cancel_event(win, E_REDRAW, &e);
@@ -952,7 +956,7 @@ void pm_hscroll_redraws(struct pm_window *win, struct rect *r, int dir)
 	}
 }
 
-int pm_hscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
+static int pm_hscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 {
 	RECTL r;
 
@@ -970,7 +974,7 @@ int pm_hscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 	return 0;
 }
 
-void pm_vscroll_redraws(struct pm_window *win, struct rect *r, int dir)
+static void pm_vscroll_redraws(struct pm_window *win, struct rect *r, int dir)
 {
 	struct pm_event *e;
 	pm_cancel_event(win, E_REDRAW, &e);
@@ -988,7 +992,7 @@ void pm_vscroll_redraws(struct pm_window *win, struct rect *r, int dir)
 	}
 }
 
-int pm_vscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
+static int pm_vscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 {
 	RECTL r;
 
@@ -1006,7 +1010,7 @@ int pm_vscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 	return 0;
 }
 
-void pm_set_clip_area(struct graphics_device *dev, struct rect *rr)
+static void pm_set_clip_area(struct graphics_device *dev, struct rect *rr)
 {
 	HPS ps = pm_win(dev)->ps;
 	HRGN rg, org;
@@ -1023,7 +1027,6 @@ void pm_set_clip_area(struct graphics_device *dev, struct rect *rr)
 	GpiDestroyRegion(ps, org);
 	debug_call(("done\n"));
 }
-
 
 struct graphics_driver pmshell_driver = {
 	"pmshell",

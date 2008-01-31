@@ -3849,7 +3849,7 @@ void link_menu(struct terminal *term, void *xxx, struct session *ses)
 	if (link->where_img) {
 		if (!F || f->f_data->opt.plain != 2) add_to_menu(&mi, TEXT(T_VIEW_IMAGE), "i", TEXT(T_HK_VIEW_IMAGE), MENU_FUNC send_image, NULL, 0, -1);
 		if (!anonymous) add_to_menu(&mi, TEXT(T_DOWNLOAD_IMAGE), "I", TEXT(T_HK_DOWNLOAD_IMAGE), MENU_FUNC send_download_image, NULL, 0, -1);
-		if (!anonymous) add_to_menu(&mi, TEXT(T_BLOCK_URL), "", TEXT(T_HK_BLOCK_URL), MENU_FUNC block_add_URL, NULL, 0, -1);
+		if (F && !anonymous) add_to_menu(&mi, TEXT(T_BLOCK_URL), "", TEXT(T_HK_BLOCK_URL), MENU_FUNC block_add_URL, NULL, 0, -1);
 	}
 	x:
 	no_l:

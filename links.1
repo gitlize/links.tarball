@@ -145,6 +145,11 @@ Host and port number of the FTP proxy, or blank.
 (default: blank)
 
 .TP
+\f3-socks-proxy \f2<user@host:port>\f1
+Userid, host and port of Socks4a, or blank.
+(default: blank)
+
+.TP
 \f3-only-proxies \f2<0>/<1>\f1
 "1" causes that Links won't initiate any non-proxy connection.
 It is useful for anonymization with tor or similar networks.
@@ -297,10 +302,6 @@ Do image dithering.
 Optimize for CRT (0), LCD RGB (1), LCD BGR (2).
 
 .TP
-\f3-enable-javascript \f2<0>/<1>\f1
-Enable javascript.
-
-.TP
 \f3-gamma-correction \f2<0>/<1>/<2>\f1
 Type of gamma correction:
 (default 2)
@@ -308,35 +309,39 @@ Type of gamma correction:
 1 - 16-bit (slow).
 2 - automatically detect according to speed of FPU.
 
-.TP
-\f3-js.verbose-errors \f2<0>/<1>\f1
-Display javascript errors.
-
-.TP
-\f3-js.verbose-warnings \f2<0>/<1>\f1
-Display javascript warnings.
-
-.TP
-\f3-js.enable-all-conversions \f2<0>/<1>\f1
-Enable conversions between all types in javascript.
-
-.TP
-\f3-js.enable-global-resolution \f2<0>/<1>\f1
-Resolve global names.
-
-.TP
-\f3-js.manual-confirmation \f2<0>/<1>\f1
-Ask user to confirm potentially dangerous operations.
-(opening windows, going to url etc.) Default 1.
-
-.TP
-\f3-js.recursion-depth \f2<integer>\f1
-Depth of javascript call stack.
-
-.TP
-\f3-js.memory-limit \f2<memory amount>\f1
-Amount of kilobytes the javascript may allocate.
-
+.\".TP
+.\"\f3-enable-javascript \f2<0>/<1>\f1
+.\"Enable javascript.
+.\"
+.\".TP
+.\"\f3-js.verbose-errors \f2<0>/<1>\f1
+.\"Display javascript errors.
+.\"
+.\".TP
+.\"\f3-js.verbose-warnings \f2<0>/<1>\f1
+.\"Display javascript warnings.
+.\"
+.\".TP
+.\"\f3-js.enable-all-conversions \f2<0>/<1>\f1
+.\"Enable conversions between all types in javascript.
+.\"
+.\".TP
+.\"\f3-js.enable-global-resolution \f2<0>/<1>\f1
+.\"Resolve global names.
+.\"
+.\".TP
+.\"\f3-js.manual-confirmation \f2<0>/<1>\f1
+.\"Ask user to confirm potentially dangerous operations.
+.\"(opening windows, going to url etc.) Default 1.
+.\"
+.\".TP
+.\"\f3-js.recursion-depth \f2<integer>\f1
+.\"Depth of javascript call stack.
+.\"
+.\".TP
+.\"\f3-js.memory-limit \f2<memory amount>\f1
+.\"Amount of kilobytes the javascript may allocate.
+.\"
 .TP
 \f3-bookmarks-codepage \f2<codepage>\f1
 Character set of bookmarks file.

@@ -70,7 +70,7 @@ unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy
 	int l;
 	if (!h) {
 		xxx:
-		if (proxy) return stracpy(http_proxy);
+		if (proxy) return stracpy(proxies.http_proxy);
 		h = get_host_name(url);
 		if (h) return h;
 		return stracpy("");

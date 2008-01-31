@@ -106,11 +106,11 @@ unsigned char *setstr_cmd(struct option *, unsigned char ***, int *);
 unsigned char *force_html_cmd(struct option *, unsigned char ***, int *);
 unsigned char *dump_cmd(struct option *, unsigned char ***, int *);
 unsigned char *printhelp_cmd(struct option *, unsigned char ***, int *);
-unsigned char *_parse_options(int, unsigned char *[], struct option **);
+unsigned char *p_arse_options(int, unsigned char *[], struct option **);
 unsigned char *block_rd(struct option *, unsigned char *);
 void block_wr(struct option *, unsigned char **, int *);
 
-unsigned char *_parse_options(int argc, unsigned char *argv[], struct option **opt)
+unsigned char *p_arse_options(int argc, unsigned char *argv[], struct option **opt)
 {
 	unsigned char *e, *u = NULL;
 	while (argc) {
@@ -145,7 +145,7 @@ unsigned char *_parse_options(int argc, unsigned char *argv[], struct option **o
 
 unsigned char *parse_options(int argc, unsigned char *argv[])
 {
-	return _parse_options(argc, argv, all_options);
+	return p_arse_options(argc, argv, all_options);
 }
 
 unsigned char *get_token(unsigned char **line)
@@ -661,7 +661,6 @@ unsigned char *type_rd(struct option *o, unsigned char *c)
 	goto err;
 }
 
-
 unsigned char *block_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *err = "Error reading image block specification";
@@ -928,12 +927,18 @@ void dp_wr(struct option *o, unsigned char **s, int *l)
 
 unsigned char *gen_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
+	unsigned char *e;
+	int l;
 	unsigned char *r;
 	if (!*argc) return "Parameter expected";
+	e = init_str();
+	l = 0;
+	add_quoted_to_str(&e, &l, **argv);
+	r = o->rd_cfg(o, e);
+	mem_free(e);
+	if (r) return r;
 	(*argv)++; (*argc)--;
-	if (!(r = o->rd_cfg(o, *(*argv - 1)))) return NULL;
-	(*argv)--; (*argc)++;
-	return r;
+	return NULL;
 }
 
 unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *argc)
@@ -1107,6 +1112,10 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Host and port number of the FTP proxy, or blank.\n"
 "    (default: blank)\n"
 "\n"
+" -socks-proxy <user@host:port>\n"
+"  Userid, host and port of Socks4a, or blank.\n"
+"    (default: blank)\n"
+"\n"
 " -only-proxies <0>/<1>\n"
 "    (default 0)\n"
 "  \"1\" causes that Links won't initiate any non-proxy connection.\n"
@@ -1245,6 +1254,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  1 - 16-bit (slow).\n"
 "  2 - automatically detect according to speed of FPU.\n"
 "\n"
+#ifdef JS
 " -enable-javascript <0>/<1>\n"
 "  Enable javascript.\n"
 "\n"
@@ -1270,6 +1280,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -js.memory-limit <memory amount>\n"
 "  Amount of kilobytes the javascript may allocate.\n"
 "\n"
+#endif
 " -bookmarks-codepage <codepage>\n"
 "  Character set of bookmarks file.\n"
 "\n"
@@ -1448,9 +1459,7 @@ struct rgb default_vlink_g = { 0, 0, 128, 0 };
 
 int default_left_margin = HTML_LEFT_MARGIN;
 
-unsigned char http_proxy[MAX_STR_LEN] = "";
-unsigned char ftp_proxy[MAX_STR_LEN] = "";
-int only_proxies = 0;
+struct proxies proxies = { "", "", "", 0 };
 int js_enable=1;   /* 0=disable javascript */
 int js_verbose_errors=0;   /* 1=create dialog on every javascript error, 0=be quiet and continue */
 int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=be quiet and continue */
@@ -1509,9 +1518,10 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 256, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &memory_cache_size, "memory_cache_size", "memory-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &image_cache_size, "image_cache_size", "image-cache-size"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_proxy, "http_proxy", "http-proxy"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, ftp_proxy, "ftp_proxy", "ftp-proxy"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &only_proxies, "only_proxies", "only-proxies"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.http_proxy, "http_proxy", "http-proxy"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.ftp_proxy, "ftp_proxy", "ftp-proxy"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.socks_proxy, "socks_proxy", "socks-proxy"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &proxies.only_proxies, "only_proxies", "only-proxies"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, download_dir, "download_dir", "download-dir"},
 	{1, gen_cmd, lang_rd, lang_wr, 0, 0, &current_language, "language", "language"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.http10, "http_bugs.http10", "http-bugs.http10"},

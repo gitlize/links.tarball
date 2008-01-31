@@ -14,27 +14,30 @@ struct {
 	int need_slashes;
 	int need_slash_after_host;
 	int allow_post;
+	int bypasses_socks;
 } protocols[]= {
-		{"file", 0, file_func, NULL, 1, 1, 0, 0},
-		{"https", 443, https_func, NULL, 0, 1, 1, 1},
-		{"http", 80, http_func, NULL, 0, 1, 1, 1},
-		{"proxy", 3128, proxy_func, NULL, 0, 1, 1, 1},
-		{"ftp", 21, ftp_func, NULL, 0, 1, 1, 0},
-		{"finger", 79, finger_func, NULL, 0, 1, 1, 0},
-		{"smb", 139, smb_func, NULL, 0, 1, 1, 0},
-		{"mailto", 0, NULL, mailto_func, 0, 0, 0, 0},
-		{"telnet", 0, NULL, telnet_func, 0, 0, 0, 0},
-		{"tn3270", 0, NULL, tn3270_func, 0, 0, 0, 0},
-		{"mms", 0, NULL, mms_func, 1, 0, 1, 0},
-#ifdef JS
-		{"javascript", 0, NULL, javascript_func, 1, 0, 0, 0},
+		{"file", 0, file_func, NULL,		1, 1, 0, 0, 0},
+		{"https", 443, https_func, NULL,	0, 1, 1, 1, 0},
+		{"http", 80, http_func, NULL,		0, 1, 1, 1, 0},
+		{"proxy", 3128, proxy_func, NULL,	0, 1, 1, 1, 0},
+		{"ftp", 21, ftp_func, NULL,		0, 1, 1, 0, 0},
+		{"finger", 79, finger_func, NULL,	0, 1, 1, 0, 0},
+#ifndef DISABLE_SMB
+		{"smb", 139, smb_func, NULL,		0, 1, 1, 0, 1},
 #endif
-		{NULL, 0, NULL, NULL, 0, 0, 0, 0}
+		{"mailto", 0, NULL, mailto_func,	0, 0, 0, 0, 0},
+		{"telnet", 0, NULL, telnet_func,	0, 0, 0, 0, 1},
+		{"tn3270", 0, NULL, tn3270_func,	0, 0, 0, 0, 1},
+		{"mms", 0, NULL, mms_func,		1, 0, 1, 0, 1},
+#ifdef JS
+		{"javascript", 0, NULL, javascript_func,1, 0, 0, 0, 0},
+#endif
+		{NULL, 0, NULL, NULL,			0, 0, 0, 0, 0}
 };
 
 /* prototypes */
 int check_protocol(unsigned char *, int);
-int get_prot_info(unsigned char *, int *, void (**)(struct connection *), void (**)(struct session *ses, unsigned char *), int *);
+int get_prot_info(unsigned char *, int *, void (**)(struct connection *), void (**)(struct session *ses, unsigned char *), int *, int *);
 void translate_directories(unsigned char *);
 void insert_wd(unsigned char **, unsigned char *);
 
@@ -49,7 +52,7 @@ int check_protocol(unsigned char *p, int l)
 	return -1;
 }
 
-int get_prot_info(unsigned char *prot, int *port, void (**func)(struct connection *), void (**nc_func)(struct session *ses, unsigned char *), int *allow_post)
+int get_prot_info(unsigned char *prot, int *port, void (**func)(struct connection *), void (**nc_func)(struct session *ses, unsigned char *), int *allow_post, int *bypasses_socks)
 {
 	int i;
 	for (i = 0; protocols[i].prot; i++)
@@ -58,6 +61,7 @@ int get_prot_info(unsigned char *prot, int *port, void (**func)(struct connectio
 			if (func) *func = protocols[i].func;
 			if (nc_func) *nc_func = protocols[i].nc_func;
 			if (allow_post) *allow_post = protocols[i].allow_post;
+			if (bypasses_socks) *bypasses_socks = protocols[i].bypasses_socks;
 			return 0;
 		}
 	return -1;
@@ -196,7 +200,7 @@ int get_port(unsigned char *url)
 	}
 	if ((h = get_protocol_name(url))) {
 		int nn;
-		get_prot_info(h, &nn, NULL, NULL, NULL);
+		get_prot_info(h, &nn, NULL, NULL, NULL, NULL);
 		mem_free(h);
 		n = nn;
 	}
@@ -209,7 +213,7 @@ void (*get_protocol_handle(unsigned char *url))(struct connection *)
 	void (*f)(struct connection *) = NULL;
 	int post = 0;
 	if (!(p = get_protocol_name(url))) return NULL;
-	get_prot_info(p, NULL, &f, NULL, &post);
+	get_prot_info(p, NULL, &f, NULL, &post, NULL);
 	mem_free(p);
 	if (!post && strchr(url, POST_CHAR)) return NULL;
 	return f;
@@ -221,10 +225,20 @@ void (*get_external_protocol_function(unsigned char *url))(struct session *, uns
 	void (*f)(struct session *, unsigned char *) = NULL;
 	int post = 0;
 	if (!(p = get_protocol_name(url))) return NULL;
-	get_prot_info(p, NULL, NULL, &f, &post);
+	get_prot_info(p, NULL, NULL, &f, &post, NULL);
 	mem_free(p);
 	if (!post && strchr(url, POST_CHAR)) return NULL;
 	return f;
+}
+
+int url_bypasses_socks(unsigned char *url)
+{
+	int ret;
+	unsigned char *p;
+	if (!(p = get_protocol_name(url))) return 1;
+	get_prot_info(p, NULL, NULL, NULL, NULL, &ret);
+	mem_free(p);
+	return ret;
 }
 
 unsigned char *get_url_data(unsigned char *url)
@@ -431,6 +445,9 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	ch = url + strcspn(url, ".:/@");
 	prefix = "file://";
 	sl = 0;
+#ifdef SPAD
+	if (strchr(url, ':') && _is_local(url)) goto set_prefix;
+#endif
 	if (*ch != ':' || *(url + strcspn(url, "/@")) == '@') {
 		if (*url != '.' && *ch == '.') {
 			unsigned char *f, *e;
@@ -464,9 +481,6 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	sl = 1;
 #ifdef DOS_FS
 	if (ch == url + 1) goto set_prefix;
-#endif
-#ifdef SPAD
-	if (_is_local(url)) goto set_prefix;
 #endif
 	if (!(nu = memacpy(url, ch - url + 1))) return NULL;
 	add_to_strn(&nu, "//");

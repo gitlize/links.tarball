@@ -28,9 +28,9 @@
 #ifndef _LINKS_H
 #define _LINKS_H
 
-#define LINKS_COPYRIGHT "(C) 1999 - 2007 Mikulas Patocka\n(C) 2000 - 2007 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2007 Mikulás Patocka\n(C) 2000 - 2007 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2007 Mikulá¹ Patoèka\n(C) 2000 - 2007 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT "(C) 1999 - 2008 Mikulas Patocka\n(C) 2000 - 2008 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2008 Mikulás Patocka\n(C) 2000 - 2008 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2008 Mikulá¹ Patoèka\n(C) 2000 - 2008 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -259,6 +259,8 @@ extern int F;
 #define gf_val(x, y) (F ? (y) : (x))
 #define GF(x) if (F) {x;}
 #endif
+
+#define MAX_STR_LEN	1024
 
 #define BIN_SEARCH(entries, eq, ab, key, result)			\
 {									\
@@ -1005,6 +1007,7 @@ struct connection {
 	struct list_head statuss;
 	void *info;
 	void *buffer;
+	struct conn_info *newconn;
 	void (*conn_func)(void *);
 	struct cache_entry *cache;
 	off_t received;
@@ -1013,6 +1016,7 @@ struct connection {
 	struct remaining_info prg;
 	int timer;
 	int detached;
+	unsigned char socks_proxy[MAX_STR_LEN];
 #ifdef HAVE_SSL
 	SSL *ssl;
 	int no_tsl;
@@ -1053,12 +1057,13 @@ static inline int getpri(struct connection *c)
 #define S_WAIT		0
 #define S_DNS		1
 #define S_CONN		2
-#define S_SSL_NEG	3
-#define S_SENT		4
-#define S_LOGIN		5
-#define S_GETH		6
-#define S_PROC		7
-#define S_TRANS		8
+#define S_SOCKS_NEG	3
+#define S_SSL_NEG	4
+#define S_SENT		5
+#define S_LOGIN		6
+#define S_GETH		7
+#define S_PROC		8
+#define S_TRANS		9
 
 #define S_WAIT_REDIR		-999
 #define S_OK			-1000
@@ -1096,7 +1101,14 @@ static inline int getpri(struct connection *c)
 #define S_SSL_ERROR		-1400
 #define S_NO_SSL		-1401
 
-#define S_NO_SMB_CLIENT		-1500
+#define S_BAD_SOCKS_VERSION	-1500
+#define S_SOCKS_REJECTED	-1501
+#define S_SOCKS_NO_IDENTD	-1502
+#define S_SOCKS_BAD_USERID	-1503
+#define S_SOCKS_UNKNOWN_ERROR	-1504
+
+#define S_NO_SMB_CLIENT		-1600
+
 
 extern struct s_msg_dsc {
 	int n;
@@ -1133,6 +1145,7 @@ void change_connection(struct status *, struct status *, int);
 void detach_connection(struct status *, off_t);
 void abort_all_connections(void);
 void abort_background_connections(void);
+void abort_all_keepalive_connections(void);
 int is_entry_used(struct cache_entry *);
 void connection_timeout(struct connection *);
 void set_timeout(struct connection *);
@@ -1168,6 +1181,7 @@ int get_port(unsigned char *);
 unsigned char *get_port_str(unsigned char *);
 void (*get_protocol_handle(unsigned char *))(struct connection *);
 void (*get_external_protocol_function(unsigned char *))(struct session *, unsigned char *);
+int url_bypasses_socks(unsigned char *);
 unsigned char *get_url_data(unsigned char *);
 unsigned char *join_urls(unsigned char *, unsigned char *);
 unsigned char *translate_url(unsigned char *, unsigned char *);
@@ -4129,8 +4143,6 @@ void table_bg(struct text_attrib *ta, char bgstr[8]);
 
 /* default.c */
 
-#define MAX_STR_LEN	1024
-
 extern int ggr;
 extern unsigned char ggr_drv[MAX_STR_LEN];
 extern unsigned char ggr_mode[MAX_STR_LEN];
@@ -4213,9 +4225,15 @@ extern struct rgb default_vlink_g;
 #define REFERER_REAL			3
 #define REFERER_REAL_SAME_SERVER	4
 
-extern unsigned char http_proxy[];
-extern unsigned char ftp_proxy[];
-extern int only_proxies;
+struct proxies {
+	unsigned char http_proxy[MAX_STR_LEN];
+	unsigned char ftp_proxy[MAX_STR_LEN];
+	unsigned char socks_proxy[MAX_STR_LEN];
+	int only_proxies;
+};
+
+extern struct proxies proxies;
+
 #ifdef JS
 extern int js_enable;
 extern int js_verbose_errors;

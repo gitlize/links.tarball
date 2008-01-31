@@ -392,8 +392,8 @@ void g_area_draw(struct f_data_c *fd, struct g_object_area *a, int xx, int yy)
 	struct g_object **l1;
 	struct g_object **l2;
 	if (fd->ses->term->dev->clip.y1 == fd->ses->term->dev->clip.y2 || fd->ses->term->dev->clip.x1 == fd->ses->term->dev->clip.x2) return;
-	l1 = g_find_line((struct g_object **)&a->lines, a->n_lines, y1);
-	l2 = g_find_line((struct g_object **)&a->lines, a->n_lines, y2);
+	l1 = g_find_line((struct g_object **)(void *)&a->lines, a->n_lines, y1);
+	l2 = g_find_line((struct g_object **)(void *)&a->lines, a->n_lines, y2);
 	root_x = xx, root_y = yy;
 	if (!l1) {
 		if (y1 > a->yw) return;

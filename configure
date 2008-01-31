@@ -726,7 +726,7 @@ fi
 
 PACKAGE=links
 
-VERSION=2.1pre32
+VERSION=2.1pre33
 
 if test "`cd $srcdir && pwd`" != "`pwd`" && test -f $srcdir/config.status; then
   { echo "configure: error: source directory already configured; run "make distclean" there first" 1>&2; exit 1; }
@@ -1314,7 +1314,7 @@ rm -f conftest*
 fi
 
 echo "$ac_t""$ac_cv_have_emx" 1>&6
-test "$ac_cv_have_emx" = yes && LDFLAGS=`echo "$LDFLAGS" | sed "s/-Zexe//g" | sed "s/-Zbin-files//g"`
+test "$ac_cv_have_emx" = yes && LDFLAGS="`echo "$LDFLAGS" | sed "s/-Zexe//g" | sed "s/-Zbin-files//g"` -Zcrtdll"
 
 echo $ac_n "checking for typeof""... $ac_c" 1>&6
 echo "configure:1321: checking for typeof" >&5
@@ -7471,7 +7471,6 @@ else
 fi
 
 test "$ac_cv_have_emx" = yes && LDFLAGS="$LDFLAGS -Zexe"
-test "$ac_cv_have_emx" = yes && LDFLAGS=`echo "$LDFLAGS" | sed "s/-Zbin-files//g"`
 
 trap '' 1 2 15
 cat > confcache <<\EOF

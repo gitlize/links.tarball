@@ -661,8 +661,8 @@ void t_kbd(struct graphics_device *dev, int key, int flags)
 	} else {
 		drv->set_clip_area(dev, &r);
 		if (list_empty(term->windows)) return;
-		if (ev.x == KBD_CTRL_C || ev.x == KBD_CLOSE) ((struct window *)&term->windows)->prev->handler(term->windows.prev, &ev, 0);
-		else ((struct window *)&term->windows)->next->handler(term->windows.next, &ev, 0);
+		if (ev.x == KBD_CTRL_C || ev.x == KBD_CLOSE) ((struct window *)(void *)&term->windows)->prev->handler(term->windows.prev, &ev, 0);
+		else ((struct window *)(void *)&term->windows)->next->handler(term->windows.next, &ev, 0);
 	}
 }
 
@@ -675,7 +675,7 @@ void t_mouse(struct graphics_device *dev, int x, int y, int b)
 	ev.x = x, ev.y = y, ev.b = b;
 	drv->set_clip_area(dev, &r);
 	if (list_empty(term->windows)) return;
-	((struct window *)&term->windows)->next->handler(term->windows.next, &ev, 0);
+	((struct window *)(void *)&term->windows)->next->handler(term->windows.next, &ev, 0);
 }
 
 #endif

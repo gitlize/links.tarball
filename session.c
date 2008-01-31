@@ -887,7 +887,11 @@ unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
 	add_to_str(&name, &nl, nm);
 	free(nm);
 	fn = get_filename_from_url(url, head, 1);
+#ifndef OS2
 	fnx = strchr(fn, '.');
+#else
+	fnx = strrchr(fn, '.');
+#endif
 	if (fnx) {
 		unsigned char *s;
 #ifdef OS2
@@ -1540,7 +1544,7 @@ int plain_type(struct session *ses, struct object_request *rq, unsigned char **p
 	if (!(ct = get_content_type(ce->head, ce->url))) goto f;
 	if (is_html_type(ct)) goto ff;
 	r = 1;
-	if (!strcasecmp(ct, "text/plain")) goto ff;
+	if (!strcasecmp(ct, "text/plain") || !strcasecmp(ct, "file/txt")) goto ff;
 	r = 2;
 	if (F && known_image_type(ct)) goto ff;
 	r = -1;
@@ -1563,6 +1567,7 @@ static void decompress_error(struct terminal *term, struct cache_entry *ce, unsi
 		mem_free(u);
 		if ((server = get_host_name(ce->url))) {
 			add_blacklist_entry(server, BL_NO_COMPRESSION);
+			mem_free(server);
 		}
 	}
 	if (!term) return;
@@ -2573,6 +2578,10 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	if (ses->defered_url && defer && any_running_scripts(ses->screen)) return;
 	ses_destroy_defered_jump(ses);
 	if ((fn = get_external_protocol_function(url))) {
+		if (proxies.only_proxies && url_bypasses_socks(url)) {
+			msg_box(ses->term, NULL, TEXT(T_ERROR), AL_CENTER, TEXT(T_NO_PROXY), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+			return;
+		}
 		fn(ses, url);
 		return;
 	}
