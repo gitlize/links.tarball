@@ -220,6 +220,33 @@ static inline void X_FLUSH(void)
 	}
 }
 
+static void x_process_events(void *data);
+
+static int (*old_error_handler)(Display *, XErrorEvent *) = NULL;
+static int failure_happened;
+
+static int failure_handler(Display *d, XErrorEvent *e)
+{
+	failure_happened = 1;
+	return 0;
+}
+
+static void x_prepare_for_failure(void)
+{
+	if (old_error_handler)
+		internal("x_prepare_for_failure: double call");
+	failure_happened = 0;
+	old_error_handler = XSetErrorHandler(failure_handler);
+}
+
+static int x_test_for_failure(void)
+{
+	XSync(x_display, 0);
+	register_bottom_half(x_process_events, NULL);
+	XSetErrorHandler(old_error_handler);
+	old_error_handler = NULL;
+	return failure_happened;
+}
 
 /* suppose l<h */
 static void x_clip_number(int *n,int l,int h)
@@ -1634,21 +1661,42 @@ static void x_set_clip_area(struct graphics_device *dev, struct rect *r)
 
 static void x_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x, int y)
 {
+	int bmp_off_x, bmp_off_y, bmp_size_x, bmp_size_y;
 #ifdef X_DEBUG
 	MESSAGE("x_draw_bitmap\n");
 #endif
 	if (!bmp||!(bmp->flags)||!bmp->x||!bmp->y) return;
 	if ((x>=dev->clip.x2)||(y>=dev->clip.y2)) return;
 	if ((x+(bmp->x)<=dev->clip.x1)||(y+(bmp->y)<=dev->clip.y1)) return;
+	bmp_off_x = 0;
+	bmp_off_y = 0;
+	bmp_size_x = bmp->x;
+	bmp_size_y = bmp->y;
+	if (x < dev->clip.x1) {
+		bmp_off_x = dev->clip.x1 - x;
+		bmp_size_x -= dev->clip.x1 - x;
+		x = dev->clip.x1;
+	}
+	if (x + bmp_size_x > dev->clip.x2) {
+		bmp_size_x = dev->clip.x2 - x;
+	}
+	if (y < dev->clip.y1) {
+		bmp_off_y = dev->clip.y1 - y;
+		bmp_size_y -= dev->clip.y1 - y;
+		y = dev->clip.y1;
+	}
+	if (y + bmp_size_y > dev->clip.y2) {
+		bmp_size_y = dev->clip.y2 - y;
+	}
 
 	switch(XPIXMAPP(bmp->flags)->type)
 	{
 		case X_TYPE_PIXMAP:
-		XCopyArea(x_display,*(XPIXMAPP(bmp->flags)->data.pixmap),*((Window*)(dev->driver_data)),x_drawbitmap_gc,0,0,bmp->x,bmp->y,x,y);
+		XCopyArea(x_display,*(XPIXMAPP(bmp->flags)->data.pixmap),*((Window*)(dev->driver_data)),x_drawbitmap_gc,bmp_off_x,bmp_off_y,bmp_size_x,bmp_size_y,x,y);
 		break;
 
 		case X_TYPE_IMAGE:
-		XPutImage(x_display,*((Window *)(dev->driver_data)),x_drawbitmap_gc,XPIXMAPP(bmp->flags)->data.image,0,0,x,y,bmp->x,bmp->y);
+		XPutImage(x_display,*((Window *)(dev->driver_data)),x_drawbitmap_gc,XPIXMAPP(bmp->flags)->data.image,bmp_off_x,bmp_off_y,x,y,bmp_size_x,bmp_size_y);
 		break;
 	}
 	X_FLUSH();
@@ -1696,8 +1744,17 @@ static void x_register_bitmap(struct bitmap *bmp)
 
 	/* try to alloc XPixmap in server's memory */
 	can_create_pixmap=1;
+	x_prepare_for_failure();
 	pixmap=mem_alloc(sizeof(Pixmap));
 	(*pixmap)=XCreatePixmap(x_display,fake_window,bmp->x,bmp->y,x_depth);
+	if (x_test_for_failure()) {
+		if (*pixmap) {
+			x_prepare_for_failure();
+			XFreePixmap(x_display,*pixmap);
+			x_test_for_failure();
+			*pixmap=0;
+		}
+	}
 	if (!(*pixmap)){mem_free(pixmap);can_create_pixmap=0;}
 
 
@@ -1948,7 +2005,6 @@ void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 {
 	struct conv_table *ct = get_translation_table(utf8_table,x_input_encoding >= 0?x_input_encoding:0);
 	unsigned char *t;
-	XClassHint class_hints;
 	XTextProperty windowName;
 
 	if (!gd)internal("x_set_window_title called with NULL graphics_device pointer.\n");
@@ -1956,9 +2012,6 @@ void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 	clr_white(t);
 	XStoreName(x_display,*(Window*)(gd->driver_data),t);
 
-	class_hints.res_name = t;
-	class_hints.res_class = t;
-	XSetClassHint(x_display, *(Window*)(gd->driver_data), &class_hints);
 	XStringListToTextProperty((char**)(void *)(&t), 1, &windowName);
 	XSetWMName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSetWMIconName(x_display, *(Window*)(gd->driver_data), &windowName);

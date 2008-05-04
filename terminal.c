@@ -979,6 +979,7 @@ void set_line(struct terminal *t, int x, int y, int l, chr *line)
 	int i;
 	NO_GFX;
 	t->dirty = 1;
+	if (y < 0 || y >= t->y) return;
 	for (i = x >= 0 ? 0 : -x; i < (x+l <= t->x ? l : t->x-x); i++)
 		t->screen[x+i + t->x * y] = line[i];
 }
@@ -988,6 +989,7 @@ void set_line_color(struct terminal *t, int x, int y, int l, unsigned c)
 	int i;
 	NO_GFX;
 	t->dirty = 1;
+	if (y < 0 || y >= t->y) return;
 	for (i = x >= 0 ? 0 : -x; i < (x+l <= t->x ? l : t->x-x); i++)
 		t->screen[x+i + t->x * y] = (t->screen[x+i + t->x * y] & 0x80ff) | (c & ~0x80ff);
 }

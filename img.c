@@ -893,6 +893,7 @@ int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 	if (!goi->af->rq) return 0;
 	if (!goi->af->rq->ce) goto end;
 	if (goi->af->rq->ce->count2!=cimg->last_count2||
+		(cimg->last_length != goi->af->rq->ce->length && cimg->state & 1) ||
 		(cimg->state>=12&&gamma_stamp!=cimg->gamma_stamp)){
 		/* Reload */
 		r3l0ad(cimg,goi);
@@ -958,9 +959,7 @@ img_process_download.\n");
 	end:
 	
 	/* Test end */
-	if (!is_entry_used(goi->af->rq->ce) && (goi->af->rq->state==O_FAILED
-		||goi->af->rq->state==O_OK
-		||goi->af->rq->state==O_INCOMPLETE
+	if (!is_entry_used(goi->af->rq->ce) && (goi->af->rq->state < 0
 		||(goi->af->rq->ce&&goi->af->rq->stat.state<0))){
 		/* We must not perform end with chopped because some
 		 * unprocessed data still wait for us :)

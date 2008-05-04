@@ -97,7 +97,7 @@ void menu_labels(struct menu_item *, unsigned char *, unsigned char **);
 
 static inline int atchr(unsigned char c)
 {
-	return /*isA(c) ||*/ (c > ' ' && c != '=' && c != '<' && c != '>');
+	return /*isA(c) ||*/ (c > ' ' && c != '=' && c != '<' && c != '>' && c != '\\');
 }
 
 /* accepts one html element */
@@ -112,7 +112,10 @@ int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, in
 {
 	if (eof - e < 3 || *(e++) != '<') return -1;
 	if (name) *name = e;
-	if (*e == '/') e++;
+	if (*e == '/') {
+		e++;
+		if (*e == '>' || *e == '<') goto xx;
+	}
 	if (!isA(*e)) return -1;
 	goto x1;
 	while (isA(*e) || *e == '=') {
@@ -120,7 +123,7 @@ int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, in
 		e++;
 		if (e >= eof) return -1;
 	}
-	/*if ((!WHITECHAR(*e) && *e != '>' && *e != '<' && *e != '/' && *e != ':')) return -1;*/
+	xx:
 	if (name && namelen) *namelen = e - *name;
 	while ((WHITECHAR(*e) || *e == '/' || *e == ':')) {
 		e++;
@@ -1677,7 +1680,11 @@ void html_input(unsigned char *a)
 	if ((fc->maxlength = get_num(a, "maxlength")) == -1) fc->maxlength = MAXINT / 4;
 	if (fc->type == FC_CHECKBOX || fc->type == FC_RADIO) fc->default_state = has_attr(a, "checked");
 	fc->ro = has_attr(a, "disabled") ? 2 : has_attr(a, "readonly") ? 1 : 0;
-	if (fc->type == FC_IMAGE) fc->alt = get_attr_val(a, "alt");
+	if (fc->type == FC_IMAGE) {
+		fc->alt = get_attr_val(a, "alt");
+		if (!fc->alt) fc->alt = get_attr_val(a, "title");
+		if (!fc->alt) fc->alt = get_attr_val(a, "name");
+	}
 	if (fc->type == FC_SUBMIT && !fc->default_value) fc->default_value = stracpy("Submit");
 	if (fc->type == FC_RESET && !fc->default_value) fc->default_value = stracpy("Reset");
 	if (!fc->default_value) fc->default_value = stracpy("");
@@ -2436,6 +2443,7 @@ void html_link(unsigned char *a)
 	    !strcasecmp(name, "meta") ||
 	    !strcasecmp(name, "pingback") ||
 	    !strcasecmp(name, "File-List") ||
+	    !strcasecmp(name, "Edit-Time-Data") ||
 	    !casecmp(name, "schema", 6)) goto skip;
 	if ((title = get_attr_val(a, "title"))) {
 		add_to_strn(&name, ": ");
@@ -2588,7 +2596,7 @@ int qd(unsigned char *html, unsigned char *eof, int *len)
 		internal("qd: out of data, html == %p, eof == %p", html, eof);
 		return -1;
 	}
-	if (html[0] != '&') return html[0];
+	if (html[0] != '&' || d_opt->plain & 1) return html[0];
 	if (html + 1 >= eof) return -1;
 	if (html[1] != '#') return -1;
 	for (l = 2; l < 10 && html + l < eof; l++) if (html[l] == ';') {

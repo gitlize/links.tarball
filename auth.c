@@ -64,12 +64,15 @@ unsigned char *basic_encode(unsigned char *user, unsigned char *password)
 
 unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy)
 {
-	unsigned char *h = parse_http_header(head, !proxy ? "WWW-Authenticate" : "Proxy-Authenticate", NULL);
-	unsigned char *q;
-	unsigned char *r;
+	unsigned char *ch = head;
+	unsigned char *h, *q, *r;
 	int l;
+	int unknown = 0;
+	int known = 0;
+	try_next:
+	h = parse_http_header(ch, !proxy ? "WWW-Authenticate" : "Proxy-Authenticate", &ch);
 	if (!h) {
-		xxx:
+		if (unknown && !known) return NULL;
 		if (proxy) return stracpy(proxies.http_proxy);
 		h = get_host_name(url);
 		if (h) return h;
@@ -77,12 +80,14 @@ unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy
 	}
 	if (casecmp(h, "Basic", 5)) {
 		mem_free(h);
-		return NULL;
+		unknown = 1;
+		goto try_next;
 	}
+	known = 1;
 	q = strchr(h, '"');
 	if (!q) {
 		mem_free(h);
-		goto xxx;
+		goto try_next;
 	}
 	q++;
 	r = init_str();

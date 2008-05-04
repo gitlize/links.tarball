@@ -702,6 +702,7 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 		hps_mem = GpiCreatePS(hab, hdc_mem, &sizl, GPIA_ASSOC | PU_PELS | GPIT_MICRO);
 	}
 	set_handlers(pm_pipe[0], pm_handler, NULL, pm_pipe_error, NULL);
+
 	return NULL;
 	r4:
 	close(pm_pipe[0]);
@@ -811,6 +812,11 @@ static int pm_get_filled_bitmap(struct bitmap *bmp, long color)
 static int pm_get_empty_bitmap(struct bitmap *bmp)
 {
 	debug_call(("get_empty_bitmap (%dx%d)\n", bmp->x, bmp->y));
+	if (bmp->x > 65535 || bmp->y > 65535) {
+		error("too big bitmap: %dx%d", bmp->x, bmp->y);
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
 	if ((unsigned)bmp->x > MAXINT / (pmshell_driver.depth & 7) - 4) overalloc();
 	bmp->skip = -((bmp->x * (pmshell_driver.depth & 7) + 3) & ~3);
 	if (-bmp->skip && (unsigned)-bmp->skip * (unsigned)bmp->y / (unsigned)-bmp->skip != (unsigned)bmp->y) overalloc();
@@ -867,6 +873,8 @@ static void pm_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int 
 	debug_call(("draw_bitmap (%dx%d -> %x,%x)\n", bmp->x, bmp->y, x, y));
 	p.x = x;
 	p.y = pm_win(dev)->y - y - bmp->y;
+	if (p.x < -65535 + pm_win(dev)->x || p.x + bmp->x > 65535) return;
+	if (p.y < -65535 + pm_win(dev)->y || p.y + bmp->y > 65535) return;
 	WinDrawBitmap(pm_win(dev)->ps, (HBITMAP)bmp->flags, NULL, &p, 0, 1, DBM_NORMAL);
 	debug_call(("done\n"));
 }
@@ -894,6 +902,14 @@ static void pm_fill_area(struct graphics_device *dev, int x1, int y1, int x2, in
 {
 	RECTL r;
 	debug_call(("fill_area (%d,%d)->(%d,%d)\n", x1, y1, x2, y2));
+	if (x1 >= pm_win(dev)->x) x1 = pm_win(dev)->x;
+	if (x1 < 0) x1 = 0;
+	if (x2 >= pm_win(dev)->x) x2 = pm_win(dev)->x;
+	if (x2 < 0) x2 = 0;
+	if (y1 >= pm_win(dev)->y) y1 = pm_win(dev)->y;
+	if (y1 < 0) y1 = 0;
+	if (y2 >= pm_win(dev)->y) y2 = pm_win(dev)->y;
+	if (y2 < 0) y2 = 0;
 	r.xLeft = x1;
 	r.yBottom = pm_win(dev)->y - y2;
 	r.xRight = x2;
@@ -911,6 +927,12 @@ static void pm_draw_hline(struct graphics_device *dev, int x1, int y, int x2, lo
 		debug_call(("done\n"));
 		return;
 	}
+	if (x1 >= pm_win(dev)->x) x1 = pm_win(dev)->x;
+	if (x1 < 0) x1 = 0;
+	if (x2 >= pm_win(dev)->x) x2 = pm_win(dev)->x;
+	if (x2 < 0) x2 = 0;
+	if (y >= pm_win(dev)->y) y = pm_win(dev)->y;
+	if (y < 0) y = 0;
 	GpiSetColor(ps, color);
 	p.x = x1;
 	p.y = pm_win(dev)->y - y - 1;
@@ -929,6 +951,12 @@ static void pm_draw_vline(struct graphics_device *dev, int x, int y1, int y2, lo
 		debug_call(("done\n"));
 		return;
 	}
+	if (x >= pm_win(dev)->x) x = pm_win(dev)->x;
+	if (x < 0) x = 0;
+	if (y1 >= pm_win(dev)->y) y1 = pm_win(dev)->y;
+	if (y1 < 0) y1 = 0;
+	if (y2 >= pm_win(dev)->y) y2 = pm_win(dev)->y;
+	if (y2 < 0) y2 = 0;
 	GpiSetColor(ps, color);
 	p.x = x;
 	p.y = pm_win(dev)->y - y1 - 1;

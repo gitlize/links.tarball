@@ -1292,6 +1292,7 @@ U+200e:(->)
 U+200f:(<-)
 U+200a:
 0x2d	U+2010	U+2013-U+2015	# hyphen-like
+0x2d	U+2011
 U+2016:||
 U+2017:=2
 0x60	U+2018		# left single quotation mark  <`>

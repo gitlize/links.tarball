@@ -903,7 +903,7 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 		unsigned char *s;
 		if ((s = strchr(ct, ';'))) *s = 0;
 		while (*ct && ct[strlen(ct) - 1] <= ' ') ct[strlen(ct) - 1] = 0;
-		if (!strcasecmp(ct, "text/plain") || !strcasecmp(ct, "application/octet-stream")) {
+		if (!strcasecmp(ct, "text/plain") || !strcasecmp(ct, "application/octet-stream") || !strcasecmp(ct, "application/octetstream")) {
 			unsigned char *ctt = get_content_type_by_extension(url);
 			if (ctt) {
 				mem_free(ct);
@@ -1037,7 +1037,10 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 	if ((ct = parse_http_header(head, "Content-Disposition", NULL))) {
 		x = parse_header_param(ct, "filename");
 		mem_free(ct);
-		if (x) return x;
+		if (x) {
+			if (*x) return x;
+			mem_free(x);
+		}
 	}
 	if (!(u = get_url_data(url))) u = url;
 	for (e = s = u; *e && !end_of_dir(url, *e); e++) {

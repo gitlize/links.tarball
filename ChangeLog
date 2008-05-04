@@ -1,5 +1,50 @@
 === RELEASE 2.1pre34 ===
 
+Sun May  4 21:18:15 MET 2008 mikulas:
+
+	Allow displaying large images in xwindow (that do not fit into xserver
+	memory)
+
+Sun May  4 20:13:21 MET 2008 mikulas:
+
+	Fixed image was sometimes not redrawn, when connection was interrupted
+	in the middle and resumed
+
+Sun May  4 17:52:29 MET 2008 Ben Secrest <blsecres@gmail.com>:
+
+	Don't change Xwindow class
+
+Wed Apr 16 03:10:02 cet 2008 Didier Mequignon <didiermequignon@wanadoo.fr>:
+
+	Updated French translation
+
+Wed Mar 26 20:50:32 MET 2008 mikulas:
+
+	Fixed crash in text mode with small window height and bookmarks
+
+Sat Mar 22 22:01:15 MET 2008 mikulas:
+
+	Accept </> as an empty tag
+
+Thu Mar 20 22:47:09 CET 2008 mikulas:
+
+	Accept alternate description attributes for image buttons
+
+Thu Mar 20 04:36:45 MET 2008 mikulas:
+
+	Fixed the bug that when displaying source, some html entities were
+	errorneously translated
+
+Thu Mar 20 04:30:52 MET 2008 mikulas:
+
+	Added fallback for &#8209; entity
+
+Thu Mar 13 22:43:48 CET 2008 mikulas:
+
+	Allow multiple WWW-Authenticate headers
+
+=== RELEASE 2.1pre33 ===
+
 Thu Jan 31 21:11:40 MET 2008 mikulas:
 
 	Fixed memory leak when there was an error in decompression
@@ -13,8 +58,6 @@ Wed Dec 26 03:43:35 cet 2007 mikulas:
 
 	Disable smb:// URLs on OS/2, fork+threads can cause crashes in EMX
 	Besides, there's no usable smb client program anyway
-
-=== RELEASE 2.1pre33 ===
 
 Tue Dec 25 01:44:28 MET 2007 mikulas (sponsored by Dondor Ltd.):
 
