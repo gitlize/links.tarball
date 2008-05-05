@@ -2596,6 +2596,7 @@ struct cached_image {
 	int last_length; /* length of cache entry at which last decoding was
 			  * done. Makes sense only if reparse==0
 			  */
+	tcount last_count; /* Always valid. */
 	tcount last_count2; /* Always valid. */
 	void *decoder; 	      /* Decoder unfinished work. If NULL, decoder
 			       * has finished or has not yet started.
@@ -2606,6 +2607,7 @@ struct cached_image {
 				1 strip-optimized (no buffer allocated permanently
 				and bitmap is always allocated)
 			      */
+	unsigned char eof_hit;
 	int *dregs; /* Only for stip-optimized cached images */
 	unsigned short *gamma_table; /* When suitable and source is 8 bits per pixel,
 			              * this is allocated to 256*3*sizeof(*gamma_table)

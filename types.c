@@ -812,6 +812,7 @@ unsigned char *get_content_type_by_extension(unsigned char *url)
 	for (; *ct && !end_of_dir(url, *ct); ct++)
 		if (*ct == '.') {
 			if (ext) {
+				if (!casecmp(ct, ".z", 3) && (!ct[2] || end_of_dir(url, ct[2]))) break;
 				if (!casecmp(ct, ".gz", 3) && (!ct[3] || end_of_dir(url, ct[3]))) break;
 				if (!casecmp(ct, ".bz2", 4) && (!ct[4] || end_of_dir(url, ct[4]))) break;
 			}
@@ -885,7 +886,8 @@ unsigned char *get_extension_by_content_type(unsigned char *ct)
 		return stracpy("tiff");
 	if (!cmpbeg(ct, "application/x-")) {
 		x = stracpy(ct + strlen("application/x-"));
-		if (strcasecmp(x, "gz") &&
+		if (strcasecmp(x, "z") &&
+		    strcasecmp(x, "gz") &&
 		    strcasecmp(x, "gzip") &&
 		    strcasecmp(x, "bz2") &&
 		    strcasecmp(x, "bzip2")) {
@@ -1048,6 +1050,8 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 	}
 	f = memacpy(s, e - s);
 	want_ext = stracpy("");
+	if (!(ct = parse_http_header(head, "Content-Type", NULL))) goto no_ct;
+	mem_free(ct);
 	ct = get_content_type(head, url);
 	if (ct) {
 		x = get_extension_by_content_type(ct);
@@ -1058,6 +1062,7 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 		}
 		mem_free(ct);
 	}
+	no_ct:
 	if (!tmp) {
 		ct = get_content_encoding(head, url);
 		if (ct) {

@@ -1,3 +1,9 @@
+=== RELEASE 2.1pre35 ===
+
+Mon May  5 20:06:19 MET 2008 mikulas:
+
+	The fix from Sun May 4 20:13:21 MET 2008 broke loading of animated gifs
+
 === RELEASE 2.1pre34 ===
 
 Sun May  4 21:18:15 MET 2008 mikulas:

@@ -740,6 +740,8 @@ void img_end(struct cached_image *cimg)
 
 void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
 {
+	cimg->eof_hit=0;
+	cimg->last_count=goi->af->rq->ce->count;
 	cimg->last_count2=goi->af->rq->ce->count2;
 	cimg->gamma_stamp=gamma_stamp;
 	switch(cimg->state){
@@ -893,7 +895,7 @@ int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 	if (!goi->af->rq) return 0;
 	if (!goi->af->rq->ce) goto end;
 	if (goi->af->rq->ce->count2!=cimg->last_count2||
-		(cimg->last_length != goi->af->rq->ce->length && cimg->state & 1) ||
+		(goi->af->rq->ce->count!=cimg->last_count && cimg->eof_hit) ||
 		(cimg->state>=12&&gamma_stamp!=cimg->gamma_stamp)){
 		/* Reload */
 		r3l0ad(cimg,goi);
@@ -969,6 +971,8 @@ img_process_download.\n");
 			if (!((cimg->state^8)&9)&&cimg->image_type==IM_TIFF)
 				tiff_finish(cimg);
 #endif
+			cimg->eof_hit=1;
+			cimg->last_count=goi->af->rq->ce->count;
 			img_end(cimg);
 		}
 	} else if (!chopped) {
@@ -1208,6 +1212,8 @@ find_or_make_cached_image");
 		 */
 
 		/* last_count2 is unitialized */
+		cimg->eof_hit=0;
+		cimg->last_count=-1;
 		cimg->last_count2=-1;
 		if (cimg->wanted_xw>=0&&cimg->wanted_yw>=0) cimg->state|=2;
 		add_image_to_cache(cimg);
