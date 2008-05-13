@@ -972,7 +972,8 @@ img_process_download.\n");
 				tiff_finish(cimg);
 #endif
 			cimg->eof_hit=1;
-			cimg->last_count=goi->af->rq->ce->count;
+			if (goi->af->rq->ce)
+				cimg->last_count=goi->af->rq->ce->count;
 			img_end(cimg);
 		}
 	} else if (!chopped) {

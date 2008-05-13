@@ -111,6 +111,7 @@ struct {
 	{ "Apache Coyote", BL_HTTP10 },
 	{ "lighttpd", BL_HTTP10 },
 	{ "FORPSI", BL_NO_RANGE },
+	{ "Sausalito", BL_HTTP10 },
 	{ NULL, 0 }
 };
 

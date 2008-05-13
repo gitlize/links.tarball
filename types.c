@@ -26,6 +26,7 @@ void ext_edit_abort(struct dialog_data *);
 int is_in_list(unsigned char *, unsigned char *, int);
 unsigned char *get_content_type_by_extension(unsigned char *url);
 unsigned char *get_extension_by_content_type(unsigned char *ct);
+unsigned char *get_filename_from_header(unsigned char *head);
 
 
 struct list assoc={&assoc,&assoc,0,-1,NULL};
@@ -937,10 +938,19 @@ unsigned char *get_content_encoding(unsigned char *head, unsigned char *url)
 	}
 	if (!get_http_code(head, &code, NULL) && code >= 300) return NULL;
 	if (!(ext = get_url_data(url))) ext = url;
-	for (u = ext; *u; u++) if (end_of_dir(url, *u)) return NULL;
+	for (u = ext; *u; u++) if (end_of_dir(url, *u)) goto skip_ext;
 	l = strlen(ext);
 	if (l >= 3 && !strcasecmp(ext + l - 3, ".gz")) return stracpy("gzip");
 	if (l >= 4 && !strcasecmp(ext + l - 4, ".bz2")) return stracpy("bzip2");
+	skip_ext:
+	if ((ext = get_filename_from_header(head))) {
+		ce = NULL;
+		l = strlen(ext);
+		if (l >= 3 && !strcasecmp(ext + l - 3, ".gz")) ce = "gzip";
+		if (l >= 4 && !strcasecmp(ext + l - 4, ".bz2")) ce = "bzip2";
+		mem_free(ext);
+		if (ce) return stracpy(ce);
+	}
 	return NULL;
 }
 
@@ -1032,10 +1042,9 @@ int is_html_type(unsigned char *ct)
 	return !strcasecmp(ct, "text/html") || !strcasecmp(ct, "text/x-server-parsed-html") || !casecmp(ct, "application/xhtml", strlen("application/xhtml"));
 }
 
-unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, int tmp)
+unsigned char *get_filename_from_header(unsigned char *head)
 {
-	unsigned char *u, *s, *e, *f, *x;
-	unsigned char *ct, *want_ext;
+	unsigned char *ct, *x;
 	if ((ct = parse_http_header(head, "Content-Disposition", NULL))) {
 		x = parse_header_param(ct, "filename");
 		mem_free(ct);
@@ -1044,6 +1053,23 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 			mem_free(x);
 		}
 	}
+	if ((ct = parse_http_header(head, "Content-Type", NULL))) {
+		x = parse_header_param(ct, "name");
+		mem_free(ct);
+		if (x) {
+			if (*x) return x;
+			mem_free(x);
+		}
+	}
+	return NULL;
+}
+
+unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, int tmp)
+{
+	unsigned char *u, *s, *e, *f, *x;
+	unsigned char *ct, *want_ext;
+	f = get_filename_from_header(head);
+	if (f) return f;
 	if (!(u = get_url_data(url))) u = url;
 	for (e = s = u; *e && !end_of_dir(url, *e); e++) {
 		if (dir_sep(*e)) s = e + 1;
