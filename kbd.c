@@ -451,6 +451,9 @@ int process_queue(struct itrm *);
 void kbd_timeout(struct itrm *itrm)
 {
 	struct event ev = {EV_KBD, KBD_ESC, 0, 0};
+	char code;
+	int num;
+	int len;
 	itrm->tm = -1;
 	if (can_read(itrm->std_in)) {
 		in_kbd(itrm);
@@ -461,7 +464,9 @@ void kbd_timeout(struct itrm *itrm)
 		return;
 	}
 	itrm->queue_event(itrm, (char *)&ev, sizeof(struct event));
-	if (--itrm->qlen) memmove(itrm->kqueue, itrm->kqueue+1, itrm->qlen);
+	if (get_esc_code(itrm->kqueue, itrm->qlen, &code, &num, &len)) len = 1;
+	itrm->qlen -= len;
+	memmove(itrm->kqueue, itrm->kqueue + len, itrm->qlen);
 	while (process_queue(itrm)) ;
 }
 

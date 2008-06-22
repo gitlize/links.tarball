@@ -895,6 +895,7 @@ void set_clipboard_text(struct terminal * term, unsigned char *data)
 				PVOID pvShrObject = NULL;
 				if (DosAllocSharedMem(&pvShrObject, NULL, strlen(data)+1, PAG_COMMIT | PAG_WRITE | OBJ_GIVEABLE) == NO_ERROR) {
 					strcpy(pvShrObject, data);
+					WinEmptyClipbrd(hab);
 					WinSetClipbrdData(hab, (ULONG)pvShrObject, CF_TEXT, CFI_POINTER);
 				}
 				WinCloseClipbrd(hab);

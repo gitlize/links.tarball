@@ -270,6 +270,7 @@ unsigned char *encode_url(unsigned char *url)
 {
 	unsigned char *u = init_str();
 	int l = 0;
+	add_to_str(&u, &l, "+++");
 	for (; *url; url++) {
 		if (is_safe_in_shell(*url) && *url != '+') add_chr_to_str(&u, &l, *url);
 		else add_chr_to_str(&u, &l, '+'), add_chr_to_str(&u, &l, hx(*url >> 4)), add_chr_to_str(&u, &l, hx(*url & 0xf));
@@ -279,8 +280,12 @@ unsigned char *encode_url(unsigned char *url)
 
 unsigned char *decode_url(unsigned char *url)
 {
-	unsigned char *u = init_str();
-	int l = 0;
+	unsigned char *u;
+	int l;
+	if (casecmp(url, "+++", 3)) return stracpy(url);
+	url += 3;
+	u = init_str();
+	l = 0;
 	for (; *url; url++) {
 		if (*url != '+' || unhx(url[1]) == -1 || unhx(url[2]) == -1) add_chr_to_str(&u, &l, *url);
 		else add_chr_to_str(&u, &l, (unhx(url[1]) << 4) + unhx(url[2])), url += 2;

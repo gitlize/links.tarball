@@ -54,7 +54,7 @@ void r3l0ad(struct cached_image *, struct g_object_image *);
 void type(struct cached_image *, unsigned char *);
 int img_process_download(struct g_object_image *, struct f_data_c *);
 int get_foreground(int);
-void draw_frame_mark (struct graphics_driver *, struct graphics_device *, int, int, int, int, int, int, int);
+void draw_frame_mark (struct graphics_driver *, struct graphics_device *, int, int, int, int, long, long, int);
 void update_bitmap(struct cached_image *);
 void img_draw_image (struct f_data_c *, struct g_object_image *, int, int);
 void find_or_make_cached_image(struct g_object_image *, unsigned char *, int);
@@ -1004,7 +1004,7 @@ int get_foreground(int rgb)
 
 void draw_frame_mark (struct graphics_driver *drv, struct 
 	graphics_device *dev, int x, int y, int xw, int yw
-	, int bg, int fg, int broken)
+	, long bg, long fg, int broken)
 {
 #ifdef DEBUG
 	if (xw<1||yw<1) internal("zero dimension in draw_frame_mark");

@@ -96,7 +96,10 @@ int get_http_code(unsigned char *head, int *code, int *version)
 	for (head += 4; *head > ' '; head++) ;
 	if (*head++ != ' ') return -1;
 	if (head[0] < '1' || head [0] > '9' || head[1] < '0' || head[1] > '9' ||
-	    head[2] < '0' || head [2] > '9') return -1;
+	    head[2] < '0' || head [2] > '9') {
+		if (code) *code = 200;
+		return 0;
+	}
 	if (code) *code = (head[0]-'0')*100 + (head[1]-'0')*10 + head[2]-'0';
 	return 0;
 }

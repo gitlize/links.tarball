@@ -1,3 +1,35 @@
+=== RELEASE 2.1pre37 ===
+
+Sun Jun 22 17:07:20 cet 2008 mikulas:
+
+	-dump and -source don't lockup on authentication failure
+
+Sat Jun 21 19:58:53 MET 2008 mikulas
+
+	Accept broken numbers in HTTP code
+
+Sat Jun 21 18:00:54 cet 2008 mikulas:
+
+	Allow '+' in command-line URLs
+
+Thu Jun 12 03:34:53 cet 2008 mikulas:
+
+	Erase clipboard on OS/2 before copying to it - this prevents bugs
+	when copying to/from Mozilla
+
+Mon Jun  9 02:34:24 MET 2008 mikulas:
+
+	Process &#10; and &#9; in form entry "value" attribute
+
+Tue Jun  3 00:22:49 CEST 2008 mikulas:
+
+	Fixed various display glitches with 64-bit big endian systems
+
+Sun May 18 21:47:46 CEST 2008 mikulas:
+
+	Fixed display quirks on Sparc framebuffer console
+	Fixed some quirks on 64-bit big endian systems
+
 === RELEASE 2.1pre36 ===
 
 Tue May 13 04:04:47 MET 2008 mikulas:

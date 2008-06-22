@@ -308,6 +308,18 @@ unsigned char *get_exact_attr_val(unsigned char *e, unsigned char *name)
 	get_attr_val_nl = 2;
 	a = get_attr_val(e, name);
 	get_attr_val_nl = 0;
+	if (a) {
+		unsigned char *x1, *x2;
+		for (x1 = x2 = a; *x1; x1++, x2++) {
+			if (x1[0] == '\r') {
+				*x2 = '\n';
+				if (x1[1] == '\n') x1++;
+			} else {
+				*x2 = *x1;
+			}
+		}
+		*x2 = 0;
+	}
 	return a;
 }
 
@@ -2160,7 +2172,7 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	fc->type = FC_TEXTAREA;;
 	fc->ro = has_attr(attr, "disabled") ? 2 : has_attr(attr, "readonly") ? 1 : 0;
 	fc->default_value = memacpy(html, p - html);
-	if ((cols = get_num(attr, "cols")) <= 0) cols = HTML_DEFAULT_TEXTAREA_WIDTH;
+	if ((cols = get_num(attr, "cols")) <= 5) cols = HTML_DEFAULT_TEXTAREA_WIDTH;
 	cols++;
 	if ((rows = get_num(attr, "rows")) <= 0) rows = HTML_DEFAULT_TEXTAREA_HEIGHT;
 	if (!F) {

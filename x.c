@@ -1111,6 +1111,7 @@ visual_found:;
 		case 451:
 		case 195:
 		case 196:
+		case 378:
 		case 386:
 		case 452:
 		case 708:
@@ -1131,6 +1132,7 @@ visual_found:;
 	}
 	
 	x_get_color_function=get_color_fn(x_driver.depth);
+	if (!x_get_color_function) internal("Unknown bit depth: %d", x_driver.depth);
 
 #ifdef X_DEBUG
 	{

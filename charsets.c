@@ -370,7 +370,7 @@ unsigned char *get_entity_string(unsigned char *st, int l, int encoding)
 	if (st[0] == '#') {
 		if (l == 1) return NULL;
 		if ((n = get_entity_number(st + 1, l - 1)) == -1) return NULL;
-		if (n < 32) n = 32;
+		if (n < 32 && get_attr_val_nl != 2) n = 32;
 	} else {
 		int s = 0, e = N_ENTITIES - 1;
 		while (s <= e) {

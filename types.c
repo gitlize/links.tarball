@@ -886,15 +886,16 @@ unsigned char *get_extension_by_content_type(unsigned char *ct)
 	    !strcasecmp(ct, "image/tif"))
 		return stracpy("tiff");
 	if (!cmpbeg(ct, "application/x-")) {
-		x = stracpy(ct + strlen("application/x-"));
+		x = ct + strlen("application/x-");
 		if (strcasecmp(x, "z") &&
 		    strcasecmp(x, "gz") &&
 		    strcasecmp(x, "gzip") &&
 		    strcasecmp(x, "bz2") &&
-		    strcasecmp(x, "bzip2")) {
-			return x;
+		    strcasecmp(x, "bzip2") &&
+		    !strchr(x, '-') &&
+		    strlen(x) <= 4) {
+			return stracpy(x);
 		}
-		mem_free(x);
 	}
 	return NULL;
 }
@@ -957,6 +958,7 @@ unsigned char *get_content_encoding(unsigned char *head, unsigned char *url)
 unsigned char *encoding_2_extension(unsigned char *encoding)
 {
 	if (!strcasecmp(encoding, "gzip") || !strcasecmp(encoding, "x-gzip")) return "gz";
+	if (!strcasecmp(encoding, "compress") || !strcasecmp(encoding, "x-compress")) return "Z";
 	if (!strcasecmp(encoding, "bzip2")) return "bz2";
 	return NULL;
 }
@@ -1044,12 +1046,12 @@ int is_html_type(unsigned char *ct)
 
 unsigned char *get_filename_from_header(unsigned char *head)
 {
-	unsigned char *ct, *x;
+	unsigned char *ct, *x, *y;
 	if ((ct = parse_http_header(head, "Content-Disposition", NULL))) {
 		x = parse_header_param(ct, "filename");
 		mem_free(ct);
 		if (x) {
-			if (*x) return x;
+			if (*x) goto ret_x;
 			mem_free(x);
 		}
 	}
@@ -1057,25 +1059,32 @@ unsigned char *get_filename_from_header(unsigned char *head)
 		x = parse_header_param(ct, "name");
 		mem_free(ct);
 		if (x) {
-			if (*x) return x;
+			if (*x) goto ret_x;
 			mem_free(x);
 		}
 	}
 	return NULL;
+	ret_x:
+	for (y = x; *y; y++) if (dir_sep(*y)
+#if defined(DOS_FS) || defined(SPAD)
+		|| *y == ':'
+#endif
+		) *y = '-';
+	return x;
 }
 
 unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, int tmp)
 {
 	unsigned char *u, *s, *e, *f, *x;
 	unsigned char *ct, *want_ext;
+	want_ext = stracpy("");
 	f = get_filename_from_header(head);
-	if (f) return f;
+	if (f) goto no_ct;
 	if (!(u = get_url_data(url))) u = url;
 	for (e = s = u; *e && !end_of_dir(url, *e); e++) {
 		if (dir_sep(*e)) s = e + 1;
 	}
 	f = memacpy(s, e - s);
-	want_ext = stracpy("");
 	if (!(ct = parse_http_header(head, "Content-Type", NULL))) goto no_ct;
 	mem_free(ct);
 	ct = get_content_type(head, url);

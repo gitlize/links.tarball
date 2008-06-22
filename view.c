@@ -747,13 +747,20 @@ struct link *get_last_link(struct f_data_c *f)
 
 void fixup_select_state(struct form_control *fc, struct form_state *fs)
 {
+	int inited = 0;
 	int i;
+	retry:
 	if (fs->state >= 0 && fs->state < fc->nvalues && !strcmp(fc->values[fs->state], fs->value)) return;
 	for (i = 0; i < fc->nvalues; i++) {
 		if (!strcmp(fc->values[i], fs->value)) {
 			fs->state = i;
 			return;
 		}
+	}
+	if (!inited) {
+		init_ctrl(fc, fs);
+		inited = 1;
+		goto retry;
 	}
 	fs->state = 0;
 	if (fs->value) mem_free(fs->value);
@@ -803,7 +810,7 @@ struct form_state *find_form_state(struct f_data_c *f, struct form_control *form
 		vs->form_info_len = n + 1;
 		fs = &vs->form_info[n];
 	}
-	if (/*fs->form_num == form->form_num && fs->ctrl_num == form->ctrl_num && fs->g_ctrl_num == form->g_ctrl_num &&*/ /*fs->position == form->position &&*/ fs->type == form->type) return fs;
+	if (fs->form_num == form->form_num && fs->ctrl_num == form->ctrl_num && fs->g_ctrl_num == form->g_ctrl_num && /*fs->position == form->position &&*/ fs->type == form->type) return fs;
 	if (fs->value) mem_free(fs->value);
 	memset(fs, 0, sizeof(struct form_state));
 	fs->form_num = form->form_num;
@@ -1817,15 +1824,15 @@ void get_succesful_controls(struct f_data_c *f, struct form_control *fc, struct 
 				case FC_RADIO:
 				case FC_SUBMIT:
 				case FC_HIDDEN:
-					sub->value = stracpy(form->default_value);
+					sub->value = encode_textarea(form->default_value);
 					break;
 				case FC_SELECT:
 					fixup_select_state(form, fs);
-					sub->value = stracpy(fs->value);
+					sub->value = encode_textarea(fs->value);
 					break;
 				case FC_IMAGE:
 					if (fi == -1) {
-						sub->value = stracpy(form->default_value);
+						sub->value = encode_textarea(form->default_value);
 						break;
 					}
 					add_to_strn(&sub->name, fi ? ".x" : ".y");

@@ -110,6 +110,7 @@ directfb_fb_init_driver (unsigned char *param, unsigned char *display)
 	case 65:
 	case 122:
 	case 130:
+	case 378:
 	case 386:
 	case 451:
 	case 195:

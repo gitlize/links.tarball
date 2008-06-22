@@ -7,11 +7,11 @@
 
 int menu_font_size=G_BFU_DEFAULT_FONT_SIZE;
 
-unsigned long G_BFU_FG_COLOR;
-unsigned long G_BFU_BG_COLOR;
-unsigned long G_SCROLL_BAR_AREA_COLOR;
-unsigned long G_SCROLL_BAR_BAR_COLOR;
-unsigned long G_SCROLL_BAR_FRAME_COLOR;
+unsigned G_BFU_FG_COLOR;
+unsigned G_BFU_BG_COLOR;
+unsigned G_SCROLL_BAR_AREA_COLOR;
+unsigned G_SCROLL_BAR_BAR_COLOR;
+unsigned G_SCROLL_BAR_FRAME_COLOR;
 
 /* prototypes */
 int is_in_str(unsigned char *, int);

@@ -1684,6 +1684,7 @@ static void setup_functions(void)
 	}else do_sync=0;
 
 	svga_driver.get_color=get_color_fn(svga_driver.depth);
+	if (!svga_driver.get_color) internal("Unknown bit depth %x", svga_driver.depth);
 	switch(vga_colors){
 		case 2: internal(
 				"2-color modes are not supported by\

@@ -262,8 +262,11 @@ void objreq_end(struct status *stat, struct object_request *rq)
 		}
 	}
 	if ((stat->state < 0 || stat->state == S_TRANS) && stat->ce && !stat->ce->redirect && stat->ce->http_code != 401 && stat->ce->http_code != 407) {
-		xx:
 		rq->state = O_LOADING;
+		if (0) {
+			xx:
+			rq->state = O_OK;
+		}
 		if (!rq->ce) (rq->ce = stat->ce)->refcount++;
 	}
 	tm:

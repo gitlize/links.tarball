@@ -10,6 +10,8 @@
 
 #include "links.h"
 
+#include "bits.h"
+
 #ifdef HAVE_ENDIAN_H
 #include <endian.h>
 #endif
@@ -118,6 +120,7 @@ long color_8888_bgr0(int);
 long color_8888_0bgr(int);
 long color_8888_0rgb(int);
 void pass_0bgr(unsigned short *, struct bitmap *);
+long color_555be(int);
 long color_555(int);
 long color_565be(int);
 long color_565(int);
@@ -292,7 +295,7 @@ ROUND_TEMPLATE(round_1byte);
 #undef SAVE_CODE
 
 #define SKIP_CODE out->x*2
-#ifdef t2c
+#if defined(t2c) && defined(C_LITTLE_ENDIAN)
 #define SAVE_CODE \
 	o=rt|gt|bt;\
 	*(t2c *)outp=(o>>16);\
@@ -510,6 +513,24 @@ void pass_0bgr(unsigned short *in, struct bitmap *out)
 }
 
 /* We assume long holds at least 32 bits */
+long color_555be(int rgb)
+{
+	int r=(rgb>>16)&255;
+	int g=(rgb>>8)&255;
+	int b=(rgb)&255;
+	int i;
+	long ret;
+
+	r=(r*31+127)/255;
+	g=(g*31+127)/255;
+	b=(b*31+127)/255;
+	i=(r<<10)|(g<<5)|b;
+	((unsigned char *)&ret)[0]=i>>8;
+	((unsigned char *)&ret)[1]=i;
+	return ret;
+}
+
+/* We assume long holds at least 32 bits */
 long color_555(int rgb)
 {
 	int r=(rgb>>16)&255;
@@ -522,21 +543,9 @@ long color_555(int rgb)
 	g=(g*31+127)/255;
 	b=(b*31+127)/255;
 	i=(r<<10)|(g<<5)|b;
-#ifdef C_LITTLE_ENDIAN
-#ifdef t2c
-	((t2c *)&ret)[0]=i;
-#else
 	((unsigned char *)&ret)[0]=i;
 	((unsigned char *)&ret)[1]=i>>8;
-#endif /* #ifdef t2c */
-#else
-	((unsigned char *)&ret)[0]=i;
-	((unsigned char *)&ret)[1]=i>>8;
-#endif /* #ifdef C_LITTLE_ENDIAN */
-			
-
 	return ret;
-
 }
 
 long color_565be(int rgb)
@@ -554,11 +563,8 @@ long color_565be(int rgb)
 	g=(g*63+127)/255;
 	b=(b*31+127)/255;
 	i = (r<<11)|(g<<5)|b;
-#ifdef C_LITTLE_ENDIAN
-	ret = (((i&0xff)<<8) | ((i>>8)&0xff)) << 16;
-#else
-	ret = i;
-#endif
+	((unsigned char *)&ret)[0]=i>>8;
+	((unsigned char *)&ret)[1]=i;
 	return ret;
 }
 
@@ -577,20 +583,9 @@ long color_565(int rgb)
 	g=(g*63+127)/255;
 	b=(b*31+127)/255;
 	i=(r<<11)|(g<<5)|b;
-#ifdef C_LITTLE_ENDIAN
-#ifdef t2c
-	((t2c *)&ret)[0]=i;
-#else
 	((unsigned char *)&ret)[0]=i;
 	((unsigned char *)&ret)[1]=i>>8;
-#endif /* #ifdef t2c */
-#else
-	((unsigned char *)&ret)[0]=i;
-	((unsigned char *)&ret)[1]=i>>8;
-#endif /* #ifdef C_LITTLE_ENDIAN */
-
 	return ret;
-
 }
 
 /* rgb = r*65536+g*256+b */
@@ -613,6 +608,10 @@ long (*get_color_fn(int depth))(int rgb)
 
 		case 122:
 			return color_555;
+			break;
+
+		case 378:
+			return color_555be;
 			break;
 
 		case 130:
@@ -644,8 +643,6 @@ long (*get_color_fn(int depth))(int rgb)
 			break;
 
 		default:
-			printf("depth=%d\n",depth);
-			internal("Unsupported depth in get_color_fn.");
 			return NULL;
 			break;
 
@@ -737,13 +734,14 @@ void make_16_table(int *table, int bits, int pos,double gamma, int dump_t2c,
 		if (light_val>65535) light_val=65535;
 		/* Clip photon flux for safety */
 
-#ifdef t2c
+#ifdef t2c_xxx
+/* This branch is broken, but it was never tried */
 		if (dump_t2c){
 			t2c sh;
 			int val=grade<<pos;
 
 			if (bigendian) {
-				((unsigned char *)&sh)[0]=val & 0xff;
+				((unsigned char *)&sh)[0]=val;
 				((unsigned char *)&sh)[1]=val>>8;
 			}else{
 				((unsigned char *)&sh)[1]=val;
@@ -760,7 +758,7 @@ void make_16_table(int *table, int bits, int pos,double gamma, int dump_t2c,
 			}else{
 				last_content=light_val|(grade<<(pos+16U));
 			}
-#ifdef t2c
+#ifdef t2c_xxx
 		}
 #endif /* #ifdef t2c */
 		table[j]=last_content;
@@ -857,6 +855,15 @@ void init_dither(int depth)
 		make_red_table(5,10,1,0);
 		make_green_table(5,5,1,0);
 		make_blue_table(5,0,1,0);
+		dither_fn_internal=dither_2byte;
+		round_fn=round_2byte;
+		break;
+
+		case 378:
+		/* 15bpp, 2Bpp, disordered (I have a mental disorder) */
+		make_red_table(5,10,1,1);
+		make_green_table(5,5,1,1);
+		make_blue_table(5,0,1,1);
 		dither_fn_internal=dither_2byte;
 		round_fn=round_2byte;
 		break;

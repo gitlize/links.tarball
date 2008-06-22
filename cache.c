@@ -101,7 +101,7 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 	if (!length) return 0;
 	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 	if (offset + length < 0 || offset + length < offset) overalloc();
-	if (offset + C_ALIGN(length) < 0 || offset + C_ALIGN(length) < offset) overalloc();
+	if (offset + (off_t)C_ALIGN(length) < 0 || offset + (off_t)C_ALIGN(length) < offset) overalloc();
 	if (e->length < offset + length) e->length = offset + length;
 	e->count = cache_count++;
 	if (list_empty(e->frag)) e->count2 = cache_count++;
@@ -135,7 +135,7 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 /* Intel C 9 has a bug and miscompiles this statement (< 0 test is true) */
 	/*if (C_ALIGN(length) > MAXINT - sizeof(struct fragment) || C_ALIGN(length) < 0) overalloc();*/
 	ca = C_ALIGN(length);
-	if (ca > MAXINT - sizeof(struct fragment) || ca < 0) overalloc();
+	if (ca > MAXINT - (int)sizeof(struct fragment) || ca < 0) overalloc();
 	nf = mem_alloc(sizeof(struct fragment) + C_ALIGN(length));
 	a = 1;
 	sf(length);
@@ -185,7 +185,7 @@ void defrag_entry(struct cache_entry *e)
 	}
 	if (g == f->next && f->length == f->real_length) return;
 	for (l = 0, h = f; h != g; h = h->next) l += h->length;
-	if (l > MAXINT - sizeof(struct fragment) || l < 0) overalloc();
+	if (l > MAXINT - (int)sizeof(struct fragment) || l < 0) overalloc();
 	n = mem_alloc(sizeof(struct fragment) + l);
 	n->offset = 0;
 	n->length = l;

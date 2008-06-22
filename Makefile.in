@@ -368,7 +368,7 @@ dip.o: dip.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 directfb.o: directfb.c cfg.h config.h
 dither.o: dither.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
-	language.h codepage.h
+	language.h codepage.h bits.h
 dns.o: dns.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 drivers.o: drivers.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
@@ -382,7 +382,7 @@ finger.o: finger.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 font_include.o: font_include.c cfg.h config.h links.h os_dep.h os_depx.h \
 	setup.h language.h codepage.h
 framebuffer.o: framebuffer.c cfg.h config.h links.h os_dep.h os_depx.h \
-	setup.h language.h codepage.h arrow.inc
+	setup.h language.h codepage.h bits.h arrow.inc
 ftp.o: ftp.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 gif.o: gif.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \

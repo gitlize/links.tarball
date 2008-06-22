@@ -1436,8 +1436,8 @@ int screen_width = 80;
 int dump_codepage = -1;
 
 int max_format_cache_entries = 5;
-long memory_cache_size = 1048576;
-long image_cache_size = 1048576;
+int memory_cache_size = 1048576;
+int image_cache_size = 1048576;
 
 int enable_html_tables = 1;
 int enable_html_frames = 1;

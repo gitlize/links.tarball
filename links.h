@@ -3221,7 +3221,7 @@ void js_downcall_vezmi_string(void *context, unsigned char *string);
 
 /* bfu.c */
 
-extern unsigned long G_BFU_FG_COLOR, G_BFU_BG_COLOR, G_SCROLL_BAR_AREA_COLOR, G_SCROLL_BAR_BAR_COLOR, G_SCROLL_BAR_FRAME_COLOR;
+extern unsigned G_BFU_FG_COLOR, G_BFU_BG_COLOR, G_SCROLL_BAR_AREA_COLOR, G_SCROLL_BAR_BAR_COLOR, G_SCROLL_BAR_FRAME_COLOR;
 extern struct style *bfu_style_wb, *bfu_style_bw, *bfu_style_wb_b, *bfu_style_bw_u, *bfu_style_bw_mono, *bfu_style_wb_mono, *bfu_style_wb_mono_u;
 extern long bfu_bg_color, bfu_fg_color;
 
@@ -3931,6 +3931,8 @@ struct html_element {
 	struct frameset_desc *frameset;
 };
 
+extern int get_attr_val_nl;
+
 extern struct list_head html_stack;
 extern int line_breax;
 
@@ -4206,8 +4208,8 @@ extern int unrestartable_receive_timeout;
 extern struct document_setup dds;
 
 extern int max_format_cache_entries;
-extern long memory_cache_size;
-extern long image_cache_size;
+extern int memory_cache_size;
+extern int image_cache_size;
 
 extern struct rgb default_fg;
 extern struct rgb default_bg;

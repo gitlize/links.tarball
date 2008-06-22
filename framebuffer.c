@@ -29,6 +29,8 @@
 
 #include "links.h"
 
+#include "bits.h"
+
 #include <gpm.h>
 
 #include <sys/mman.h>
@@ -102,7 +104,7 @@ static volatile int in_gr_operation;
 
 /* mouse */
 static int mouse_x, mouse_y;		/* mouse pointer coordinates */
-static int mouse_black, mouse_white;
+static long mouse_black, mouse_white;
 static int background_x, background_y; /* Where was the mouse background taken from */
 static unsigned char *mouse_buffer, *background_buffer, *new_background_buffer;
 static struct graphics_device *mouse_graphics_device;
@@ -121,9 +123,13 @@ static int global_mouse_hidden;
 
 #define END_MOUSE if (mouse_hidden) show_mouse();
 
-#define START_GR in_gr_operation=1;
+#define START_GR \
+		in_gr_operation=1; \
+		if (!fb_active) { in_gr_operation=0; ioctl(TTY,VT_RELDISP,1); return; }
+#define START_GR_0 \
+		in_gr_operation=1; \
+		if (!fb_active) { in_gr_operation=0; ioctl(TTY,VT_RELDISP,1); return 0; }
 #define END_GR	\
-		END_MOUSE\
 		in_gr_operation=0;\
 		if (!fb_active)ioctl(TTY,VT_RELDISP,1);
 		
@@ -215,7 +221,7 @@ static int global_mouse_hidden;
 	if (!sc) return 0;\
 	if (sc>(dev->clip.x2-dev->clip.x1)||-sc>(dev->clip.x2-dev->clip.x1))\
 		return 1;\
-	START_GR\
+	START_GR_0\
 	TEST_MOUSE (dev->clip.x1,dev->clip.x2,dev->clip.y1,dev->clip.y2)
 		
 #define VSCROLL_CLIP_PREFACE \
@@ -223,12 +229,11 @@ static int global_mouse_hidden;
 	TEST_INACTIVITY_0\
 	if (!sc) return 0;\
 	if (sc>dev->clip.y2-dev->clip.y1||-sc>dev->clip.y2-dev->clip.y1) return 1;\
-	START_GR\
+	START_GR_0\
 	TEST_MOUSE (dev->clip.x1, dev->clip.x2, dev->clip.y1, dev->clip.y2)\
 	
 	
-/* n is in bytes. dest must begin on pixel boundary. If n is not a whole number of pixels, rounding is
- * performed downwards.
+/* n is in bytes. dest must begin on pixel boundary.
  */
 static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 {
@@ -243,17 +248,19 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 		case 2:
 		{
 #ifdef t2c
-			short v=*(t2c *)pattern;
+			t2c v=*(t2c *)pattern;
 			int a;
 			
-			for (a=0;a<(n>>1);a++) ((t2c *)dest)[a]=v;
+			if ((v & 255) == ((v >> 8) & 255)) memset(dest, v, n);
+			else for (a=0;a<(n>>1);a++) ((t2c *)dest)[a]=v;
 #else
 			unsigned char a,b;
 			int i;
 			
 			a=*(char*)pattern;
 			b=((char*)pattern)[1];
-			for (i=0;i<=n-2;i+=2){
+			if (a == b) memset(dest, a, n);
+			else for (i=0;i<=n-2;i+=2){
 				dest[i]=a;
 				dest[i+1]=b;
 			}
@@ -269,7 +276,8 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 			a=*(char*)pattern;
 			b=((char*)pattern)[1];
 			c=((char*)pattern)[2];
-			for (i=0;i<=n-3;i+=3){
+			if (a == b && b == c) memset(dest, a, n);
+			else for (i=0;i<=n-3;i+=3){
 				dest[i]=a;
 				dest[i+1]=b;
 				dest[i+2]=c;
@@ -280,7 +288,7 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 		case 4:
 		{
 #ifdef t4c
-			long v=*(t4c *)pattern;
+			t4c v=*(t4c *)pattern;
 			int a;
 			
 			for (a=0;a<(n>>2);a++) ((t4c *)dest)[a]=v;
@@ -845,6 +853,7 @@ static void fb_switch_signal(void *data)
 static unsigned char *fb_switch_init(void)
 {
 
+	ioctl(TTY, VT_WAITACTIVE, fb_console);
 	install_signal_handler(SIG_REL, fb_switch_signal, (void*)SIG_REL, 1);
 	install_signal_handler(SIG_ACQ, fb_switch_signal, (void*)SIG_ACQ, 0);
 	if (-1 == ioctl(TTY,VT_GETMODE, &vt_omode)) {
@@ -1072,6 +1081,18 @@ static void unblock_fb_mouse(void)
 }
 #endif
 
+static void fb_hide_cursor(void)
+{
+	printf("\033[10000B\033[10000C\033[?25l");
+	fflush(stdout);
+}
+
+static void fb_show_cursor(void)
+{
+	printf("\033[10000D\033[?25h");
+	fflush(stdout);
+}
+
 static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 {
 	unsigned char *e;
@@ -1125,9 +1146,11 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 
 	fb_console = st.st_rdev & 0xff;
 
-	ioctl(TTY, VT_WAITACTIVE, fb_console);
+	fb_hide_cursor();
+
 	if ((e = fb_switch_init())) {
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return e;
 	}
 
@@ -1135,6 +1158,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	if (fb_handler==-1) {
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return stracpy("Cannot open /dev/fb0.\n");
 	}
 
@@ -1143,6 +1167,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		close(fb_handler);
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return stracpy("Cannot get FB VSCREENINFO.\n");
 	}
 
@@ -1153,12 +1178,14 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		close(fb_handler);
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return stracpy("Cannot get FB FSCREENINFO.\n");
 	}
 
 	fb_xsize=vi.xres;
 	fb_ysize=vi.yres;
 	fb_bits_pp=vi.bits_per_pixel;
+	if (fb_bits_pp == 16 && vi.green.length == 5) fb_bits_pp = 15;
 
 	if (fb_xsize <= border_left + border_right) border_left = border_right = 0;
 	fb_xsize -= border_left + border_right;
@@ -1168,7 +1195,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	fb_driver.x=fb_xsize;
 	fb_driver.y=fb_ysize;
 
-	 switch(fb_bits_pp)
+	switch(fb_bits_pp)
 	{
 		case 4:
 		fb_pixelsize=1;
@@ -1201,6 +1228,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		close(fb_handler);
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return stracpy("Unknown bit depth");
 	}
 	fb_colors=1<<fb_bits_pp;
@@ -1237,6 +1265,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	/* mikulas : nechodilo mi to, tak jsem tohle vyhodil a ono to chodi */
 		/*fb_shutdown_palette();
 		close(fb_handler);
+		fb_show_cursor();
 		return stracpy("Cannot pan display.\n");
 		*/
 	}
@@ -1246,6 +1275,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		close(fb_handler);
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return stracpy("Allocation of virtual devices failed.\n");
 	}
 	fb_kbd = handle_svgalib_keyboard((void (*)(void *, unsigned char *, int))fb_key_in);
@@ -1259,10 +1289,21 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		close(fb_handler);
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return stracpy("Nonlinear mapping of graphics memory not supported.\n");
 	}
-		
 	
+	if (vi.nonstd) {
+		fb_shutdown_palette();
+		svgalib_free_trm(fb_kbd);
+		shutdown_virtual_devices();
+		close(fb_handler);
+		fb_switch_shutdown();
+		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
+		return stracpy("Non-standard pixel format.\n");
+	}
+
 	if ((fb_mem=mmap(0,fb_mem_size,PROT_READ|PROT_WRITE,MAP_SHARED,fb_handler,0))==MAP_FAILED)
 	{
 		fb_shutdown_palette();
@@ -1272,14 +1313,30 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		close(fb_handler);
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return stracpy("Cannot mmap graphics memory.\n");
 	}
 	fb_vmem = fb_mem + border_left * fb_pixelsize + border_top * fb_linesize;
 	fb_driver.depth=fb_pixelsize&7;
 	fb_driver.depth|=(fb_bits_pp&31)<<3;
-	fb_driver.depth|=(!!(vi.nonstd))<<8;	/* nonstd byte order */
+	if (htonl(0x12345678) == 0x12345678) {
+		/* Big endian */
+		if (fb_driver.depth == 130 || fb_driver.depth == 122) fb_driver.depth |= 1 << 8;
+		else if (fb_driver.depth == 196) fb_driver.depth |= 1 << 9;
+	}
 	
 	fb_driver.get_color=get_color_fn(fb_driver.depth);
+	if (!fb_driver.get_color) {
+		fb_shutdown_palette();
+		svgalib_free_trm(fb_kbd);
+		shutdown_virtual_devices();
+
+		close(fb_handler);
+		fb_switch_shutdown();
+		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
+		return stracpy("Unknown bit format.\n");
+	}
 	/*fb_switch_init();*/
 	install_signal_handler(SIGINT, (void (*)(void *))fb_ctrl_c, fb_kbd, 0);
 
@@ -1306,11 +1363,10 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		close(fb_handler);
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
+		fb_show_cursor();
 		return stracpy("Cannot open GPM mouse.\n");
 	}
 	/* hide cursor */
-	printf("\033[?25l");
-	fflush(stdout);
 	if (border_left | border_top | border_right | border_bottom) memset(fb_mem,0,fb_mem_size);
 		
 	show_mouse();
@@ -1324,21 +1380,22 @@ static void fb_shutdown_driver(void)
 	mem_free(new_background_buffer);
 	fb_driver.shutdown_device(mouse_graphics_device);
 	unhandle_fb_mouse();
-	ioctl (fb_handler, FBIOPUT_VSCREENINFO, &oldmode);
+	in_gr_operation=1;
+	if (fb_active) {
+		memset(fb_mem,0,fb_mem_size);
+		ioctl (fb_handler, FBIOPUT_VSCREENINFO, &oldmode);
+	}
+	END_GR;
 	fb_shutdown_palette();
 	install_signal_handler(SIGINT, NULL, NULL, 0);
-
 	close(fb_handler);
-
-	memset(fb_mem,0,fb_mem_size);
 	munmap(fb_mem,fb_mem_size);
 	shutdown_virtual_devices();
 	fb_switch_shutdown();
 	svgalib_free_trm(fb_kbd);
 	if(fb_driver_param) mem_free(fb_driver_param);
 	/* show cursor */
-	printf("\033[?25h");
-	fflush(stdout);
+	fb_show_cursor();
 }
 
 
@@ -1415,6 +1472,7 @@ void fb_draw_bitmap(struct graphics_device *dev,struct bitmap* hndl, int x, int 
 		data+=hndl->skip;
 		scr_start+=fb_linesize;
 	}
+	END_MOUSE
 	END_GR
 }
 
@@ -1451,6 +1509,7 @@ static void fb_fill_area(struct graphics_device *dev, int left, int top, int rig
 		pixel_set(dest,(right-left)*fb_pixelsize,&color);
 		dest+=fb_linesize;
 	}
+	END_MOUSE
 	END_GR
 }
 
@@ -1462,6 +1521,7 @@ static void fb_draw_hline(struct graphics_device *dev, int left, int y, int righ
 	
 	dest=fb_vmem+y*fb_linesize+left*fb_pixelsize;
 	pixel_set(dest,(right-left)*fb_pixelsize,&color);
+	END_MOUSE
 	END_GR
 }
 
@@ -1477,6 +1537,7 @@ static void fb_draw_vline(struct graphics_device *dev, int x, int top, int botto
 		memcpy(dest,&color,fb_pixelsize);
 		dest+=fb_linesize;
 	}
+	END_MOUSE
 	END_GR
 }
 
@@ -1508,6 +1569,7 @@ static int fb_hscroll(struct graphics_device *dev, struct rect_set **ignore, int
 			src+=fb_linesize;
 		}
 	}
+	END_MOUSE
 	END_GR
 	return 1;
 }
@@ -1542,6 +1604,7 @@ static int fb_vscroll(struct graphics_device *dev, struct rect_set **ignore, int
 			src+=fb_linesize;
 		}
 	}
+	END_MOUSE
 	END_GR
 	return 1;
 }
@@ -1571,8 +1634,9 @@ static int fb_block(struct graphics_device *dev)
 	current_virtual_device=NULL;
 	svgalib_block_itrm(fb_kbd);
 	if (have_cmap) set_palette(&old_palette);
-	printf("\033[?25h");
-	fflush(stdout);
+	fb_switch_shutdown();
+	fb_show_cursor();
+	printf("\n");fflush(stdout);
 	return 0;
 }
 
@@ -1586,11 +1650,14 @@ static int fb_unblock(struct graphics_device *dev)
 #endif /* #ifdef DEBUG */
 	if (dev != fb_block_dev) return -2;
 	if (svgalib_unblock_itrm(fb_kbd)) return -1;
+	fb_switch_init();
+	fb_hide_cursor();
+	vi.xoffset=0;
+	vi.yoffset=0;
+	ioctl(fb_handler, FBIOPAN_DISPLAY, &vi);
 	current_virtual_device = fb_old_vd;
 	fb_old_vd = NULL;
 	if (have_cmap) set_palette(&global_pal);
-	printf("\033[?25l");
-	fflush(stdout);
 	handle_fb_mouse();
 	if (border_left | border_top | border_right | border_bottom) memset(fb_mem,0,fb_mem_size);
 	if (current_virtual_device) current_virtual_device->redraw_handler(current_virtual_device
