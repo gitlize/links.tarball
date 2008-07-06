@@ -2317,6 +2317,7 @@ int direct_download_possible(struct object_request *rq, struct assoc *a)
 	if (a->accept_http && !strcasecmp(proto, "http")) ret = 1;
 	if (a->accept_ftp && !strcasecmp(proto, "ftp")) ret = 1;
 	mem_free(proto);
+	if (proxies.only_proxies) ret = 0;
 	return ret;
 }
 

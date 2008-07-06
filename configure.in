@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.1pre37)
+AM_INIT_AUTOMAKE(links, 2.1)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -238,7 +238,7 @@ AC_ARG_ENABLE(debuglevel, [  --enable-debuglevel     set internal checking level
 	-1 - recover from segmentation faults
 	 0 - no checks (fastest)
 	 1 - check memory leaks
-	 2 - leaks with file/line accuracy, memory red zone, pattern filling], cf_debuglevel=$enableval, cf_debuglevel=2)
+	 2 - leaks with file/line accuracy, memory red zone, pattern filling], cf_debuglevel=$enableval, cf_debuglevel=0)
 if test "$cf_debuglevel" = no; then cf_debuglevel=0; fi
 if test "$cf_debuglevel" = yes; then cf_debuglevel=2; fi
 AC_MSG_RESULT($cf_debuglevel)

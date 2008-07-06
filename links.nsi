@@ -2,6 +2,9 @@
 ;Basic Example Script
 ;Written by Joost Verburg
 
+SetCompressor /SOLID lzma
+OutFile Links-install.exe
+
 ;--------------------------------
 ;Include Modern UI
 

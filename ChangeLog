@@ -1,3 +1,14 @@
+=== RELEASE 2.1 ===
+
+Wed Jul  2 03:48:23 MET DST 2008 mikulas:
+
+	Turn memory debugging off by default
+
+Tue Jun 24 06:08:04 MET 2008 mikulas:
+
+	Security bug fixed: when "only proxies" is selected, don't pass URLs
+	to external programs
+
 === RELEASE 2.1pre37 ===
 
 Sun Jun 22 17:07:20 cet 2008 mikulas:

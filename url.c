@@ -16,7 +16,7 @@ struct {
 	int allow_post;
 	int bypasses_socks;
 } protocols[]= {
-		{"file", 0, file_func, NULL,		1, 1, 0, 0, 0},
+		{"file", 0, file_func, NULL,		1, 1, 0, 0, 1},
 		{"https", 443, https_func, NULL,	0, 1, 1, 1, 0},
 		{"http", 80, http_func, NULL,		0, 1, 1, 1, 0},
 		{"proxy", 3128, proxy_func, NULL,	0, 1, 1, 1, 0},
