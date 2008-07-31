@@ -1296,14 +1296,18 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 			screen->root = (struct g_object *)rp->root, rp->root = NULL;
 			screen->hsb = 0, screen->vsb = 0;
 			screen->hsbsize = 0, screen->vsbsize = 0;
-			x:
-			if (!screen->hsb && screen->x > screen->opt.xw - screen->vsb * G_SCROLL_BAR_WIDTH) {
-				screen->hsb = 1;
-				goto x;
-			}
-			if (!screen->vsb && screen->y > screen->opt.yw - screen->hsb * G_SCROLL_BAR_WIDTH) {
-				screen->vsb = 1;
-				goto x;
+			if (screen->opt.scrolling == SCROLLING_YES) {
+				screen->hsb = 1, screen->vsb = 1;
+			} else if (screen->opt.scrolling == SCROLLING_AUTO) {
+				x:
+				if (!screen->hsb && screen->x > screen->opt.xw - screen->vsb * G_SCROLL_BAR_WIDTH) {
+					screen->hsb = 1;
+					goto x;
+				}
+				if (!screen->vsb && screen->y > screen->opt.yw - screen->hsb * G_SCROLL_BAR_WIDTH) {
+					screen->vsb = 1;
+					goto x;
+				}
 			}
 			if (screen->hsb) screen->hsbsize = screen->opt.xw - screen->vsb * G_SCROLL_BAR_WIDTH;
 			if (screen->vsb) screen->vsbsize = screen->opt.yw - screen->hsb * G_SCROLL_BAR_WIDTH;
@@ -1349,6 +1353,7 @@ int compare_opt(struct document_options *o1, struct document_options *o2)
 	    o1->yw == o2->yw &&
 	    o1->xp == o2->xp &&
 	    o1->yp == o2->yp &&
+	    o1->scrolling == o2->scrolling &&
 	    o1->col == o2->col &&
 	    o1->cp == o2->cp &&
 	    o1->assume_cp == o2->assume_cp &&

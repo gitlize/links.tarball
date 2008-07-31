@@ -1713,7 +1713,7 @@ void process_g_table(struct g_part *gp, struct table *t)
 		y += t->r_heights[j];
 	}
 
-	if (html_top.next != (struct html_element *)&html_stack) ta = &html_top.next->attr;
+	if (html_top.next != (struct html_element *)(void *)&html_stack) ta = &html_top.next->attr;
 	else ta = &format;
 
 	if (t->bordercolor && !decode_color(t->bordercolor, &dummy)) {

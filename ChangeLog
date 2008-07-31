@@ -1,3 +1,19 @@
+=== RELEASE 2.2 ===
+
+Mon Jul 28 14:39:24 CEST 2008 mab:
+
+	Swiss German (Zueriduetsch) translation
+
+Fri Jul 18 23:35:44 MET 2008 mikulas:
+
+	Fix scrollbars being offset by few pixels when "scrolling" attribute
+	was used
+
+Fri Jul 11 20:40:38 MET 2008 mikulas:
+
+	Drop .gz or .bz2 extension when viewing files downloaded from ftp (and
+	decompressing them)
+
 === RELEASE 2.1 ===
 
 Wed Jul  2 03:48:23 MET DST 2008 mikulas:

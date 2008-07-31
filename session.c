@@ -1325,6 +1325,7 @@ void html_interpret(struct f_data_c *fd)
 	o.yp = fd->yp;
 	o.xw = fd->xw;
 	o.yw = fd->yw;
+	o.scrolling = fd->scrolling;
 	if (fd->ses->term->spec) {
 		o.col = fd->ses->term->spec->col;
 		o.cp = fd->ses->term->spec->charset;
@@ -1937,6 +1938,7 @@ void refresh_timer(struct f_data_c *fd)
 	}
 }
 
+#ifdef JS
 static int frame_and_all_subframes_loaded(struct f_data_c *fd)
 {
 	struct f_data_c *f;
@@ -1950,6 +1952,7 @@ static int frame_and_all_subframes_loaded(struct f_data_c *fd)
 		}
 	return loaded;
 }
+#endif
 
 void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 {

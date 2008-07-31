@@ -386,7 +386,7 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 									unsigned a;
 									struct sockaddr_in sa;
 									socklen_t nl = sizeof(sa);
-									if (getpeername(c->sock1, (struct sockaddr *)&sa, &nl)) goto no_pasv;
+									if (getpeername(c->sock1, (struct sockaddr *)(void *)&sa, &nl)) goto no_pasv;
 									if (nl != sizeof(sa)) goto no_pasv;
 									a = ntohl(sa.sin_addr.s_addr);
 									pc[0] = a >> 24;

@@ -1098,16 +1098,20 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 		mem_free(ct);
 	}
 	no_ct:
-	if (!tmp) {
-		ct = get_content_encoding(head, url);
-		if (ct) {
-			x = encoding_2_extension(ct);
+	ct = get_content_encoding(head, url);
+	if (ct) {
+		x = encoding_2_extension(ct);
+		if (!tmp) {
 			if (x) {
 				add_to_strn(&want_ext, ".");
 				add_to_strn(&want_ext, x);
 			}
-			mem_free(ct);
+		} else {
+			if (strlen(x) + 1 < strlen(f) && f[strlen(f) - strlen(x) - 1] == '.' && !strcasecmp(f + strlen(f) - strlen(x), x)) {
+				f[strlen(f) - strlen(x) - 1] = 0;
+			}
 		}
+		mem_free(ct);
 	}
 	if (strlen(want_ext) > strlen(f) || strcasecmp(want_ext, f + strlen(f) - strlen(want_ext))) {
 		x = strrchr(f, '.');

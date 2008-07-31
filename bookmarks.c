@@ -435,7 +435,7 @@ unsigned char *bookmark_type_item(struct terminal *term, void *data, int x)
 	struct bookmark_list* item=(struct bookmark_list*)data;
 	struct conv_table *table;
 
-	if (item==(struct bookmark_list*)(&bookmarks))   /* head */
+	if (item==(struct bookmark_list*)(void *)&bookmarks)   /* head */
 		return stracpy(_(TEXT(T_BOOKMARKS),term));
 
 	txt=stracpy(item->title);
@@ -585,7 +585,7 @@ void add_bookmark(unsigned char *title, unsigned char *url, int depth)
 
 	p=bookmarks.prev;
 	b->prev=p;
-	b->next=(struct bookmark_list *)(&bookmarks);
+	b->next=(struct bookmark_list *)(void *)&bookmarks;
 	p->next=b;
 	bookmarks.prev=b;
 

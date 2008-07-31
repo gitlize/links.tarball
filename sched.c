@@ -532,16 +532,16 @@ void check_queue(void *dummy)
 	check_queue_bugs();
 #endif
 	check_keepalive_connections();
-	while (c != (struct connection *)&queue) {
+	while (c != (struct connection *)(void *)&queue) {
 		struct connection *d;
 		int cp = getpri(c);
-		for (d = c; d != (struct connection *)&queue && getpri(d) == cp;) {
+		for (d = c; d != (struct connection *)(void *)&queue && getpri(d) == cp;) {
 			struct connection *dd = d; d = d->next;
 			if (!dd->state) if (is_host_on_keepalive_list(dd)) {
 				if (try_connection(dd)) goto again;
 			}
 		}
-		for (d = c; d != (struct connection *)&queue && getpri(d) == cp;) {
+		for (d = c; d != (struct connection *)(void *)&queue && getpri(d) == cp;) {
 			struct connection *dd = d; d = d->next;
 			if (!dd->state) {
 				if (try_connection(dd)) goto again;

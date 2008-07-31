@@ -559,16 +559,6 @@ void draw_graphical_doc(struct terminal *t, struct f_data_c *scr, int active)
 	vx = vs->view_posx;
 	vy = vs->view_pos;
 	restrict_clip_area(t->dev, &old, scr->xp, scr->yp, scr->xp + xw, scr->yp + yw);
-	if(scr->scrolling == SCROLLING_NO)
-	{
-		scr->f_data->vsb = 0;
-		scr->f_data->hsb = 0;
-	}
-	else if(scr->scrolling == SCROLLING_YES)
-	{
-		scr->f_data->vsb = 1;
-		scr->f_data->hsb = 1;
-	}
 	if (scr->f_data->vsb) draw_vscroll_bar(t->dev, scr->xp + xw - G_SCROLL_BAR_WIDTH, scr->yp, yw - scr->f_data->hsb * G_SCROLL_BAR_WIDTH, scr->f_data->y, yw - scr->f_data->hsb * G_SCROLL_BAR_WIDTH, vs->view_pos);
 	if (scr->f_data->hsb) draw_hscroll_bar(t->dev, scr->xp, scr->yp + yw - G_SCROLL_BAR_WIDTH, xw - scr->f_data->vsb * G_SCROLL_BAR_WIDTH, scr->f_data->x, xw - scr->f_data->vsb * G_SCROLL_BAR_WIDTH, vs->view_posx);
 	if (scr->f_data->vsb && scr->f_data->hsb) drv->fill_area(t->dev, scr->xp + xw - G_SCROLL_BAR_WIDTH, scr->yp + yw - G_SCROLL_BAR_WIDTH, scr->xp + xw, scr->yp + yw, scroll_bar_frame_color);

@@ -124,7 +124,7 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 	socklen_t len = sizeof(sa);
 	memset(&sa, 0, sizeof sa);
 	memset(&sb, 0, sizeof sb);
-	if (getsockname(cc, (struct sockaddr *)&sa, &len)) {
+	if (getsockname(cc, (struct sockaddr *)(void *)&sa, &len)) {
 		e:
 		setcstate(c, -errno);
 		retry_connection(c);
@@ -135,9 +135,9 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 	fcntl(s, F_SETFL, O_NONBLOCK);
 	memcpy(&sb, &sa, sizeof(struct sockaddr_in));
 	sb.sin_port = 0;
-	if (bind(s, (struct sockaddr *)&sb, sizeof sb)) goto e;
+	if (bind(s, (struct sockaddr *)(void *)&sb, sizeof sb)) goto e;
 	len = sizeof(sa);
-	if (getsockname(s, (struct sockaddr *)&sa, &len)) goto e;
+	if (getsockname(s, (struct sockaddr *)(void *)&sa, &len)) goto e;
 	if (listen(s, 1)) goto e;
 	memcpy(port, &sa.sin_addr.s_addr, 4);
 	memcpy(port + 4, &sa.sin_port, 2);
@@ -279,7 +279,7 @@ void dns_found(struct connection *c, int state)
 	b->sa.sin_family = AF_INET;
 	b->sa.sin_addr.s_addr = b->addr;
 	b->sa.sin_port = htons(b->port);
-	if (connect(s, (struct sockaddr *)&b->sa, sizeof b->sa)) {
+	if (connect(s, (struct sockaddr *)(void *)&b->sa, sizeof b->sa)) {
 		if (errno != EALREADY && errno != EINPROGRESS) {
 			setcstate(c, -errno);
 			retry_connection(c);

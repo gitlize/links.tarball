@@ -27,6 +27,7 @@ serbian
 slovak
 spanish
 swedish
+swiss_german
 turkish
 ukrainian
 upper_sorbian

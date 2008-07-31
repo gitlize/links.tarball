@@ -1169,7 +1169,7 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 					} else if (*(int *)di->cdata) di->checked = 1;
 				} 
 				init_list(di->history);
-				di->cur_hist = (struct history_item *)&di->history;
+				di->cur_hist = (struct history_item *)(void *)&di->history;
 				if (di->item->type == D_FIELD || di->item->type == D_FIELD_PASS) {
 					if (di->item->history) {
 						struct history_item *j;

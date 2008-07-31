@@ -233,7 +233,6 @@ accept_code(struct gif_decoder *deco,int c)
 {
  int k;
  
- k=k; /* To suppress warning */
  if (c>4096||c<0) return; /* Erroneous code word will be ignored */
  if (c==deco->CC) {
   init_table();

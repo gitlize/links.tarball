@@ -2325,6 +2325,7 @@ struct document_setup {
 struct document_options {
 	int xw, yw; /* size of window */
 	int xp, yp; /* pos of window */
+	int scrolling;
 	int col, cp, assume_cp, hard_assume;
 	int braille;
 	int tables, frames, images, image_names, margin;
