@@ -1,3 +1,63 @@
+=== RELEASE 2.3pre1 ===
+
+Sun Aug 16 06:17:03 MET 2009 mikulas:
+
+	Accept cookies for domains with two parts, such as xxxx.yy, where
+	"xxxx" has at least 4 chars. This likely won't be generic domain such
+	as "co.tw", so accepting the cookie is safe.
+
+Sun May 17 22:29:43 MET DST 2009 mikulas:
+
+	Support encryption with NSS (GPL fanatics don't like OpenSSL, grrr)
+
+Sun May 17 18:51:07 cet 2009 mikulas:
+
+	Ignore textarea that is not inside form (for Google)
+
+Sun Jan 18 19:27:56 CET 2009 mikulas:
+
+	Avoid quadratic complexity when parsing long forms
+
+Thu Jan  1 14:04:38 CET 2009 mikulas:
+
+	UTF-8 text mode terminal support
+
+Sun Sep 14 01:02:06 MET 2008 mikulas:
+
+	Decode '%' in downloaded file names
+
+Tue Sep  9 23:13:20 MET 2008 mikulas:
+
+	Do not add another '?' or '&' if already present at the end of form
+	submit URL
+
+Sun Aug 24 17:19:32 MET 2008 Christian Biere <christianbiere@gmx.de>:
+
+	magnet: URL support
+
+Wed Aug 20 23:03:10 cet 2008 mikulas:
+
+	More strict check for invalid GIF header
+	(catches some misgenerated images that reported too big size and
+	overflowed the memory allocator)
+
+Sun Aug 17 23:30:34 MET 2008 mikulas:
+
+	Check for too big images
+
+Wed Aug 13 00:24:41 CEST 2008 mikulas:
+
+	Fixed occassional drawing after VT switch on framebuffer
+
+Mon Aug  4 18:53:52 cet 2008 mikulas:
+
+	Don't submit disabled form entries (this is compatible with
+	Mozilla/MSIE; Netscape and Lynx do submit them)
+
+Sun Aug  3 02:40:58 MET 2008 mikulas:
+
+	Handle restart with servers that send 206 but don't send Content-Range
+
 === RELEASE 2.2 ===
 
 Mon Jul 28 14:39:24 CEST 2008 mab:

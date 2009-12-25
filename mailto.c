@@ -85,6 +85,13 @@ void tn3270_func(struct session *ses, unsigned char *url)
 	tn_func(ses, url, &tn3270_prog, TEXT(T_TN3270), TEXT(T_BAD_TN3270_URL));
 }
 
+void magnet_func(struct session *ses, unsigned char *url)
+{
+	unsigned char *escaped_url = escape_path(url);
+	prog_func(ses->term, &magnet_prog, escaped_url, TEXT(T_MAGNET));
+	mem_free(escaped_url);
+}
+
 void mms_func(struct session *ses, unsigned char *url)
 {
 	if (check_shell_url(url)) {

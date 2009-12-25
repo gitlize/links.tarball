@@ -100,7 +100,7 @@ unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy
 	return r;
 }
 
-char *get_auth_string(char *url)
+unsigned char *get_auth_string(unsigned char *url)
 {
 	struct http_auth *a;
 	unsigned char *host;

@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.2)
+AM_INIT_AUTOMAKE(links, 2.3pre1)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -289,6 +289,15 @@ AC_MSG_CHECKING([if you want to use graphics])
 AC_ARG_ENABLE(graphics, [  --enable-graphics       use graphics], cf_use_graphics=$enableval )
 AC_MSG_RESULT($cf_use_graphics)
 
+dnl AC_MSG_CHECKING([if you want to enable UTF-8 terminal])
+dnl cf_enable_utf8=yes
+dnl AC_ARG_ENABLE(utf8, [  --disable-utf8          disable UTF-8 terminal (saves memory)], cf_enable_utf8=$enableval )
+dnl AC_MSG_RESULT($cf_enable_utf8)
+dnl 
+dnl if test "$cf_enable_utf8" != no; then
+dnl 	AC_DEFINE(ENABLE_UTF8)
+dnl fi
+
 AC_ARG_WITH(gpm, [  --without-gpm           compile without gpm mouse],[if test "$withval" = no; then disable_gpm=yes; else disable_gpm=no; fi])
 
 if test "$disable_gpm" != yes; then
@@ -351,42 +360,64 @@ fi
 
 AC_CHECK_LIB(dl, dlopen)
 
+cf_result=no
 #ifdef HAVE_SSL
-AC_ARG_WITH(ssl, [  --with-ssl(=directory)  enable SSL support], [if test "$withval" = no; then disable_ssl=yes; else ssld="$withval"; fi])
+ssld=yes
+AC_ARG_WITH(ssl, [  --with-ssl(=directory)  enable SSL support
+  --with-ssl=nss          enable SSL support through NSS OpenSSL emulation], [if test "$withval" = no; then disable_ssl=yes; else ssld="$withval"; fi])
 CPPFLAGS_X="$CPPFLAGS"
 LIBS_X="$LIBS"
-cf_result=no
 if test -z "$disable_ssl"; then
-	PKG_CHECK_MODULES(OPENSSL,openssl,pkgconfig_openssl=yes,pkgconfig_openssl=no)
-	if test "$pkgconfig_openssl" = "yes"; then
-		AC_MSG_CHECKING([for OpenSSL])
-		CPPFLAGS="$CPPFLAGS $OPENSSL_CFLAGS"
-		LIBS="$OPENSSL_LIBS $LIBS"
-		AC_TRY_LINK([#include <openssl/ssl.h>], [OpenSSL_add_all_algorithms()], cf_result=yes, cf_result=no)
-		if test "$cf_result" != yes; then
-			AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=yes, cf_result=no)
-	   	fi
-	else
-		AC_MSG_CHECKING([for OpenSSL])
-		for ssldir in "" /usr /usr/local /usr/local/openssl /usr/lib/openssl /usr/local/ssl /usr/local/www /usr/lib/ssl /usr/local /usr/pkg /opt /opt/openssl "$ssld"; do
+	if test "$cf_result" = no && test "$ssld" = yes -o "$ssld" = openssl; then
+		PKG_CHECK_MODULES(OPENSSL,openssl,pkgconfig_openssl=yes,pkgconfig_openssl=no)
+		if test "$pkgconfig_openssl" = yes; then
+			AC_MSG_CHECKING([for OpenSSL])
+			CPPFLAGS="$CPPFLAGS_X $OPENSSL_CFLAGS"
+			LIBS="$OPENSSL_LIBS $LIBS_X"
+			AC_TRY_LINK([#include <openssl/ssl.h>], [OpenSSL_add_all_algorithms()], cf_result=openssl, cf_result=no)
 			if test "$cf_result" = no; then
-				if test ! -z "$ssldir" && test "$ssldir" != /usr; then
+				AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
+			fi
+		fi
+		AC_MSG_RESULT($cf_result)
+	fi
+
+	if test "$cf_result" = no && test "$ssld" != nss; then
+		AC_MSG_CHECKING([for OpenSSL])
+		if test "$ssld" = yes -o "$ssld" = openssl; then
+			ssld=". /usr /usr/local /usr/local/openssl /usr/lib/openssl /usr/local/ssl /usr/local/www /usr/lib/ssl /usr/local /usr/pkg /opt /opt/openssl"
+		fi
+		for ssldir in $ssld; do
+			if test "$cf_result" = no; then
+				if test ! -z "$ssldir" && test "$ssldir" != /usr && test "$ssldir" != .; then
 					LIBS="-L$ssldir/lib -lssl -lcrypto $LIBS_X"
 					CPPFLAGS="$CPPFLAGS_X -I$ssldir/include"
 				else
 					LIBS="-lssl -lcrypto $LIBS_X"
 				fi
-				AC_TRY_LINK([#include <openssl/ssl.h>], [OpenSSL_add_all_algorithms()], cf_result=yes, cf_result=no)
-				if test "$cf_result" != yes; then
-					AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=yes, cf_result=no)
+				AC_TRY_LINK([#include <openssl/ssl.h>], [OpenSSL_add_all_algorithms()], cf_result=openssl, cf_result=no)
+				if test "$cf_result" = no; then
+					AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
 				fi
 			fi
 		done
+		AC_MSG_RESULT($cf_result)
 	fi
 
-	AC_MSG_RESULT($cf_result)
+	if test "$cf_result" = no && test "$ssld" = yes -o "$ssld" = nss; then
+		PKG_CHECK_MODULES(NSS,nss,pkgconfig_nss=yes,pkgconfig_nss=no)
+		if test "$pkgconfig_nss" = no; then
+			NSS_CFLAGS=""
+			NSS_LIBS=""
+		fi
+		CPPFLAGS="$CPPFLAGS_X $NSS_CFLAGS"
+		LIBS="-lnss_compat_ossl $NSS_LIBS $LIBS_X"
+		AC_MSG_CHECKING([for NSS-compat-ossl])
+		AC_TRY_LINK([#include <nss_compat_ossl/nss_compat_ossl.h>], [OpenSSL_add_ssl_algorithms()], cf_result=nss, cf_result=no)
+		AC_MSG_RESULT($cf_result)
+	fi
 
-	if test "$cf_result" != yes; then
+	if test "$cf_result" = no; then
 		if test "$withval" = yes; then
 			AC_MSG_ERROR("OpenSSL not found")
 		fi
@@ -394,10 +425,16 @@ if test -z "$disable_ssl"; then
         	LIBS="$LIBS_X"
 	else
 		AC_DEFINE(HAVE_SSL)
+		if test "$cf_result" = openssl; then
+			AC_DEFINE(HAVE_OPENSSL)
+		fi
+		if test "$cf_result" = nss; then
+			AC_DEFINE(HAVE_NSS)
+		fi
 	fi
 fi
-cf_have_ssl=$cf_result;
 #endif
+cf_have_ssl=$cf_result
 
 AC_ARG_WITH(zlib, [  --without-zlib          compile without zlib compression],[if test "$withval" = no; then disable_zlib=yes; else disable_zlib=no; fi])
 AC_ARG_WITH(bzip2, [  --without-bzip2         compile without bzip2 compression],[if test "$withval" = no; then disable_bzip2=yes; else disable_bzip2=no; fi])
@@ -423,7 +460,7 @@ fi
 
 cf_have_atheos=no
 
-if test "$cf_use_graphics" = yes; then
+if test "$cf_use_graphics" != no; then
 	AC_DEFINE(G)
 
 AC_ARG_WITH(svgalib, [  --without-svgalib       compile without svgalib graphics driver],[if test "$withval" = no; then disable_svgalib=yes; else disable_svgalib=no; fi])
@@ -612,7 +649,7 @@ fi
 	fi
 
 	AC_ARG_WITH(libjpeg, [  --without-libjpeg	  compile without JPEG support],[if test "$withval" = no; then disable_jpeg=yes; else disable_jpeg=no; fi])
-		cf_have_jpeg=no
+	cf_have_jpeg=no
 	if test "$disable_jpeg" != yes ; then
 		AC_CHECK_HEADERS(jpeglib.h)
 		AC_CHECK_LIB(jpeg, jpeg_destroy_decompress)
@@ -624,7 +661,7 @@ fi
 	fi
 
 	AC_ARG_WITH(libtiff, [  --without-libtiff       compile without TIFF support],[if test "$withval" = no; then disable_tiff=yes; else disable_tiff=no; fi])
-		cf_have_tiff=no
+	cf_have_tiff=no
 	if test "$disable_tiff" != yes ; then
 		AC_CHECK_HEADERS(tiffio.h)
 		AC_CHECK_LIB(tiff, TIFFClientOpen)
@@ -636,7 +673,7 @@ fi
 	fi
 
 
-	if test -z "$drivers" && test "$cf_use_graphics" = yes; then
+	if test -z "$drivers" && test "$cf_use_graphics" != no; then
 		AC_MSG_ERROR([No graphics drivers found.])
 dnl	else
 dnl		AC_MSG_RESULT([The following graphics drivers are available:$drivers])
@@ -653,8 +690,9 @@ AC_OUTPUT(Makefile)
 echo "---------------------------------------------------------"
 echo "Configuration results:"
 echo ""
+dnl if test "$cf_enable_utf8" != no; then echo "UTF-8 terminal:		YES"; else echo "UTF-8 terminal:		NO"; fi
 if test "$cf_have_gpm" = yes; then echo "GPM support:		YES"; else echo "GPM support:		NO"; fi
-if test "$cf_have_ssl" = yes; then echo "SSL support:		YES"; else echo "SSL support:		NO"; fi
+echo "SSL support:		`echo $cf_have_ssl|tr a-z A-Z`"
 compression="`echo "$compression"|sed 's/^ //'`"
 if test -z "$compression"; then compression="NONE"; fi
 	echo "Supported compression:	$compression"
@@ -662,7 +700,7 @@ dnl javascript if test "$cf_use_javascript" = yes; then
 dnl javascript 	echo "Javascript enabled:	YES"
 dnl javascript 	echo "Regular expressions:	$reg_exp_mode"
 dnl javascript else echo "Javascript enabled:	NO"; fi
-if test "$cf_use_graphics" = yes; then 
+if test "$cf_use_graphics" != no; then 
 	echo "Graphics enabled:	YES"
 	echo "Graphics drivers:	`echo "$drivers"|sed 's/^ //'`"
 	echo "Image formats:		$image_formats"

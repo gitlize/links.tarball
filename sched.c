@@ -445,6 +445,15 @@ int is_connection_restartable(struct connection *c)
 	return !(c->unrestartable >= 2 || (c->tries + 1 >= (max_tries ? max_tries : 1000)));
 }
 
+int is_last_try(struct connection *c)
+{
+	int is_restartable;
+	c->tries++;
+	is_restartable = is_connection_restartable(c) && c->tries < 10;
+	c->tries--;
+	return !is_restartable;
+}
+
 void retry_connection(struct connection *c)
 {
 	interrupt_connection(c);
@@ -604,7 +613,7 @@ int load_url(unsigned char *url, unsigned char * prev_url, struct status *stat, 
 #endif
 	if (stat) stat->state = S_OUT_OF_MEM, stat->prev_error = 0;
 	if (no_cache <= NC_CACHE && !find_in_cache(url, &e) && !e->incomplete) {
-		if (!http_bugs.aggressive_cache && no_cache > NC_ALWAYS_CACHE) {
+		if (!aggressive_cache && no_cache > NC_ALWAYS_CACHE) {
 			if (e->expire_time && e->expire_time < time(NULL)) {
 				if (no_cache < NC_IF_MOD) no_cache = NC_IF_MOD;
 				goto skip_cache;

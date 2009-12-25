@@ -564,23 +564,23 @@ void draw_link(struct terminal *t, struct f_data_c *scr, int l)
 				int x = link->pos[i].x + xp - vx;
 				int y = link->pos[i].y + yp - vy;
 				if (x >= xp && y >= yp && x < xp+xw && y < yp+yw) {
-					unsigned co;
+					chr *co;
 					co = get_char(t, x, y);
 					if (scr->link_bg) scr->link_bg[i].x = x,
 							  scr->link_bg[i].y = y,
-							  scr->link_bg[i].c = co;
+							  scr->link_bg[i].c = co->at;
 					if (t->spec->braille && !vs->brl_in_field) goto skip_link;
 					if (!f || (link->type == L_CHECKBOX && i == 1) || (link->type == L_BUTTON && i == 2) || ((link->type == L_FIELD || link->type == L_AREA) && i == q)) {
 						int xx = x, yy = y;
 						if (link->type != L_FIELD && link->type != L_AREA) {
-							if (((co >> 8) & 0x38) != (link->sel_color & 0x38)) xx = xp + xw - 1, yy = yp + yw - 1;
+							if ((unsigned)(co->at & 0x38) != (link->sel_color & 0x38)) xx = xp + xw - 1, yy = yp + yw - 1;
 						}
 						set_cursor(t, x, y, xx, yy);
 						set_window_ptr(scr->ses->win, x, y);
 						f = 1;
 					}
 					skip_link:;
-					set_color(t, x, y, /*((link->sel_color << 3) | (co >> 11 & 7)) << 8*/ link->sel_color << 8);
+					set_color(t, x, y, /*((link->sel_color << 3) | (co->at >> 3 & 7))*/ link->sel_color);
 				} else scr->link_bg[i].x = scr->link_bg[i].y = scr->link_bg[i].c = -1;
 			}
 			break;
@@ -602,7 +602,7 @@ void clear_link(struct terminal *t, struct f_data_c *scr)
 	if (scr->link_bg) {
 		int i;
 		for (i = scr->link_bg_n - 1; i >= 0; i--)
-			set_char(t, scr->link_bg[i].x, scr->link_bg[i].y, scr->link_bg[i].c);
+			set_color(t, scr->link_bg[i].x, scr->link_bg[i].y, scr->link_bg[i].c);
 		free_link(scr);
 	}
 }
@@ -710,10 +710,11 @@ void draw_searched(struct terminal *t, struct f_data_c *scr)
 	get_searched(scr, &pt, &len);
 	for (i = 0; i < len; i++) {
 		int x = pt[i].x + xp - vx, y = pt[i].y + yp - vy;
-		unsigned co;
+		chr *co;
+		unsigned nco;
 		co = get_char(t, x, y);
-		co = ((co >> 3) & 0x0700) | ((co << 3) & 0x3800);
-		set_color(t, x, y, co);
+		nco = ((co->at >> 3) & 0x07) | ((co->at << 3) & 0x38);
+		set_color(t, x, y, nco);
 	}
 	mem_free(pt);
 }
@@ -852,8 +853,8 @@ void draw_form_entry(struct terminal *t, struct f_data_c *f, struct link *l)
 			x = l->pos[0].x + xp - vx; y = l->pos[0].y + yp - vy;
 			for (i = 0; i < form->size; i++, x++)
 				if (x >= xp && y >= yp && x < xp+xw && y < yp+yw) {
-					if (fs->value && i >= -fs->vpos && (size_t)i < strlen(fs->value) - fs->vpos) set_only_char(t, x, y, form->type != FC_PASSWORD ? fs->value[i + fs->vpos] : '*');
-					else set_only_char(t, x, y, '_');
+					if (fs->value && i >= -fs->vpos && (size_t)i < strlen(fs->value) - fs->vpos) set_only_char(t, x, y, form->type != FC_PASSWORD ? fs->value[i + fs->vpos] : '*', 0);
+					else set_only_char(t, x, y, '_', 0);
 				}
 			break;
 		case FC_TEXTAREA:
@@ -867,15 +868,15 @@ void draw_form_entry(struct terminal *t, struct f_data_c *f, struct link *l)
 			for (; ln->st && y < l->pos[0].y + yp - vy + form->rows; ln++, y++) {
 				for (i = 0; i < form->cols; i++) {
 					if (x+i >= xp && y >= yp && x+i < xp+xw && y < yp+yw) {
-						if (fs->value && i >= -fs->vpos && i + fs->vpos < ln->en - ln->st) set_only_char(t, x+i, y, ln->st[i + fs->vpos]);
-						else set_only_char(t, x+i, y, '_');
+						if (fs->value && i >= -fs->vpos && i + fs->vpos < ln->en - ln->st) set_only_char(t, x+i, y, ln->st[i + fs->vpos], 0);
+						else set_only_char(t, x+i, y, '_', 0);
 					}
 				}
 			}
 			for (; y < l->pos[0].y + yp - vy + form->rows; y++) {
 				for (i = 0; i < form->cols; i++) {
 					if (x+i >= xp && y >= yp && x+i < xp+xw && y < yp+yw)
-						set_only_char(t, x+i, y, '_');
+						set_only_char(t, x+i, y, '_', 0);
 				}
 			}
 			
@@ -886,14 +887,14 @@ void draw_form_entry(struct terminal *t, struct f_data_c *f, struct link *l)
 			x = l->pos[1].x + xp - vx;
 			y = l->pos[1].y + yp - vy;
 			if (x >= xp && y >= yp && x < xp+xw && y < yp+yw)
-				set_only_char(t, x, y, fs->state ? 'X' : ' ');
+				set_only_char(t, x, y, fs->state ? 'X' : ' ', 0);
 			break;
 		case FC_RADIO:
 			if (l->n < 2) break;
 			x = l->pos[1].x + xp - vx;
 			y = l->pos[1].y + yp - vy;
 			if (x >= xp && y >= yp && x < xp+xw && y < yp+yw)
-				set_only_char(t, x, y, fs->state ? 'X' : ' ');
+				set_only_char(t, x, y, fs->state ? 'X' : ' ', 0);
 			break;
 		case FC_SELECT:
 			fixup_select_state(form, fs);
@@ -903,7 +904,7 @@ void draw_form_entry(struct terminal *t, struct f_data_c *f, struct link *l)
 				x = l->pos[i].x + xp - vx;
 				y = l->pos[i].y + yp - vy;
 				if (x >= xp && y >= yp && x < xp+xw && y < yp+yw)
-					set_only_char(t, x, y, i < sl ? s[i] : '_');
+					set_only_char(t, x, y, i < sl ? s[i] : '_', 0);
 			}
 			break;
 		case FC_SUBMIT:
@@ -954,13 +955,12 @@ unsigned char fr_trans[2][4] = {{0xb3, 0xc3, 0xb4, 0xc5}, {0xc4, 0xc2, 0xc1, 0xc
 
 void set_xchar(struct terminal *t, int x, int y, unsigned dir)
 {
-	unsigned c;
+	chr *co;
 	if (x < 0 || x >= t->x || y < 0 || y >= t->y) return;
-	c = get_char(t, x, y);
-	if (!(c & ATTR_FRAME)) return;
-	c &= 0xff;
-	if (c == fr_trans[dir / 2][0]) set_only_char(t, x, y, fr_trans[dir / 2][1 + (dir & 1)] | ATTR_FRAME);
-	else if (c == fr_trans[dir / 2][2 - (dir & 1)]) set_only_char(t, x, y, fr_trans[dir / 2][3] | ATTR_FRAME);
+	co = get_char(t, x, y);
+	if (!(co->at & ATTR_FRAME)) return;
+	if (co->ch == fr_trans[dir / 2][0]) set_only_char(t, x, y, fr_trans[dir / 2][1 + (dir & 1)], ATTR_FRAME);
+	else if (co->ch == fr_trans[dir / 2][2 - (dir & 1)]) set_only_char(t, x, y, fr_trans[dir / 2][3], ATTR_FRAME);
 }
 
 void draw_frame_lines(struct terminal *t, struct frameset_desc *fsd, int xp, int yp)
@@ -975,14 +975,14 @@ void draw_frame_lines(struct terminal *t, struct frameset_desc *fsd, int xp, int
 		for (i = 0; i < fsd->x; i++) {
 			int wwx = fsd->f[i].xw;
 			if (i) {
-				fill_area(t, x, y + 1, 1, wwy, 179 | ATTR_FRAME);
+				fill_area(t, x, y + 1, 1, wwy, 179, ATTR_FRAME);
 				if (j == fsd->y - 1) set_xchar(t, x, y + wwy + 1, 3);
 			} else if (j) set_xchar(t, x, y, 0);
 			if (j) {
-				fill_area(t, x + 1, y, wwx, 1, 196 | ATTR_FRAME);
+				fill_area(t, x + 1, y, wwx, 1, 196, ATTR_FRAME);
 				if (i == fsd->x - 1) set_xchar(t, x + wwx + 1, y, 1);
 			} else if (i) set_xchar(t, x, y, 2);
-			if (i && j) set_char(t, x, y, 197 | ATTR_FRAME);
+			if (i && j) set_char(t, x, y, 197, ATTR_FRAME);
 			/*if (fsd->f[j * fsd->x + i].subframe) {
 				draw_frame_lines(t, fsd->f[j * fsd->x + i].subframe, x + 1, y + 1);
 			}*/
@@ -1014,7 +1014,7 @@ void draw_doc(struct terminal *t, struct f_data_c *scr)
 				if (!scr->parent) set_cursor(t, 0, 0, 0, 0);
 				else set_cursor(t, xp, yp, xp, yp);
 			}
-			fill_area(t, xp, yp, xw, yw, ' ');
+			fill_area(t, xp, yp, xw, yw, ' ', 0);
 #ifdef G
 		} else {
 			long color = dip_get_color_sRGB(0x808080);
@@ -1039,7 +1039,7 @@ void draw_doc(struct terminal *t, struct f_data_c *scr)
 		struct f_data_c *f;
 		int n;
 		if (!F) {
-			fill_area(t, xp, yp, xw, yw, scr->f_data->y ? scr->f_data->bg : ' ');
+			fill_area(t, xp, yp, xw, yw, ' ', scr->f_data->y ? scr->f_data->bg : 0);
 			draw_frame_lines(t, scr->f_data->frame_desc, xp, yp);
 		}
 		n = 0;
@@ -1077,6 +1077,10 @@ void draw_doc(struct terminal *t, struct f_data_c *scr)
 		vs->brl_y = vs->orig_brl_y;
 		ol = vs->orig_link;
 		if (ol < scr->f_data->nlinks) vs->current_link = ol;
+		if (!F) {
+			while (vs->view_pos >= scr->f_data->y) vs->view_pos -= yw ? yw : 1;
+			if (vs->view_pos < 0) vs->view_pos = 0;
+		}
 		if (!F && !t->spec->braille) set_link(scr);
 		check_vs(scr);
 		if (!t->spec->braille) {
@@ -1098,7 +1102,7 @@ void draw_doc(struct terminal *t, struct f_data_c *scr)
 		free_link(scr);
 		scr->xl = vx;
 		scr->yl = vy;
-		fill_area(t, xp, yp, xw, yw, scr->f_data->y ? scr->f_data->bg : ' ');
+		fill_area(t, xp, yp, xw, yw, ' ', scr->f_data->y ? scr->f_data->bg : 0);
 		if (!scr->f_data->y) return;
 		while (vs->view_pos >= scr->f_data->y) vs->view_pos -= yw ? yw : 1;
 		if (vs->view_pos < 0) vs->view_pos = 0;
@@ -1174,11 +1178,11 @@ int dump_to_file(struct f_data *fd, int h)
 	int bptr = 0;
 	buf = mem_alloc(D_BUF);
 	for (y = 0; y < fd->y; y++) for (x = 0; x <= fd->data[y].l; x++) {
-		int c;
+		unsigned c;
 		if (x == fd->data[y].l) c = '\n';
 		else {
-			if (((c = fd->data[y].d[x]) & 0xff) == 1) c += ' ' - 1;
-			if ((c >> 15) && (c & 0xff) >= 176 && (c & 0xff) < 224) c = frame_dumb[(c & 0xff) - 176];
+			if ((c = fd->data[y].d[x].ch) == 1) c += ' ' - 1;
+			if (fd->data[y].d[x].at & ATTR_FRAME && (c & 0xff) >= 176 && (c & 0xff) < 224) c = frame_dumb[(c & 0xff) - 176];
 		}
 		buf[bptr++] = c;
 		if (bptr >= D_BUF) {
@@ -1256,7 +1260,7 @@ int in_viewy(struct f_data_c *f, struct link *l)
 	int i;
 	for (i = 0; i < l->n; i++) {
 		if (l->pos[i].y >= f->vs->view_pos && l->pos[i].y < f->vs->view_pos + f->yw)
-		return 1;
+			return 1;
 	}
 	return 0;
 }
@@ -1545,15 +1549,14 @@ void left(struct session *ses, struct f_data_c *f, int a)
 
 int get_at_pos(struct f_data *f, int x, int y)
 {
-	unsigned ch;
+	chr *ch;
 	struct line *ln;
 	if (y < 0 || y >= f->y) return -1;
 	ln = &f->data[y];
-	if (x < 0 || x >= ln->l) ch = ln->c;
-	else ch = ln->d[x];
-	if (ch & 0x8000) return 0;
-	ch &= 0xff;
-	return ch != 0 && ch != 1 && ch != ' ' && ch != '~';
+	if (x < 0 || x >= ln->l) return 0;
+	ch = &ln->d[x];
+	if (ch->at & ATTR_FRAME) return 0;
+	return ch->ch != 0 && ch->ch != 1 && ch->ch != ' ' && ch->ch != '~';
 }
 
 void cursor_word(struct session *ses, struct f_data_c *f, int a)
@@ -1798,7 +1801,7 @@ void get_succesful_controls(struct f_data_c *f, struct form_control *fc, struct 
 	struct form_control *form;
 	init_list(*subm);
 	foreach(form, f->f_data->forms) {
-		if (form->form_num == fc->form_num && ((form->type != FC_SUBMIT && form->type != FC_IMAGE && form->type != FC_RESET && form->type != FC_BUTTON) || form == fc) && form->name && form->name[0]) {
+		if (form->form_num == fc->form_num && ((form->type != FC_SUBMIT && form->type != FC_IMAGE && form->type != FC_RESET && form->type != FC_BUTTON) || form == fc) && form->name && form->name[0] && form->ro != 2) {
 			struct submitted_value *sub;
 			struct form_state *fs;
 			int fi = form->type == FC_IMAGE && form->default_value && *form->default_value ? -1 : 0;
@@ -2085,12 +2088,15 @@ unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form
 	}
 	if (form->method == FM_GET) {
 		unsigned char *pos, *da;
+		int q;
 		if (strlen(form->action) + 2 + len < (unsigned)len) overalloc();
 		go = mem_alloc(strlen(form->action) + 1 + len + 1);
 		strcpy(go, form->action);
 		pos = extract_position(go);
 		if (!(da = get_url_data(go))) da = go;
-		if (strchr(da, '?')) strcat(go, "&");
+		q = strlen(da);
+		if (q && (da[q - 1] == '&' || da[q - 1] == '?')) ;
+		else if (strchr(da, '?')) strcat(go, "&");
 		else strcat(go, "?");
 		strcat(go, data);
 		if (pos) strcat(go, pos), mem_free(pos);
@@ -2597,7 +2603,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 			} else fs->state = strlen(fs->value);
 		} else if (!(ev->y & (KBD_CTRL | KBD_ALT)) && (ev->x >= 32 && ev->x < gf_val(256, MAXINT) && gf_val(cp2u(ev->x, ses->term->spec->charset) != -1, 1))) {
 			set_br_pos(f, l);
-			if (!form->ro && gf_val((unsigned)strlen(fs->value),(unsigned)utf8len(fs->value)) < (unsigned)form->maxlength) {
+			if (!form->ro && cp_len(ses->term->spec->charset, fs->value) < form->maxlength) {
 				unsigned char *v;
 				unsigned char a_[2];
 				unsigned char *nw;
@@ -2641,7 +2647,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 			set_br_pos(f, l);
 			clipboard = get_clipboard_text(ses->term);
 			if (!clipboard) goto brk;
-			if (!form->ro && gf_val((unsigned)strlen(fs->value),(unsigned)utf8len(fs->value)) + gf_val((unsigned)strlen(clipboard),(unsigned)utf8len(clipboard)) <= (unsigned)form->maxlength) {
+			if (!form->ro && cp_len(ses->term->spec->charset, fs->value) + cp_len(ses->term->spec->charset, clipboard) <= form->maxlength) {
 				unsigned char *v;
 				v = mem_realloc(fs->value, strlen(fs->value) + strlen(clipboard) +1);
 				fs->value = v;
@@ -3866,6 +3872,7 @@ void link_menu(struct terminal *term, void *xxx, struct session *ses)
 
 unsigned char *print_current_titlex(struct f_data_c *fd, int w)
 {
+	int mul, pul;
 	int ml = 0, pl = 0;
 	unsigned char *m, *p;
 	if (!fd || !fd->vs || !fd->f_data) return NULL;
@@ -3880,11 +3887,11 @@ unsigned char *print_current_titlex(struct f_data_c *fd, int w)
 		if (pp > pe) pp = pe;
 		if (fd->vs->view_pos + fd->yw >= fd->f_data->y) pp = pe;
 		if (fd->f_data->title && !fd->ses->term->spec->braille) add_chr_to_str(&p, &pl, ' ');
-		add_to_str(&p, &pl, "(p");
+		add_to_str(&p, &pl, _(TEXT(T_PAGE_P), fd->ses->term));
 		add_num_to_str(&p, &pl, pp);
-		add_to_str(&p, &pl, " of ");
+		add_to_str(&p, &pl, _(TEXT(T_PAGE_OF), fd->ses->term));
 		add_num_to_str(&p, &pl, pe);
-		add_chr_to_str(&p, &pl, ')');
+		add_to_str(&p, &pl, _(TEXT(T_PAGE_CL), fd->ses->term));
 		if (fd->f_data->title && fd->ses->term->spec->braille) add_chr_to_str(&p, &pl, ' ');
 	}
 	if (!fd->f_data->title) return p;
@@ -3894,7 +3901,14 @@ unsigned char *print_current_titlex(struct f_data_c *fd, int w)
 	}
 	m = init_str();
 	add_to_str(&m, &ml, fd->f_data->title);
-	if (ml + pl > w) if ((ml = w - pl) < 0) ml = 0;
+	mul = cp_len(fd->ses->term->spec->charset, m);
+	pul = cp_len(fd->ses->term->spec->charset, p);
+	if (mul + pul > w) {
+		unsigned char *mm;
+		if ((mul = w - pul) < 0) mul = 0;
+		for (mm = m; mul--; GET_TERM_CHAR(fd->ses->term, &mm)) ;
+		ml = mm - m;
+	}
 	add_to_str(&m, &ml, p);
 	mem_free(p);
 	return m;
@@ -3904,7 +3918,7 @@ unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *term)
 {
 	int ll = 0;
 	struct link *l;
-	unsigned char *m;
+	unsigned char *m = NULL /* shut up warning */;
 	if (!fd || !fd->vs || !fd->f_data) return NULL;
 	if (fd->vs->current_link == -1 || fd->vs->current_link >= fd->f_data->nlinks || fd->f_data->frame_desc) return NULL;
 	l = &fd->f_data->links[fd->vs->current_link];
@@ -3947,11 +3961,11 @@ unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *term)
 	}
 	if (!l->form) return NULL;
 	if (l->type == L_BUTTON) {
-		if (l->form->type == FC_BUTTON){
+		if (l->form->type == FC_BUTTON) {
 			unsigned char *n;
 			unsigned char *txt;
 			m = init_str();
-			ll=0;
+			ll = 0;
 			add_to_str(&m, &ll, _(TEXT(T_BUTTON), term));
 			if (!l->js_event) goto p;
 			add_to_str(&m, &ll, " ");
@@ -4017,19 +4031,22 @@ unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *term)
 
 /* jako print_current_linkx, ale vypisuje vice informaci o obrazku
    pouziva se v informacich o dokumentu
+
+   Ach jo, to Brain kopiroval kod, snad to nedela i v ty firme,
+   kde ted pracuje... -- mikulas
  */
 unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct terminal *term)
 {
 	int ll = 0;
 	struct link *l;
-	unsigned char *m;
+	unsigned char *m = NULL /* shut up warning */;
 	if (!fd || !fd->vs || !fd->f_data) return NULL;
 	if (fd->vs->current_link == -1 || fd->vs->current_link >= fd->f_data->nlinks || fd->f_data->frame_desc) return NULL;
 	l = &fd->f_data->links[fd->vs->current_link];
 	if (l->type == L_LINK) {
 		unsigned char *spc;
-		m=init_str();
-		ll=0;
+		m = init_str();
+		ll = 0;
 		if (l->where && strlen(l->where) >= 4 && !casecmp(l->where, "MAP@", 4)) {
 			add_to_str(&m, &ll, _(TEXT(T_USEMAP), term));
 			add_to_str(&m, &ll, " ");
@@ -4082,11 +4099,11 @@ unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct terminal *te
 	}
 	if (!l->form) return NULL;
 	if (l->type == L_BUTTON) {
-		if (l->form->type == FC_BUTTON){
+		if (l->form->type == FC_BUTTON) {
 			unsigned char *n;
 			unsigned char *txt;
 			m = init_str();
-			ll=0;
+			ll = 0;
 			add_to_str(&m, &ll, _(TEXT(T_BUTTON), term));
 			if (!l->js_event) goto p;
 			add_to_str(&m, &ll, " ");

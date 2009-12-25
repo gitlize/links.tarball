@@ -60,6 +60,8 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
+host_alias = @host_alias@
+host_triplet = @host@
 CC = @CC@
 CXX = @CXX@
 DIRECTFB_CONFIG = @DIRECTFB_CONFIG@
@@ -76,7 +78,7 @@ bin_PROGRAMS = links
 
 @ATHEOS_GR_TRUE@links_LDADD = atheos.o
 
-links_SOURCES = af_unix.c auth.c beos.c bfu.c block.c bookmarks.c cache.c charsets.c connect.c cookies.c default.c dip.c directfb.c directfb_cursors.h dither.c dns.c drivers.c error.c file.c finger.c font_include.c framebuffer.c ftp.c gif.c html.c html_gr.c html_r.c html_tbl.c http.c https.c img.c imgcache.c jpeg.c jsint.c kbd.c language.c links_icon.c listedit.c lru.c mailto.c main.c menu.c memory.c objreq.c os_dep.c pmshell.c png.c sched.c select.c session.c smb.c svgalib.c terminal.c tiff.c types.c url.c view.c view_gr.c x.c xbm.c links.h cfg.h os_dep.h os_depx.h setup.h codepage.h language.h codepage.inc entity.inc uni_7b.inc language.inc upcase.inc arrow.inc bits.h
+links_SOURCES = af_unix.c auth.c beos.c bfu.c block.c bookmarks.c cache.c charsets.c connect.c cookies.c default.c dip.c directfb.c directfb_cursors.h dither.c dns.c drivers.c error.c file.c finger.c font_include.c framebuffer.c ftp.c gif.c html.c html_gr.c html_r.c html_tbl.c http.c https.c img.c imgcache.c jpeg.c jsint.c kbd.c language.c links_icon.c listedit.c lru.c mailto.c main.c memory.c menu.c objreq.c os_dep.c pmshell.c png.c sched.c select.c session.c smb.c svgalib.c terminal.c tiff.c types.c url.c view.c view_gr.c x.c xbm.c links.h cfg.h os_dep.h os_depx.h setup.h codepage.h language.h codepage.inc entity.inc uni_7b.inc language.inc upcase.inc arrow.inc bits.h
 
 CXXFLAGS = @CXXFLAGS@
 
@@ -97,7 +99,7 @@ cache.o charsets.o connect.o cookies.o default.o dip.o directfb.o \
 dither.o dns.o drivers.o error.o file.o finger.o font_include.o \
 framebuffer.o ftp.o gif.o html.o html_gr.o html_r.o html_tbl.o http.o \
 https.o img.o imgcache.o jpeg.o jsint.o kbd.o language.o links_icon.o \
-listedit.o lru.o mailto.o main.o menu.o memory.o objreq.o os_dep.o \
+listedit.o lru.o mailto.o main.o memory.o menu.o objreq.o os_dep.o \
 pmshell.o png.o sched.o select.o session.o smb.o svgalib.o terminal.o \
 tiff.o types.o url.o view.o view_gr.o x.o xbm.o
 @ATHEOS_GR_TRUE@links_DEPENDENCIES =  atheos.o

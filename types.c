@@ -784,6 +784,7 @@ struct list_head mailto_prog = { &mailto_prog, &mailto_prog };
 struct list_head telnet_prog = { &telnet_prog, &telnet_prog };
 struct list_head tn3270_prog = { &tn3270_prog, &tn3270_prog };
 struct list_head mms_prog = { &mms_prog, &mms_prog };
+struct list_head magnet_prog = { &magnet_prog, &magnet_prog };
 
 
 int is_in_list(unsigned char *list, unsigned char *str, int l)
@@ -907,6 +908,10 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 		unsigned char *s;
 		if ((s = strchr(ct, ';'))) *s = 0;
 		while (*ct && ct[strlen(ct) - 1] <= ' ') ct[strlen(ct) - 1] = 0;
+		if (*ct == '"' && ct[1] && ct[strlen(ct) - 1] == '"') {
+			memmove(ct, ct + 1, strlen(ct));
+			ct[strlen(ct) - 1] = 0;
+		}
 		if (!strcasecmp(ct, "text/plain") || !strcasecmp(ct, "application/octet-stream") || !strcasecmp(ct, "application/octetstream")) {
 			unsigned char *ctt = get_content_type_by_extension(url);
 			if (ctt) {
@@ -914,7 +919,8 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 				return ctt;
 			}
 		}
-		return ct;
+		if (!*ct) mem_free(ct);
+		else return ct;
 	}
 	ct = get_content_type_by_extension(url);
 	if (ct) return ct;
@@ -1009,6 +1015,8 @@ void free_types(void)
 	free_list(tn3270_prog);
 	foreach(p, mms_prog) mem_free(p->prog);
 	free_list(mms_prog);
+	foreach(p, magnet_prog) mem_free(p->prog);
+	free_list(magnet_prog);
 
 	free_list(ext_search_history.items);
 	free_list(assoc_search_history.items);
@@ -1048,7 +1056,7 @@ unsigned char *get_filename_from_header(unsigned char *head)
 {
 	unsigned char *ct, *x, *y;
 	if ((ct = parse_http_header(head, "Content-Disposition", NULL))) {
-		x = parse_header_param(ct, "filename");
+		x = parse_header_param(ct, "filename", 1);
 		mem_free(ct);
 		if (x) {
 			if (*x) goto ret_x;
@@ -1056,7 +1064,7 @@ unsigned char *get_filename_from_header(unsigned char *head)
 		}
 	}
 	if ((ct = parse_http_header(head, "Content-Type", NULL))) {
-		x = parse_header_param(ct, "name");
+		x = parse_header_param(ct, "name", 0);
 		mem_free(ct);
 		if (x) {
 			if (*x) goto ret_x;
@@ -1075,6 +1083,7 @@ unsigned char *get_filename_from_header(unsigned char *head)
 
 unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, int tmp)
 {
+	int ll = 0;
 	unsigned char *u, *s, *e, *f, *x;
 	unsigned char *ct, *want_ext;
 	want_ext = stracpy("");
@@ -1084,7 +1093,9 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 	for (e = s = u; *e && !end_of_dir(url, *e); e++) {
 		if (dir_sep(*e)) s = e + 1;
 	}
-	f = memacpy(s, e - s);
+	ll = 0;
+	f = init_str();
+	add_conv_str(&f, &ll, s, e - s, -2);
 	if (!(ct = parse_http_header(head, "Content-Type", NULL))) goto no_ct;
 	mem_free(ct);
 	ct = get_content_type(head, url);

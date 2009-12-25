@@ -285,7 +285,7 @@ void compute_background_8(unsigned char *rgb, struct cached_image *cimg)
  *	blue_gamma
  *	strip_optimized
  */
-void header_dimensions_known(struct cached_image *cimg)
+int header_dimensions_known(struct cached_image *cimg)
 {
 	unsigned short red, green, blue;
 
@@ -294,11 +294,14 @@ void header_dimensions_known(struct cached_image *cimg)
 		fprintf(stderr,"cimg->state=%d\n",cimg->state);
 		internal("Invalid state in header_dimensions_known");
 	}
-	if (cimg->width<1||cimg->height<1){
-		fprintf(stderr,"width=%d height=%d\n",cimg->width, cimg->height);
-		internal("Zero dimensions in header_dimensions_known");
-	}
 #endif /* #ifdef DEBUG */
+	if (cimg->width<1||cimg->height<1){
+		/*fprintf(stderr,"width=%d height=%d\n",cimg->width, cimg->height);*/
+		return 1;
+	}
+	if (!is_image_size_sane(cimg->width, cimg->height)) {
+		return 1;
+	}
 	if (cimg->wanted_xw<0){
 		/* Unspecified width */
 		if (cimg->wanted_yw<0){
@@ -441,6 +444,7 @@ void header_dimensions_known(struct cached_image *cimg)
 		make_gamma_table(cimg);
 	}else cimg->gamma_table=NULL;
 	cimg->state|=4; /* Update state */
+	return 0;
 }
 
 /* Fills "tmp" buffer with the resulting data and does not free the input
@@ -894,6 +898,7 @@ int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 #endif /* #ifdef DEBUG */
 	if (!goi->af->rq) return 0;
 	if (!goi->af->rq->ce) goto end;
+	/*fprintf(stderr, "processing: %s\n", goi->af->rq->ce->url);*/
 	if (goi->af->rq->ce->count2!=cimg->last_count2||
 		(goi->af->rq->ce->count!=cimg->last_count && cimg->eof_hit) ||
 		(cimg->state>=12&&gamma_stamp!=cimg->gamma_stamp)){
@@ -1165,7 +1170,7 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 	}
 #ifdef DEBUG
 	else{
-		fprintf(stderr,"cimg->state\%d\n",cimg->state);
+		fprintf(stderr,"cimg->state=%d\n",cimg->state);
 		internal("Invalid state in img_draw_image");
 	}
 #endif /* #ifdef DEBUG */
@@ -1334,7 +1339,7 @@ void change_image (struct g_object_image *goi, unsigned char *url, unsigned char
 
 #endif
 
-int known_image_type(char *type)
+int known_image_type(unsigned char *type)
 {
 #ifdef G
 	if (!strcasecmp(type, "image/png")) return 1;

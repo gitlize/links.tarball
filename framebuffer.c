@@ -123,15 +123,15 @@ static int global_mouse_hidden;
 
 #define END_MOUSE if (mouse_hidden) show_mouse();
 
-#define START_GR \
-		in_gr_operation=1; \
-		if (!fb_active) { in_gr_operation=0; ioctl(TTY,VT_RELDISP,1); return; }
-#define START_GR_0 \
-		in_gr_operation=1; \
-		if (!fb_active) { in_gr_operation=0; ioctl(TTY,VT_RELDISP,1); return 0; }
 #define END_GR	\
-		in_gr_operation=0;\
-		if (!fb_active)ioctl(TTY,VT_RELDISP,1);
+		in_gr_operation--;\
+		if (!fb_active && !in_gr_operation) ioctl(TTY,VT_RELDISP,1);
+#define START_GR \
+		in_gr_operation++; \
+		if (!fb_active) { END_GR; return; }
+#define START_GR_0 \
+		in_gr_operation++; \
+		if (!fb_active) { END_GR; return 0; }
 		
 
 #define NUMBER_OF_DEVICES	10
@@ -1380,7 +1380,7 @@ static void fb_shutdown_driver(void)
 	mem_free(new_background_buffer);
 	fb_driver.shutdown_device(mouse_graphics_device);
 	unhandle_fb_mouse();
-	in_gr_operation=1;
+	in_gr_operation++;
 	if (fb_active) {
 		memset(fb_mem,0,fb_mem_size);
 		ioctl (fb_handler, FBIOPUT_VSCREENINFO, &oldmode);

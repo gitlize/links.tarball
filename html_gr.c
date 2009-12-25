@@ -328,7 +328,11 @@ void add_object_to_line(struct g_part *pp, struct g_object_line **lp, struct g_o
 	l->entries[l->n_entries - 1] = go;
 	*lp = l;
 	if (pp->cx == -1) pp->cx = par_format.leftmargin * G_HTML_MARGIN;
-	pp->cx += go->xw;
+	if (go->xw) {
+		pp->cx += pp->cx_w;
+		pp->cx_w = 0;
+		pp->cx += go->xw;
+	}
 }
 
 void flush_pending_text_to_line(struct g_part *p)
@@ -419,7 +423,7 @@ void split_line_object(struct g_part *p, struct g_object_text *text, unsigned ch
 		p->text = t2;
 		p->pending_text_len = -1;
 		p->w.pos = t2->xw;
-		p->cx += g_char_width(t2->style, ' ');
+		p->cx_w = g_char_width(t2->style, ' ');
 	}
 	p->w.last_wrap = NULL;
 	p->w.last_wrap_obj = NULL;
@@ -462,6 +466,7 @@ void g_line_break(struct g_part *p)
 	}
 	if (p->cx > p->xmax) p->xmax = p->cx;
 	p->cx = -1;
+	p->cx_w = 0;
 }
 
 /* SHADOWED IN html_form_control */
@@ -677,6 +682,7 @@ void g_hr(struct g_part *gp, struct hr_param *hr)
 	add_object_to_line(gp, &gp->line, (struct g_object *)o);
 	line_breax = 0;
 	gp->cx = -1;
+	gp->cx_w = 0;
 }
 
 
@@ -1019,6 +1025,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	par_format.list_number = 0;
 	par_format.dd_margin = 0;
 	p->cx = -1;
+	p->cx_w = 0;
 	g_nobreak = 1;
 	g_do_format(start, end, p, head);
 	g_nobreak = 0;

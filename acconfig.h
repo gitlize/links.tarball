@@ -62,6 +62,12 @@
 #undef HAVE_SSL
 
 /* */
+#undef HAVE_OPENSSL
+
+/* */
+#undef HAVE_NSS
+
+/* */
 #undef HAVE_ZLIB
 
 /* */
@@ -133,3 +139,5 @@
 /* */
 #undef HAVE_SOCKLEN_T
 
+/* */
+#undef ENABLE_UTF8

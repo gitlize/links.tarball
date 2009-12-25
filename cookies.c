@@ -52,18 +52,31 @@ int check_domain_security(unsigned char *server, unsigned char *domain)
 {
 	size_t i, j, dl;
 	int nd;
+	unsigned char *tld[] = { ".com", ".edu", ".net", ".org", ".gov", ".mil", ".int", NULL };
 	if (domain[0] == '.') domain++;
 	dl = strlen(domain);
 	if (dl > strlen(server)) return 1;
 	for (i = strlen(server) - dl, j = 0; server[i]; i++, j++)
 		if (upcase(server[i]) != upcase(domain[j])) return 1;
 	nd = 2;
-	if (dl > 4 && domain[dl - 4] == '.') {
-		unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", NULL };
-		for (i = 0; tld[i]; i++) if (!casecmp(tld[i], &domain[dl - 3], 3)) {
+	for (i = 0; tld[i]; i++) {
+		size_t tl = strlen(tld[i]);
+		if (dl > tl && !casecmp(tld[i], &domain[dl - tl], tl)) {
 			nd = 1;
 			break;
 		}
+	}
+	if (nd == 2) {
+		unsigned char *last_dot = strrchr(domain, '.');
+		i = 0;
+		if (last_dot) {
+			while (last_dot > domain) {
+				last_dot--;
+				if (*last_dot == '.') break;
+				i++;
+			}
+		}
+		if (i >= 4) nd = 1;
 	}
 	for (i = 0; domain[i]; i++) if (domain[i] == '.') if (!--nd) break;
 	if (nd > 0) return 1;
@@ -94,7 +107,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	cookie->name = memacpy(str, q - str);
 	cookie->value = !noval ? memacpy(q + 1, p - q - 1) : NULL;
 	cookie->server = stracpy(server);
-	date = parse_header_param(str, "expires");
+	date = parse_header_param(str, "expires", 0);
 	if (date) {
 		cookie->expires = parse_http_date(date);
 		/* kdo tohle napsal a proc ?? */
@@ -102,7 +115,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 		mem_free(date);
 	} else
 		cookie->expires = 0;
-	if (!(cookie->path = parse_header_param(str, "path"))) {
+	if (!(cookie->path = parse_header_param(str, "path", 0))) {
 		/*unsigned char *w;*/
 		cookie->path = stracpy("/");
 		/*
@@ -124,9 +137,9 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 			cookie->path[0] = '/';
 		}
 	}
-	if (!(cookie->domain = parse_header_param(str, "domain"))) cookie->domain = stracpy(server);
+	if (!(cookie->domain = parse_header_param(str, "domain", 0))) cookie->domain = stracpy(server);
 	if (cookie->domain[0] == '.') memmove(cookie->domain, cookie->domain + 1, strlen(cookie->domain));
-	if ((s = parse_header_param(str, "secure"))) {
+	if ((s = parse_header_param(str, "secure", 0))) {
 		cookie->secure = 1;
 		mem_free(s);
 	} else cookie->secure = 0;
@@ -259,7 +272,7 @@ int cookie_expired(struct cookie *c)	/* parse_http_date is broken */
 	return 0 && (c->expires && c->expires < time(NULL));
 }
 
-void send_cookies(unsigned char **s, int *l, unsigned char *url)
+void add_cookies(unsigned char **s, int *l, unsigned char *url)
 {
 	int nc = 0;
 	struct c_domain *cd;

@@ -31,10 +31,11 @@ void er(int, unsigned char *, va_list); /* prototype */
 char dummy_val;
 volatile char *dummy_ptr = &dummy_val;
 
-void do_not_optimize_here(void *p)
+void *do_not_optimize_here(void *p)
 {
 	*dummy_ptr = 0;
 	/* break ANSI aliasing */
+	return p;
 }
 
 #ifdef LEAK_DEBUG

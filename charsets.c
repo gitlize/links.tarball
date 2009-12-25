@@ -93,7 +93,7 @@ int strange_chars[32] = {
 #define U_EQUAL(a, b) unicode_7b[a].x == (b)
 #define U_ABOVE(a, b) unicode_7b[a].x > (b)
 
-static inline unsigned char *u2cp(int u, int to, int fallback)
+unsigned char *u2cp(int u, int to, int fallback)
 {
 	int j, s;
 	again:
@@ -343,7 +343,7 @@ int get_entity_number(unsigned char *st, int l)
 	int n = 0;
 	if (upcase(st[0]) == 'X') {
 		st++, l--;
-		if (!l || l > 4) return -1;
+		if (!l) return -1;
 		do {
 			char c = upcase(*(st++));
 			if (c >= '0' && c <= '9') n = n * 16 + c - '0';
@@ -352,7 +352,7 @@ int get_entity_number(unsigned char *st, int l)
 			if (n >= 0x10000) return -1;
 		} while (--l);
 	} else {
-		if (!l || l > 5) return -1;
+		if (!l) return -1;
 		do {
 			char c = *(st++);
 			if (c >= '0' && c <= '9') n = n * 10 + c - '0';
@@ -520,15 +520,10 @@ unsigned char *get_cp_mime_name(int index)
 	return codepages[index].aliases[0];
 }
 
-int is_cp_special(int index)
-{
-	return codepages[index].table == table_utf_8;
-}
-
 #define UP_EQUAL(a, b) unicode_upcase[a].lo == (b)
 #define UP_ABOVE(a, b) unicode_upcase[a].lo > (b)
 
-unsigned char charset_upcase(unsigned char ch, int cp)
+unsigned charset_upcase(unsigned ch, int cp)
 {
 	unsigned u;
 	int res;
@@ -537,9 +532,17 @@ unsigned char charset_upcase(unsigned char ch, int cp)
 	u = cp2u(ch, cp);
 	BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, u, res);
 	if (res == -1) return ch;
+	if (codepages[cp].table == table_utf_8) return unicode_upcase[res].up;
 	str = u2cp(unicode_upcase[res].up, cp, 0);
 	if (!str || !str[0] || str[1]) return ch;
 	return str[0];
+}
+
+unsigned uni_upcase(unsigned ch)
+{
+	int cp = get_cp_index("utf-8");
+	if (cp < 0) cp = 0;
+	return charset_upcase(ch, cp);
 }
 
 void charset_upcase_string(unsigned char **chp, int cp)
@@ -608,3 +611,29 @@ int compare_case_utf8(unsigned char *u1, unsigned char *u2)
 	}
 }
 
+int strlen_utf8(unsigned char *s)
+{
+	int len = 0;
+	while (1) {
+		unsigned c;
+		GET_UTF_8(s, c);
+		if (!c) return len;
+		len++;
+	}
+}
+
+unsigned char *cp_strchr(int charset, unsigned char *str, unsigned chr)
+{
+	if (!is_cp_special(charset)) {
+		if (chr >= 0x100)
+			return NULL;
+		return strchr(str, chr);
+	}
+	while (1) {
+		unsigned char *o_str = str;
+		unsigned c;
+		GET_UTF_8(str, c);
+		if (!c) return NULL;
+		if (c == chr) return o_str;
+	}
+}

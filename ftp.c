@@ -604,6 +604,7 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 		if (p > 5 && !casecmp(buf, "total", 5)) goto raw;
 		for (pp = p - 1; pp >= 0; pp--) if (!WHITECHAR(buf[pp])) break;
 		if (pp < 0) goto raw;
+		if (pp < p - 1) pp++;
 		ppos = -1;
 		for (; pp >= 10; pp--) if (WHITECHAR(buf[pp])) {
 			if (is_date(&buf[pp - 6]) &&
@@ -612,7 +613,7 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 			     (buf[pp - 4] == '1' && buf[pp - 3] == '9')) &&
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '9' &&
 			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') {
-				if (pp < p - 1 && buf[pp + 1] == ' ') ppos = pp + 1;
+				if (pp < p - 2 && buf[pp + 1] == ' ' && buf[pp + 2] != ' ') ppos = pp + 1;
 				else ppos = pp;
 			}
 			if (buf[pp - 6] == ' ' &&

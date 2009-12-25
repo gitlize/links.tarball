@@ -569,7 +569,17 @@ struct table *parse_table(unsigned char *html, unsigned char *eof, unsigned char
 	p = 1;
 	cell->align = l_al;
 	cell->valign = l_val;
-	if ((cell->b = upcase(t_name[1]) == 'H')) cell->align = AL_CENTER;
+	cell->b = 0;
+#if 0
+	if (upcase(t_name[1]) == 'H') {
+		unsigned char *e = en;
+		while (e < eof && WHITECHAR(*e)) e++;
+		if (eof - e > 6 && !casecmp(e, "<TABLE", 6)) goto no_th; /* hack for www.root.cz */
+		cell->b = 1;
+		cell->align = AL_CENTER;
+		no_th:;
+	}
+#endif
 	if (group == 1) cell->group = 1;
 	if (x < t->c) {
 		if (t->cols[x].align != AL_TR) cell->align = t->cols[x].align;
@@ -1227,15 +1237,15 @@ void display_complicated_table(struct table *t, int x, int y, int *yy)
 
 /* !!! FIXME: background */
 #define draw_frame_point(xx, yy, ii, jj)	\
-if (H_LINE_X((ii-1), (jj)) >= 0 || H_LINE_X((ii), (jj)) >= 0 || V_LINE_X((ii), (jj-1)) >= 0 || V_LINE_X((ii), (jj)) >= 0) xset_hchar(t->p, (xx), (yy), frame_table[V_LINE((ii),(jj)-1)+3*H_LINE((ii),(jj))+9*H_LINE((ii)-1,(jj))+27*V_LINE((ii),(jj))] | ATTR_FRAME)
+if (H_LINE_X((ii-1), (jj)) >= 0 || H_LINE_X((ii), (jj)) >= 0 || V_LINE_X((ii), (jj-1)) >= 0 || V_LINE_X((ii), (jj)) >= 0) xset_hchar(t->p, (xx), (yy), frame_table[V_LINE((ii),(jj)-1)+3*H_LINE((ii),(jj))+9*H_LINE((ii)-1,(jj))+27*V_LINE((ii),(jj))], ATTR_FRAME)
 
 #define draw_frame_hline(xx, yy, ll, ii, jj)	\
-if (H_LINE_X((ii), (jj)) >= 0) xset_hchars(t->p, (xx), (yy), (ll), hline_table[H_LINE((ii), (jj))] | ATTR_FRAME)
+if (H_LINE_X((ii), (jj)) >= 0) xset_hchars(t->p, (xx), (yy), (ll), hline_table[H_LINE((ii), (jj))], ATTR_FRAME)
 
 #define draw_frame_vline(xx, yy, ll, ii, jj)	\
 {						\
 	int qq;					\
-	if (V_LINE_X((ii), (jj)) >= 0) for (qq = 0; qq < (ll); qq++) xset_hchar(t->p, (xx), (yy) + qq, vline_table[V_LINE((ii), (jj))] | ATTR_FRAME); }
+	if (V_LINE_X((ii), (jj)) >= 0) for (qq = 0; qq < (ll); qq++) xset_hchar(t->p, (xx), (yy) + qq, vline_table[V_LINE((ii), (jj))], ATTR_FRAME); }
 
 #ifndef DEBUG
 #define H_LINE_X(xx, yy) fh[(xx) + 1 + (t->x + 2) * (yy)]
@@ -1381,6 +1391,8 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	}
 	if (!F && !border) cellsp = 0;
 	else if (!F && !cellsp) cellsp = 1;
+	/* Sparc gcc-2.7.2.1 miscompiles this */
+	do_not_optimize_here(&cellsp);
 	if (!F && border > 2) border = 2;
 	if (!F && cellsp > 2) cellsp = 2;
 	if (F && !cellsp && border) cellsp = 1;
@@ -1669,7 +1681,7 @@ void table_get_list(struct g_object_table *o, void (*fn)(struct g_object *parent
 	}
 }
 
-void table_bg(struct text_attrib *ta, char bgstr[8])
+void table_bg(struct text_attrib *ta, unsigned char bgstr[8])
 {
 	if (ta->bg.r + ta->bg.g * 3 + ta->bg.b * 5 > 9 * 128) strcpy(bgstr, "#000000");
 	else if (ta->fg.r > G_HTML_TABLE_FRAME_COLOR && ta->fg.g > G_HTML_TABLE_FRAME_COLOR && ta->fg.b > G_HTML_TABLE_FRAME_COLOR) {
@@ -1832,11 +1844,13 @@ void process_g_table(struct g_part *gp, struct table *t)
 	flush_pending_text_to_line(gp);
 	flush_pending_line_to_obj(gp, 0);
 	gp->cx = -1;
+	gp->cx_w = 0;
 	add_object_to_line(gp, &gp->line, (struct g_object *)o);
 	flush_pending_text_to_line(gp);
 	par_format.align = t->align;
 	flush_pending_line_to_obj(gp, 0);
 	gp->cx = -1;
+	gp->cx_w = 0;
 }
 
 #endif

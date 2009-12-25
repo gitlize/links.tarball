@@ -222,7 +222,7 @@ void objreq_end(struct status *stat, struct object_request *rq)
 					if (rq->goto_position) mem_free(rq->goto_position);
 					rq->goto_position = pos;
 				}
-				if (!http_bugs.bug_302_redirect && !stat->ce->redirect_get && (p = strchr(u, POST_CHAR))) add_to_strn(&u, p);
+				if (!http_options.bug_302_redirect && !stat->ce->redirect_get && (p = strchr(u, POST_CHAR))) add_to_strn(&u, p);
 				cache = rq->cache;
 				if (cache < NC_RELOAD && (!strcmp(u, rq->url) || rq->redirect_cnt >= MAX_CACHED_REDIRECTS)) cache = NC_RELOAD;
 				mem_free(rq->url);

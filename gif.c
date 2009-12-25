@@ -19,7 +19,7 @@
 /* prototypes */
 void alloc_color_map(int);
 void implant_transparent(struct gif_decoder *);
-void gif_dimensions_known(void);
+int gif_dimensions_known(void);
 void gif_restart_internal(unsigned char *, int);
 void init_table(void);
 
@@ -318,7 +318,7 @@ void implant_transparent(struct gif_decoder *deco)
 }
 
 /* Dimensions are in deco->im_width and deco->im_height */
-void gif_dimensions_known(void)
+int gif_dimensions_known(void)
 {
 	struct gif_decoder *deco;
 
@@ -331,7 +331,7 @@ void gif_dimensions_known(void)
 	global_cimg->strip_optimized=(deco->interl_dist==1
 		&&deco->im_width*deco->im_height>=65536);
 	/* Run strip_optimized only from 65536 pixels up */
-	header_dimensions_known(global_cimg);
+	return header_dimensions_known(global_cimg);
 }
 	
 /* Accepts one byte from GIF codestream
@@ -353,6 +353,7 @@ gif_accept_byte(int c)
 		if (deco->tlen>=13){
 			if (strncmp(deco->tbuf,"GIF87a",6)
 				&&strncmp(deco->tbuf,"GIF89a",6)){
+				bad_file:
 	   			end_callback_hit=1;
 	   			return; /* Invalid GIF header */
 			}
@@ -365,6 +366,10 @@ gif_accept_byte(int c)
 				/* Read global color map */
 				alloc_color_map(1<<deco->im_bpp);
 				deco->state=1;
+			}
+			if (deco->tbuf[10] & 8 || deco->tbuf[12]) {
+				/* Test for corrupted file */
+	   			goto bad_file;
 			}
 		}
 		break;
@@ -412,7 +417,10 @@ gif_accept_byte(int c)
 						       * it is the first pass. */
 			}else
 				deco->interl_dist=1;
-			gif_dimensions_known();
+			if (gif_dimensions_known()) {
+				end_callback_hit=1;
+				return; /* Bad dimensions */
+			}
 			if (global_cimg->width && (unsigned)global_cimg->width * (unsigned)global_cimg->buffer_bytes_per_pixel / (unsigned)global_cimg->width != (unsigned)global_cimg->buffer_bytes_per_pixel) overalloc();
 			if ((unsigned)global_cimg->width * (unsigned)global_cimg->buffer_bytes_per_pixel > MAXINT) overalloc();
 			deco->actual_line=global_cimg->strip_optimized

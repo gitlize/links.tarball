@@ -231,7 +231,7 @@ void tiff_finish(struct cached_image *cimg)
 	cimg->buffer_bytes_per_pixel=4;
 	cimg->red_gamma=cimg->green_gamma=cimg->blue_gamma=sRGB_gamma;
 	cimg->strip_optimized=0;
-	header_dimensions_known(cimg);
+	if (header_dimensions_known(cimg)){TIFFClose(t);img_end(cimg);return;}
 /* int TIFFReadRGBAImage(TIFF* tif, u_long width, u_long height, u_long* raster, int stopOnError) from man page */
 	/*TIFFReadRGBAImage(t,cimg->width,cimg->height,(unsigned long*)(cimg->buffer),1);*/ /* 231: warning: passing arg 4 of `TIFFReadRGBAImage' from incompatible pointer type */
 	TIFFReadRGBAImage(t,cimg->width,cimg->height,(void*)(cimg->buffer),1);

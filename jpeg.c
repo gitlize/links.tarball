@@ -309,7 +309,9 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 		 * However strip optimization is already written for PNG's.
 		 */
 
-		header_dimensions_known(cimg);
+		if (header_dimensions_known(cimg)) {
+			longjmp(global_jerr->setjmp_buffer,2);
+		}
 new_scan:
 		deco->state=2;
 

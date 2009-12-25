@@ -111,7 +111,8 @@ void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 	cimg->blue_gamma=gamma;
 	png_read_update_info(png_ptr,info_ptr);                 
 	cimg->strip_optimized=0;
-	header_dimensions_known(cimg);
+	if (header_dimensions_known(cimg))
+		img_my_png_error(png_ptr, "bad image size");
 }
 
 /* Converts unsigned shorts to doublechars (in big endian) */

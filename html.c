@@ -71,7 +71,7 @@ void html_dl(unsigned char *);
 void html_dt(unsigned char *);
 void html_dd(unsigned char *);
 void get_html_form(unsigned char *, struct form *);
-void find_form_for_input(unsigned char *);
+void find_form_for_input(unsigned char *, int);
 void html_button(unsigned char *);
 void html_input(unsigned char *);
 void html_select(unsigned char *);
@@ -97,7 +97,7 @@ void menu_labels(struct menu_item *, unsigned char *, unsigned char **);
 
 static inline int atchr(unsigned char c)
 {
-	return /*isA(c) ||*/ (c > ' ' && c != '=' && c != '<' && c != '>' && c != '\\');
+	return /*isA(c) ||*/ (c > ' ' && c != '=' && c != '<' && c != '>');
 }
 
 /* accepts one html element */
@@ -1564,7 +1564,7 @@ void get_html_form(unsigned char *a, struct form *form)
 	form->num = a - startf;
 }
 
-void find_form_for_input(unsigned char *i)
+void find_form_for_input(unsigned char *i, int when_unused)
 {
 	unsigned char *s, *ss, *name, *attr, *lf, *la;
 	int namelen;
@@ -1573,14 +1573,20 @@ void find_form_for_input(unsigned char *i)
 	if (form.form_name) mem_free(form.form_name);
 	if (form.onsubmit) mem_free(form.onsubmit);
 	memset(&form, 0, sizeof(struct form));
-	if (!special_f(ff, SP_USED, NULL)) return;
+	if (!when_unused && !special_f(ff, SP_USED, NULL)) return;
 	if (last_form_tag && last_input_tag && i <= last_input_tag && i > last_form_tag) {
 		get_html_form(last_form_attr, &form);
 		return;
 	}
-	if (last_form_tag && last_input_tag && i > last_input_tag) s = last_form_tag;
-	else s = startf;
-	lf = NULL, la = NULL;
+	if (last_form_tag && last_input_tag && i > last_input_tag) {
+		if (parse_element(last_form_tag, i, &name, &namelen, &la, &s))
+			internal("couldn't parse already parsed tag");
+		lf = last_form_tag;
+		s = last_input_tag;
+	} else {
+		lf = NULL, la = NULL;
+		s = startf;
+	}
 	se:
 	while (s < i && *s != '<') sp:s++;
 	if (s >= i) goto end_parse;
@@ -1601,14 +1607,16 @@ void find_form_for_input(unsigned char *i)
 		last_form_attr = la;
 		last_input_tag = i;
 		get_html_form(la, &form);
-	} else last_form_tag = NULL;
+	} else {
+		last_form_tag = NULL;
+	}
 }
 
 void html_button(unsigned char *a)
 {
 	char *al;
 	struct form_control *fc;
-	find_form_for_input(a);
+	find_form_for_input(a, 0);
 	fc = mem_calloc(sizeof(struct form_control));
 	if (!(al = get_attr_val(a, "type"))) {
 		fc->type = FC_SUBMIT;
@@ -1654,7 +1662,7 @@ void html_input(unsigned char *a)
 	int i;
 	unsigned char *al;
 	struct form_control *fc;
-	find_form_for_input(a);
+	find_form_for_input(a, 0);
 	fc = mem_calloc(sizeof(struct form_control));
 	if (!(al = get_attr_val(a, "type"))) {
 		if (has_attr(a, "onclick")) fc->type = FC_BUTTON;
@@ -1686,7 +1694,7 @@ void html_input(unsigned char *a)
 	if (fc->type == FC_TEXT || fc->type == FC_PASSWORD) fc->default_value = get_attr_val(a, "value");
 	else if (fc->type != FC_FILE) fc->default_value = get_exact_attr_val(a, "value");
 	if (fc->type == FC_CHECKBOX && !fc->default_value) fc->default_value = stracpy("on");
-	if ((fc->size = get_num(a, "size")) == -1) fc->size = HTML_DEFAULT_INPUT_SIZE;
+	if ((fc->size = get_num(a, "size")) <= 0) fc->size = HTML_DEFAULT_INPUT_SIZE;
 	fc->size++;
 	if (fc->size > d_opt->xw) fc->size = d_opt->xw;
 	if ((fc->maxlength = get_num(a, "maxlength")) == -1) fc->maxlength = MAXINT / 4;
@@ -1777,7 +1785,7 @@ void html_option(unsigned char *a)
 {
 	struct form_control *fc;
 	unsigned char *val;
-	find_form_for_input(a);
+	find_form_for_input(a, 0);
 	if (!format.select) return;
 	fc = mem_calloc(sizeof(struct form_control));
 	if (!(val = get_exact_attr_val(a, "value"))) {
@@ -1987,8 +1995,8 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 	unsigned char **val, **lbls;
 	int order, preselect, group;
 	int i, mw;
-	if (has_attr(attr, "multiple")) return 1;
-	find_form_for_input(attr);
+	if (has_attr(attr, "multiple") || dmp) return 1;
+	find_form_for_input(attr, 0);
 	lbl = NULL;
 	lbl_l = 0;
 	vlbl = NULL;
@@ -2126,7 +2134,7 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 	format.attr |= AT_BOLD | AT_FIXED;
 	format.fontsize = 3;
 	mw = 0;
-	for (i = 0; i < order; i++) if (lbls[i] && utf8len(lbls[i]) > mw) mw = utf8len(lbls[i]);
+	for (i = 0; i < order; i++) if (lbls[i] && cp_len(d_opt->cp, lbls[i]) > mw) mw = cp_len(d_opt->cp, lbls[i]);
 	for (i = 0; i < mw; i++) put_chrs("_", 1, put_chars_f, f);
 	kill_html_stack_item(&html_top);
 	put_chrs("]", 1, put_chars_f, f);
@@ -2147,7 +2155,7 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	int t_namelen;
 	int cols, rows;
 	int i;
-	find_form_for_input(attr);
+	find_form_for_input(attr, 1);
 	while (html < eof && (*html == '\n' || *html == '\r')) html++;
 	p = html;
 	while (p < eof && *p != '<') {
@@ -2160,6 +2168,7 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	}
 	if (parse_element(p, eof, &t_name, &t_namelen, NULL, end)) goto pp;
 	if (t_namelen != 9 || casecmp(t_name, "/TEXTAREA", 9)) goto pp;
+	if (!last_form_tag) return;
 	fc = mem_calloc(sizeof(struct form_control));
 	fc->form_num = last_form_tag ? last_form_tag - startf : 0;
 	fc->ctrl_num = last_form_tag ? attr - last_form_tag : attr - startf;
@@ -2584,13 +2593,13 @@ void process_head(unsigned char *head)
 	struct refresh_param rp;
 	if ((r = parse_http_header(head, "Refresh", NULL))) {
 		if (!d_opt->auto_refresh) {
-			if ((p = parse_header_param(r, "URL")) || (p = parse_header_param(r, ""))) {
+			if ((p = parse_header_param(r, "URL", 0)) || (p = parse_header_param(r, "", 0))) {
 				put_link_line("Refresh: ", p, p, d_opt->framename);
 				mem_free(p);
 			}
 		} else {
-			rp.url = parse_header_param(r, "URL");
-			if (!rp.url) rp.url = parse_header_param(r, "");
+			rp.url = parse_header_param(r, "URL", 0);
+			if (!rp.url) rp.url = parse_header_param(r, "", 0);
 			rp.time = atoi(r);
 			if (rp.time < 1) rp.time = 1;
 			special_f(ff, SP_REFRESH, &rp);

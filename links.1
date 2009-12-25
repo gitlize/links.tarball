@@ -150,6 +150,11 @@ Userid, host and port of Socks4a, or blank.
 (default: blank)
 
 .TP
+\f3-append-text-to-dns-lookups \f2<text>\f1
+Append text to dns lookups. It is useful for specifying fixed tor exit node.
+(default: blank)
+
+.TP
 \f3-only-proxies \f2<0>/<1>\f1
 "1" causes that Links won't initiate any non-proxy connection.
 It is useful for anonymization with tor or similar networks.
@@ -158,6 +163,12 @@ It is useful for anonymization with tor or similar networks.
 \f3-download-dir \f2<path>\f1
 Default download directory.
 (default: actual dir)
+
+.TP
+\f3-aggressive-cache \f2<0>/<1>\f1
+Always cache everything regardless of server's caching recomendations.
+Many servers deny caching even if their content is not changing
+just to get more hits and more money from ads.
 
 .TP
 \f3-language \f2<language>\f1
@@ -205,13 +216,7 @@ that has broken compression support.
 Retry on internal server errors (50x).
 
 .TP
-\f3-http-bugs.aggressive-cache \f2<0>/<1>\f1
-Always cache everything regardless of server's caching recomendations.
-Many servers deny caching even if their content is not changing
-just to get more hits and more money from ads.
-
-.TP
-\f3-http-referer \f2<0>/<1>\f1
+\f3-http.referer \f2<0>/<1>\f1
 (default 0)
 0 - do not send referer.
 1 - send the requested URL as referer.
@@ -220,12 +225,16 @@ just to get more hits and more money from ads.
 4 - send real referer only to the same server.
 
 .TP
-\f3-fake-referer \f2<string>\f1
+\f3-http.fake-referer \f2<string>\f1
 Fake referer value.
 
 .TP
-\f3-fake-user-agent \f2<string>\f1
+\f3-http.fake-user-agent \f2<string>\f1
 Fake user agent value.
+
+.TP
+\f3-http.extra-header \f2<string>\f1
+Extra string added to HTTP header.
 
 .TP
 \f3-ftp.anonymous-password \f2<string>\f1

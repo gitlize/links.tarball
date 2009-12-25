@@ -225,44 +225,44 @@ int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, l
 		{
 			case BFU_ELEMENT_PIPE:
 			c|=ATTR_FRAME;
-			set_char(term,x,y,c+' ');
-			set_char(term,x+1,y,c+vertical);
-			set_char(term,x+2,y,c+' ');
-			set_char(term,x+3,y,c+' ');
-			set_char(term,x+4,y,c+' ');
+			set_char(term,x,y,' ',c);
+			set_char(term,x+1,y,vertical,c);
+			set_char(term,x+2,y,' ',c);
+			set_char(term,x+3,y,' ',c);
+			set_char(term,x+4,y,' ',c);
 			break;
 
 			case BFU_ELEMENT_TEE:
 			c|=ATTR_FRAME;
-			set_char(term,x,y,c+' ');
-			set_char(term,x+1,y,c+tee);
-			set_char(term,x+2,y,c+horizontal);
-			set_char(term,x+3,y,c+horizontal);
-			set_char(term,x+4,y,c+' ');
+			set_char(term,x,y,' ',c);
+			set_char(term,x+1,y,tee,c);
+			set_char(term,x+2,y,horizontal,c);
+			set_char(term,x+3,y,horizontal,c);
+			set_char(term,x+4,y,' ',c);
 			break;
 
 			case BFU_ELEMENT_CLOSED:
-			set_char(term,x,y,c+'[');
-			set_char(term,x+1,y,c+'+');
-			set_char(term,x+2,y,c+']');
+			set_char(term,x,y,'[',c);
+			set_char(term,x+1,y,'+',c);
+			set_char(term,x+2,y,']',c);
 			c|=ATTR_FRAME;
-			set_char(term,x+3,y,c+horizontal);
-			set_char(term,x+4,y,c+' ');
+			set_char(term,x+3,y,horizontal,c);
+			set_char(term,x+4,y,' ',c);
 			break;
 
 			case BFU_ELEMENT_OPEN:
-			set_char(term,x,y,c+'[');
-			set_char(term,x+1,y,c+'-');
-			set_char(term,x+2,y,c+']');
+			set_char(term,x,y,'[',c);
+			set_char(term,x+1,y,'-',c);
+			set_char(term,x+2,y,']',c);
 			c|=ATTR_FRAME;
-			set_char(term,x+3,y,c+horizontal);
-			set_char(term,x+4,y,c+' ');
+			set_char(term,x+3,y,horizontal,c);
+			set_char(term,x+4,y,' ',c);
 			break;
 
 			default:
 			internal("draw_bfu_element: unknown BFU element type %d.\n",type);
 		}
-		if (selected)set_char(term,x+4,y,c+'*');
+		if (selected)set_char(term,x+4,y,'*',c);
 		return BFU_ELEMENT_WIDTH;  /* BFU element size in text mode */
 #ifdef G
 	}else{
@@ -1018,7 +1018,7 @@ void redraw_list(struct terminal *term, void *bla)
 				if (l!=ld->list)x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,color,0,0,BFU_ELEMENT_TEE,(l->type)&4);
 				print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,color);
 				x+=strlen(txt);
-				fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ');
+				fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
 				set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,color);
 			}
 #ifdef G
@@ -1047,7 +1047,7 @@ void redraw_list(struct terminal *term, void *bla)
 			y+=gf_val(1,G_BFU_FONT_SIZE);
 			if (l==ld->list) break;
 		}
-		if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' '|COLOR_MENU);
+		if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' ',COLOR_MENU);
 #ifdef G
 		else
 		{
@@ -1110,7 +1110,7 @@ void redraw_list(struct terminal *term, void *bla)
 			{
 				print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,color);
 				x+=strlen(txt);
-				fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ');
+				fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ',0);
 				set_line_color(term,dlg->x+x+DIALOG_LB,y,w-x,color);
 			}
 #ifdef G
@@ -1132,7 +1132,7 @@ void redraw_list(struct terminal *term, void *bla)
 			y+=gf_val(1,G_BFU_FONT_SIZE);
 			if (l==ld->list) break;
 		}
-		if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' '|COLOR_MENU);
+		if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' ',COLOR_MENU);
 #ifdef G
 		else
 		{
@@ -1209,7 +1209,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 			}
 			print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,COLOR_MENU_SELECTED);
 			x+=strlen(txt);
-			fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ');
+			fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ',0);
 			set_line_color(term,dlg->x+x+DIALOG_LB,y,w-x,COLOR_MENU_SELECTED);
 			mem_free(txt);
 		}
@@ -1232,7 +1232,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 			if (l!=ld->list)x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,COLOR_MENU_SELECTED,0,0,BFU_ELEMENT_TEE,(l->type)&4);
 			print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,COLOR_MENU_SELECTED);
 			x+=strlen(txt);
-			fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ');
+			fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
 			set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,COLOR_MENU_SELECTED);
 			mem_free(txt);
 		}
@@ -1280,7 +1280,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 			}
 			print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,COLOR_MENU);
 			x+=strlen(txt);
-			fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ');
+			fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ',0);
 			set_line_color(term,dlg->x+x+DIALOG_LB,y,w-x,COLOR_MENU);
 			mem_free(txt);
 		}
@@ -1306,7 +1306,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 			if (l!=ld->list)x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,COLOR_MENU,0,0,BFU_ELEMENT_TEE,(l->type)&4);
 			print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,COLOR_MENU);
 			x+=strlen(txt);
-			fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ');
+			fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
 			set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,COLOR_MENU);
 			mem_free(txt);
 		}

@@ -194,14 +194,14 @@ void x_print_screen_status(struct terminal *term, struct session *ses)
 {
 	unsigned char *m;
 	if (!F) {
-		fill_area(term, 0, term->y - 1, term->x, 1, COLOR_STATUS_BG);
+		fill_area(term, 0, term->y - 1, term->x, 1, ' ', COLOR_STATUS_BG);
 		if (ses->st) print_text(term, 0, term->y - 1, strlen(ses->st), ses->st, COLOR_STATUS);
-		fill_area(term, 0, 0, term->x, 1, COLOR_TITLE_BG);
+		fill_area(term, 0, 0, term->x, 1, ' ', COLOR_TITLE_BG);
 		if ((m = print_current_title(ses))) {
-			int p = term->x - 1 - strlen(m);
+			int p = term->x - 1 - cp_len(ses->term->spec->charset, m);
 			if (p < 0) p = 0;
 			if (term->spec->braille) p = 0;
-			print_text(term, p, 0, strlen(m), m, COLOR_TITLE);
+			print_text(term, p, 0, cp_len(ses->term->spec->charset, m), m, COLOR_TITLE);
 			mem_free(m);
 		}
 #ifdef G
@@ -475,9 +475,9 @@ void download_window_function(struct dialog_data *dlg)
 			int p = w - 6;
 			if (term->spec->braille && p > 39 - 6) p = 39 - 6;
 			y++;
-			set_only_char(term, x, y, '[');
-			set_only_char(term, x + p + 1, y, ']');
-			fill_area(term, x + 1, y, (int)((longlong)p * (longlong)stat->prg->pos / (longlong)stat->prg->size), 1, COLOR_DIALOG_METER);
+			set_only_char(term, x, y, '[', 0);
+			set_only_char(term, x + p + 1, y, ']', 0);
+			fill_area(term, x + 1, y, (int)((longlong)p * (longlong)stat->prg->pos / (longlong)stat->prg->size), 1, CHAR_DIALOG_METER, COLOR_DIALOG_METER);
 			sprintf(q, "%3d%%", (int)((longlong)100 * (longlong)stat->prg->pos / (longlong)stat->prg->size));
 			print_text(term, x + p + 2, y, strlen(q), q, COLOR_DIALOG_TEXT);
 			y++;
@@ -544,9 +544,9 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	do_dialog(term, dlg, getml(dlg, NULL));
 }
 
-time_t parse_http_date(char *date)	/* this functions is bad !!! */
+time_t parse_http_date(unsigned char *date)	/* this functions is bad !!! */
 {
-	static char *months[12] =
+	static unsigned char *months[12] =
 		{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
@@ -704,7 +704,7 @@ void download_data(struct status *stat, struct download *down)
 				u = join_urls(down->url, ce->redirect);
 				if (!u) goto x;
 				if ((pos = extract_position(u))) mem_free(pos);
-				if (!http_bugs.bug_302_redirect) if (!ce->redirect_get && (p = strchr(down->url, POST_CHAR))) add_to_strn(&u, p);
+				if (!http_options.bug_302_redirect) if (!ce->redirect_get && (p = strchr(down->url, POST_CHAR))) add_to_strn(&u, p);
 				prev_down_url = down->url;
 				down->url = u;
 				down->stat.state = S_WAIT_REDIR;
@@ -1308,6 +1308,9 @@ void html_interpret(struct f_data_c *fd)
 	}
 	memset(&o, 0, sizeof(struct document_options));
 	ds2do(&fd->ses->ds, &o);
+	if (fd->parent && fd->parent->f_data && !o.hard_assume) {
+		o.assume_cp = fd->parent->f_data->cp;
+	}
 #ifdef JS
 	o.js_enable = js_enable;
 #else
@@ -1443,7 +1446,8 @@ void image_timer(struct f_data_c *fd)
 {
 	struct image_refresh *ir;
 	struct list_head new;
-	init_list(new);
+	struct list_head *newp = do_not_optimize_here(&new);
+	init_list(*newp);
 	fd->image_timer = -1;
 	if (!fd->f_data) return;
 	foreach (ir, fd->f_data->image_refresh) {
@@ -1451,15 +1455,15 @@ void image_timer(struct f_data_c *fd)
 		else {
 			struct image_refresh *irr = ir->prev;
 			del_from_list(ir);
-			add_to_list(new, ir);
+			add_to_list(*newp, ir);
 			ir = irr;
 		}
 	}
-	foreach (ir, new) {
+	foreach (ir, *newp) {
 		/*fprintf(stderr, "DRAW: %p\n", ir->img);*/
 		draw_one_object(fd, ir->img);
 	}
-	free_list(new);
+	free_list(*newp);
 	if (fd->image_timer == -1 && !list_empty(fd->f_data->image_refresh)) fd->image_timer = install_timer(G_IMG_REFRESH, (void (*)(void *))image_timer, fd);
 }
 
@@ -1484,6 +1488,11 @@ void reinit_f_data_c(struct f_data_c *fd)
 {
 	struct additional_file *af;
 	struct f_data_c *fd1;
+#ifdef G
+	if (F)
+		if (fd == current_frame(fd->ses))
+			fd->ses->locked_link = 0;
+#endif
 	jsint_destroy(fd);
 	foreach(fd1, fd->subframes) {
 		if (fd->ses->wtd_target_base == fd1) fd->ses->wtd_target_base = NULL;
@@ -1881,7 +1890,9 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 	*start = *end = NULL;
 	if (!ce) return 1;
 	if (ce->decompressed) {
+#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
 		return_decompressed:
+#endif
 		*start = ce->decompressed;
 		*end = ce->decompressed + ce->decompressed_len;
 		return 0;
@@ -2178,9 +2189,6 @@ void ses_go_forward(struct session *ses, int plain, int refresh)
 	fd->loc->prev_url = stracpy(fd->rq->prev_url);
 	fd->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
 	fd->rq->data = fd;
-#ifdef G
-	ses->locked_link = 0;
-#endif
 	fd->rq->upcall(fd->rq, fd);
 	draw_formatted(ses);
 }

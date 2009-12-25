@@ -39,7 +39,8 @@ void terminal_options_ok(void *);
 void terminal_options(struct terminal *, void *, struct session *);
 void refresh_javascript(struct session *);
 void javascript_options(struct terminal *, void *, struct session *);
-void httpopt_fn(struct dialog_data *);
+void httpheadopt_fn(struct dialog_data *);
+int dlg_http_header_options(struct dialog_data *, struct dialog_item_data *);
 int dlg_http_options(struct dialog_data *, struct dialog_item_data *);
 void ftpopt_fn(struct dialog_data *);
 int dlg_ftp_options(struct dialog_data *, struct dialog_item_data *);
@@ -505,7 +506,9 @@ void charset_list(struct terminal *term, void *xxx, struct session *ses)
 	struct menu_item *mi;
 	if (!(mi = new_menu(1))) return;
 	for (i = 0; (n = get_cp_name(i)); i++) {
+#ifndef ENABLE_UTF8
 		if (is_cp_special(i)) continue;
+#endif
 		add_to_menu(&mi, get_cp_name(i), "", "", MENU_FUNC display_codepage, (void *)i, 0, i);
 	}
 	sel = ses->term->spec->charset;
@@ -720,20 +723,24 @@ void javascript_options(struct terminal *term, void *xxx, struct session *ses)
 
 #endif
 
-unsigned char *http_labels[] = { TEXT(T_USE_HTTP_10), TEXT(T_ALLOW_SERVER_BLACKLIST), TEXT(T_BROKEN_302_REDIRECT), TEXT(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT(T_DO_NOT_SEND_ACCEPT_CHARSET), TEXT(T_DO_NOT_ADVERTISE_COMPRESSION_SUPPORT), TEXT(T_RETRY_ON_INTERNAL_ERRORS), TEXT(T_REFERER_NONE), TEXT(T_REFERER_SAME_URL), TEXT(T_REFERER_FAKE), TEXT(T_REFERER_REAL_SAME_SERVER), TEXT(T_REFERER_REAL), TEXT(T_FAKE_USERAGENT), TEXT(T_FAKE_REFERER) };
+unsigned char *http_labels[] = { TEXT(T_USE_HTTP_10), TEXT(T_ALLOW_SERVER_BLACKLIST), TEXT(T_BROKEN_302_REDIRECT), TEXT(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT(T_DO_NOT_SEND_ACCEPT_CHARSET), TEXT(T_DO_NOT_ADVERTISE_COMPRESSION_SUPPORT), TEXT(T_RETRY_ON_INTERNAL_ERRORS), NULL };
 
-void httpopt_fn(struct dialog_data *dlg)
+unsigned char *http_header_labels[] = { TEXT(T_REFERER_NONE), TEXT(T_REFERER_SAME_URL), TEXT(T_REFERER_FAKE), TEXT(T_REFERER_REAL_SAME_SERVER), TEXT(T_REFERER_REAL), TEXT(T_FAKE_REFERER), TEXT(T_FAKE_USERAGENT), TEXT(T_EXTRA_HEADER), NULL };
+
+void httpheadopt_fn(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
 	int max = 0, min = 0;
 	int w, rw;
 	int y = 0;
-	checkboxes_width(term, dlg->dlg->udata, &max, max_text_width);
-	checkboxes_width(term, dlg->dlg->udata, &min, min_text_width);
-	max_text_width(term, http_labels[dlg->n - 4], &max, AL_LEFT);
-	min_text_width(term, http_labels[dlg->n - 4], &min, AL_LEFT);
-	max_text_width(term, http_labels[dlg->n - 3], &max, AL_LEFT);
-	min_text_width(term, http_labels[dlg->n - 3], &min, AL_LEFT);
+	checkboxes_width(term, dlg->dlg->udata, dlg->n - 5, &max, max_text_width);
+	checkboxes_width(term, dlg->dlg->udata, dlg->n - 5, &min, min_text_width);
+	max_text_width(term, http_header_labels[dlg->n - 5], &max, AL_LEFT);
+	min_text_width(term, http_header_labels[dlg->n - 5], &min, AL_LEFT);
+	max_text_width(term, http_header_labels[dlg->n - 4], &max, AL_LEFT);
+	min_text_width(term, http_header_labels[dlg->n - 4], &min, AL_LEFT);
+	max_text_width(term, http_header_labels[dlg->n - 3], &max, AL_LEFT);
+	min_text_width(term, http_header_labels[dlg->n - 3], &min, AL_LEFT);
 	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
 	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
 	w = term->x * 9 / 10 - 2 * DIALOG_LB;
@@ -742,10 +749,11 @@ void httpopt_fn(struct dialog_data *dlg)
 	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
 	if (w < 5) w = 5;
 	rw = 0;
-	dlg_format_checkboxes(dlg, NULL, dlg->items, dlg->n - 4, 0, &y, w, &rw, dlg->dlg->udata);
+	dlg_format_checkboxes(dlg, NULL, dlg->items, dlg->n - 5, 0, &y, w, &rw, dlg->dlg->udata);
 	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
-	dlg_format_text_and_field(dlg, NULL, http_labels[dlg->n - 4], dlg->items + dlg->n - 4, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_text_and_field(dlg, NULL, http_labels[dlg->n - 3], dlg->items + dlg->n - 3, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, http_header_labels[dlg->n - 5], dlg->items + dlg->n - 5, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, http_header_labels[dlg->n - 4], dlg->items + dlg->n - 4, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, http_header_labels[dlg->n - 3], dlg->items + dlg->n - 3, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -754,92 +762,123 @@ void httpopt_fn(struct dialog_data *dlg)
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB + gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_checkboxes(dlg, term, dlg->items, dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, dlg->dlg->udata);
+	dlg_format_checkboxes(dlg, term, dlg->items, dlg->n - 5, dlg->x + DIALOG_LB, &y, w, NULL, dlg->dlg->udata);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text_and_field(dlg, term, http_labels[dlg->n - 4], dlg->items + dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	dlg_format_text_and_field(dlg, term, http_labels[dlg->n - 3], dlg->items + dlg->n - 3, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, http_header_labels[dlg->n - 5], dlg->items + dlg->n - 5, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, http_header_labels[dlg->n - 4], dlg->items + dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, http_header_labels[dlg->n - 3], dlg->items + dlg->n - 3, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, dlg->items + dlg->n - 2, 2, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
+}
+
+int dlg_http_header_options(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	struct http_header_options *header = (struct http_header_options *)di->cdata;
+	struct dialog *d;
+	d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
+	d->title = TEXT(T_HTTP_HEADER_OPTIONS);
+	d->fn = httpheadopt_fn;
+	d->udata = http_header_labels;
+	d->items[0].type = D_CHECKBOX;
+	d->items[0].gid = 1;
+	d->items[0].gnum = REFERER_NONE;
+	d->items[0].dlen = sizeof(int);
+	d->items[0].data = (void *)&header->referer;
+	d->items[1].type = D_CHECKBOX;
+	d->items[1].gid = 1;
+	d->items[1].gnum = REFERER_SAME_URL;
+	d->items[1].dlen = sizeof(int);
+	d->items[1].data = (void *)&header->referer;
+	d->items[2].type = D_CHECKBOX;
+	d->items[2].gid = 1;
+	d->items[2].gnum = REFERER_FAKE;
+	d->items[2].dlen = sizeof(int);
+	d->items[2].data = (void *)&header->referer;
+	d->items[3].type = D_CHECKBOX;
+	d->items[3].gid = 1;
+	d->items[3].gnum = REFERER_REAL_SAME_SERVER;
+	d->items[3].dlen = sizeof(int);
+	d->items[3].data = (void *)&header->referer;
+	d->items[4].type = D_CHECKBOX;
+	d->items[4].gid = 1;
+	d->items[4].gnum = REFERER_REAL;
+	d->items[4].dlen = sizeof(int);
+	d->items[4].data = (void *)&header->referer;
+
+	d->items[5].type = D_FIELD;
+	d->items[5].dlen = MAX_STR_LEN;
+	d->items[5].data = header->fake_referer;
+	d->items[6].type = D_FIELD;
+	d->items[6].dlen = MAX_STR_LEN;
+	d->items[6].data = header->fake_useragent;
+	d->items[7].type = D_FIELD;
+	d->items[7].dlen = MAX_STR_LEN;
+	d->items[7].data = header->extra_header;
+	d->items[8].type = D_BUTTON;
+	d->items[8].gid = B_ENTER;
+	d->items[8].fn = ok_dialog;
+	d->items[8].text = TEXT(T_OK);
+	d->items[9].type = D_BUTTON;
+	d->items[9].gid = B_ESC;
+	d->items[9].fn = cancel_dialog;
+	d->items[9].text = TEXT(T_CANCEL);
+	d->items[10].type = D_END;
+	do_dialog(dlg->win->term, d, getml(d, NULL));
+	return 0;
 }
 
 
 int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	struct http_bugs *bugs = (struct http_bugs *)di->cdata;
+	struct http_options *options = (struct http_options *)di->cdata;
 	struct dialog *d;
-	d = mem_calloc(sizeof(struct dialog) + 17 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
 	d->title = TEXT(T_HTTP_BUG_WORKAROUNDS);
-	d->fn = httpopt_fn;
+	d->fn = checkbox_list_fn;
 	d->udata = http_labels;
 	d->items[0].type = D_CHECKBOX;
 	d->items[0].gid = 0;
 	d->items[0].dlen = sizeof(int);
-	d->items[0].data = (void *)&bugs->http10;
+	d->items[0].data = (void *)&options->http10;
 	d->items[1].type = D_CHECKBOX;
 	d->items[1].gid = 0;
 	d->items[1].dlen = sizeof(int);
-	d->items[1].data = (void *)&bugs->allow_blacklist;
+	d->items[1].data = (void *)&options->allow_blacklist;
 	d->items[2].type = D_CHECKBOX;
 	d->items[2].gid = 0;
 	d->items[2].dlen = sizeof(int);
-	d->items[2].data = (void *)&bugs->bug_302_redirect;
+	d->items[2].data = (void *)&options->bug_302_redirect;
 	d->items[3].type = D_CHECKBOX;
 	d->items[3].gid = 0;
 	d->items[3].dlen = sizeof(int);
-	d->items[3].data = (void *)&bugs->bug_post_no_keepalive;
+	d->items[3].data = (void *)&options->bug_post_no_keepalive;
 	d->items[4].type = D_CHECKBOX;
 	d->items[4].gid = 0;
 	d->items[4].dlen = sizeof(int);
-	d->items[4].data = (void *)&bugs->no_accept_charset;
+	d->items[4].data = (void *)&options->no_accept_charset;
 	d->items[5].type = D_CHECKBOX;
 	d->items[5].gid = 0;
 	d->items[5].dlen = sizeof(int);
-	d->items[5].data = (void *)&bugs->no_compression;
+	d->items[5].data = (void *)&options->no_compression;
 	d->items[6].type = D_CHECKBOX;
 	d->items[6].gid = 0;
 	d->items[6].dlen = sizeof(int);
-	d->items[6].data = (void *)&bugs->retry_internal_errors;
-	d->items[7].type = D_CHECKBOX;
-	d->items[7].gid = 1;
-	d->items[7].gnum = REFERER_NONE;
-	d->items[7].dlen = sizeof(int);
-	d->items[7].data = (void *)&bugs->referer;
-	d->items[8].type = D_CHECKBOX;
-	d->items[8].gid = 1;
-	d->items[8].gnum = REFERER_SAME_URL;
-	d->items[8].dlen = sizeof(int);
-	d->items[8].data = (void *)&bugs->referer;
-	d->items[9].type = D_CHECKBOX;
-	d->items[9].gid = 1;
-	d->items[9].gnum = REFERER_FAKE;
-	d->items[9].dlen = sizeof(int);
-	d->items[9].data = (void *)&bugs->referer;
-	d->items[10].type = D_CHECKBOX;
-	d->items[10].gid = 1;
-	d->items[10].gnum = REFERER_REAL_SAME_SERVER;
-	d->items[10].dlen = sizeof(int);
-	d->items[10].data = (void *)&bugs->referer;
-	d->items[11].type = D_CHECKBOX;
-	d->items[11].gid = 1;
-	d->items[11].gnum = REFERER_REAL;
-	d->items[11].dlen = sizeof(int);
-	d->items[11].data = (void *)&bugs->referer;
-
-	d->items[12].type = D_FIELD;
-	d->items[12].dlen = MAX_STR_LEN;
-	d->items[12].data = bugs->fake_useragent;
-	d->items[13].type = D_FIELD;
-	d->items[13].dlen = MAX_STR_LEN;
-	d->items[13].data = bugs->fake_referer;
-	d->items[14].type = D_BUTTON;
-	d->items[14].gid = B_ENTER;
-	d->items[14].fn = ok_dialog;
-	d->items[14].text = TEXT(T_OK);
-	d->items[15].type = D_BUTTON;
-	d->items[15].gid = B_ESC;
-	d->items[15].fn = cancel_dialog;
-	d->items[15].text = TEXT(T_CANCEL);
-	d->items[16].type = D_END;
+	d->items[6].data = (void *)&options->retry_internal_errors;
+	d->items[7].type = D_BUTTON;
+	d->items[7].gid = 0;
+	d->items[7].fn = dlg_http_header_options;
+	d->items[7].text = TEXT(T_HEADER_OPTIONS);
+	d->items[7].data = (void *)&options->header;
+	d->items[7].dlen = sizeof(struct http_header_options);
+	d->items[8].type = D_BUTTON;
+	d->items[8].gid = B_ENTER;
+	d->items[8].fn = ok_dialog;
+	d->items[8].text = TEXT(T_OK);
+	d->items[9].type = D_BUTTON;
+	d->items[9].gid = B_ESC;
+	d->items[9].fn = cancel_dialog;
+	d->items[9].text = TEXT(T_CANCEL);
+	d->items[10].type = D_END;
 	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
@@ -855,8 +894,8 @@ void ftpopt_fn(struct dialog_data *dlg)
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	max_text_width(term, ftp_texts[0], &max, AL_LEFT);
 	min_text_width(term, ftp_texts[0], &min, AL_LEFT);
-	checkboxes_width(term, ftp_texts + 1, &max, max_text_width);
-	checkboxes_width(term, ftp_texts + 1, &min, min_text_width);
+	checkboxes_width(term, ftp_texts + 1, dlg->n - 3, &max, max_text_width);
+	checkboxes_width(term, ftp_texts + 1, dlg->n - 3, &min, min_text_width);
 	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
 	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
 	w = term->x * 9 / 10 - 2 * DIALOG_LB;
@@ -1169,10 +1208,11 @@ unsigned char *proxy_msg[] = {
 	TEXT(T_HTTP_PROXY__HOST_PORT),
 	TEXT(T_FTP_PROXY__HOST_PORT),
 	TEXT(T_SOCKS_4A_PROXY__USER_HOST_PORT),
+	TEXT(T_APPEND_TEXT_TO_SOCKS_LOOKUPS),
 	TEXT(T_ONLY_PROXIES),
 };
 
-#define N_N	3
+#define N_N	4
 
 void proxy_fn(struct dialog_data *dlg)
 {
@@ -1186,7 +1226,9 @@ void proxy_fn(struct dialog_data *dlg)
 	max_text_width(term, proxy_msg[1], &max, AL_LEFT);
 	min_text_width(term, proxy_msg[1], &min, AL_LEFT);
 	max_text_width(term, proxy_msg[2], &max, AL_LEFT);
-	min_text_width(term, proxy_msg[2], &min, AL_LEFT);
+	max_text_width(term, proxy_msg[2], &max, AL_LEFT);
+	min_text_width(term, proxy_msg[3], &min, AL_LEFT);
+	min_text_width(term, proxy_msg[3], &min, AL_LEFT);
 	max_group_width(term, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, &max);
 	min_group_width(term, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, &min);
 	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
@@ -1202,6 +1244,8 @@ void proxy_fn(struct dialog_data *dlg)
 	dlg_format_text_and_field(dlg, NULL, proxy_msg[1], &dlg->items[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
 	dlg_format_text_and_field(dlg, NULL, proxy_msg[2], &dlg->items[2], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, NULL, proxy_msg[3], &dlg->items[3], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
 	dlg_format_group(dlg, NULL, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, 0, &y, w, &rw);
 	y += gf_val(1, G_BFU_FONT_SIZE);
@@ -1219,6 +1263,8 @@ void proxy_fn(struct dialog_data *dlg)
 	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_text_and_field(dlg, term, proxy_msg[2], &dlg->items[2], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, proxy_msg[3], &dlg->items[3], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_group(dlg, term, proxy_msg + N_N, &dlg->items[N_N], dlg->n - 2 - N_N, dlg->x + DIALOG_LB, &y, w, NULL);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, term, &dlg->items[dlg->n - 2], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
@@ -1233,7 +1279,7 @@ int dlg_proxy_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	snprint(max_t_str, 3, max_tries);
 	snprint(time_str, 5, receive_timeout);
 	snprint(unrtime_str, 5, unrestartable_receive_timeout);
-	d = mem_calloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
 	d->title = TEXT(T_PROXIES);
 	d->fn = proxy_fn;
 	d->refresh = (void (*)(void *))refresh_net;
@@ -1246,18 +1292,21 @@ int dlg_proxy_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[2].type = D_FIELD;
 	d->items[2].dlen = MAX_STR_LEN;
 	d->items[2].data = p->socks_proxy;
-	d->items[3].type = D_CHECKBOX;
-	d->items[3].data = (unsigned char *)&p->only_proxies;
-	d->items[3].dlen = sizeof(int);
-	d->items[4].type = D_BUTTON;
-	d->items[4].gid = B_ENTER;
-	d->items[4].fn = ok_dialog;
-	d->items[4].text = TEXT(T_OK);
+	d->items[3].type = D_FIELD;
+	d->items[3].dlen = MAX_STR_LEN;
+	d->items[3].data = p->dns_append;
+	d->items[4].type = D_CHECKBOX;
+	d->items[4].data = (unsigned char *)&p->only_proxies;
+	d->items[4].dlen = sizeof(int);
 	d->items[5].type = D_BUTTON;
-	d->items[5].gid = B_ESC;
-	d->items[5].fn = cancel_dialog;
-	d->items[5].text = TEXT(T_CANCEL);
-	d->items[6].type = D_END;
+	d->items[5].gid = B_ENTER;
+	d->items[5].fn = ok_dialog;
+	d->items[5].text = TEXT(T_OK);
+	d->items[6].type = D_BUTTON;
+	d->items[6].gid = B_ESC;
+	d->items[6].fn = cancel_dialog;
+	d->items[6].text = TEXT(T_CANCEL);
+	d->items[7].type = D_END;
 	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
@@ -1311,13 +1360,13 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	d->items[3].dlen = 5;
 	d->items[3].fn = check_number;
 	d->items[3].gid = 1;
-	d->items[3].gnum = 1800;
+	d->items[3].gnum = 9999;
 	d->items[4].type = D_FIELD;
 	d->items[4].data = unrtime_str;
 	d->items[4].dlen = 5;
 	d->items[4].fn = check_number;
 	d->items[4].gid = 1;
-	d->items[4].gnum = 1800;
+	d->items[4].gnum = 9999;
 	d->items[5].type = D_CHECKBOX;
 	d->items[5].data = (unsigned char *)&async_lookup;
 	d->items[5].dlen = sizeof(int);
@@ -1334,8 +1383,8 @@ void net_options(struct terminal *term, void *xxx, void *yyy)
 	d->items[8].gid = 0;
 	d->items[8].fn = dlg_http_options;
 	d->items[8].text = TEXT(T_HTTP_OPTIONS);
-	d->items[8].data = (unsigned char *)&http_bugs;
-	d->items[8].dlen = sizeof(struct http_bugs);
+	d->items[8].data = (unsigned char *)&http_options;
+	d->items[8].dlen = sizeof(struct http_options);
 	d->items[9].type = D_BUTTON;
 	d->items[9].gid = 0;
 	d->items[9].fn = dlg_ftp_options;
@@ -1361,6 +1410,7 @@ unsigned char *prg_msg[] = {
 	TEXT(T_TELNET_PROG),
 	TEXT(T_TN3270_PROG),
 	TEXT(T_MMS_PROG),
+	TEXT(T_MAGNET_PROG),
 	TEXT(T_SHELL_PROG),
 	""
 };
@@ -1373,6 +1423,8 @@ void netprog_fn(struct dialog_data *dlg)
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
 	int a;
 	a=0;
+	max_text_width(term, prg_msg[a], &max, AL_LEFT);
+	min_text_width(term, prg_msg[a++], &min, AL_LEFT);
 	max_text_width(term, prg_msg[a], &max, AL_LEFT);
 	min_text_width(term, prg_msg[a++], &min, AL_LEFT);
 	max_text_width(term, prg_msg[a], &max, AL_LEFT);
@@ -1409,6 +1461,9 @@ void netprog_fn(struct dialog_data *dlg)
 	dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	a++;
 	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef G
 	if (F && drv->exec) {
 		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
@@ -1426,6 +1481,9 @@ void netprog_fn(struct dialog_data *dlg)
 	y = dlg->y + DIALOG_TB;
 	if (term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	a=0;
+	dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	a++;
+	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	a++;
 	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
@@ -1473,6 +1531,9 @@ void net_programs(struct terminal *term, void *xxx, void *yyy)
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
 	d->items[a++].data = get_prog(&mms_prog);
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a++].data = get_prog(&magnet_prog);
 #ifdef G
 	if (F && drv->exec) {
 		d->items[a].type = D_FIELD;
@@ -1578,7 +1639,7 @@ void cache_opt(struct terminal *term, void *xxx, void *yyy)
 	d->items[a].type = D_CHECKBOX;
 	d->items[a].gid = 0;
 	d->items[a].dlen = sizeof(int);
-	d->items[a].data = (void *)&http_bugs.aggressive_cache;
+	d->items[a].data = (void *)&aggressive_cache;
 	a++;
 	d->items[a].type = D_BUTTON;
 	d->items[a].gid = B_ENTER;
@@ -1657,7 +1718,7 @@ int dlg_assume_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 
 int dlg_kb_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	charset_sel_list(dlg->win->term, dlg->dlg->udata2, (int *)di->cdata, 1);
+	charset_sel_list(dlg->win->term, dlg->dlg->udata2, (int *)di->cdata, 0);
 	return 0;
 }
 
@@ -1667,10 +1728,10 @@ void menu_html_options(struct terminal *term, void *xxx, struct session *ses)
 	int a;
 	
 	snprint(marg_str, 2, ses->ds.margin);
-	if (!F){
+	if (!F) {
 		d = mem_calloc(sizeof(struct dialog) + 14 * sizeof(struct dialog_item));
 #ifdef G
-	}else{
+	} else {
 		d = mem_calloc(sizeof(struct dialog) + 17 * sizeof(struct dialog_item));
 		snprintf(html_font_str,4,"%d",ses->ds.font_size);
 		snprintf(image_scale_str,6,"%d",ses->ds.image_scale);
@@ -1763,10 +1824,10 @@ void menu_html_options(struct terminal *term, void *xxx, struct session *ses)
 		d->items[a].data = html_font_str;
 		d->items[a].fn = check_number;
 		d->items[a].gid = 1;
-		d->items[a].gnum = 999;
+		d->items[a].gnum = MAX_FONT_SIZE;
 		a++;
 		d->items[a].type = D_FIELD;
-		d->items[a].dlen = 6;
+		d->items[a].dlen = 4;
 		d->items[a].data = image_scale_str;
 		d->items[a].fn = check_number;
 		d->items[a].gid = 1;
@@ -1972,7 +2033,7 @@ void miscelaneous_options(struct terminal *term, void *xxx, struct session *ses)
 		d->items[a].data = menu_font_str;
 		d->items[a].fn = check_number;
 		d->items[a].gid = 1;
-		d->items[a].gnum = 999;
+		d->items[a].gnum = MAX_FONT_SIZE;
 		a++;
 		d->items[a].type = D_FIELD;
 		d->items[a].dlen = 7;
@@ -2433,7 +2494,7 @@ void activate_bfu_technology(struct session *ses, int item)
 
 struct history goto_url_history = { 0, { &goto_url_history.items, &goto_url_history.items } };
 
-void dialog_goto_url(struct session *ses, char *url)
+void dialog_goto_url(struct session *ses, unsigned char *url)
 {
 	input_field(ses->term, NULL, TEXT(T_GOTO_URL), TEXT(T_ENTER_URL), ses, &goto_url_history, MAX_INPUT_URL_LEN, url, 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) goto_url, TEXT(T_CANCEL), NULL, NULL);
 }

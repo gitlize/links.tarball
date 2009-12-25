@@ -784,7 +784,12 @@ unsigned char *term_rd(struct option *o, unsigned char *c)
 	ts->block_cursor = !!((w[0] - '0') & 4);
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if ((i = get_cp_index(w)) == -1 || is_cp_special(i)) goto err_f;
+	if ((i = get_cp_index(w)) == -1) goto err_f;
+#ifndef ENABLE_UTF8
+	if ((is_cp_special(i))) {
+		i = 0;
+	}
+#endif
 	ts->charset = i;
 	mem_free(w);
 	end:
@@ -823,7 +828,12 @@ unsigned char *term2_rd(struct option *o, unsigned char *c)
 	ts->col = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if ((i = get_cp_index(w)) == -1 || is_cp_special(i)) goto err_f;
+	if ((i = get_cp_index(w)) == -1) goto err_f;
+#ifndef ENABLE_UTF8
+	if ((is_cp_special(i))) {
+		i = 0;
+	}
+#endif
 	ts->charset = i;
 	mem_free(w);
 	end:
@@ -887,7 +897,7 @@ unsigned char *dp_rd(struct option *o, unsigned char *c)
 		mem_free(shell);
 		goto err;
 	}
-	if ((cc=get_cp_index(cp)) == -1 || is_cp_special(cc)) {
+	if ((cc=get_cp_index(cp)) == -1) {
 		mem_free(n);
 		mem_free(param);
 		mem_free(shell);
@@ -1116,6 +1126,11 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Userid, host and port of Socks4a, or blank.\n"
 "    (default: blank)\n"
 "\n"
+" -append-text-to-dns-lookups <text>\n"
+"  Append text to dns lookups. It is useful for specifying fixed\n"
+"    tor exit node.\n"
+"    (default: blank)\n"
+"\n"
 " -only-proxies <0>/<1>\n"
 "    (default 0)\n"
 "  \"1\" causes that Links won't initiate any non-proxy connection.\n"
@@ -1124,6 +1139,12 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -download-dir <path>\n"
 "  Default download directory.\n"
 "    (default: actual dir)\n"
+"\n"
+" -aggressive-cache <0>/<1>\n"
+"    (default 1)\n"
+"  Always cache everything regardless of server's caching recomendations.\n"
+"    Many servers deny caching even if their content is not changing\n"
+"    just to get more hits and more money from ads.\n"
 "\n"),
 (" -language <language>\n"
 "  Set user interface language.\n"
@@ -1164,13 +1185,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    (default 0)\n"
 "  Retry on internal server errors (50x).\n"
 "\n"
-" -http-bugs.aggressive-cache <0>/<1>\n"
-"    (default 1)\n"
-"  Always cache everything regardless of server's caching recomendations.\n"
-"    Many servers deny caching even if their content is not changing\n"
-"    just to get more hits and more money from ads.\n"
-"\n"
-" -http-referer <0>/<1>/<2>/<3>\n"
+" -http.referer <0>/<1>/<2>/<3>\n"
 "    (default 0)\n"
 "  0 - do not send referer\n"
 "  1 - send the requested URL as referer\n"
@@ -1178,11 +1193,14 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  3 - send real referer\n"
 "  4 - send real referer only to the same server\n"
 "\n"
-" -fake-referer <string>\n"
+" -http.fake-referer <string>\n"
 "  Fake referer value.\n"
 "\n"
-" -fake-user-agent <string>\n"
+" -http.fake-user-agent <string>\n"
 "  Fake user agent value.\n"
+"\n"
+" -http.extra-header <string>\n"
+"  Extra string added to HTTP header.\n"
 "\n"
 " -ftp.anonymous-password <string>\n"
 "  Password for anonymous ftp access.\n"
@@ -1459,7 +1477,7 @@ struct rgb default_vlink_g = { 0, 0, 128, 0 };
 
 int default_left_margin = HTML_LEFT_MARGIN;
 
-struct proxies proxies = { "", "", "", 0 };
+struct proxies proxies = { "", "", "", "", 0 };
 int js_enable=1;   /* 0=disable javascript */
 int js_verbose_errors=0;   /* 1=create dialog on every javascript error, 0=be quiet and continue */
 int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=be quiet and continue */
@@ -1476,10 +1494,12 @@ int aspect_on=1;
 
 unsigned char download_dir[MAX_STR_LEN] = "";
 
+int aggressive_cache = 1;
+
 struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 1 };
 
 /* These are workarounds for some CGI script bugs */
-struct http_bugs http_bugs = { 0, 1, 1, 0, 0, 0, 0, 1, "", "", REFERER_NONE };
+struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { REFERER_NONE, "", "", "" } };
 /*int bug_302_redirect = 0;*/
 	/* When got 301 or 302 from POST request, change it to GET
 	   - this violates RFC2068, but some buggy message board scripts rely on it */
@@ -1513,33 +1533,35 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections, "max_connections", "max-connections"},
 	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections_to_host, "max_connections_to_host", "max-connections-to-host"},
 	{1, gen_cmd, num_rd, num_wr, 0, 16, &max_tries, "retries", "retries"},
-	{1, gen_cmd, num_rd, num_wr, 1, 1800, &receive_timeout, "receive_timeout", "receive-timeout"},
-	{1, gen_cmd, num_rd, num_wr, 1, 1800, &unrestartable_receive_timeout, "unrestartable_receive_timeout", "unrestartable-receive-timeout"},
+	{1, gen_cmd, num_rd, num_wr, 1, 9999, &receive_timeout, "receive_timeout", "receive-timeout"},
+	{1, gen_cmd, num_rd, num_wr, 1, 9999, &unrestartable_receive_timeout, "unrestartable_receive_timeout", "unrestartable-receive-timeout"},
 	{1, gen_cmd, num_rd, num_wr, 0, 256, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &memory_cache_size, "memory_cache_size", "memory-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &image_cache_size, "image_cache_size", "image-cache-size"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.http_proxy, "http_proxy", "http-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.ftp_proxy, "ftp_proxy", "ftp-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.socks_proxy, "socks_proxy", "socks-proxy"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.dns_append, "-append_text_to_dns_lookups", "append-text-to-dns-lookups"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &proxies.only_proxies, "only_proxies", "only-proxies"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, download_dir, "download_dir", "download-dir"},
 	{1, gen_cmd, lang_rd, lang_wr, 0, 0, &current_language, "language", "language"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.http10, "http_bugs.http10", "http-bugs.http10"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.allow_blacklist, "http_bugs.allow_blacklist", "http-bugs.allow-blacklist"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.bug_post_no_keepalive, "http_bugs.bug_post_no_keepalive", "http-bugs.bug-post-no-keepalive"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.no_compression, "http_bugs.no_compression", "http-bugs.no-compression"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.retry_internal_errors, "http_bugs.retry_internal_errors", "http-bugs.retry-internal-errors"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_bugs.aggressive_cache, "http_bugs.aggressive_cache", "http-bugs.aggressive-cache"},
-	{1, gen_cmd, num_rd, num_wr, 0, 4, &http_bugs.referer, "http_referer", "http-referer"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_bugs.fake_useragent, "fake_useragent", "fake-user-agent"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_bugs.fake_referer, "fake_referer", "fake-referer"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.http10, "http_bugs.http10", "http-bugs.http10"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.allow_blacklist, "http_bugs.allow_blacklist", "http-bugs.allow-blacklist"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.bug_post_no_keepalive, "http_bugs.bug_post_no_keepalive", "http-bugs.bug-post-no-keepalive"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.no_compression, "http_bugs.no_compression", "http-bugs.no-compression"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.retry_internal_errors, "http_bugs.retry_internal_errors", "http-bugs.retry-internal-errors"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &aggressive_cache, "http_bugs.aggressive_cache", "aggressive-cache"},
+	{1, gen_cmd, num_rd, num_wr, 0, 4, &http_options.header.referer, "http_referer", "http.referer"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_options.header.fake_referer, "fake_referer", "http.fake-referer"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_options.header.fake_useragent, "fake_useragent", "http.fake-user-agent"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_options.header.extra_header, "http.extra_header", "http.extra-header"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, ftp_options.anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.passive_ftp, "ftp.use_passive", "ftp.use-passive"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.fast_ftp, "ftp.fast", "ftp.fast"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.set_tos, "ftp.set_iptos", "ftp.set-iptos"},
-	{1, gen_cmd, num_rd, num_wr, 1, 999, &menu_font_size, "menu_font_size", "menu-font-size"},
+	{1, gen_cmd, num_rd, num_wr, 1, MAX_FONT_SIZE, &menu_font_size, "menu_font_size", "menu-font-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_BG_COLOR, "background_color", "background-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_FG_COLOR, "foreground_color", "foreground-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_SCROLL_BAR_AREA_COLOR, "scroll_bar_area_color", "scroll-bar-area-color"},
@@ -1574,6 +1596,7 @@ struct option links_options[] = {
 	{1, NULL, prog_rd, prog_wr, 0, 0, &telnet_prog, "telnet", NULL},
 	{1, NULL, prog_rd, prog_wr, 0, 0, &tn3270_prog, "tn3270", NULL},
 	{1, NULL, prog_rd, prog_wr, 0, 0, &mms_prog, "mms", NULL},
+	{1, NULL, prog_rd, prog_wr, 0, 0, &magnet_prog, "magnet", NULL},
 	{1, NULL, block_rd, block_wr, 0, 0, NULL, "imageblock", NULL},
 	{1, NULL, dp_rd, dp_wr, 0, 0, NULL, "video_driver", NULL},
 	{0, NULL, NULL, NULL, 0, 0, NULL, NULL, NULL},
@@ -1594,7 +1617,7 @@ struct option html_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.auto_refresh, "html_auto_refresh", "html-auto-refresh"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.target_in_new_window, "html_target_in_new_window", "html-target-in-new-window"},
 	{1, gen_cmd, num_rd, num_wr, 0, 9, &dds.margin, "html_margin", "html-margin"},
-	{1, gen_cmd, num_rd, num_wr, 1, 999, &dds.font_size, "html_font_size", "html-user-font-size"},
+	{1, gen_cmd, num_rd, num_wr, 1, MAX_FONT_SIZE, &dds.font_size, "html_font_size", "html-user-font-size"},
 	{0, NULL, NULL, NULL, 0, 0, NULL, NULL, NULL},
 };
 

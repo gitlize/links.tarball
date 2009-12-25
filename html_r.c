@@ -44,7 +44,7 @@ void *html_special(struct part *, int, ...);
 void do_format(char *, char *, struct part *, unsigned char *);
 void release_part(struct part *);
 void push_base_format(unsigned char *, struct document_options *, int);
-void add_srch_chr(struct f_data *, unsigned char, int, int, int);
+void add_srch_chr(struct f_data *, unsigned, int, int, int);
 void sort_srch(struct f_data *);
 int get_srch(struct f_data *);
 
@@ -347,8 +347,10 @@ static inline void xpand_line(struct part *p, int y, int x)
 			if (XALIGN((unsigned)x + 1) > MAXINT / sizeof(chr)) overalloc();
 			p->data->data[y].d = mem_realloc(p->data->data[y].d, XALIGN(x+1)*sizeof(chr));
 		}
-		for (i = p->data->data[y].l; i <= x; i++)
-			p->data->data[y].d[i] = (p->data->data[y].c << 11) | ' ';
+		for (i = p->data->data[y].l; i <= x; i++) {
+			p->data->data[y].d[i].at = p->data->data[y].c << 3;
+			p->data->data[y].d[i].ch = ' ';
+		}
 		p->data->data[y].c = p->bgcolor;
 		p->data->data[y].l = i;
 	}
@@ -375,28 +377,37 @@ static inline void xpand_spaces(struct part *p, int l)
 #define X(x) (p->xp + (x))
 #define Y(y) (p->yp + (y))
 
-static inline void set_hchar(struct part *p, int x, int y, unsigned c)
+static inline void set_hchar(struct part *p, int x, int y, unsigned ch, unsigned at)
 {
+	chr *cc;
 	xpand_lines(p, y);
 	xpand_line(p, y, x);
-	POS(x, y) = c;
+	cc = &POS(x, y);
+	cc->ch = ch;
+	cc->at = at;
 }
 
-static inline void set_hchars(struct part *p, int x, int y, int xl, unsigned c)
+static inline void set_hchars(struct part *p, int x, int y, int xl, unsigned ch, unsigned at)
 {
+	chr *cc;
 	xpand_lines(p, y);
 	xpand_line(p, y, x+xl-1);
-	for (; xl; xl--, x++) POS(x, y) = c;
+	cc = &POS(x, y);
+	for (; xl; xl--) {
+		cc->ch = ch;
+		cc->at = at;
+		cc++;
+	}
 }
 
-void xset_hchar(struct part *p, int x, int y, unsigned c)
+void xset_hchar(struct part *p, int x, int y, unsigned ch, unsigned at)
 {
-	set_hchar(p, x, y, c);
+	set_hchar(p, x, y, ch, at);
 }
 
-void xset_hchars(struct part *p, int x, int y, int xl, unsigned c)
+void xset_hchars(struct part *p, int x, int y, int xl, unsigned ch, unsigned at)
 {
-	set_hchars(p, x, y, xl, c);
+	set_hchars(p, x, y, xl, ch, at);
 }
 
 void xxpand_lines(struct part *p, int y)
@@ -409,14 +420,39 @@ void xxpand_line(struct part *p, int y, int x)
 	xpand_line(p, y, x);
 }
 
-static inline void set_hline(struct part *p, int x, int y, int xl, unsigned char *d, unsigned c, int spc)
+static inline void set_hline(struct part *p, int x, int y, int xl, unsigned char *d, unsigned at)
 {
+	chr *cc;
 	xpand_lines(p, y);
 	xpand_line(p, y, x+xl-1);
-	if (spc) xpand_spaces(p, x+xl-1);
+	xpand_spaces(p, x+xl-1);
+	cc = NULL;
+	if (p->data) cc = &POS(x, y);
 	for (; xl; xl--, x++, d++) {
-		if (spc) p->spaces[x] = *d == ' ';
-		if (p->data) POS(x, y) = *d | c;
+		p->spaces[x] = *d == ' ';
+		if (p->data) {
+			cc->ch = *d;
+			cc->at = at;
+			cc++;
+		}
+	}
+}
+
+static inline void set_hline_uni(struct part *p, int x, int y, int xl, char_t *d, unsigned at)
+{
+	chr *cc;
+	xpand_lines(p, y);
+	xpand_line(p, y, x+xl-1);
+	xpand_spaces(p, x+xl-1);
+	cc = NULL;
+	if (p->data) cc = &POS(x, y);
+	for (; xl; xl--, x++, d++) {
+		p->spaces[x] = *d == ' ';
+		if (p->data) {
+			cc->ch = *d;
+			cc->at = at;
+			cc++;
+		}
 	}
 }
 
@@ -490,7 +526,7 @@ static inline void shift_chars(struct part *p, int y, int s)
 	if ((unsigned)l > MAXINT / sizeof(chr)) overalloc();
 	a = mem_alloc(l * sizeof(chr));
 	memcpy(a, &POS(0, y), l * sizeof(chr));
-	set_hchars(p, 0, y, s, (p->data->data[y].c << 11) | ' ');
+	set_hchars(p, 0, y, s, ' ', p->data->data[y].c << 3);
 	copy_chars(p, s, y, l, a);
 	mem_free(a);
 	move_links(p, 0, y, s, y);
@@ -531,7 +567,7 @@ int split_line(struct part *p)
 	if (i + par_format.rightmargin > p->x) p->x = i + par_format.rightmargin;
 	if (p->data) {
 #ifdef DEBUG
-		if ((POS(i, p->cy) & 0xff) != ' ') internal("bad split: %c", (char)POS(i, p->cy));
+		if (POS(i, p->cy).ch != ' ') internal("bad split: %c", (char)POS(i, p->cy).ch);
 #endif
 		move_chars(p, i+1, p->cy, par_format.leftmargin, p->cy+1);
 		del_chars(p, i, p->cy);
@@ -671,19 +707,74 @@ void put_chars(struct part *p, unsigned char *c, int l)
 	static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0, 0 };
 	static int bg_cache;
 	static int fg_cache;
+	char_t *uni_c = DUMMY;
 
 	int bg, fg;
 	int i;
 	struct link *link;
 	struct point *pt;
+	int ll;
+
 	if (l < 0) overalloc();
 	/*printf("%d-", p->cx);for (i=0; i<l; i++) printf("%c", c[i]); printf("-\n");sleep(1);*/
-	while (par_format.align != AL_NO && p->cx == -1 && l && *c == ' ') c++, l--;
+	while (p->cx <= par_format.leftmargin && l && *c == ' ' && par_format.align != AL_NO) c++, l--;
 	if (!l) return;
+	if (p->cx < par_format.leftmargin) p->cx = par_format.leftmargin;
 	if (c[0] != ' ' || (c[1] && c[1] != ' ')) {
 		last_tag_for_newline = (void *)&p->data->tags;
 	}
-	if (p->cx < par_format.leftmargin) p->cx = par_format.leftmargin;
+#ifdef ENABLE_UTF8
+	if (is_cp_special(d_opt->cp)) {
+		int pl;
+		unsigned char *cc;
+		if (p->utf8_part_len) {
+			unsigned char *q;
+			next_utf_byte:
+			if ((*c & 0xc0) != 0x80)
+				goto bad_utf;
+			p->utf8_part[p->utf8_part_len++] = *c;
+			p->utf8_part[p->utf8_part_len] = 0;
+			c++;
+			l--;
+			q = p->utf8_part;
+			if (!get_utf_8(&q)) {
+				if (p->utf8_part_len == sizeof(p->utf8_part) - 1)
+					goto bad_utf;
+				if (l) goto next_utf_byte;
+				return;
+			}
+			pl = p->utf8_part_len;
+			p->utf8_part_len = 0;
+			put_chars(p, p->utf8_part, pl);
+		}
+		bad_utf:
+		p->utf8_part_len = 0;
+		uni_c = mem_alloc(l * sizeof(char_t));
+		ll = 0;
+		cc = c;
+		next_utf_char:
+		pl = utf8chrlen(*cc);
+		if (cc - c + pl > l) {
+			memcpy(p->utf8_part, cc, p->utf8_part_len = l - (cc - c));
+			goto utf_done;
+		} else {
+			if (!pl) cc++;
+			else {
+				GET_UTF_8(cc, uni_c[ll]);
+				ll++;
+			}
+			if (cc < c + l) goto next_utf_char;
+		}
+		utf_done:
+		if (!ll) {
+			mem_free(uni_c);
+			return;
+		}
+	} else
+#endif
+	{
+		ll = l;
+	}
 	if (last_link || last_image || last_form || format.link || format.image 
 	|| format.form || format.js_event || last_js_event
 	) goto process_link;
@@ -692,11 +783,20 @@ void put_chars(struct part *p, unsigned char *c, int l)
 	if (memcmp(&ta_cache, &format, sizeof(struct text_attrib_beginning))) goto format_change;
 	bg = bg_cache, fg = fg_cache;
 	end_format_change:
-	if (p->cx == par_format.leftmargin && *c == ' ' && par_format.align != AL_NO) c++, l--;
 	if (p->y < p->cy + 1) p->y = p->cy + 1;
-	if (nowrap && p->cx + l > rm(par_format)) return;
-	set_hline(p, p->cx, p->cy, l, c, (((fg&0x08)<<3)|(bg<<3)|(fg&0x07))<<8, 1);
-	p->cx += l;
+	if (nowrap && p->cx + ll > rm(par_format)) {
+		mem_free(uni_c);
+		return;
+	}
+#ifdef ENABLE_UTF8
+	if (is_cp_special(d_opt->cp)) {
+		set_hline_uni(p, p->cx, p->cy, ll, uni_c, ((fg&0x08)<<3)|(bg<<3)|(fg&0x07));
+	} else
+#endif
+	{
+		set_hline(p, p->cx, p->cy, l, c, ((fg&0x08)<<3)|(bg<<3)|(fg&0x07));
+	}
+	p->cx += ll;
 	nobreak = 0;
 	if (par_format.align != AL_NO)
 		while (p->cx > rm(par_format) && p->cx > par_format.leftmargin) {
@@ -710,7 +810,8 @@ void put_chars(struct part *p, unsigned char *c, int l)
 			align_line(p, p->cy - 1);
 			nobreak = x - 1;
 		}
-	if ((p->xa += l) - (c[l-1] == ' ' && par_format.align != AL_NO) + par_format.leftmargin + par_format.rightmargin > p->xmax) p->xmax = p->xa - (c[l-1] == ' ' && par_format.align != AL_NO) + par_format.leftmargin + par_format.rightmargin;
+	if ((p->xa += ll) - (c[l-1] == ' ' && par_format.align != AL_NO) + par_format.leftmargin + par_format.rightmargin > p->xmax) p->xmax = p->xa - (c[l-1] == ' ' && par_format.align != AL_NO) + par_format.leftmargin + par_format.rightmargin;
+	mem_free(uni_c);
 	return;
 
 	/* !!! WARNING: THE FOLLOWING CODE IS SHADOWED IN HTML_GR.C */
@@ -799,12 +900,12 @@ void put_chars(struct part *p, unsigned char *c, int l)
 		link->sel_color = ((fg & 8) << 3) | (fg & 7) | (bg << 3);
 		link->n = 0;
 		set_link:
-		if ((unsigned)link->n + (unsigned)l > MAXINT / sizeof(struct point)) overalloc();
-		pt = mem_realloc(link->pos, (link->n + l) * sizeof(struct point));
+		if ((unsigned)link->n + (unsigned)ll > MAXINT / sizeof(struct point)) overalloc();
+		pt = mem_realloc(link->pos, (link->n + ll) * sizeof(struct point));
 		link->pos = pt;
-		for (i = 0; i < l; i++) pt[link->n + i].x = X(p->cx) + i,
-					pt[link->n + i].y = Y(p->cy);
-		link->n += l;
+		for (i = 0; i < ll; i++) pt[link->n + i].x = X(p->cx) + i,
+					 pt[link->n + i].y = Y(p->cy);
+		link->n += ll;
 	}
 	goto no_l;
 
@@ -837,7 +938,7 @@ void line_break(struct part *p)
 	if (!p->data) goto e;
 	/*move_links(p, p->cx, p->cy, 0, p->cy + 1);*/
 	xpand_lines(p, p->cy + 1);
-	if (p->cx > par_format.leftmargin && LEN(p->cy) > p->cx - 1 && (POS(p->cx-1, p->cy) & 0xff) == ' ') del_chars(p, p->cx-1, p->cy), p->cx--;
+	if (p->cx > par_format.leftmargin && LEN(p->cy) > p->cx - 1 && POS(p->cx-1, p->cy).ch == ' ') del_chars(p, p->cx-1, p->cy), p->cx--;
 	/*if (LEN(p->cy) > p->x) p->x = LEN(p->cy);*/
 	if (p->cx > 0) align_line(p, p->cy);
 	if (p->data) for (t = last_tag_for_newline; t && (void *)t != &p->data->tags; t = t->prev) {
@@ -1101,14 +1202,14 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	last_form = NULL;
 	last_js_event = NULL;
 	nobreak = 1;
-	p = mem_alloc(sizeof(struct part));
-	p->x = p->y = 0;
+	p = mem_calloc(sizeof(struct part));
+	/*p->x = p->y = 0;*/
 	p->data = data;
 	p->xp = xs; p->yp = ys;
-	p->xmax = p->xa = 0;
+	/*p->xmax = p->xa = 0;*/
 	p->bgcolor = find_nearest_color(&par_format.bgcolor, 8);
 	p->spaces = DUMMY;
-	p->spl = 0;
+	/*p->spl = 0;*/
 	p->link_num = link_num;
 	init_list(p->uf);
 	html_stack_dup();
@@ -1222,7 +1323,7 @@ struct conv_table *get_convert_table(unsigned char *head, int to, int def, int *
 	unsigned char *a, *b;
 	unsigned char *p = head;
 	while (from == -1 && p && (a = parse_http_header(p, "Content-Type", &p))) {
-		if ((b = parse_header_param(a, "charset"))) {
+		if ((b = parse_header_param(a, "charset", 0))) {
 			from = get_cp_index(b);
 			mem_free(b);
 		}
@@ -1339,7 +1440,7 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 		internal("html stack not empty after operation");
 		init_list(html_stack);
 	}
-	screen->bg = 007 << 8; /* !!! FIXME */
+	screen->bg = 007; /* !!! FIXME */
 	sort_links(screen);
 	current_f_data = NULL;
 	d_opt = &dd_opt;
@@ -1390,7 +1491,7 @@ void copy_opt(struct document_options *o1, struct document_options *o2)
 	o1->framename = stracpy(o2->framename);
 }
 
-void add_srch_chr(struct f_data *f, unsigned char c, int x, int y, int nn)
+void add_srch_chr(struct f_data *f, unsigned c, int x, int y, int nn)
 {
 	int n = f->nsearch;
 	if (c == ' ' && (!n || f->search[n - 1].c == ' ')) return;
@@ -1432,9 +1533,9 @@ void sort_srch(struct f_data *f)
 	mem_free(max);
 }
 
-static inline int is_spc(chr c)
+static inline int is_spc(chr *cc)
 {
-	return (unsigned char)c <= ' ' || c & ATTR_FRAME;
+	return cc->ch <= ' ' || cc->at & ATTR_FRAME;
 }
 
 int get_srch(struct f_data *f)
@@ -1450,8 +1551,8 @@ int get_srch(struct f_data *f)
 		for (y = n->y; y < ym && y < f->y; y++) {
 			int ns = 1;
 			for (x = n->x; x < xm && x < f->data[y].l; x++) {
-				unsigned char c = f->data[y].d[x];
-				if (is_spc(f->data[y].d[x])) c = ' ';
+				unsigned c = f->data[y].d[x].ch;
+				if (is_spc(&f->data[y].d[x])) c = ' ';
 				if (c == ' ' && ns) continue;
 				c = charset_upcase(c, f->opt.cp);
 				if (ns) {
@@ -1464,7 +1565,7 @@ int get_srch(struct f_data *f)
 					       else cnt++;
 				else {
 					int xx;
-					for (xx = x + 1; xx < xm && xx < f->data[y].l; xx++) if (!is_spc(f->data[y].d[xx])) goto ja_uz_z_toho_programovani_asi_zcvoknu;
+					for (xx = x + 1; xx < xm && xx < f->data[y].l; xx++) if (!is_spc(&f->data[y].d[xx])) goto ja_uz_z_toho_programovani_asi_zcvoknu;
 					xx = x;
 					ja_uz_z_toho_programovani_asi_zcvoknu:
 					if (!cc) add_srch_chr(f, ' ', x, y, xx - x);

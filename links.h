@@ -28,9 +28,9 @@
 #ifndef _LINKS_H
 #define _LINKS_H
 
-#define LINKS_COPYRIGHT "(C) 1999 - 2008 Mikulas Patocka\n(C) 2000 - 2008 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2008 Mikulás Patocka\n(C) 2000 - 2008 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2008 Mikulá¹ Patoèka\n(C) 2000 - 2008 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT "(C) 1999 - 2009 Mikulas Patocka\n(C) 2000 - 2009 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2009 Mikulás Patocka\n(C) 2000 - 2009 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2009 Mikulá¹ Patoèka\n(C) 2000 - 2009 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -144,8 +144,13 @@ x #endif*/
 #include <utime.h>
 
 #ifdef HAVE_SSL
+#ifdef HAVE_OPENSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
+#endif
+#ifdef HAVE_NSS
+#include <nss_compat_ossl/nss_compat_ossl.h>
+#endif
 #endif
 
 #if defined(G) 
@@ -278,7 +283,7 @@ extern int F;
 
 /* error.c */
 
-void do_not_optimize_here(void *p);
+void *do_not_optimize_here(void *p);
 void check_memory_leaks(void);
 void error(unsigned char *, ...);
 void debug_msg(unsigned char *, ...);
@@ -714,7 +719,8 @@ struct xlist_head {
 #define del_from_list(x) {do_not_optimize_here(x); ((struct list_head *)(x)->next)->prev=(x)->prev; ((struct list_head *)(x)->prev)->next=(x)->next; do_not_optimize_here(x);}
 /*#define add_to_list(l,x) {(x)->next=(l).next; (x)->prev=(typeof(x))(void *)&(l); (l).next=(x); if ((l).prev==&(l)) (l).prev=(x);}*/
 
-#ifdef HAVE_TYPEOF
+#if defined(HAVE_TYPEOF) && !(defined(__GNUC__) && __GNUC__ >= 4)
+/* GCC 4 emits warnings about this and I haven't found a way to stop it */
 #define add_at_pos(p,x) do {do_not_optimize_here(p); (x)->next=(p)->next; (x)->prev=(p); (p)->next=(x); (x)->next->prev=(x);do_not_optimize_here(p);} while(0)
 #define add_to_list(l,x) add_at_pos((typeof(x))(void *)&(l),(x))
 #define foreach(e,l) for ((e)=(l).next; (e)!=(typeof(e))(void *)&(l); (e)=(e)->next)
@@ -858,7 +864,7 @@ static inline void prealloc_truncate(int x, off_t y) {}
 #endif
 void os_cfmakeraw(struct termios *t);
 
-extern char *clipboard;
+extern unsigned char *clipboard;
 
 /* memory.c */
 
@@ -1137,6 +1143,7 @@ int get_keepalive_socket(struct connection *c);
 void add_keepalive_socket(struct connection *c, ttime);
 void run_connection(struct connection *c);
 int is_connection_restartable(struct connection *c);
+int is_last_try(struct connection *c);
 void retry_connection(struct connection *c);
 void abort_connection(struct connection *c);
 void end_connection(struct connection *c);
@@ -1154,11 +1161,12 @@ void del_blacklist_entry(unsigned char *, int);
 int get_blacklist_flags(unsigned char *);
 void free_blacklist(void);
 
-#define BL_HTTP10		1
-#define BL_NO_ACCEPT_LANGUAGE	2
-#define BL_NO_CHARSET		4
-#define BL_NO_RANGE		8
-#define BL_NO_COMPRESSION	16
+#define BL_HTTP10		0x01
+#define BL_NO_ACCEPT_LANGUAGE	0x02
+#define BL_NO_CHARSET		0x04
+#define BL_NO_RANGE		0x08
+#define BL_NO_COMPRESSION	0x10
+#define BL_NO_BZIP2		0x20
 
 /* url.c */
 
@@ -1232,7 +1240,7 @@ extern struct list_head cookies;
 extern struct list_head c_domains;
 
 int set_cookie(struct terminal *, unsigned char *, unsigned char *);
-void send_cookies(unsigned char **, int *, unsigned char *);
+void add_cookies(unsigned char **, int *, unsigned char *);
 void init_cookies(void);
 void cleanup_cookies(void);
 int is_in_domain(unsigned char *d, unsigned char *s);
@@ -1243,7 +1251,7 @@ void free_cookie(struct cookie *c);
 /* auth.c */
 
 unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy);
-char *get_auth_string(char *url);
+unsigned char *get_auth_string(unsigned char *url);
 void cleanup_auth(void);
 void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, unsigned char *password, int proxy);
 int find_auth(unsigned char *url, unsigned char *realm);
@@ -1252,7 +1260,7 @@ int find_auth(unsigned char *url, unsigned char *realm);
 
 int get_http_code(unsigned char *head, int *code, int *version);
 unsigned char *parse_http_header(unsigned char *, unsigned char *, unsigned char **);
-unsigned char *parse_header_param(unsigned char *, unsigned char *);
+unsigned char *parse_header_param(unsigned char *, unsigned char *, int);
 void http_func(struct connection *);
 void proxy_func(struct connection *);
 
@@ -1287,6 +1295,7 @@ void smb_func(struct connection *);
 
 /* mailto.c */
 
+void magnet_func(struct session *, unsigned char *);
 void mailto_func(struct session *, unsigned char *);
 void telnet_func(struct session *, unsigned char *);
 void tn3270_func(struct session *, unsigned char *);
@@ -1814,7 +1823,16 @@ void round_color_sRGB_to_48(unsigned short *red, unsigned short *green,
 
 /* terminal.c */
 
-typedef unsigned short chr;
+#ifndef ENABLE_UTF8
+typedef unsigned char char_t;
+#else
+typedef unsigned char_t;
+#endif
+
+typedef struct {
+	char_t ch;
+	unsigned char at;
+} chr;
 
 struct event {
 	long ev;
@@ -1875,8 +1893,8 @@ struct terminal {
 	int environment;
 	unsigned char term[MAX_TERM_LEN];
 	unsigned char cwd[MAX_CWD_LEN];
-	unsigned *screen;
-	unsigned *last_screen;
+	chr *screen;
+	chr *last_screen;
 	struct term_spec *spec;
 	int cx;
 	int cy;
@@ -1893,6 +1911,9 @@ struct terminal {
 	unsigned char *title;
 #ifdef G
 	struct graphics_device *dev;
+#endif
+#if defined(G) || defined(ENABLE_UTF8)
+	unsigned char utf8_buffer[7];
 #endif
 };
 
@@ -1915,7 +1936,7 @@ struct term_spec {
 #define TERM_KOI8	3
 #define TERM_FREEBSD	4
 
-#define ATTR_FRAME	0x8000
+#define ATTR_FRAME	0x80
 
 extern struct list_head term_specs;
 extern struct list_head terminals;
@@ -1975,13 +1996,13 @@ void t_mouse(struct graphics_device *, int, int, int);
 #endif
 
 /* text only */
-void set_char(struct terminal *, int, int, unsigned);
-unsigned get_char(struct terminal *, int, int);
+void set_char(struct terminal *, int, int, unsigned, unsigned);
+chr *get_char(struct terminal *, int, int);
 void set_color(struct terminal *, int, int, unsigned);
-void set_only_char(struct terminal *, int, int, unsigned);
+void set_only_char(struct terminal *, int, int, unsigned, unsigned);
 void set_line(struct terminal *, int, int, int, chr *);
 void set_line_color(struct terminal *, int, int, int, unsigned);
-void fill_area(struct terminal *, int, int, int, int, unsigned);
+void fill_area(struct terminal *, int, int, int, int, unsigned, unsigned);
 void draw_frame(struct terminal *, int, int, int, int, unsigned, int);
 void print_text(struct terminal *, int, int, int, unsigned char *, unsigned);
 void set_cursor(struct terminal *, int, int, int, int);
@@ -2090,6 +2111,7 @@ extern struct list_head mailto_prog;
 extern struct list_head telnet_prog;
 extern struct list_head tn3270_prog;
 extern struct list_head mms_prog;
+extern struct list_head magnet_prog;
 
 unsigned char *get_content_type(unsigned char *, unsigned char *);
 unsigned char *get_content_encoding(unsigned char *head, unsigned char *url);
@@ -2186,7 +2208,7 @@ struct link_def {
 
 struct line {
 	int l;
-	chr c;
+	int c;
 	chr *d;
 };
 
@@ -2373,7 +2395,7 @@ struct node {
 };
 
 struct search {
-	unsigned char c;
+	char_t c;
 	int n:24;	/* This structure is size-critical */
 	int x, y;
 };
@@ -2896,7 +2918,7 @@ struct download {
 	struct download *prev;
 	unsigned char *url;
 	struct status stat;
-	char decompress;
+	unsigned char decompress;
 	unsigned char *cwd;
 	unsigned char *orig_file;
 	unsigned char *file;
@@ -2978,7 +3000,7 @@ void fd_loaded(struct object_request *, struct f_data_c *);
 
 extern struct list_head sessions;
 
-time_t parse_http_date(char *);
+time_t parse_http_date(unsigned char *);
 unsigned char *encode_url(unsigned char *);
 unsigned char *decode_url(unsigned char *);
 unsigned char *subst_file(unsigned char *, unsigned char *, int);
@@ -3381,7 +3403,7 @@ void dlg_format_text_and_field(struct dialog_data *, struct terminal *, unsigned
 void max_buttons_width(struct terminal *, struct dialog_item_data *, int, int *);
 void min_buttons_width(struct terminal *, struct dialog_item_data *, int, int *);
 void dlg_format_buttons(struct dialog_data *, struct terminal *, struct dialog_item_data *, int, int, int *, int, int *, int);
-void checkboxes_width(struct terminal *, unsigned char **, int *, void (*)(struct terminal *, unsigned char *, int *, int));
+void checkboxes_width(struct terminal *, unsigned char **, int, int *, void (*)(struct terminal *, unsigned char *, int *, int));
 void dlg_format_checkbox(struct dialog_data *, struct terminal *, struct dialog_item_data *, int, int *, int, int *, unsigned char *);
 void dlg_format_checkboxes(struct dialog_data *, struct terminal *, struct dialog_item_data *, int, int, int *, int, int *, unsigned char **);
 void dlg_format_field(struct dialog_data *, struct terminal *, struct dialog_item_data *, int, int *, int, int *, int);
@@ -3455,7 +3477,7 @@ void download_window_function(struct dialog_data *dlg);
 extern struct history goto_url_history;
 
 void activate_bfu_technology(struct session *, int);
-void dialog_goto_url(struct session *ses, char *url);
+void dialog_goto_url(struct session *ses, unsigned char *url);
 void dialog_save_url(struct session *ses);
 void free_history_lists(void);
 void query_file(struct session *, unsigned char *, unsigned char *, void (*)(struct session *, unsigned char *), void (*)(struct session *));
@@ -3479,6 +3501,11 @@ extern int gamma_bits;
 
 extern int utf8_table;
 
+static inline int is_cp_special(int index)
+{
+	return index == utf8_table;
+}
+
 struct conv_table {
 	int t;
 	union {
@@ -3494,33 +3521,51 @@ unsigned char *convert_string(struct conv_table *, unsigned char *, int, struct 
 int get_cp_index(unsigned char *);
 unsigned char *get_cp_name(int);
 unsigned char *get_cp_mime_name(int);
-int is_cp_special(int);
 void free_conv_table(void);
 unsigned char *encode_utf_8(int);
+unsigned char *u2cp(int u, int to, int fallback);
 int cp2u(unsigned char, int);
 
-unsigned char charset_upcase(unsigned char, int);
+unsigned charset_upcase(unsigned, int);
+unsigned uni_upcase(unsigned);
 void charset_upcase_string(unsigned char **, int);
 unsigned char *unicode_upcase_string(unsigned char *ch);
 unsigned char *to_utf8_upcase(unsigned char *str, int cp);
 int compare_case_utf8(unsigned char *u1, unsigned char *u2);
+int strlen_utf8(unsigned char *s);
+unsigned char *cp_strchr(int charset, unsigned char *str, unsigned chr);
 
 int get_utf_8(unsigned char **p);
 extern unsigned short int utf8_2_uni_table[0x200];
 #define GET_UTF_8(s, c)	do {if ((unsigned char)(s)[0] < 0x80) (c) = (s)++[0]; else if (((c) = utf8_2_uni_table[((unsigned char)(s)[0] << 2) + ((unsigned char)(s)[1] >> 6) - 0x200])) (c) += (unsigned char)(s)[1] & 0x3f, (s) += 2; else (c) = get_utf_8(&(s));} while (0)
 #define FWD_UTF_8(s) do {if ((unsigned char)(s)[0] < 0x80) (s)++; else get_utf_8(&(s));} while (0)
 #define BACK_UTF_8(p, b) do {while ((p) > (b)) {(p)--; if ((*(p) & 0xc0) != 0x80) break; }} while (0)
-static inline int utf8len(unsigned char *s)
+static inline int cp_len(int cp, unsigned char *s)
 {
-	int len;
-	unsigned c;
-	if (!F) return strlen((char *)s);
-	len = 0;
-	while (1) {
-		GET_UTF_8(s, c);
-		if (!c) return len;
-		len++;
-	}
+	if (is_cp_special(cp)) return strlen_utf8(s);
+	return strlen((char *)s);
+}
+
+extern unsigned char utf_8_1[256];
+
+static inline int utf8chrlen(unsigned char c)
+{
+	unsigned char l = utf_8_1[c];
+	if (!l) return l;
+	if (l >= 7) return 1;
+	return 7 - l;
+}
+
+static inline unsigned GET_TERM_CHAR(struct terminal *term, unsigned char **str)
+{
+	unsigned ch;
+#if defined(ENABLE_UTF8)
+	if (is_cp_special(term->spec->charset))
+		GET_UTF_8(*str, ch);
+	else
+#endif
+		ch = *(*str)++;
+	return ch;
 }
 
 /* view.c */
@@ -3712,7 +3757,7 @@ extern struct cached_image *global_cimg;
 
 /* Below are internal functions shared with imgcache.c, gif.c, and xbm.c */
 void img_release_decoded_image(struct decoded_image *);
-void header_dimensions_known(struct cached_image *cimg);
+int header_dimensions_known(struct cached_image *cimg);
 void img_end(struct cached_image *cimg);
 void compute_background_8(unsigned char *rgb, struct cached_image *cimg);
 void buffer_to_bitmap_incremental(struct cached_image *cimg
@@ -3747,7 +3792,7 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length);
 #endif /* #ifdef HAVE_JPEG */
 #endif /* #ifdef G */
 
-int known_image_type(char *type);
+int known_image_type(unsigned char *type);
 
 /* imgcache.c */
 
@@ -4048,6 +4093,10 @@ struct part {
 	int spl;
 	int link_num;
 	struct list_head uf;
+#ifdef ENABLE_UTF8
+	unsigned char utf8_part[7];
+	unsigned char utf8_part_len;
+#endif
 };
 
 #ifdef G
@@ -4055,6 +4104,7 @@ struct g_part {
 	int x, y;
 	int xmax;
 	int cx, cy;
+	int cx_w;
 	struct g_object_area *root;
 	struct g_object_line *line;
 	struct g_object_text *text;
@@ -4091,8 +4141,8 @@ extern int margin;
 
 void xxpand_line(struct part *, int, int);
 void xxpand_lines(struct part *, int);
-void xset_hchar(struct part *, int, int, unsigned);
-void xset_hchars(struct part *, int, int, int, unsigned);
+void xset_hchar(struct part *, int, int, unsigned, unsigned);
+void xset_hchars(struct part *, int, int, int, unsigned, unsigned);
 void align_line(struct part *, int);
 void html_tag(struct f_data *, unsigned char *, int, int);
 void process_script(struct f_data *, unsigned char *);
@@ -4144,7 +4194,7 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight);
 
 unsigned char *skip_element(unsigned char *, unsigned char *, unsigned char *, int);
 void format_table(unsigned char *, unsigned char *, unsigned char *, unsigned char **, void *);
-void table_bg(struct text_attrib *ta, char bgstr[8]);
+void table_bg(struct text_attrib *ta, unsigned char bgstr[8]);
 
 /* default.c */
 
@@ -4234,6 +4284,7 @@ struct proxies {
 	unsigned char http_proxy[MAX_STR_LEN];
 	unsigned char ftp_proxy[MAX_STR_LEN];
 	unsigned char socks_proxy[MAX_STR_LEN];
+	unsigned char dns_append[MAX_STR_LEN];
 	int only_proxies;
 };
 
@@ -4248,7 +4299,16 @@ extern int js_global_resolve;
 #endif
 extern unsigned char download_dir[];
 
-struct http_bugs {
+extern int aggressive_cache;
+
+struct http_header_options {
+	int referer;
+	unsigned char fake_referer[MAX_STR_LEN];
+	unsigned char fake_useragent[MAX_STR_LEN];
+	unsigned char extra_header[MAX_STR_LEN];
+};
+
+struct http_options {
 	int http10;
 	int allow_blacklist;
 	int bug_302_redirect;
@@ -4256,13 +4316,10 @@ struct http_bugs {
 	int no_accept_charset;
 	int no_compression;
 	int retry_internal_errors;
-	int aggressive_cache;
-	unsigned char fake_useragent[MAX_STR_LEN];
-	unsigned char fake_referer[MAX_STR_LEN];
-	int referer;
+	struct http_header_options header;
 };
 
-extern struct http_bugs http_bugs;
+extern struct http_options http_options;
 
 struct ftp_options {
 	unsigned char anon_pass[MAX_STR_LEN];

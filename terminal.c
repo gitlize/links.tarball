@@ -12,6 +12,7 @@ void erase_screen(struct terminal *);
 void redraw_windows(struct terminal *);
 void empty_window_handler(struct window *, struct event *, int);
 struct term_spec *get_term_spec(unsigned char *);
+int process_utf_8(struct terminal *term, struct event *ev);
 void unblock_terminal(struct terminal *);
 
 
@@ -74,17 +75,17 @@ struct list_head terminals = {&terminals, &terminals};
 
 void alloc_term_screen(struct terminal *term, int x, int y)
 {
-	unsigned *s, *t;
+	chr *s, *t;
 	NO_GFX;
 	if (x && (unsigned)x * (unsigned)y / (unsigned)x != (unsigned)y) overalloc();
-	if ((unsigned)x * (unsigned)y > MAXINT / sizeof(unsigned)) overalloc();
-	s = mem_realloc(term->screen, x * y * sizeof(unsigned));
-	t = mem_realloc(term->last_screen, x * y * sizeof(unsigned));
-	memset(t, -1, x * y * sizeof(unsigned));
+	if ((unsigned)x * (unsigned)y > MAXINT / sizeof(*term->screen)) overalloc();
+	s = mem_realloc(term->screen, x * y * sizeof(*term->screen));
+	t = mem_realloc(term->last_screen, x * y * sizeof(*term->screen));
+	memset(t, -1, x * y * sizeof(*term->screen));
 	term->x = x;
 	term->y = y;
 	term->last_screen = t;
-	memset(s, 0, x * y * sizeof(unsigned));
+	memset(s, 0, x * y * sizeof(*term->screen));
 	term->screen = s;
 	term->dirty = 1;
 }
@@ -96,7 +97,7 @@ void check_if_no_terminal(void);
 void clear_terminal(struct terminal *term)
 {
 	NO_GFX;
-	fill_area(term, 0, 0, term->x, term->y, ' ');
+	fill_area(term, 0, 0, term->x, term->y, ' ', 0);
 	set_cursor(term, 0, 0, 0, 0);
 }
 
@@ -561,6 +562,33 @@ struct terminal *init_term(int fdin, int fdout, void (*root_window)(struct windo
 	return term;
 }
 
+int process_utf_8(struct terminal *term, struct event *ev)
+{
+#if defined(G) || defined(ENABLE_UTF8)
+	if (ev->ev == EV_KBD && ((!F && term->spec->charset == utf8_table)
+#ifdef G
+	    || (F && drv->codepage == utf8_table)
+#endif
+	    )) {
+		size_t l;
+		unsigned char *p;
+		unsigned c;
+		if (ev->x <= 0 || ev->x >= 0x100) goto direct;
+		if ((l = strlen(term->utf8_buffer)) >= sizeof(term->utf8_buffer) - 1 || ev->x < 0x80 || ev->x >= 0xc0)
+			term->utf8_buffer[0] = 0, l = 0;
+		term->utf8_buffer[l] = ev->x;
+		term->utf8_buffer[l + 1] = 0;
+		p = term->utf8_buffer;
+		GET_UTF_8(p, c);
+		if (!c) return 0;
+		ev->x = c;
+		direct:
+		term->utf8_buffer[0] = 0;
+	}
+#endif
+	return 1;
+}
+
 #ifdef G
 
 struct term_spec gfx_term = { NULL, NULL, "", 0, 0, 0, 0, 0, 0, 0 };
@@ -661,8 +689,11 @@ void t_kbd(struct graphics_device *dev, int key, int flags)
 	} else {
 		drv->set_clip_area(dev, &r);
 		if (list_empty(term->windows)) return;
-		if (ev.x == KBD_CTRL_C || ev.x == KBD_CLOSE) ((struct window *)(void *)&term->windows)->prev->handler(term->windows.prev, &ev, 0);
-		else ((struct window *)(void *)&term->windows)->next->handler(term->windows.next, &ev, 0);
+		if (ev.x == KBD_CTRL_C || ev.x == KBD_CLOSE) ((struct window *)term->windows.prev)->handler(term->windows.prev, &ev, 0);
+		else {
+			if (process_utf_8(term, &ev))
+				((struct window *)term->windows.next)->handler(term->windows.next, &ev, 0);
+		}
 	}
 }
 
@@ -675,7 +706,7 @@ void t_mouse(struct graphics_device *dev, int x, int y, int b)
 	ev.x = x, ev.y = y, ev.b = b;
 	drv->set_clip_area(dev, &r);
 	if (list_empty(term->windows)) return;
-	((struct window *)(void *)&term->windows)->next->handler(term->windows.next, &ev, 0);
+	((struct window *)term->windows.next)->handler(term->windows.next, &ev, 0);
 }
 
 #endif
@@ -738,8 +769,11 @@ void in_term(struct terminal *term)
 			ev->y = term->y;
 			goto send_redraw;
 		}
-		else if (ev->ev == EV_KBD && ev->x == KBD_CTRL_C) ((struct window *)(void *)&term->windows)->prev->handler(term->windows.prev, ev, 0);
-		else ((struct window *)(void *)&term->windows)->next->handler(term->windows.next, ev, 0);
+		else if (ev->ev == EV_KBD && ev->x == KBD_CTRL_C) ((struct window *)term->windows.prev)->handler(term->windows.prev, ev, 0);
+		else {
+			if (process_utf_8(term, ev))
+				((struct window *)term->windows.next)->handler(term->windows.next, ev, 0);
+		}
 	}
 	if (ev->ev == EV_ABORT) {
 		destroy_terminal(term);
@@ -776,38 +810,47 @@ unsigned char frame_freebsd[48] = {
 	143,139,141,128,128,128,128,128,
 };
 unsigned char frame_restrict[48] = {
-	0, 0, 0, 0, 0, 179, 186, 186,
-	205, 0, 0, 0, 0, 186, 205, 0,
-	0, 0, 0, 0, 0, 0, 179, 186,
-	0, 0, 0, 0, 0, 0, 0, 205,
-	196, 205, 196, 186, 205, 205, 186, 186,
-	179, 0, 0, 0, 0, 0, 0, 0,
+	  0,  0,  0,  0,  0,179,186,186,
+	205,  0,  0,  0,  0,186,205,  0,
+	  0,  0,  0,  0,  0,  0,179,186,
+	  0,  0,  0,  0,  0,  0,  0,205,
+	196,205,196,186,205,205,186,186,
+	179,  0,  0,  0,  0,  0,  0,  0,
 };
+
+#define SETPOS(x, y)									\
+{											\
+	add_to_str(&a, &l, "\033[");							\
+	add_num_to_str(&a, &l, (y) + 1);						\
+	add_to_str(&a, &l, ";");							\
+	add_num_to_str(&a, &l, (x) + 1);						\
+	add_to_str(&a, &l, "H");							\
+}
 
 #define PRINT_CHAR(p)									\
 {											\
-	unsigned ch = term->screen[p];							\
-	unsigned char c = ch & 0xff;							\
-	unsigned char A = ch >> 8 & 0x7f;						\
+	char_t c = term->screen[p].ch;							\
+	unsigned char A = term->screen[p].at & 0x7f;					\
+	unsigned char frm = !!(term->screen[p].at & ATTR_FRAME);			\
 	if (s->mode == TERM_LINUX) {							\
 		if (s->m11_hack) {							\
-			if ((int)(ch >> 15) != mode) {					\
-				if (!(mode = ch >> 15)) add_to_str(&a, &l, "\033[10m");	\
+			if (frm != mode) {						\
+				if (!(mode = frm)) add_to_str(&a, &l, "\033[10m");	\
 				else add_to_str(&a, &l, "\033[11m");			\
 			}								\
 		}									\
-		if (s->restrict_852 && (ch >> 15) && c >= 176 && c < 224) {		\
+		if (s->restrict_852 && frm && c >= 176 && c < 224) {			\
 			if (frame_restrict[c - 176]) c = frame_restrict[c - 176];	\
 		}									\
 	} else if (s->mode == TERM_VT100) {						\
-		if ((int)(ch >> 15) != mode) {						\
-			if (!(mode = ch >> 15)) add_to_str(&a, &l, "\017");		\
+		if (frm != mode) {							\
+			if (!(mode = frm)) add_to_str(&a, &l, "\017");			\
 			else add_to_str(&a, &l, "\016");				\
 		}									\
-		if (mode && c >= 176 && c < 224) c = frame_vt100[c - 176];		\
-	} else if (s->mode == TERM_KOI8 && (ch >> 15) && c >= 176 && c < 224) { c = frame_koi[c - 176];\
-	} else if (s->mode == TERM_FREEBSD && (ch >> 15) && c >= 176 && c < 224) { c = frame_freebsd[c - 176];\
-	} else if (s->mode == TERM_DUMB && (ch >> 15) && c >= 176 && c < 224) c = frame_dumb[c - 176];\
+		if (frm && c >= 176 && c < 224) c = frame_vt100[c - 176];		\
+	} else if (s->mode == TERM_KOI8 && frm && c >= 176 && c < 224) { c = frame_koi[c - 176];\
+	} else if (s->mode == TERM_FREEBSD && frm && c >= 176 && c < 224) { c = frame_freebsd[c - 176];\
+	} else if (s->mode == TERM_DUMB && frm && c >= 176 && c < 224) c = frame_dumb[c - 176];\
 	if (!(A & 0100) && (A >> 3) == (A & 7)) A = (A & 070) | 7 * !(A & 020);		\
 	if (A != attrib) {								\
 		attrib = A;								\
@@ -825,7 +868,27 @@ unsigned char frame_restrict[48] = {
 		if (attrib & 0100) add_to_str(&a, &l, ";1");				\
 		add_to_str(&a, &l, "m");						\
 	}										\
-	if (c >= ' ' && c != 127/* && c != 155*/) add_chr_to_str(&a, &l, c);		\
+	if (c >= ' ' && c != 127/* && c != 155*/) {					\
+		if (c < 128 || frm || !is_cp_special(term->spec->charset)) {		\
+			add_chr_to_str(&a, &l, c);					\
+		} else {								\
+			/*								\
+			 * Linux UTF-8 console is broken and doesn't advance cursor	\
+			 * on some characters. So we first print an one-byte		\
+			 * replacement, then set the cursor back, then print		\
+			 * the UTF-8 character and finally set the cursor again.	\
+			 */								\
+			unsigned char *r = u2cp(c, 0, 1);				\
+			if (!(r && r[0] >= 32 && r[0] < 127 && !r[1])) r = "*";		\
+			add_chr_to_str(&a, &l, r[0]);					\
+			if (cx + 1 < term->x)						\
+				add_chr_to_str(&a, &l, 8);				\
+			else								\
+				SETPOS(cx, y);						\
+			add_to_str(&a, &l, encode_utf_8(c));				\
+			SETPOS(cx + 1, y);						\
+		}									\
+	}										\
 	else if (!c || c == 1) add_chr_to_str(&a, &l, ' ');				\
 	else add_chr_to_str(&a, &l, '.');						\
 	cx++;										\
@@ -852,23 +915,23 @@ void redraw_screen(struct terminal *term)
 	s = term->spec;
 	for (y = 0; y < term->y; y++)
 		for (x = 0; x < term->x; x++, p++) {
+			int i;
 			if (y == term->y - 1 && x == term->x - 1) break;
-			if (term->screen[p] == term->last_screen[p]) continue;
-			if ((term->screen[p] & 0x3800) == (term->last_screen[p] & 0x3800) && ((term->screen[p] & 0xff) == 0 || (term->screen[p] & 0xff) == 1 || (term->screen[p] & 0xff) == ' ') && ((term->last_screen[p] & 0xff) == 0 || (term->last_screen[p] & 0xff) == 1 || (term->last_screen[p] & 0xff) == ' ') && (x != term->cx || y != term->cy)) continue;
+			if (!memcmp(&term->screen[p], &term->last_screen[p], sizeof(chr))) continue;
+			if ((term->screen[p].at & 0x38) == (term->last_screen[p].at & 0x38) && (term->screen[p].ch == 0 || term->screen[p].ch == 1 || term->screen[p].ch == ' ') && (term->last_screen[p].ch == 0 || term->last_screen[p].ch == 1 || term->last_screen[p].ch == ' ') && (x != term->cx || y != term->cy)) continue;
 			term->last_screen[p] = term->screen[p];
 			if (cx == x && cy == y) goto pc;/*PRINT_CHAR(p)*/
 			else if (cy == y && x - cx < 10 && x - cx > 0) {
-				int i;
-				for (i = x - cx; i >= 0; i--) PRINT_CHAR(p - i);
+				for (i = x - cx; i >= 0; i--) {
+					ppc:
+					PRINT_CHAR(p - i);
+				}
 			} else {
-				add_to_str(&a, &l, "\033[");
-				add_num_to_str(&a, &l, y + 1);
-				add_to_str(&a, &l, ";");
-				add_num_to_str(&a, &l, x + 1);
-				add_to_str(&a, &l, "H");
+				SETPOS(x, y);
 				cx = x; cy = y;
 				pc:
-				PRINT_CHAR(p);
+				i = 0;
+				goto ppc;
 			}
 		}
 	if (l) {
@@ -943,45 +1006,57 @@ void check_if_no_terminal(void)
 	terminate_loop = 1;
 }
 
-void set_char(struct terminal *t, int x, int y, unsigned c)
+void set_char(struct terminal *t, int x, int y, unsigned ch, unsigned at)
 {
 	NO_GFX;
 	t->dirty = 1;
-	if (x >= 0 && x < t->x && y >= 0 && y < t->y) t->screen[x + t->x * y] = c;
+	if (x >= 0 && x < t->x && y >= 0 && y < t->y) {
+		chr *cc = &t->screen[x + t->x * y];
+		cc->ch = ch;
+		cc->at = at;
+	}
 }
 
-unsigned get_char(struct terminal *t, int x, int y)
+chr *get_char(struct terminal *t, int x, int y)
 {
 	NO_GFX;
 	if (x >= t->x) x = t->x - 1;
 	if (x < 0) x = 0;
 	if (y >= t->y) y = t->y - 1;
 	if (y < 0) y = 0;
-	return t->screen[x + t->x * y];
+	return &t->screen[x + t->x * y];
 }
 
 void set_color(struct terminal *t, int x, int y, unsigned c)
 {
 	NO_GFX;
 	t->dirty = 1;
-	if (x >= 0 && x < t->x && y >= 0 && y < t->y) t->screen[x + t->x * y] = (t->screen[x + t->x * y] & 0x80ff) | (c & ~0x80ff);
+	if (x >= 0 && x < t->x && y >= 0 && y < t->y) t->screen[x + t->x * y].at = (t->screen[x + t->x * y].at & ATTR_FRAME) | (c & ~ATTR_FRAME);
 }
 
-void set_only_char(struct terminal *t, int x, int y, unsigned c)
+void set_only_char(struct terminal *t, int x, int y, unsigned ch, unsigned at)
 {
+	chr *cc;
 	NO_GFX;
 	t->dirty = 1;
-	if (x >= 0 && x < t->x && y >= 0 && y < t->y) t->screen[x + t->x * y] = (t->screen[x + t->x * y] & ~0x80ff) | (c & 0x80ff);
+	cc = get_char(t, x, y);
+	at = (at & ATTR_FRAME) | (cc->at & ~ATTR_FRAME);
+	set_char(t, x, y, ch, at);
 }
 
 void set_line(struct terminal *t, int x, int y, int l, chr *line)
 {
 	int i;
+	chr *cc;
 	NO_GFX;
 	t->dirty = 1;
 	if (y < 0 || y >= t->y) return;
-	for (i = x >= 0 ? 0 : -x; i < (x+l <= t->x ? l : t->x-x); i++)
-		t->screen[x+i + t->x * y] = line[i];
+	i = x >= 0 ? 0 : -x;
+	cc = &t->screen[x+i + t->x * y];
+	line = &line[i];
+	i = (x+l <= t->x ? l : t->x-x) - i;
+	if (i <= 0) return;
+	memcpy(cc, line, i * sizeof(chr));
 }
 
 void set_line_color(struct terminal *t, int x, int y, int l, unsigned c)
@@ -991,17 +1066,24 @@ void set_line_color(struct terminal *t, int x, int y, int l, unsigned c)
 	t->dirty = 1;
 	if (y < 0 || y >= t->y) return;
 	for (i = x >= 0 ? 0 : -x; i < (x+l <= t->x ? l : t->x-x); i++)
-		t->screen[x+i + t->x * y] = (t->screen[x+i + t->x * y] & 0x80ff) | (c & ~0x80ff);
+		t->screen[x+i + t->x * y].at = (t->screen[x+i + t->x * y].at & ATTR_FRAME) | (c & ~ATTR_FRAME);
 }
 
-void fill_area(struct terminal *t, int x, int y, int xw, int yw, unsigned c)
+void fill_area(struct terminal *t, int x, int y, int xw, int yw, unsigned ch, unsigned at)
 {
 	int i,j;
 	NO_GFX;
 	t->dirty = 1;
-	for (j = y >= 0 ? 0 : -y; j < yw && y+j < t->y; j++)
-		for (i = x >= 0 ? 0 : -x; i < xw && x+i < t->x; i++) 
-			t->screen[x+i + t->x*(y+j)] = c;
+	for (j = y >= 0 ? 0 : -y; j < yw && y+j < t->y; j++) {
+		chr *cc;
+		i = x >= 0 ? 0 : -x;
+		cc = &t->screen[x+i + t->x*(y+j)];
+		for (; i < xw && x+i < t->x; i++) {
+			cc->ch = ch;
+			cc->at = at;
+			cc++;
+		}
+	}
 }
 
 int p1[] = { 218, 191, 192, 217, 179, 196 };
@@ -1012,20 +1094,24 @@ void draw_frame(struct terminal *t, int x, int y, int xw, int yw, unsigned c, in
 	int *p = w > 1 ? p2 : p1;
 	NO_GFX;
 	c |= ATTR_FRAME;
-	set_char(t, x, y, c+p[0]);
-	set_char(t, x+xw-1, y, c+p[1]);
-	set_char(t, x, y+yw-1, c+p[2]);
-	set_char(t, x+xw-1, y+yw-1, c+p[3]);
-	fill_area(t, x, y+1, 1, yw-2, c+p[4]);
-	fill_area(t, x+xw-1, y+1, 1, yw-2, c+p[4]);
-	fill_area(t, x+1, y, xw-2, 1, c+p[5]);
-	fill_area(t, x+1, y+yw-1, xw-2, 1, c+p[5]);
+	set_char(t, x, y, p[0], c);
+	set_char(t, x+xw-1, y, p[1], c);
+	set_char(t, x, y+yw-1, p[2], c);
+	set_char(t, x+xw-1, y+yw-1, p[3], c);
+	fill_area(t, x, y+1, 1, yw-2, p[4], c);
+	fill_area(t, x+xw-1, y+1, 1, yw-2, p[4], c);
+	fill_area(t, x+1, y, xw-2, 1, p[5], c);
+	fill_area(t, x+1, y+yw-1, xw-2, 1, p[5], c);
 }
 
 void print_text(struct terminal *t, int x, int y, int l, unsigned char *text, unsigned c)
 {
 	NO_GFX;
-	for (; l-- && *text; text++, x++) set_char(t, x, y, *text + c);
+	for (; l--; x++) {
+		unsigned u = GET_TERM_CHAR(t, &text);
+		if (!u) break;
+		set_char(t, x, y, u, c);
+	}
 }
 
 void set_cursor(struct terminal *term, int x, int y, int altx, int alty)

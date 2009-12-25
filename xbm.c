@@ -220,7 +220,7 @@ restart_again:
 			cimg->green_gamma=display_green_gamma;
 			cimg->blue_gamma=display_blue_gamma;
 			cimg->strip_optimized=0;
-			header_dimensions_known(cimg);
+			if (header_dimensions_known(cimg)) {img_end(cimg);return;}
 			
 			deco->in_data_block=1;
 			p++;

@@ -29,6 +29,7 @@ struct {
 		{"telnet", 0, NULL, telnet_func,	0, 0, 0, 0, 1},
 		{"tn3270", 0, NULL, tn3270_func,	0, 0, 0, 0, 1},
 		{"mms", 0, NULL, mms_func,		1, 0, 1, 0, 1},
+		{"magnet", 0, NULL, magnet_func,	1, 0, 0, 0, 1},
 #ifdef JS
 		{"javascript", 0, NULL, javascript_func,1, 0, 0, 0, 0},
 #endif
@@ -199,7 +200,7 @@ int get_port(unsigned char *url)
 		if (n && n < MAXINT) return n;
 	}
 	if ((h = get_protocol_name(url))) {
-		int nn;
+		int nn = 0	/* against warning */;
 		get_prot_info(h, &nn, NULL, NULL, NULL, NULL);
 		mem_free(h);
 		n = nn;
@@ -233,7 +234,7 @@ void (*get_external_protocol_function(unsigned char *url))(struct session *, uns
 
 int url_bypasses_socks(unsigned char *url)
 {
-	int ret;
+	int ret = 0	/* against warning */;
 	unsigned char *p;
 	if (!(p = get_protocol_name(url))) return 1;
 	get_prot_info(p, NULL, NULL, NULL, NULL, &ret);
@@ -256,6 +257,7 @@ void translate_directories(unsigned char *url)
 	unsigned char *s, *d;
 	int lo = !casecmp(url, "file://", 7);
 	if (!casecmp(url, "javascript:", 11)) return;
+	if (!casecmp(url, "magnet:", strlen("magnet:"))) return;
 	if (!dd || dd == url/* || *--dd != '/'*/) return;
 	if (!dsep(*dd)) {
 		dd--;
@@ -460,7 +462,7 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 				http:
 				prefix = "http://", sl = 1;
 			} else {
-				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", "arpa", "aero", "biz", "coop", "info", "museum", "name", "pro", "cat", "jobs", "mobi", "travel", "tel", NULL };
+				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", "arpa", "aero", "biz", "coop", "info", "museum", "name", "pro", "cat", "jobs", "mobi", "travel", "tel", "onion", "exit", NULL };
 				for (i = 0; tld[i]; i++) if ((size_t)(f - e) == strlen(tld[i]) && !casecmp(tld[i], e, f - e)) goto http;
 			}
 		}
@@ -537,6 +539,8 @@ void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encod
 			if (h >= ' ') add_chr_to_str(s, l, h);
 			ll -= 2;
 			b += 2;
+		} else if (*b == ' ' && (!encode_special || encode_special == -1)) {
+			add_to_str(s, l, "&nbsp;");
 		} else if (accept_char(*b) || encode_special == -2) {
 			add_chr_to_str(s, l, *b);
 		} else {

@@ -88,7 +88,7 @@ void ignore_signals(void)
 #endif
 }
 
-char *clipboard = NULL;
+unsigned char *clipboard = NULL;
 
 #if defined(WIN32)
 #include <windows.h>
@@ -1586,30 +1586,6 @@ struct gpm_mouse_spec {
 	void *data;
 };
 
-static void gpm_mouse_in(struct gpm_mouse_spec *gms)
-{
-	Gpm_Event gev;
-	struct event ev;
-	if (Gpm_GetEvent(&gev) <= 0) {
-		set_handlers(gms->h, NULL, NULL, NULL, NULL);
-		return;
-	}
-	ev.ev = EV_MOUSE;
-	ev.x = gev.x - 1;
-	ev.y = gev.y - 1;
-	if (ev.x < 0) ev.x = 0;
-	if (ev.y < 0) ev.y = 0;
-	if (gev.buttons & GPM_B_LEFT) ev.b = B_LEFT;
-	else if (gev.buttons & GPM_B_MIDDLE) ev.b = B_MIDDLE;
-	else if (gev.buttons & GPM_B_RIGHT) ev.b = B_RIGHT;
-	else return;
-	if (gev.type & GPM_DOWN) ev.b |= B_DOWN;
-	else if (gev.type & GPM_UP) ev.b |= B_UP;
-	else if (gev.type & GPM_DRAG) ev.b |= B_DRAG;
-	else return;
-	gms->fn(gms->data, (char *)&ev, sizeof(struct event));
-}
-
 /* GPM installs its own signal handlers and we don't want them */
 
 sigset_t gpm_sigset;
@@ -1651,6 +1627,34 @@ static void restore_gpm_signals(void)
 	if (gpm_tstp_valid) sigaction(SIGTSTP, &gpm_tstp, NULL);
 #endif
 	if (gpm_sigset_valid) sigprocmask(SIG_SETMASK, &gpm_sigset, NULL);
+}
+
+static void gpm_mouse_in(struct gpm_mouse_spec *gms)
+{
+	int g;
+	Gpm_Event gev;
+	struct event ev;
+	save_gpm_signals();
+	g = Gpm_GetEvent(&gev);
+	restore_gpm_signals();
+	if (g <= 0) {
+		set_handlers(gms->h, NULL, NULL, NULL, NULL);
+		return;
+	}
+	ev.ev = EV_MOUSE;
+	ev.x = gev.x - 1;
+	ev.y = gev.y - 1;
+	if (ev.x < 0) ev.x = 0;
+	if (ev.y < 0) ev.y = 0;
+	if (gev.buttons & GPM_B_LEFT) ev.b = B_LEFT;
+	else if (gev.buttons & GPM_B_MIDDLE) ev.b = B_MIDDLE;
+	else if (gev.buttons & GPM_B_RIGHT) ev.b = B_RIGHT;
+	else return;
+	if (gev.type & GPM_DOWN) ev.b |= B_DOWN;
+	else if (gev.type & GPM_UP) ev.b |= B_UP;
+	else if (gev.type & GPM_DRAG) ev.b |= B_DRAG;
+	else return;
+	gms->fn(gms->data, (char *)&ev, sizeof(struct event));
 }
 
 void *handle_mouse(int cons, void (*fn)(void *, unsigned char *, int), void *data)

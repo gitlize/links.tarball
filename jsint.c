@@ -1087,13 +1087,13 @@ unsigned char *js_upcall_get_useragent(void *data)
 	if (!data)internal("js_upcall_get_useragent called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	if (!http_bugs.fake_useragent||!(*http_bugs.fake_useragent)) {
+	if (!http_options.header.fake_useragent||!(*http_options.header.fake_useragent)) {
 		add_to_str(&retval, &l, "Links (" VERSION_STRING "; ");
 		add_to_str(&retval, &l, system_name);
 		add_to_str(&retval, &l, ")");
 	}
 	else {
-		add_to_str(&retval, &l, http_bugs.fake_useragent);
+		add_to_str(&retval, &l, http_options.header.fake_useragent);
 	}
 
 	return retval;
@@ -1103,20 +1103,20 @@ unsigned char *js_upcall_get_useragent(void *data)
 /* returns allocated string with browser name */
 unsigned char *js_upcall_get_appname(void)
 {
-	if (!http_bugs.fake_useragent||!(*http_bugs.fake_useragent))
+	if (!http_options.header.fake_useragent||!(*http_options.header.fake_useragent))
 		return stracpy("Links");
 	else
-		return stracpy(http_bugs.fake_useragent);
+		return stracpy(http_options.header.fake_useragent);
 }
 
 
 /* returns allocated string with browser name */
 unsigned char *js_upcall_get_appcodename(void)
 {
-	if (!http_bugs.fake_useragent||!(*http_bugs.fake_useragent))
+	if (!http_options.header.fake_useragent||!(*http_options.header.fake_useragent))
 		return stracpy("Links");
 	else
-		return stracpy(http_bugs.fake_useragent);
+		return stracpy(http_options.header.fake_useragent);
 }
 
 
@@ -1126,7 +1126,7 @@ unsigned char *js_upcall_get_appversion(void)
 	unsigned char *str;
 	int l=0;
 
-	if (http_bugs.fake_useragent&&(*http_bugs.fake_useragent))return stracpy(http_bugs.fake_useragent);
+	if (http_options.header.fake_useragent&&(*http_options.header.fake_useragent))return stracpy(http_options.header.fake_useragent);
 	str=init_str();
 	add_to_str(&str,&l,VERSION_STRING);
 	add_to_str(&str,&l," (");
@@ -1147,10 +1147,10 @@ unsigned char *js_upcall_get_referrer(void *data)
 	if (!data)internal("js_upcall_get_referrer called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	switch (http_bugs.referer)
+	switch (http_options.header.referer)
 	{
 		case REFERER_FAKE:
-		add_to_str(&retval, &l, http_bugs.fake_referer);
+		add_to_str(&retval, &l, http_options.header.fake_referer);
 		break;
 		
 		case REFERER_SAME_URL:

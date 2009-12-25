@@ -151,7 +151,9 @@ void ssl_want_read(struct connection *c)
 
 	set_timeout(c);
 
+#ifndef HAVE_NSS
 	if (c->no_tsl) c->ssl->options |= SSL_OP_NO_TLSv1;
+#endif
 	switch (SSL_get_error(c->ssl, SSL_connect(c->ssl))) {
 		case SSL_ERROR_NONE:
 			c->newconn = NULL;
@@ -196,6 +198,7 @@ void handle_socks(struct connection *c)
 		return;
 	}
 	add_to_str(&command, &len, host);
+	add_to_str(&command, &len, proxies.dns_append);
 	add_chr_to_str(&command, &len, 0);
 	mem_free(host);
 	wr = write(*b->sock, command + b->socks_byte_count, len - b->socks_byte_count);
@@ -317,8 +320,13 @@ void connected(struct connection *c)
 #ifdef HAVE_SSL
 	if (c->ssl) {
 		c->ssl = getSSL();
+		if (!c->ssl) {
+			goto ssl_error;
+		}
 		SSL_set_fd(c->ssl, *b->sock);
+#ifndef HAVE_NSS
 		if (c->no_tsl) c->ssl->options |= SSL_OP_NO_TLSv1;
+#endif
 		switch (SSL_get_error(c->ssl, SSL_connect(c->ssl))) {
 			case SSL_ERROR_WANT_READ:
 				setcstate(c, S_SSL_NEG);
@@ -331,6 +339,7 @@ void connected(struct connection *c)
 			case SSL_ERROR_NONE:
 				break;
 			default:
+			ssl_error:
 				c->no_tsl++;
 				setcstate(c, S_SSL_ERROR);
 				retry_connection(c);
@@ -462,11 +471,7 @@ void read_select(struct connection *c)
    Turn off compression support once before the final retry.
 */
 				unsigned char *prot, *h;
-				int is_restartable;
-				c->tries++;
-				is_restartable = is_connection_restartable(c) && c->tries < 10;
-				c->tries--;
-				if (!is_restartable && (prot = get_protocol_name(c->url))) {
+				if (is_last_try(c) && (prot = get_protocol_name(c->url))) {
 					if (!strcasecmp(prot, "http")) {
 						if ((h = get_host_name(c->url))) {
 							add_blacklist_entry(h, BL_NO_COMPRESSION);

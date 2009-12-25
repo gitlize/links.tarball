@@ -949,7 +949,7 @@ static void fill_area_linear(struct graphics_device *dev, int left, int top, int
 	SYNC
 	dest=my_graph_mem+top*vga_linewidth+left*vga_bytes;
 	for (y=bottom-top;y;y--){
-		pixel_set(dest,(right-left)*vga_bytes,&color);
+		pixel_set(dest,(right-left)*vga_bytes,do_not_optimize_here(&color));
 		dest+=vga_linewidth;
 	}
 	END_MOUSE
@@ -1072,7 +1072,7 @@ static void draw_hline_linear(struct graphics_device *dev, int left, int y, int 
 	HLINE_CLIP_PREFACE
 	SYNC	
 	dest=my_graph_mem+y*vga_linewidth+left*vga_bytes;
-	pixel_set(dest,(right-left)*vga_bytes,&color);
+	pixel_set(dest,(right-left)*vga_bytes,do_not_optimize_here(&color));
 	END_MOUSE
 }
 
@@ -1142,7 +1142,7 @@ static void draw_vline_paged_1(struct graphics_device *dev, int x, int top, int 
 static void draw_vline_paged_2(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
 	int dest,page,n,paga,remains;
-	int word=*(t2c *)(void *)&color;
+	int word=*(t2c *)do_not_optimize_here((void *)&color);
 	VLINE_CLIP_PREFACE;
 	SYNC
 	dest=top*vga_linewidth+(x<<1);
@@ -1178,7 +1178,7 @@ static void draw_vline_paged_2(struct graphics_device *dev, int x, int top, int 
 static void draw_vline_paged_4(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
 	unsigned long dest,page,paga,remains,n;
-	t4c val=*(t4c *)(void *)&color;
+	t4c val=*(t4c *)do_not_optimize_here((void *)&color);
 
 	VLINE_CLIP_PREFACE;
 	SYNC
@@ -2335,7 +2335,7 @@ static void setup_mode(int mode)
 	if (!vga_linear){
 		vga_page=-1;
 	}
-	vga_misordered=!!i->flags&RGB_MISORDERED;
+	vga_misordered=!!(i->flags&RGB_MISORDERED);
 	/*dump_mode_info_into_file(i);*/
 	svga_driver.depth=0;
 	svga_driver.depth|=vga_misordered<<8;
@@ -2503,7 +2503,7 @@ static int svga_get_filled_bitmap(struct bitmap *dest, long color)
 	if ((unsigned)dest->x * (unsigned)dest->y > MAXINT / bmpixelsize) overalloc();
 	n=dest->x*dest->y*bmpixelsize;
 	dest->data=mem_alloc(n);
-	pixel_set(dest->data,n,&color);
+	pixel_set(dest->data,n,do_not_optimize_here(&color));
 	dest->skip=dest->x*bmpixelsize;
 	dest->flags=0;
 	return 0;

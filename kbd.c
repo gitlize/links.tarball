@@ -801,6 +801,7 @@ int process_queue(struct itrm *itrm)
 				case 'C': ev.x = KBD_RIGHT; break;
 				case 'D': ev.x = KBD_LEFT; break;
 				case 'F':
+				case 'K':
 				case 'e': ev.x = KBD_END; break;
 				case 'H':
 				case 0: ev.x = KBD_HOME; break;

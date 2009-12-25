@@ -48,7 +48,7 @@
 
 #define DNS_TIMEOUT			3600000UL
 
-#define HTTP_KEEPALIVE_TIMEOUT		60000
+#define HTTP_KEEPALIVE_TIMEOUT		300000
 #define FTP_KEEPALIVE_TIMEOUT		600000
 #define MAX_KEEPALIVE_CONNECTIONS	30
 #define KEEPALIVE_CHECK_TIME		20000
@@ -64,7 +64,7 @@
 #define MAX_HISTORY_ITEMS		4096
 #define MENU_HOTKEY_SPACE		2
 
-#define COL(x)				((x)*0x100)
+#define COL(x)				(x)
 
 #define COLOR_MENU			(term && !term->spec->braille ? COL(070) : COL(007))
 #define COLOR_MENU_FRAME		(term && !term->spec->braille ? COL(070) : COL(007))
@@ -85,7 +85,8 @@
 #define COLOR_DIALOG_BUTTON_SELECTED	(term && !term->spec->braille ? COL(0107) : COL(0107))
 #define COLOR_DIALOG_FIELD		(term && !term->spec->braille ? COL(007) : COL(0107))
 #define COLOR_DIALOG_FIELD_TEXT		(term && !term->spec->braille ? COL(007) : COL(0107))
-#define COLOR_DIALOG_METER		(term && !term->spec->braille ? COL(007) : COL(0177) | '*')
+#define COLOR_DIALOG_METER		(term && !term->spec->braille ? COL(007) : COL(0177))
+#define CHAR_DIALOG_METER		(term && !term->spec->braille ? 0 : '*')
 
 #define SCROLL_ITEMS			2
 
@@ -150,6 +151,8 @@
 #define G_HTML_MARGIN			8
 
 #define G_IMG_REFRESH			1	/* Karle, nedavej sem 0 */
+
+#define MAX_FONT_SIZE			500
 
 #define SLOW_FPU_DETECT_THRESHOLD	1000
 #define SLOW_FPU_MAX_STARTUP		5000
