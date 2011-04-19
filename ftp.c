@@ -22,29 +22,28 @@ struct ftp_connection_info {
 	unsigned char cmdbuf[1];
 };
 
-void ftp_get_banner(struct connection *);
-void ftp_got_banner(struct connection *, struct read_buffer *);
-void ftp_login(struct connection *);
-void ftp_logged(struct connection *);
-void ftp_sent_passwd(struct connection *);
-void ftp_got_reply(struct connection *, struct read_buffer *);
-void ftp_got_info(struct connection *, struct read_buffer *);
-void ftp_got_user_info(struct connection *, struct read_buffer *);
-void ftp_dummy_info(struct connection *, struct read_buffer *);
-void ftp_pass_info(struct connection *, struct read_buffer *);
-void ftp_send_retr_req(struct connection *, int);
-struct ftp_connection_info *add_file_cmd_to_str(struct connection *);
-void ftp_retr_1(struct connection *);
-void ftp_retr_file(struct connection *, struct read_buffer *);
-void ftp_got_final_response(struct connection *, struct read_buffer *);
-void created_data_connection(struct connection *);
-void got_something_from_data_connection(struct connection *);
-void ftp_end_request(struct connection *);
-int get_ftp_response(struct connection *, struct read_buffer *, int);
-int ftp_process_dirlist(struct cache_entry *, off_t *, int *, unsigned char *, int, int, int *);
+static void ftp_get_banner(struct connection *);
+static void ftp_got_banner(struct connection *, struct read_buffer *);
+static void ftp_login(struct connection *);
+static void ftp_logged(struct connection *);
+static void ftp_sent_passwd(struct connection *);
+static void ftp_got_info(struct connection *, struct read_buffer *);
+static void ftp_got_user_info(struct connection *, struct read_buffer *);
+static void ftp_dummy_info(struct connection *, struct read_buffer *);
+static void ftp_pass_info(struct connection *, struct read_buffer *);
+static void ftp_send_retr_req(struct connection *, int);
+static struct ftp_connection_info *add_file_cmd_to_str(struct connection *);
+static void ftp_retr_1(struct connection *);
+static void ftp_retr_file(struct connection *, struct read_buffer *);
+static void ftp_got_final_response(struct connection *, struct read_buffer *);
+static void created_data_connection(struct connection *);
+static void got_something_from_data_connection(struct connection *);
+static void ftp_end_request(struct connection *);
+static int get_ftp_response(struct connection *, struct read_buffer *, int);
+static int ftp_process_dirlist(struct cache_entry *, off_t *, int *, unsigned char *, int, int, int *);
 
 
-int get_ftp_response(struct connection *c, struct read_buffer *rb, int part)
+static int get_ftp_response(struct connection *c, struct read_buffer *rb, int part)
 {
 	int l;
 	set_timeout(c);
@@ -91,7 +90,7 @@ void ftp_func(struct connection *c)
 	} else ftp_send_retr_req(c, S_SENT);
 }
 
-void ftp_get_banner(struct connection *c)
+static void ftp_get_banner(struct connection *c)
 {
 	struct read_buffer *rb;
 	set_timeout(c);
@@ -100,7 +99,7 @@ void ftp_get_banner(struct connection *c)
 	read_from_socket(c, c->sock1, rb, ftp_got_banner);
 }
 
-void ftp_got_banner(struct connection *c, struct read_buffer *rb)
+static void ftp_got_banner(struct connection *c, struct read_buffer *rb)
 {
 	int g = get_ftp_response(c, rb, 0);
 	if (g == -1) { setcstate(c, S_FTP_ERROR); abort_connection(c); return; }
@@ -109,7 +108,7 @@ void ftp_got_banner(struct connection *c, struct read_buffer *rb)
 	ftp_login(c);
 }
 
-void ftp_login(struct connection *c)
+static void ftp_login(struct connection *c)
 {
 	unsigned char *login;
 	unsigned char *u;
@@ -138,7 +137,7 @@ void ftp_login(struct connection *c)
 	setcstate(c, S_SENT);
 }
 
-void ftp_logged(struct connection *c)
+static void ftp_logged(struct connection *c)
 {
 	struct read_buffer *rb;
 	if (!(rb = alloc_read_buffer(c))) return;
@@ -149,7 +148,7 @@ void ftp_logged(struct connection *c)
 	read_from_socket(c, c->sock1, rb, ftp_got_info);
 }
 
-void ftp_got_info(struct connection *c, struct read_buffer *rb)
+static void ftp_got_info(struct connection *c, struct read_buffer *rb)
 {
 	int g = get_ftp_response(c, rb, 0);
 	if (g == -1) { setcstate(c, S_FTP_ERROR); abort_connection(c); return; }
@@ -158,7 +157,7 @@ void ftp_got_info(struct connection *c, struct read_buffer *rb)
 	ftp_got_user_info(c, rb);
 }
 
-void ftp_got_user_info(struct connection *c, struct read_buffer *rb)
+static void ftp_got_user_info(struct connection *c, struct read_buffer *rb)
 {
 	int g = get_ftp_response(c, rb, 0);
 	if (g == -1) { setcstate(c, S_FTP_ERROR); abort_connection(c); return; }
@@ -187,7 +186,7 @@ void ftp_got_user_info(struct connection *c, struct read_buffer *rb)
 	}
 }
 
-void ftp_dummy_info(struct connection *c, struct read_buffer *rb)
+static void ftp_dummy_info(struct connection *c, struct read_buffer *rb)
 {
 	int g = get_ftp_response(c, rb, 0);
 	if (g == -1) { setcstate(c, S_FTP_ERROR); abort_connection(c); return; }
@@ -195,14 +194,14 @@ void ftp_dummy_info(struct connection *c, struct read_buffer *rb)
 	ftp_retr_file(c, rb);
 }
 
-void ftp_sent_passwd(struct connection *c)
+static void ftp_sent_passwd(struct connection *c)
 {
 	struct read_buffer *rb;
 	if (!(rb = alloc_read_buffer(c))) return;
 	read_from_socket(c, c->sock1, rb, ftp_pass_info);
 }
 
-void ftp_pass_info(struct connection *c, struct read_buffer *rb)
+static void ftp_pass_info(struct connection *c, struct read_buffer *rb)
 {
 	int g = get_ftp_response(c, rb, 0);
 	if (g == -1) { setcstate(c, S_FTP_ERROR); abort_connection(c); return; }
@@ -213,7 +212,7 @@ void ftp_pass_info(struct connection *c, struct read_buffer *rb)
 	else ftp_send_retr_req(c, S_GETH);
 }
 
-struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
+static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 {
 	unsigned char *d = get_url_data(c->url);
 	unsigned char *de;
@@ -318,7 +317,7 @@ struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 }
 
 
-void ftp_send_retr_req(struct connection *c, int state)
+static void ftp_send_retr_req(struct connection *c, int state)
 {
 	struct ftp_connection_info *fi;
 	unsigned char *login;
@@ -342,14 +341,14 @@ void ftp_send_retr_req(struct connection *c, int state)
 	setcstate(c, state);
 }
 
-void ftp_retr_1(struct connection *c)
+static void ftp_retr_1(struct connection *c)
 {
 	struct read_buffer *rb;
 	if (!(rb = alloc_read_buffer(c))) return;
 	read_from_socket(c, c->sock1, rb, ftp_retr_file);
 }
 
-void ftp_retr_file(struct connection *c, struct read_buffer *rb)
+static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 {
 	int g;
 	struct ftp_connection_info *inf = c->info;
@@ -497,7 +496,7 @@ void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 	ftp_got_final_response(c, rb);
 }
 
-void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
+static void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 {
 	struct ftp_connection_info *inf = c->info;
 	int g = get_ftp_response(c, rb, 0);
@@ -544,7 +543,7 @@ static int is_date(char *data)	/* can touch at most data[-4] --- "n 12 "<--if fe
 	return 1;
 }
 
-int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned char *bf, int ln, int fin, int *tr)
+static int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned char *bf, int ln, int fin, int *tr)
 {
 	unsigned char *str, *buf;
 	int sl;
@@ -675,7 +674,7 @@ int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsigned cha
 	goto again;
 }
 
-void created_data_connection(struct connection *c)
+static void created_data_connection(struct connection *c)
 {
 	struct ftp_connection_info *inf = c->info;
 #ifdef HAVE_IPTOS
@@ -688,7 +687,7 @@ void created_data_connection(struct connection *c)
 	set_handlers(c->sock2, (void (*)(void *))got_something_from_data_connection, NULL, NULL, c);
 }
 
-void got_something_from_data_connection(struct connection *c)
+static void got_something_from_data_connection(struct connection *c)
 {
 	struct ftp_connection_info *inf = c->info;
 	int l;
@@ -775,7 +774,7 @@ void got_something_from_data_connection(struct connection *c)
 	}
 }
 
-void ftp_end_request(struct connection *c)
+static void ftp_end_request(struct connection *c)
 {
 	if (c->state == S_OK) {
 		if (c->cache) {

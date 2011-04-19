@@ -80,7 +80,7 @@ int fb_colors, fb_palette_colors;
 struct fb_var_screeninfo vi;
 struct fb_fix_screeninfo fi;
 
-void fb_draw_bitmap(struct graphics_device *dev,struct bitmap* hndl, int x, int y);
+static void fb_draw_bitmap(struct graphics_device *dev,struct bitmap* hndl, int x, int y);
 
 static unsigned char *fb_driver_param;
 struct graphics_driver fb_driver;
@@ -132,7 +132,7 @@ static int global_mouse_hidden;
 #define START_GR_0 \
 		in_gr_operation++; \
 		if (!fb_active) { END_GR; return 0; }
-		
+
 
 #define NUMBER_OF_DEVICES	10
 
@@ -193,7 +193,7 @@ static int global_mouse_hidden;
 	if (bottom>dev->clip.y2) bottom=dev->clip.y2;\
 	START_GR\
 	TEST_MOUSE(left,right,top,bottom)
-	
+
 
 #define HLINE_CLIP_PREFACE \
 	int mouse_hidden;\
@@ -204,7 +204,7 @@ static int global_mouse_hidden;
 	if (left>=right) return;\
 	START_GR\
 	TEST_MOUSE (left,right,y,y+1)
-	
+
 #define VLINE_CLIP_PREFACE \
 	int mouse_hidden;\
 	TEST_INACTIVITY\
@@ -223,7 +223,7 @@ static int global_mouse_hidden;
 		return 1;\
 	START_GR_0\
 	TEST_MOUSE (dev->clip.x1,dev->clip.x2,dev->clip.y1,dev->clip.y2)
-		
+
 #define VSCROLL_CLIP_PREFACE \
 	int mouse_hidden;\
 	TEST_INACTIVITY_0\
@@ -231,8 +231,8 @@ static int global_mouse_hidden;
 	if (sc>dev->clip.y2-dev->clip.y1||-sc>dev->clip.y2-dev->clip.y1) return 1;\
 	START_GR_0\
 	TEST_MOUSE (dev->clip.x1, dev->clip.x2, dev->clip.y1, dev->clip.y2)\
-	
-	
+
+
 /* n is in bytes. dest must begin on pixel boundary.
  */
 static inline void pixel_set(unsigned char *dest, int n,void * pattern)
@@ -250,13 +250,45 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 #ifdef t2c
 			t2c v=*(t2c *)pattern;
 			int a;
-			
-			if ((v & 255) == ((v >> 8) & 255)) memset(dest, v, n);
-			else for (a=0;a<(n>>1);a++) ((t2c *)dest)[a]=v;
+
+			if ((v & 255) == ((v >> 8) & 255)) {
+				memset(dest, v, n);
+			} else {
+#ifdef t8c
+				t8c vvvv=((t8c)v << 48) | ((t8c)v << 32) | ((t8c)v << 16) | v;
+#elif defined(t4c)
+				t4c vv=((t4c)v << 16) | v;
+#endif
+				a = n >> 1;
+				while (a) {
+#ifdef t8c
+					if (!((unsigned long)dest & 7) && a >= 4) {
+						do {
+							*((t8c *)dest) = vvvv;
+							dest += 8;
+							a -= 4;
+						} while (a >= 4);
+					} else
+#elif defined(t4c)
+					if (!((unsigned long)dest & 3) && a >= 2) {
+						do {
+							*((t4c *)dest) = vv;
+							dest += 4;
+							a -= 2;
+						} while (a >= 2);
+					} else
+#endif
+					{
+						*((t2c *)dest) = v;
+						dest += 2;
+						a--;
+					}
+				}
+			}
 #else
 			unsigned char a,b;
 			int i;
-			
+
 			a=*(char*)pattern;
 			b=((char*)pattern)[1];
 			if (a == b) memset(dest, a, n);
@@ -272,7 +304,7 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 		{
 			unsigned char a,b,c;
 			int i;
-			
+
 			a=*(char*)pattern;
 			b=((char*)pattern)[1];
 			c=((char*)pattern)[2];
@@ -290,12 +322,33 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 #ifdef t4c
 			t4c v=*(t4c *)pattern;
 			int a;
-			
-			for (a=0;a<(n>>2);a++) ((t4c *)dest)[a]=v;
+
+			{
+#ifdef t8c
+				t8c vv = ((t8c)v << 32) | v;
+#endif
+				a = n >> 2;
+				while (a) {
+#ifdef t8c
+					if (!((unsigned long)dest & 7) && a >= 2) {
+						do {
+							*((t8c *)dest) = vv;
+							dest += 8;
+							a -= 2;
+						} while (a >= 2);
+					} else
+#endif
+					{
+						*(t4c *)dest = v;
+						dest += 4;
+						a--;
+					}
+				}
+			}
 #else
 			unsigned char a,b,c,d;
 			int i;
-			
+
 			a=*(char*)pattern;
 			b=((char*)pattern)[1];
 			c=((char*)pattern)[2];
@@ -449,7 +502,7 @@ static void place_mouse(void)
 	bmp.x=arrow_width;
 	bmp.y=arrow_height;
 	bmp.skip=arrow_width*fb_pixelsize;
-	bmp.data=mouse_buffer;	
+	bmp.data=mouse_buffer;
 	{
 		struct graphics_device * current_graphics_device_backup;
 
@@ -541,7 +594,7 @@ static inline void place_mouse_composite(void)
 				,background_top,background_length*fb_pixelsize);
 			background_ptr+=skip;
 		}
-			
+
 	}else if (background_top>mouse_top){
 		/* Draw the mouse */
 		mouse_length=mouse_right>fb_xsize
@@ -564,10 +617,10 @@ static inline void place_mouse_composite(void)
 			mouse_ptr+=skip;
 			background_ptr+=skip;
 		}
-			
+
 	}else{
 		int l1, l2, l3;
-		
+
 		/* Draw mouse, background */
 		mouse_length=mouse_right>fb_xsize?fb_xsize-mouse_left:arrow_width;
 		background_length=background_right-mouse_right;
@@ -629,7 +682,7 @@ static inline void redraw_mouse_sophisticated(void)
 }
 
 static void redraw_mouse(void){
-	
+
 	if (!fb_active) return; /* We are not drawing */
 	if (mouse_x!=background_x||mouse_y!=background_y){
 		if (RECTANGLES_INTERSECT(
@@ -1099,7 +1152,6 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	struct stat st;
 	kbd_set_raw = 1;
 	fb_old_vd = NULL;
-	ignore=ignore;
 	fb_driver_param=NULL;
 	if(param != NULL)
 		fb_driver_param=stracpy(param);
@@ -1201,7 +1253,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_pixelsize=1;
 		fb_palette_colors=16;
 		break;
-		
+
 		case 8:
 		fb_pixelsize=1;
 		fb_palette_colors=256;
@@ -1254,7 +1306,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		generate_palette(&global_pal);
 		set_palette(&global_pal);
 	}
-	
+
 	fb_linesize=fi.line_length;
 	fb_mem_size=fi.smem_len;
 
@@ -1292,7 +1344,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_show_cursor();
 		return stracpy("Nonlinear mapping of graphics memory not supported.\n");
 	}
-	
+
 	if (vi.nonstd) {
 		fb_shutdown_palette();
 		svgalib_free_trm(fb_kbd);
@@ -1324,7 +1376,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		if (fb_driver.depth == 130 || fb_driver.depth == 122) fb_driver.depth |= 1 << 8;
 		else if (fb_driver.depth == 196) fb_driver.depth |= 1 << 9;
 	}
-	
+
 	fb_driver.get_color=get_color_fn(fb_driver.depth);
 	if (!fb_driver.get_color) {
 		fb_shutdown_palette();
@@ -1368,7 +1420,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	}
 	/* hide cursor */
 	if (border_left | border_top | border_right | border_bottom) memset(fb_mem,0,fb_mem_size);
-		
+
 	show_mouse();
 	return NULL;
 }
@@ -1427,7 +1479,7 @@ static int fb_get_empty_bitmap(struct bitmap *dest)
 static int fb_get_filled_bitmap(struct bitmap *dest, long color)
 {
 	int n;
-	
+
 	if (dest->x && (unsigned)dest->x * (unsigned)dest->y / (unsigned)dest->x != (unsigned)dest->y) overalloc();
 	if ((unsigned)dest->x * (unsigned)dest->y > MAXINT / fb_pixelsize) overalloc();
 	n=dest->x*dest->y*fb_pixelsize;
@@ -1460,7 +1512,7 @@ static void fb_commit_strip(struct bitmap *bmp, int top, int lines)
 }
 
 
-void fb_draw_bitmap(struct graphics_device *dev,struct bitmap* hndl, int x, int y)
+static void fb_draw_bitmap(struct graphics_device *dev,struct bitmap* hndl, int x, int y)
 {
 	unsigned char *scr_start;
 
@@ -1518,7 +1570,7 @@ static void fb_draw_hline(struct graphics_device *dev, int left, int y, int righ
 {
 	unsigned char *dest;
 	HLINE_CLIP_PREFACE
-	
+
 	dest=fb_vmem+y*fb_linesize+left*fb_pixelsize;
 	pixel_set(dest,(right-left)*fb_pixelsize,&color);
 	END_MOUSE
@@ -1548,8 +1600,7 @@ static int fb_hscroll(struct graphics_device *dev, struct rect_set **ignore, int
 	int y;
 	int len;
 	HSCROLL_CLIP_PREFACE
-	
-	ignore=NULL;
+
 	if (sc>0){
 		len=(dev->clip.x2-dev->clip.x1-sc)*fb_pixelsize;
 		src=fb_vmem+fb_linesize*dev->clip.y1+dev->clip.x1*fb_pixelsize;
@@ -1583,7 +1634,6 @@ static int fb_vscroll(struct graphics_device *dev, struct rect_set **ignore, int
 
 	VSCROLL_CLIP_PREFACE
 
-	ignore=NULL;
 	len=(dev->clip.x2-dev->clip.x1)*fb_pixelsize;
 	if (sc>0){
 		/* Down */
@@ -1642,12 +1692,9 @@ static int fb_block(struct graphics_device *dev)
 
 static int fb_unblock(struct graphics_device *dev)
 {
-#ifdef DEBUG
 	if (current_virtual_device) {
-		/*internal("fb_unblock called without fb_block");*/
 		return 0;
 	}
-#endif /* #ifdef DEBUG */
 	if (dev != fb_block_dev) return -2;
 	if (svgalib_unblock_itrm(fb_kbd)) return -1;
 	fb_switch_init();

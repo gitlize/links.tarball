@@ -24,18 +24,16 @@ void af_unix_close(void)
 
 void af_unix_connection(void *);
 
-struct sockaddr *s_unix_acc = NULL;
-struct sockaddr *s_unix = NULL;
-socklen_t s_unix_l;
-int s_unix_fd = -1;
+static struct sockaddr *s_unix_acc = NULL;
+static struct sockaddr *s_unix = NULL;
+static socklen_t s_unix_l;
+static int s_unix_fd = -1;
 
 /* prototypes */
-int get_address(void);
-void unlink_unix(void);
 
 #ifdef USE_AF_UNIX
 
-int get_address(void)
+static int get_address(void)
 {
 	struct sockaddr_un *su;
 	unsigned char *path;
@@ -53,7 +51,7 @@ int get_address(void)
 	return PF_UNIX;
 }
 
-void unlink_unix(void)
+static void unlink_unix(void)
 {
 	if (unlink(((struct sockaddr_un *)s_unix)->sun_path)) {
 		/*perror("unlink");

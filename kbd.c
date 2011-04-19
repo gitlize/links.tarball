@@ -33,25 +33,11 @@ struct itrm {
 	void (*free_trm)(struct itrm *);
 };
 
-void free_trm(struct itrm *);
-void in_kbd(struct itrm *);
-void in_sock(struct itrm *);
+static void free_trm(struct itrm *);
+static void in_kbd(struct itrm *);
+static void in_sock(struct itrm *);
 
 struct itrm *ditrm = NULL;
-
-/* prototypes */
-void write_ev_queue(struct itrm *);
-void mouse_queue_event(struct itrm *, unsigned char *, int);
-void queue_event(struct itrm *, unsigned char *, int);
-void send_init_sequence(int, int);
-void send_term_sequence(int, int);
-int setraw(int, struct termios *);
-void unblock_itrm_x(void *);
-void resize_terminal_x(unsigned char *);
-void kbd_timeout(struct itrm *);
-int get_esc_code(char *, int, char *, int *, int *);
-int ttcgetattr(int, struct termios *);
-int ttcsetattr(int, int, struct termios *);
 
 
 int is_blocked(void)
@@ -64,7 +50,7 @@ void free_all_itrms(void)
 	if (ditrm) ditrm->free_trm(ditrm);
 }
 
-void write_ev_queue(struct itrm *itrm)
+static void write_ev_queue(struct itrm *itrm)
 {
 	int l;
 	if (!itrm->eqlen) internal("event queue empty");
@@ -76,13 +62,15 @@ void write_ev_queue(struct itrm *itrm)
 	if (!itrm->eqlen) set_handlers(itrm->sock_out, get_handler(itrm->sock_out, H_READ), NULL, get_handler(itrm->sock_out, H_ERROR), get_handler(itrm->sock_out, H_DATA));
 }
 
-void mouse_queue_event(struct itrm *itrm, unsigned char *data, int len)
+static void queue_event(struct itrm *itrm, unsigned char *data, int len);
+
+static void mouse_queue_event(struct itrm *itrm, unsigned char *data, int len)
 {
 	if (itrm->blocked) return;
 	queue_event(itrm, data, len);
 }
 
-void queue_event(struct itrm *itrm, unsigned char *data, int len)
+static void queue_event(struct itrm *itrm, unsigned char *data, int len)
 {
 	int w = 0;
 	if (!len) return;
@@ -120,7 +108,7 @@ unsigned char term_seq_tw_mouse[] = "\033[?9l";
 
 /*unsigned char *term_seq = "\033[2J\033[?1000l\0338\b \b";*/
 
-void send_init_sequence(int h, int flags)
+static void send_init_sequence(int h, int flags)
 {
 	want_draw();
 	hard_write(h, init_seq, strlen(init_seq));
@@ -132,7 +120,7 @@ void send_init_sequence(int h, int flags)
 	done_draw();
 }
 
-void send_term_sequence(int h,int flags)
+static void send_term_sequence(int h,int flags)
 {
 	want_draw();
 	hard_write(h, term_seq, strlen(term_seq));
@@ -154,7 +142,7 @@ void resize_terminal(void)
 	queue_event(ditrm, (char *)&ev, sizeof(struct event));
 }
 
-int ttcgetattr(int fd, struct termios *t)
+static int ttcgetattr(int fd, struct termios *t)
 {
 	int r;
 #ifdef SIGTTOU
@@ -173,7 +161,7 @@ int ttcgetattr(int fd, struct termios *t)
 	return r;
 }
 
-int ttcsetattr(int fd, int a, struct termios *t)
+static int ttcsetattr(int fd, int a, struct termios *t)
 {
 	int r;
 #ifdef SIGTTOU
@@ -192,7 +180,7 @@ int ttcsetattr(int fd, int a, struct termios *t)
 	return r;
 }
 
-int setraw(int fd, struct termios *p)
+static int setraw(int fd, struct termios *p)
 {
 	struct termios t;
 	memset(&t, 0, sizeof(struct termios));
@@ -273,7 +261,7 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	send_init_sequence(std_out,itrm->flags);
 }
 
-void unblock_itrm_x(void *h)
+static void unblock_itrm_x(void *h)
 {
 	NO_GFX;
 	close_handle(h);
@@ -312,7 +300,7 @@ void block_itrm(int fd)
 	set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm->free_trm, itrm);
 }
 
-void free_trm(struct itrm *itrm)
+static void free_trm(struct itrm *itrm)
 {
 	if (!itrm) return;
 	set_window_title(itrm->orig_title);
@@ -336,7 +324,7 @@ void fatal_tty_exit(void)
 	if (ditrm) ttcsetattr(ditrm->ctl_in, TCSANOW, &ditrm->t);
 }
 
-void resize_terminal_x(unsigned char *text)
+static void resize_terminal_x(unsigned char *text)
 {
 	int x, y;
 	unsigned char *p;
@@ -366,7 +354,7 @@ unsigned char buf[OUT_BUF_SIZE];
 /*udefine RD ({ char cc; if (p < c) cc = buf[p++]; else if ((hard_read(itrm->sock_in, &cc, 1)) <= 0) goto fr; cc; })*/
 #define RD(xx) { unsigned char cc; if (p < c) cc = buf[p++]; else if ((hard_read(itrm->sock_in, &cc, 1)) <= 0) goto fr; xx = cc; }
 
-void in_sock(struct itrm *itrm)
+static void in_sock(struct itrm *itrm)
 {
 	unsigned char *path, *delete;
 	int pl, dl;
@@ -446,9 +434,10 @@ void in_sock(struct itrm *itrm)
 	goto qwerty;
 }
 
-int process_queue(struct itrm *);
+static int process_queue(struct itrm *);
+static int get_esc_code(char *, int, char *, int *, int *);
 
-void kbd_timeout(struct itrm *itrm)
+static void kbd_timeout(struct itrm *itrm)
 {
 	struct event ev = {EV_KBD, KBD_ESC, 0, 0};
 	char code;
@@ -470,7 +459,7 @@ void kbd_timeout(struct itrm *itrm)
 	while (process_queue(itrm)) ;
 }
 
-int get_esc_code(char *str, int len, char *code, int *num, int *el)
+static int get_esc_code(char *str, int len, char *code, int *num, int *el)
 {
 	int pos;
 	*num = 0;
@@ -779,7 +768,7 @@ struct os2_key os2xtd[256] = {
 
 int xterm_button = -1;
 
-int process_queue(struct itrm *itrm)
+static int process_queue(struct itrm *itrm)
 {
 	struct event ev = {EV_KBD, -1, 0, 0};
 	int el = 0;
@@ -941,7 +930,7 @@ int process_queue(struct itrm *itrm)
 	return 0;
 }
 
-void in_kbd(struct itrm *itrm)
+static void in_kbd(struct itrm *itrm)
 {
 	int r;
 	if (!can_read(itrm->std_in)) return;

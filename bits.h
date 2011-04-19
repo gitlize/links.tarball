@@ -8,36 +8,37 @@
  * If there is none, t2c is not defined
  * The type may be signed or unsigned, it doesn't matter
  */
-#if SIZEOF_SHORT == 2
-#define t2c short
-#elif SIZEOF_UNSIGNED_SHORT == 2
+#if SIZEOF_UNSIGNED_SHORT == 2
 #define t2c unsigned short
-#elif SIZEOF_INT == 2
-#define t2c int
 #elif SIZEOF_UNSIGNED == 2
 #define t2c unsigned
-#elif SIZEOF_LONG == 2
-#define t2c long
 #elif SIZEOF_UNSIGNED_LONG == 2
 #define t2c unsigned long
 #endif /* #if sizeof(short) */
 
 /* t4c
  * Type that has exactly 4 chars.
- * If there is none, t2c is not defined
+ * If there is none, t4c is not defined
  * The type may be signed or unsigned, it doesn't matter
  */
-#if SIZEOF_SHORT == 4
-#define t4c short
-#elif SIZEOF_UNSIGNED_SHORT == 4
+#if SIZEOF_UNSIGNED_SHORT == 4
 #define t4c unsigned short
-#elif SIZEOF_INT == 4
-#define t4c int
 #elif SIZEOF_UNSIGNED == 4
 #define t4c unsigned
-#elif SIZEOF_LONG == 4
-#define t4c long
 #elif SIZEOF_UNSIGNED_LONG == 4
 #define t4c unsigned long
+#endif /* #if sizeof(short) */
+
+/* t8c
+ * Type that has exactly 8 chars.
+ * If there is none, t8c is not defined
+ * The type may be signed or unsigned, it doesn't matter
+ */
+#if SIZEOF_UNSIGNED_SHORT == 8
+#define t8c unsigned short
+#elif SIZEOF_UNSIGNED == 8
+#define t8c unsigned
+#elif SIZEOF_UNSIGNED_LONG == 8
+#define t8c unsigned long
 #endif /* #if sizeof(short) */
 

@@ -16,15 +16,7 @@ struct http_connection_info {
 };
 
 /* prototypes */
-int check_http_server_bugs(unsigned char *, struct http_connection_info *, unsigned char *);
-void add_url_to_str(unsigned char **, int *, unsigned char *);
-void http_send_header(struct connection *);
-void http_end_request(struct connection *, int);
-int is_line_in_buffer(struct read_buffer *);
-void read_http_data(struct connection *, struct read_buffer *);
-int get_header(struct read_buffer *);
-void http_got_header(struct connection *, struct read_buffer *);
-
+static void http_send_header(struct connection *);
 
 /* Returns a string pointer with value of the item.
  * The string must be destroyed after usage with mem_free.
@@ -117,7 +109,7 @@ struct {
 	{ NULL, 0 }
 };
 
-int check_http_server_bugs(unsigned char *url, struct http_connection_info *info, unsigned char *head)
+static int check_http_server_bugs(unsigned char *url, struct http_connection_info *info, unsigned char *head)
 {
 	unsigned char *server;
 	int i, bugs;
@@ -134,7 +126,7 @@ int check_http_server_bugs(unsigned char *url, struct http_connection_info *info
 	return 0;	
 }
 
-void http_end_request(struct connection *c, int notrunc)
+static void http_end_request(struct connection *c, int notrunc)
 {
 	if (c->state == S_OK) {
 		if (c->cache) {
@@ -171,7 +163,7 @@ void proxy_func(struct connection *c)
 	http_func(c);
 }
 
-void add_url_to_str(unsigned char **str, int *l, unsigned char *url)
+static void add_url_to_str(unsigned char **str, int *l, unsigned char *url)
 {
 	unsigned char *sp;
 	for (sp = url; *sp && *sp != POST_CHAR; sp++) {
@@ -187,7 +179,7 @@ void add_url_to_str(unsigned char **str, int *l, unsigned char *url)
 	}
 }
 
-void http_get_header(struct connection *);
+static void http_get_header(struct connection *);
 
 void add_user_agent(unsigned char **hdr, int *l);
 void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url);
@@ -203,7 +195,7 @@ void add_auth_string(unsigned char **hdr, int *l, unsigned char *url);
 void add_post_header(unsigned char **hdr, int *l, unsigned char **post);
 void add_extra_options(unsigned char **hdr, int *l);
 
-void http_send_header(struct connection *c)
+static void http_send_header(struct connection *c)
 {
 	struct http_connection_info *info;
 	int http10 = http_options.http10;
@@ -298,22 +290,17 @@ void add_user_agent(unsigned char **hdr, int *l)
 		add_to_str(hdr, l, "Links (" VERSION_STRING "; ");
 		add_to_str(hdr, l, system_name);
 		if (!F && !list_empty(terminals)) {
-			struct terminal *t = terminals.prev;
-			if (!t->spec->braille) {
-				add_to_str(hdr, l, "; ");
-				add_num_to_str(hdr, l, t->x);
-				add_to_str(hdr, l, "x");
-				add_num_to_str(hdr, l, t->y);
-			} else {
-				add_to_str(hdr, l, "; braille");
-			}
+			add_to_str(hdr, l, "; text");
 		}
 #ifdef G
-		if (F && drv) {
+		else if (F && drv) {
 			add_to_str(hdr, l, "; ");
 			add_to_str(hdr, l, drv->name);
 		}
 #endif
+		else {
+			add_to_str(hdr, l, "; dump");
+		}
 		add_to_str(hdr, l, ")\r\n");
 	} else {
 		add_to_str(hdr, l, http_options.header.fake_useragent);
@@ -535,7 +522,7 @@ void add_extra_options(unsigned char **hdr, int *l)
 			unsigned char *s = memacpy(p, q - p);
 			c = strchr(s, ':');
 			if (c && casecmp(s, "Cookie:", 7)) {
-				unsigned char *v;
+				unsigned char *v = NULL; /* against warning */
 				unsigned char *cc = memacpy(s, c - s);
 				unsigned char *x = parse_http_header(*hdr, cc, &v);
 				mem_free(cc);
@@ -549,7 +536,7 @@ void add_extra_options(unsigned char **hdr, int *l)
 					while ((*++c == ' '));
 					add_to_str(&new_hdr, &new_l, c);
 					add_to_str(&new_hdr, &new_l, v + strcspn(v, "\r\n"));
-					mem_free(hdr);
+					mem_free(*hdr);
 					*hdr = new_hdr;
 					*l = new_l;
 					goto already_added;
@@ -565,7 +552,7 @@ void add_extra_options(unsigned char **hdr, int *l)
 	}
 }
 
-int is_line_in_buffer(struct read_buffer *rb)
+static int is_line_in_buffer(struct read_buffer *rb)
 {
 	int l;
 	for (l = 0; l < rb->len; l++) {
@@ -577,7 +564,7 @@ int is_line_in_buffer(struct read_buffer *rb)
 	return 0;
 }
 
-void read_http_data(struct connection *c, struct read_buffer *rb)
+static void read_http_data(struct connection *c, struct read_buffer *rb)
 {
 	struct http_connection_info *info = c->info;
 	set_timeout(c);
@@ -672,7 +659,7 @@ void read_http_data(struct connection *c, struct read_buffer *rb)
 	setcstate(c, S_TRANS);
 }
 
-int get_header(struct read_buffer *rb)
+static int get_header(struct read_buffer *rb)
 {
 	int i;
 	if (rb->len <= 0) return 0;
@@ -698,7 +685,7 @@ int get_header(struct read_buffer *rb)
 	return 0;
 }
 
-void http_got_header(struct connection *c, struct read_buffer *rb)
+static void http_got_header(struct connection *c, struct read_buffer *rb)
 {
 	off_t cf;
 	int state = c->state != S_PROC ? S_GETH : S_PROC;

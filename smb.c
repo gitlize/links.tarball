@@ -6,7 +6,7 @@
 #define SMBC		1
 #define N_CLIENTS	2
 
-int smb_client = 0;
+static int smb_client = 0;
 
 struct smb_connection_info {
 	int client;
@@ -16,11 +16,9 @@ struct smb_connection_info {
 	unsigned char text[1];
 };
 
-void smb_got_data(struct connection *);
-void smb_got_text(struct connection *);
-void end_smb_connection(struct connection *);
-int smbc_get_num(unsigned char *, int *, off_t *);
-void smb_read_text(struct connection *, int);
+static void smb_got_data(struct connection *);
+static void smb_got_text(struct connection *);
+static void end_smb_connection(struct connection *);
 
 void smb_func(struct connection *c)
 {
@@ -269,7 +267,7 @@ void smb_func(struct connection *c)
 	setcstate(c, S_CONN);
 }
 
-int smbc_get_num(unsigned char *text, int *ptr, off_t *res)
+static int smbc_get_num(unsigned char *text, int *ptr, off_t *res)
 {
 	off_t num;
 	int dec, dec_order, unit;
@@ -307,7 +305,7 @@ int smbc_get_num(unsigned char *text, int *ptr, off_t *res)
 	return 0;
 }
 
-void smb_read_text(struct connection *c, int sock)
+static void smb_read_text(struct connection *c, int sock)
 {
 	int r;
 	struct smb_connection_info *si = c->info;
@@ -367,7 +365,7 @@ void smb_read_text(struct connection *c, int sock)
 	}
 }
 
-void smb_got_data(struct connection *c)
+static void smb_got_data(struct connection *c)
 {
 	struct smb_connection_info *si = c->info;
 	char *buffer = mem_alloc(page_size);
@@ -413,12 +411,12 @@ void smb_got_data(struct connection *c)
 	mem_free(buffer);
 }
 
-void smb_got_text(struct connection *c)
+static void smb_got_text(struct connection *c)
 {
 	smb_read_text(c, c->sock2);
 }
 
-void end_smb_connection(struct connection *c)
+static void end_smb_connection(struct connection *c)
 {
 	struct smb_connection_info *si = c->info;
 	if (!c->cache && get_cache_entry(c->url, &c->cache)) {

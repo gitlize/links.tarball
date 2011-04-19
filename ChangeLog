@@ -1,3 +1,38 @@
+=== RELEASE 2.3pre2 ===
+
+So dub 16 20:19:07 CEST 2011 mikulas:
+
+	Utf-8 text terminal support
+
+Sat Mar 12 23:55:56 MET 2011 mikulas:
+
+	Fixed a bug with gpm, if gpm closed a handle on its own,
+	links would occasionaly close it again
+
+Mon Aug  9 01:35:29 UTC 2010 mikulas:
+
+	Don't report terminal size in User-Agent
+
+Thu Aug  5 23:31:59 MET 2010 mikulas:
+
+	Scan for header tags even in document body
+
+Sat Jul 31 22:35:04 MET 2010 mikulas:
+
+	link rel=prefetch
+
+Sat Jul 31 22:24:06 MET 2010 mikulas:
+
+	Interpret style="display:none"
+
+Fri Jun 18 20:39:46 MET 2010 mikulas:
+
+	Fixed crash when unknown Content-Enconding is returned by the server
+
+Sat Apr 24 04:11:58 CEST 2010 mikulas:
+
+	Fix an occasional lockup with Ctrl-Z, fg and framebuffer
+
 === RELEASE 2.3pre1 ===
 
 Sun Aug 16 06:17:03 MET 2009 mikulas:

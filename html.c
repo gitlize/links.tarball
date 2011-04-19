@@ -11,89 +11,10 @@ struct list_head html_stack = {&html_stack, &html_stack};
 
 int html_format_changed = 0;
 
-/* prototypes */
-unsigned char *get_url_val(unsigned char *, unsigned char *);
-unsigned char *get_exact_attr_val(unsigned char *, unsigned char *);
-void roman(char *, unsigned);
-unsigned char *get_target(unsigned char *);
-void debug_stack(void);
-void get_js_event(unsigned char *, unsigned char *, unsigned char **);
-int get_js_events_x(struct js_event_spec **spec, unsigned char *a);
-int get_js_events(unsigned char *);
-void kill_until(int, ...);
-int parse_width(unsigned char *, int);
-void put_link_line(unsigned char *, unsigned char *, unsigned char *, unsigned char *);
-void html_span(unsigned char *);
-void html_bold(unsigned char *);
-void html_italic(unsigned char *);
-void html_underline(unsigned char *);
-void html_fixed(unsigned char *);
-void html_invert(unsigned char *);
-void html_a(unsigned char *);
-void html_a_special(unsigned char *, unsigned char *, unsigned char *);
-void html_sub(unsigned char *);
-void html_sup(unsigned char *);
-void html_font(unsigned char *);
-void html_img(unsigned char *);
-void html_obj(unsigned char *, int);
-void html_embed(unsigned char *);
-void html_object(unsigned char *);
-void html_body(unsigned char *);
-void html_skip(unsigned char *);
-void html_title(unsigned char *);
-void html_script(unsigned char *);
-void html_noscript(unsigned char *);
-void html_center(unsigned char *);
-void html_linebrk(unsigned char *);
-void html_br(unsigned char *);
-void html_form(unsigned char *);
-void html_p(unsigned char *);
-void html_address(unsigned char *);
-void html_blockquote(unsigned char *);
-void html_h(int , char *);
-void html_h1(unsigned char *);
-void html_h2(unsigned char *);
-void html_h3(unsigned char *);
-void html_h4(unsigned char *);
-void html_h5(unsigned char *);
-void html_h6(unsigned char *);
-void html_pre(unsigned char *);
-void html_hr(unsigned char *);
-void html_table(unsigned char *);
-void html_tr(unsigned char *);
-void html_th(unsigned char *);
-void html_td(unsigned char *);
-void html_base(unsigned char *);
-void html_ul(unsigned char *);
-void html_ol(unsigned char *);
-void html_li(unsigned char *);
-void html_dl(unsigned char *);
-void html_dt(unsigned char *);
-void html_dd(unsigned char *);
-void get_html_form(unsigned char *, struct form *);
-void find_form_for_input(unsigned char *, int);
-void html_button(unsigned char *);
-void html_input(unsigned char *);
-void html_select(unsigned char *);
-void html_option(unsigned char *);
-void new_menu_item(unsigned char *, long, int);
-void init_menu(void);
-struct menu_item *detach_menu(void);
-void destroy_menu(void);
-int menu_contains(struct menu_item *, int);
-int do_html_select(unsigned char *, unsigned char *, unsigned char *, unsigned char **, void *);
-void html_textarea(unsigned char *);
-void do_html_textarea(unsigned char *, unsigned char *, unsigned char *, unsigned char **, void *);
-void html_iframe(unsigned char *);
-void html_noframes(unsigned char *);
-void html_frame(unsigned char *);
-void parse_frame_widths(unsigned char *, int, int, int **, int *);
-void html_frameset(unsigned char *);
-void html_link(unsigned char *);
-void process_head(unsigned char *);
-int qd(unsigned char *, unsigned char *, int *);
-void scan_area_tag(unsigned char *, unsigned char *, unsigned char **, struct memory_list **);
-void menu_labels(struct menu_item *, unsigned char *, unsigned char **);
+static inline int isA(unsigned char c)
+{
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
 
 static inline int atchr(unsigned char c)
 {
@@ -115,11 +36,10 @@ int parse_element(unsigned char *e, unsigned char *eof, unsigned char **name, in
 	if (*e == '/') {
 		e++;
 		if (*e == '>' || *e == '<') goto xx;
+	} else if (!isA(*e)) {
+		return -1;
 	}
-	if (!isA(*e)) return -1;
-	goto x1;
-	while (isA(*e) || *e == '=') {
-		x1:
+	while (isA(*e) || (*e >= '0' && *e <= '9') || *e == '_' || *e == '-' || *e == '=') {
 		e++;
 		if (e >= eof) return -1;
 	}
@@ -277,7 +197,7 @@ int has_attr(unsigned char *e, unsigned char *name)
 }
 
 /*
-unsigned char *get_url_val(unsigned char *e, unsigned char *name)
+static unsigned char *get_url_val(unsigned char *e, unsigned char *name)
 {
 	int n = 0;
 	unsigned char *p, *q, *pp;
@@ -293,7 +213,7 @@ unsigned char *get_url_val(unsigned char *e, unsigned char *name)
 }
 */
 
-unsigned char *get_url_val(unsigned char *e, unsigned char *name)
+static unsigned char *get_url_val(unsigned char *e, unsigned char *name)
 {
 	unsigned char *a;
 	get_attr_val_nl = 1;
@@ -302,7 +222,7 @@ unsigned char *get_url_val(unsigned char *e, unsigned char *name)
 	return a;
 }
 
-unsigned char *get_exact_attr_val(unsigned char *e, unsigned char *name)
+static unsigned char *get_exact_attr_val(unsigned char *e, unsigned char *name)
 {
 	unsigned char *a;
 	get_attr_val_nl = 2;
@@ -355,7 +275,7 @@ struct {
 	{0,	NULL}
 };
 
-void roman(char *p, unsigned n)
+static void roman(char *p, unsigned n)
 {
 	int i = 0;
 	if (n >= 4000) {
@@ -574,7 +494,7 @@ int get_bgcolor(unsigned char *a, struct rgb *rgb)
 	return get_color(a, "bgcolor", rgb);
 }
 
-unsigned char *get_target(unsigned char *a)
+static unsigned char *get_target(unsigned char *a)
 {
 	return get_attr_val(a, "target");
 }
@@ -611,7 +531,7 @@ static inline void kill_elem(char *e)
 		kill_html_stack_item(&html_top);
 }
 
-#ifdef DEBUG
+#if defined(DEBUG) && 0
 void debug_stack(void)
 {
 	struct html_element *e;
@@ -663,7 +583,7 @@ void html_stack_dup(void)
 
 
 #ifdef JS
-void get_js_event(unsigned char *a, unsigned char *name, unsigned char **where)
+static void get_js_event(unsigned char *a, unsigned char *name, unsigned char **where)
 {
 	unsigned char *v;
 	if ((v = get_attr_val(a, name))) {
@@ -672,7 +592,7 @@ void get_js_event(unsigned char *a, unsigned char *name, unsigned char **where)
 	}
 }
 
-int get_js_events_x(struct js_event_spec **spec, unsigned char *a)
+static int get_js_events_x(struct js_event_spec **spec, unsigned char *a)
 {
 	if (!has_attr(a, "onkeyup") && !has_attr(a, "onkeydown") && !has_attr(a,"onkeypress") && !has_attr(a,"onchange") && !has_attr(a, "onfocus") && !has_attr(a,"onblur") && !has_attr(a, "onclick") && !has_attr(a, "ondblclick") && !has_attr(a, "onmousedown") && !has_attr(a, "onmousemove") && !has_attr(a, "onmouseout") && !has_attr(a, "onmouseover") && !has_attr(a, "onmouseup")) return 0;
 	create_js_event_spec(spec);
@@ -692,16 +612,16 @@ int get_js_events_x(struct js_event_spec **spec, unsigned char *a)
 	return 1;
 }
 
-int get_js_events(unsigned char *a)
+static int get_js_events(unsigned char *a)
 {
 	return get_js_events_x(&format.js_event, a);
 }
 #else
-int get_js_events_x(struct js_event_spec **spec, unsigned char *a)
+static int get_js_events_x(struct js_event_spec **spec, unsigned char *a)
 {
 	return 0;
 }
-int get_js_events(unsigned char *a)
+static int get_js_events(unsigned char *a)
 {
 	return 0;
 }
@@ -753,7 +673,7 @@ void put_chrs(unsigned char *start, int len, int (*put_chars)(void *, unsigned c
 	line_breax = 0;
 }
 
-void kill_until(int ls, ...)
+static void kill_until(int ls, ...)
 {
 	int l;
 	struct html_element *e = &html_top;
@@ -811,7 +731,7 @@ int get_num(unsigned char *a, unsigned char *n)
 }
 
 /* trunc somehow clips the maximum values. Use 0 to disable truncastion. */
-int parse_width(unsigned char *w, int trunc)
+static int parse_width(unsigned char *w, int trunc)
 {
 	unsigned char *end;
 	int p = 0;
@@ -873,7 +793,7 @@ static inline void set_link_attr(void)
 	memcpy(!(format.attr & AT_INVERT) ? &format.fg : &format.bg, &format.clink, sizeof(struct rgb));
 }
 
-void put_link_line(unsigned char *prefix, unsigned char *linkname, unsigned char *link, unsigned char *target)
+static void put_link_line(unsigned char *prefix, unsigned char *linkname, unsigned char *link, unsigned char *target)
 {
 	html_stack_dup();
 	ln_break(1, line_break_f, ff);
@@ -890,33 +810,33 @@ void put_link_line(unsigned char *prefix, unsigned char *linkname, unsigned char
 	kill_html_stack_item(&html_top);
 }
 
-void html_span(unsigned char *a) { }
+static void html_span(unsigned char *a) { }
 
-void html_bold(unsigned char *a)
+static void html_bold(unsigned char *a)
 { 
 	get_js_events(a); 
 	format.attr |= AT_BOLD; 
 }
 
-void html_italic(unsigned char *a)
+static void html_italic(unsigned char *a)
 {
 	get_js_events(a);
 	format.attr |= AT_ITALIC;
 }
 
-void html_underline(unsigned char *a)
+static void html_underline(unsigned char *a)
 {
 	get_js_events(a); 
 	format.attr |= AT_UNDERLINE;
 }
 
-void html_fixed(unsigned char *a)
+static void html_fixed(unsigned char *a)
 {
 	get_js_events(a);
 	format.attr |= AT_FIXED;
 }
 
-void html_invert(unsigned char *a)
+static void html_invert(unsigned char *a)
 {
 	struct rgb rgb;
 	get_js_events(a);
@@ -926,7 +846,7 @@ void html_invert(unsigned char *a)
 	format.attr ^= AT_INVERT;
 }
 
-void html_a(unsigned char *a)
+static void html_a(unsigned char *a)
 {
 	char *al;
 
@@ -955,7 +875,7 @@ void html_a(unsigned char *a)
 	}
 }
 
-void html_a_special(unsigned char *a, unsigned char *next, unsigned char *eof)
+static void html_a_special(unsigned char *a, unsigned char *next, unsigned char *eof)
 {
 	unsigned char *t;
 	while (next < eof && WHITECHAR(*next)) next++;
@@ -968,14 +888,14 @@ void html_a_special(unsigned char *a, unsigned char *next, unsigned char *eof)
 	mem_free(t);
 }
 
-void html_sub(unsigned char *a)
+static void html_sub(unsigned char *a)
 {
 	get_js_events(a);
 	format.fontsize = 1;
 	format.baseline = -1;
 }
 
-void html_sup(unsigned char *a)
+static void html_sup(unsigned char *a)
 {
 	get_js_events(a);
 	format.fontsize = 1;
@@ -983,7 +903,7 @@ void html_sup(unsigned char *a)
 }
 
 
-void html_font(unsigned char *a)
+static void html_font(unsigned char *a)
 {
 	char *al;
 	if ((al = get_attr_val(a, "size"))) {
@@ -1006,7 +926,7 @@ void html_font(unsigned char *a)
 	get_color(a, "color", &format.fg);
 }
 
-void html_img(unsigned char *a)
+static void html_img(unsigned char *a)
 {
 	unsigned char *al;
 	unsigned char *s;
@@ -1156,7 +1076,7 @@ void html_img(unsigned char *a)
 	if (orig_link) mem_free(orig_link);
 }
 
-void html_obj(unsigned char *a, int obj)
+static void html_obj(unsigned char *a, int obj)
 {
 	unsigned char *old_base = format.href_base;
 	unsigned char *url;
@@ -1181,17 +1101,17 @@ void html_obj(unsigned char *a, int obj)
 	if (type) mem_free(type);
 }
 
-void html_embed(unsigned char *a)
+static void html_embed(unsigned char *a)
 {
 	html_obj(a, 0);
 }
 
-void html_object(unsigned char *a)
+static void html_object(unsigned char *a)
 {
 	html_obj(a, 1);
 }
 
-void html_body(unsigned char *a)
+static void html_body(unsigned char *a)
 {
 	get_color(a, "text", &format.fg);
 	get_color(a, "link", &format.clink);
@@ -1203,11 +1123,11 @@ void html_body(unsigned char *a)
 	*/
 }
 
-void html_skip(unsigned char *a) { html_top.invisible = html_top.dontkill = 1; }
+static void html_skip(unsigned char *a) { html_top.invisible = html_top.dontkill = 1; }
 
-void html_title(unsigned char *a) { html_top.invisible = html_top.dontkill = 1; }
+static void html_title(unsigned char *a) { html_top.invisible = html_top.dontkill = 1; }
 
-void html_script(unsigned char *a)
+static void html_script(unsigned char *a)
 {
 	unsigned char *s;
 	s = get_attr_val(a, "src");
@@ -1216,18 +1136,18 @@ void html_script(unsigned char *a)
 	html_skip(a);
 }
 
-void html_noscript(unsigned char *a)
+static void html_noscript(unsigned char *a)
 {
 	if (d_opt->js_enable) html_skip(a);
 }
 
-void html_center(unsigned char *a)
+static void html_center(unsigned char *a)
 {
 	par_format.align = AL_CENTER;
 	if (!table_level && !F) par_format.leftmargin = par_format.rightmargin = 0;
 }
 
-void html_linebrk(unsigned char *a)
+static void html_linebrk(unsigned char *a)
 {
 	char *al;
 	if ((al = get_attr_val(a, "align"))) {
@@ -1242,19 +1162,19 @@ void html_linebrk(unsigned char *a)
 	}
 }
 
-void html_br(unsigned char *a)
+static void html_br(unsigned char *a)
 {
 	html_linebrk(a);
 	if (was_br) ln_break(2, line_break_f, ff);
 	was_br = 1;
 }
 
-void html_form(unsigned char *a)
+static void html_form(unsigned char *a)
 {
 	was_br = 1;
 }
 
-void html_p(unsigned char *a)
+static void html_p(unsigned char *a)
 {
 	if (par_format.leftmargin < margin) par_format.leftmargin = margin;
 	if (par_format.rightmargin < margin) par_format.rightmargin = margin;
@@ -1262,19 +1182,19 @@ void html_p(unsigned char *a)
 	html_linebrk(a);
 }
 
-void html_address(unsigned char *a)
+static void html_address(unsigned char *a)
 {
 	par_format.leftmargin += 1;
 	par_format.align = AL_LEFT;
 }
 
-void html_blockquote(unsigned char *a)
+static void html_blockquote(unsigned char *a)
 {
 	par_format.leftmargin += 2;
 	par_format.align = AL_LEFT;
 }
 
-void html_h(int h, char *a)
+static void html_h(int h, char *a)
 {
 #ifdef G
 	if (F) {
@@ -1308,14 +1228,14 @@ void html_h(int h, char *a)
 	}
 }
 
-void html_h1(unsigned char *a) { html_h(1, a); }
-void html_h2(unsigned char *a) { html_h(2, a); }
-void html_h3(unsigned char *a) { html_h(3, a); }
-void html_h4(unsigned char *a) { html_h(4, a); }
-void html_h5(unsigned char *a) { html_h(5, a); }
-void html_h6(unsigned char *a) { html_h(6, a); }
+static void html_h1(unsigned char *a) { html_h(1, a); }
+static void html_h2(unsigned char *a) { html_h(2, a); }
+static void html_h3(unsigned char *a) { html_h(3, a); }
+static void html_h4(unsigned char *a) { html_h(4, a); }
+static void html_h5(unsigned char *a) { html_h(5, a); }
+static void html_h6(unsigned char *a) { html_h(6, a); }
 
-void html_pre(unsigned char *a)
+static void html_pre(unsigned char *a)
 {
 	format.attr |= AT_FIXED;
 	par_format.align = AL_NO;
@@ -1323,7 +1243,7 @@ void html_pre(unsigned char *a)
 	par_format.rightmargin = 0;
 }
 
-void html_hr(unsigned char *a)
+static void html_hr(unsigned char *a)
 {
 	int i/* = par_format.width - 10*/;
 	int q = get_num(a, "size");
@@ -1359,7 +1279,7 @@ void html_hr(unsigned char *a)
 	kill_html_stack_item(&html_top);
 }
 
-void html_table(unsigned char *a)
+static void html_table(unsigned char *a)
 {
 	par_format.leftmargin = margin;
 	par_format.rightmargin = margin;
@@ -1368,12 +1288,12 @@ void html_table(unsigned char *a)
 	format.attr = 0;
 }
 
-void html_tr(unsigned char *a)
+static void html_tr(unsigned char *a)
 {
 	html_linebrk(a);
 }
 
-void html_th(unsigned char *a)
+static void html_th(unsigned char *a)
 {
 	/*html_linebrk(a);*/
 	kill_until(1, "TD", "TH", "", "TR", "TABLE", NULL);
@@ -1381,7 +1301,7 @@ void html_th(unsigned char *a)
 	put_chrs(" ", 1, put_chars_f, ff);
 }
 
-void html_td(unsigned char *a)
+static void html_td(unsigned char *a)
 {
 	/*html_linebrk(a);*/
 	kill_until(1, "TD", "TH", "", "TR", "TABLE", NULL);
@@ -1389,7 +1309,7 @@ void html_td(unsigned char *a)
 	put_chrs(" ", 1, put_chars_f, ff);
 }
 
-void html_base(unsigned char *a)
+static void html_base(unsigned char *a)
 {
 	char *al;
 	if ((al = get_url_val(a, "href"))) {
@@ -1404,7 +1324,7 @@ void html_base(unsigned char *a)
 	}
 }
 
-void html_ul(unsigned char *a)
+static void html_ul(unsigned char *a)
 {
 	char *al;
 	/*debug_stack();*/
@@ -1422,7 +1342,7 @@ void html_ul(unsigned char *a)
 	html_top.dontkill = 1;
 }
 
-void html_ol(unsigned char *a)
+static void html_ol(unsigned char *a)
 {
 	char *al;
 	int st;
@@ -1447,7 +1367,7 @@ void html_ol(unsigned char *a)
 	html_top.dontkill = 1;
 }
 
-void html_li(unsigned char *a)
+static void html_li(unsigned char *a)
 {
 	/*kill_until(0, "", "UL", "OL", NULL);*/
 	if (!par_format.list_number) {
@@ -1481,14 +1401,14 @@ void html_li(unsigned char *a)
 		put_chrs(".&nbsp;", 7, put_chars_f, ff);
 		if (!F) par_format.leftmargin += strlen(n) + c + 2;
 		par_format.align = AL_LEFT;
+		html_top.next->parattr.list_number = par_format.list_number + 1;
 		par_format.list_number = 0;
-		html_top.next->parattr.list_number++;
 		putsp = -1;
 	}
 	line_breax = 2;
 }
 
-void html_dl(unsigned char *a)
+static void html_dl(unsigned char *a)
 {
 	par_format.flags &= ~P_COMPACT;
 	if (has_attr(a, "compact")) par_format.flags |= P_COMPACT;
@@ -1504,7 +1424,7 @@ void html_dl(unsigned char *a)
 	}
 }
 
-void html_dt(unsigned char *a)
+static void html_dt(unsigned char *a)
 {
 	kill_until(0, "", "DL", NULL);
 	par_format.align = AL_LEFT;
@@ -1513,7 +1433,7 @@ void html_dt(unsigned char *a)
 		ln_break(2, line_break_f, ff);
 }
 
-void html_dd(unsigned char *a)
+static void html_dd(unsigned char *a)
 {
 	kill_until(0, "", "DL", NULL);
 	if ((par_format.leftmargin = par_format.dd_margin + (table_level ? 3 : 8)) > par_format.width * 2 / 3 && !table_level)
@@ -1521,7 +1441,7 @@ void html_dd(unsigned char *a)
 	par_format.align = AL_LEFT;
 }
 
-void get_html_form(unsigned char *a, struct form *form)
+static void get_html_form(unsigned char *a, struct form *form)
 {
 	unsigned char *al;
 	unsigned char *ch;
@@ -1564,7 +1484,7 @@ void get_html_form(unsigned char *a, struct form *form)
 	form->num = a - startf;
 }
 
-void find_form_for_input(unsigned char *i, int when_unused)
+static void find_form_for_input(unsigned char *i)
 {
 	unsigned char *s, *ss, *name, *attr, *lf, *la;
 	int namelen;
@@ -1573,7 +1493,7 @@ void find_form_for_input(unsigned char *i, int when_unused)
 	if (form.form_name) mem_free(form.form_name);
 	if (form.onsubmit) mem_free(form.onsubmit);
 	memset(&form, 0, sizeof(struct form));
-	if (!when_unused && !special_f(ff, SP_USED, NULL)) return;
+	if (!special_f(ff, SP_USED, NULL)) return;
 	if (last_form_tag && last_input_tag && i <= last_input_tag && i > last_form_tag) {
 		get_html_form(last_form_attr, &form);
 		return;
@@ -1612,11 +1532,11 @@ void find_form_for_input(unsigned char *i, int when_unused)
 	}
 }
 
-void html_button(unsigned char *a)
+static void html_button(unsigned char *a)
 {
 	char *al;
 	struct form_control *fc;
-	find_form_for_input(a, 0);
+	find_form_for_input(a);
 	fc = mem_calloc(sizeof(struct form_control));
 	if (!(al = get_attr_val(a, "type"))) {
 		fc->type = FC_SUBMIT;
@@ -1657,12 +1577,12 @@ void html_button(unsigned char *a)
 	put_chrs(" ", 1, put_chars_f, ff);*/
 }
 
-void html_input(unsigned char *a)
+static void html_input(unsigned char *a)
 {
 	int i;
 	unsigned char *al;
 	struct form_control *fc;
-	find_form_for_input(a, 0);
+	find_form_for_input(a);
 	fc = mem_calloc(sizeof(struct form_control));
 	if (!(al = get_attr_val(a, "type"))) {
 		if (has_attr(a, "onclick")) fc->type = FC_BUTTON;
@@ -1771,7 +1691,7 @@ void html_input(unsigned char *a)
 	special_f(ff, SP_CONTROL, fc);
 }
 
-void html_select(unsigned char *a)
+static void html_select(unsigned char *a)
 {
 	char *al;
 	if (!(al = get_attr_val(a, "name"))) return;
@@ -1781,11 +1701,11 @@ void html_select(unsigned char *a)
 	format.select_disabled = 2 * has_attr(a, "disabled");
 }
 
-void html_option(unsigned char *a)
+static void html_option(unsigned char *a)
 {
 	struct form_control *fc;
 	unsigned char *val;
-	find_form_for_input(a, 0);
+	find_form_for_input(a);
 	if (!format.select) return;
 	fc = mem_calloc(sizeof(struct form_control));
 	if (!(val = get_exact_attr_val(a, "value"))) {
@@ -1869,7 +1789,7 @@ void clr_spaces(unsigned char *name)
 int menu_stack_size;
 struct menu_item **menu_stack;
 
-void new_menu_item(unsigned char *name, long data, int fullname)
+static void new_menu_item(unsigned char *name, long data, int fullname)
 	/* name == NULL - up;	data == -1 - down */
 {
 	struct menu_item *top, *item, *nmenu = NULL; /* no uninitialized warnings */
@@ -1913,7 +1833,7 @@ void new_menu_item(unsigned char *name, long data, int fullname)
 	if (!name) menu_stack_size--;
 }
 
-void init_menu(void)
+static void init_menu(void)
 {
 	menu_stack_size = 0;
 	menu_stack = DUMMY;
@@ -1930,7 +1850,7 @@ void free_menu(struct menu_item *m) /* Grrr. Recursion */
 	mem_free(m);
 }
 
-struct menu_item *detach_menu(void)
+static struct menu_item *detach_menu(void)
 {
 	struct menu_item *i = NULL;
 	if (menu_stack_size) i = menu_stack[0];
@@ -1938,13 +1858,13 @@ struct menu_item *detach_menu(void)
 	return i;
 }
 
-void destroy_menu(void)
+static void destroy_menu(void)
 {
 	if (menu_stack && menu_stack != DUMMY) free_menu(menu_stack[0]);
 	detach_menu();
 }
 
-void menu_labels(struct menu_item *m, unsigned char *base, unsigned char **lbls)
+static void menu_labels(struct menu_item *m, unsigned char *base, unsigned char **lbls)
 {
 	unsigned char *bs;
 	for (; m->text; m++) {
@@ -1962,7 +1882,7 @@ void menu_labels(struct menu_item *m, unsigned char *base, unsigned char **lbls)
 	}
 }
 
-int menu_contains(struct menu_item *m, int f)
+static int menu_contains(struct menu_item *m, int f)
 {
 	if (m->func != MENU_FUNC do_select_submenu) return (my_intptr_t)m->data == f;
 	for (m = m->data; m->text; m++) if (menu_contains(m, f)) return 1;
@@ -1981,7 +1901,7 @@ void do_select_submenu(struct terminal *term, struct menu_item *menu, struct ses
 	do_menu_selected(term, menu, ses, sel);
 }
 
-int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof, unsigned char **end, void *f)
+static int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof, unsigned char **end, void *f)
 {
 	struct form_control *fc;
 	unsigned char *t_name, *t_attr, *en;
@@ -1996,7 +1916,7 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 	int order, preselect, group;
 	int i, mw;
 	if (has_attr(attr, "multiple") || dmp) return 1;
-	find_form_for_input(attr, 0);
+	find_form_for_input(attr);
 	lbl = NULL;
 	lbl_l = 0;
 	vlbl = NULL;
@@ -2143,19 +2063,19 @@ int do_html_select(unsigned char *attr, unsigned char *html, unsigned char *eof,
 	return 0;
 }
 
-void html_textarea(unsigned char *a)
+static void html_textarea(unsigned char *a)
 {
 	internal("This should be never called");
 }
 
-void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *eof, unsigned char **end, void *f)
+static void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *eof, unsigned char **end, void *f)
 {
 	struct form_control *fc;
 	unsigned char *p, *t_name, *w;
 	int t_namelen;
 	int cols, rows;
 	int i;
-	find_form_for_input(attr, 1);
+	find_form_for_input(attr);
 	while (html < eof && (*html == '\n' || *html == '\r')) html++;
 	p = html;
 	while (p < eof && *p != '<') {
@@ -2168,7 +2088,6 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	}
 	if (parse_element(p, eof, &t_name, &t_namelen, NULL, end)) goto pp;
 	if (t_namelen != 9 || casecmp(t_name, "/TEXTAREA", 9)) goto pp;
-	if (!last_form_tag) return;
 	fc = mem_calloc(sizeof(struct form_control));
 	fc->form_num = last_form_tag ? last_form_tag - startf : 0;
 	fc->ctrl_num = last_form_tag ? attr - last_form_tag : attr - startf;
@@ -2224,23 +2143,25 @@ void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned char *e
 	special_f(f, SP_CONTROL, fc);
 }
 
-void html_iframe(unsigned char *a)
+static void html_iframe(unsigned char *a)
 {
 	unsigned char *name, *url;
 	if (!(url = get_url_val(a, "src"))) return;
+	if (!*url) goto free_url_ret;
 	if (!(name = get_attr_val(a, "name"))) name = stracpy("");
 	if (*name) put_link_line("IFrame: ", name, url, d_opt->framename);
 	else put_link_line("", "IFrame", url, d_opt->framename);
 	mem_free(name);
+	free_url_ret:
 	mem_free(url);
 }
 
-void html_noframes(unsigned char *a)
+static void html_noframes(unsigned char *a)
 {
 	if (d_opt->frames) html_skip(a);
 }
 
-void html_frame(unsigned char *a)
+static void html_frame(unsigned char *a)
 {
 	unsigned char *name, *u2, *url;
 	if (!(u2 = get_url_val(a, "src"))) {
@@ -2280,7 +2201,7 @@ void html_frame(unsigned char *a)
 	mem_free(url);
 }
 
-void parse_frame_widths(unsigned char *a, int ww, int www, int **op, int *olp)
+static void parse_frame_widths(unsigned char *a, int ww, int www, int **op, int *olp)
 {
 	unsigned char *aa;
 	int q, qq, i, d, nn;
@@ -2368,7 +2289,7 @@ void parse_frame_widths(unsigned char *a, int ww, int www, int **op, int *olp)
 	}
 }
 
-void html_frameset(unsigned char *a)
+static void html_frameset(unsigned char *a)
 {
 	int x, y;
 	struct frameset_param fp;
@@ -2402,7 +2323,7 @@ void html_frameset(unsigned char *a)
 	mem_free(d);
 }
 
-/*void html_frameset(unsigned char *a)
+/*static void html_frameset(unsigned char *a)
 {
 	int w;
 	int horiz = 0;
@@ -2440,7 +2361,7 @@ void html_frameset(unsigned char *a)
 	mem_free(c);
 }*/
 
-void html_link(unsigned char *a)
+static void html_link(unsigned char *a)
 {
 	unsigned char *name, *url, *title;
 	if ((name = get_attr_val(a, "type"))) {
@@ -2466,6 +2387,13 @@ void html_link(unsigned char *a)
 	    !strcasecmp(name, "File-List") ||
 	    !strcasecmp(name, "Edit-Time-Data") ||
 	    !casecmp(name, "schema", 6)) goto skip;
+	if (!strcasecmp(name, "prefetch") ||
+	    !strcasecmp(name, "dns-prefetch")) {
+		unsigned char *pre_url = join_urls(format.href_base, url);
+		if (!dmp) load_url(pre_url, format.href_base, NULL, PRI_PRELOAD, NC_ALWAYS_CACHE);
+		mem_free(pre_url);
+		goto skip;
+	}
 	if ((title = get_attr_val(a, "title"))) {
 		add_to_strn(&name, ": ");
 		add_to_strn(&name, title);
@@ -2587,7 +2515,7 @@ unsigned char *skip_comment(unsigned char *html, unsigned char *eof)
 	return eof;
 }
 
-void process_head(unsigned char *head)
+static void process_head(unsigned char *head)
 {
 	unsigned char *r, *p;
 	struct refresh_param rp;
@@ -2609,7 +2537,7 @@ void process_head(unsigned char *head)
 	}
 }
 
-int qd(unsigned char *html, unsigned char *eof, int *len)
+static int qd(unsigned char *html, unsigned char *eof, int *len)
 {
 	int l;
 	*len = 1;
@@ -2656,6 +2584,7 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 	lt = html;
 	while (html < eof) {
 		unsigned char *name, *attr, *end;
+		unsigned char *a;
 		int namelen;
 		struct element_info *ei;
 		int inv;
@@ -2755,15 +2684,31 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 		}
 		html = end;
 		for (ei = elements; ei->name; ei++) {
-			if (ei->name &&
-			   (strlen(ei->name) != (size_t)namelen || casecmp(ei->name, name, namelen)))
+			if (strlen(ei->name) != (size_t)namelen || casecmp(ei->name, name, namelen))
 				continue;
 			if (!inv) {
-				char *a;
+				int display_none = 0;
 				ln_break(ei->linebreak, line_break, f);
-				if (ei->name && ((a = get_attr_val(attr, "id")))) {
+				if ((a = get_attr_val(attr, "id"))) {
 					special(f, SP_TAG, a);
 					mem_free(a);
+				}
+				if ((a = get_attr_val(attr, "style"))) {
+					unsigned char *d, *s;
+					for (d = s = a; *s; s++) if (*s > ' ') *d++ = *s;
+					*d = 0;
+					display_none |= !casecmp(a, "display:none", 12);
+					mem_free(a);
+				}
+				if (display_none) {
+					if (ei->nopair == 1) goto set_lt;
+					html_stack_dup();
+					html_top.name = name;
+					html_top.namelen = namelen;
+					html_top.options = attr;
+					html_top.linebreak = 0;
+					html_top.invisible = 1;
+					goto set_lt;
 				}
 				if (!html_top.invisible) {
 					int a = par_format.align == AL_NO;
@@ -2818,7 +2763,7 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 				if (ei->nopair == 1 || ei->nopair == 3) break;
 				/*debug_stack();*/
 				foreach(e, html_stack) {
-					if (e->linebreak && !ei->linebreak && ei->name) xxx = 1;
+					if (e->linebreak && !ei->linebreak) xxx = 1;
 					if (e->namelen != namelen || casecmp(e->name, name, e->namelen)) {
 						if (e->dontkill) break;
 						else continue;
@@ -2839,7 +2784,13 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 			}
 			goto set_lt;
 		}
-		goto set_lt; /* unreachable */
+		if (!inv) {
+			if ((a = get_attr_val(attr, "id"))) {
+				special(f, SP_TAG, a);
+				mem_free(a);
+			}
+		}
+		goto set_lt;
 	}
 	put_chrs(lt, html - lt, put_chars, f);
 	ln_break(1, line_break, f);
@@ -2849,7 +2800,7 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 	was_br = 0;
 }
 
-void scan_area_tag(unsigned char *attr, unsigned char *name, unsigned char **ptr, struct memory_list **ml)
+static void scan_area_tag(unsigned char *attr, unsigned char *name, unsigned char **ptr, struct memory_list **ml)
 {
 	unsigned char *v;
 	if ((v = get_attr_val(attr, name))) {
@@ -3043,10 +2994,10 @@ void scan_http_equiv(unsigned char *s, unsigned char *eof, unsigned char **head,
 		goto se;
 	}
 	if (namelen == 4 && !casecmp(name, "BODY", 4)) {
-		if (background) *background = get_attr_val(attr, "background");
-		if (bgcolor) *bgcolor = get_attr_val(attr, "bgcolor");
+		if (background) *background = get_attr_val(attr, "background"), background = NULL;
+		if (bgcolor) *bgcolor = get_attr_val(attr, "bgcolor"), bgcolor = NULL;
 		if (j) get_js_events_x(j, attr);
-		return;
+		/*return;*/
 	}
 	if (title && !tlen && namelen == 5 && !casecmp(name, "TITLE", 5)) {
 		unsigned char *s1;

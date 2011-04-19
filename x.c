@@ -112,32 +112,32 @@
 
 #define XPIXMAPP(a) ((struct x_pixmapa*)(a))
 
-int x_default_window_width;
-int x_default_window_height;
+static int x_default_window_width;
+static int x_default_window_height;
 
-long (*x_get_color_function)(int);
+static long (*x_get_color_function)(int);
 
-void selection_request(XEvent *event);
+static void selection_request(XEvent *event);
 
-int x_fd;    /* x socket */
-Display *x_display;   /* display */
-int x_screen;   /* screen */
-int x_display_height,x_display_width;   /* screen dimensions */
-int x_black_pixel,x_white_pixel;  /* white and black pixel */
-int x_depth,x_bitmap_bpp;   /* bits per pixel and bytes per pixel */
-int x_bitmap_scanline_pad; /* bitmap scanline_padding in bytes */
-int x_colors;  /* colors in the palette (undefined when there's no palette) */
-int x_have_palette;
-int x_input_encoding;	/* locales encoding */
-int x_bitmap_bit_order;
+static int x_fd;    /* x socket */
+static Display *x_display;   /* display */
+static int x_screen;   /* screen */
+static int x_display_height,x_display_width;   /* screen dimensions */
+static int x_black_pixel,x_white_pixel;  /* white and black pixel */
+static int x_depth,x_bitmap_bpp;   /* bits per pixel and bytes per pixel */
+static int x_bitmap_scanline_pad; /* bitmap scanline_padding in bytes */
+static int x_colors;  /* colors in the palette (undefined when there's no palette) */
+static int x_have_palette;
+static int x_input_encoding;	/* locales encoding */
+static int x_bitmap_bit_order;
 
 
-Window x_root_window, fake_window;
-GC x_normal_gc,x_copy_gc,x_drawbitmap_gc,x_scroll_gc;
-Colormap x_colormap;
-Atom x_delete_window_atom, x_wm_protocols_atom, x_sel_atom, x_targets_atom;
-Visual* x_default_visual;
-Pixmap x_icon;
+static Window x_root_window, fake_window;
+static GC x_normal_gc,x_copy_gc,x_drawbitmap_gc,x_scroll_gc;
+static Colormap x_colormap;
+static Atom x_delete_window_atom, x_wm_protocols_atom, x_sel_atom, x_targets_atom;
+static Visual* x_default_visual;
+static Pixmap x_icon;
 
 extern struct graphics_driver x_driver;
 
@@ -159,7 +159,7 @@ struct x_pixmapa
 };
 
 
-struct
+static struct
 {
 	unsigned char count;
 	struct graphics_device **pointer;
@@ -179,15 +179,6 @@ static unsigned char * x_my_clipboard=NULL;
 
 static int flush_in_progress=0;
 
-/* prototypes */
-unsigned char * x_set_palette(void);
-int x_hscroll(struct graphics_device *, struct rect_set **, int);
-int x_vscroll(struct graphics_device *, struct rect_set **, int);
-void *x_prepare_strip(struct bitmap *, int, int);
-void x_commit_strip(struct bitmap *, int, int);
-void x_set_window_title(struct graphics_device *, unsigned char *);
-int x_exec(unsigned char *, int);
-void x_clear_clipboard(void);
 
 
 static void x_wait_for_event(void)
@@ -256,7 +247,7 @@ static void x_clip_number(int *n,int l,int h)
 }
 
 
-unsigned char * x_set_palette(void)
+static unsigned char * x_set_palette(void)
 {
 	XColor color;
 	int a,r,g,b;
@@ -538,7 +529,7 @@ static void x_remove_from_table(Window *win)
 }
 
 
-void x_clear_clipboard(void)
+static void x_clear_clipboard(void)
 {
     if(x_my_clipboard)
     {
@@ -559,6 +550,7 @@ static void x_process_events(void *data)
 #ifdef SC_DEBUG
 	MESSAGE("x_process_event\n");
 #endif
+	memset(&last_event, 0, sizeof last_event);	/* against warning */
 	last_was_mouse=0;
 	while (XPending(x_display) || replay_event)
 	{
@@ -1787,7 +1779,7 @@ cant_create:
 }
 
 
-int x_hscroll(struct graphics_device *dev, struct rect_set **set, int sc)
+static int x_hscroll(struct graphics_device *dev, struct rect_set **set, int sc)
 {
 	XEvent ev;
 	struct rect r;
@@ -1868,7 +1860,7 @@ int x_hscroll(struct graphics_device *dev, struct rect_set **set, int sc)
 }
 
 
-int x_vscroll(struct graphics_device *dev, struct rect_set **set, int sc)
+static int x_vscroll(struct graphics_device *dev, struct rect_set **set, int sc)
 {
 	XEvent ev;
 	struct rect r;
@@ -1949,7 +1941,7 @@ int x_vscroll(struct graphics_device *dev, struct rect_set **set, int sc)
 }
 
 
-void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
+static void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
 	struct x_pixmapa *p=(struct x_pixmapa *)bmp->flags;
 	XImage *image;
@@ -1981,7 +1973,7 @@ void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 }
 
 
-void x_commit_strip(struct bitmap *bmp, int top, int lines)
+static void x_commit_strip(struct bitmap *bmp, int top, int lines)
 {
 	struct x_pixmapa *p=(struct x_pixmapa *)bmp->flags;
 
@@ -2003,7 +1995,7 @@ void x_commit_strip(struct bitmap *bmp, int top, int lines)
 }
 
 
-void x_set_window_title(struct graphics_device *gd, unsigned char *title)
+static void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 {
 	struct conv_table *ct = get_translation_table(utf8_table,x_input_encoding >= 0?x_input_encoding:0);
 	unsigned char *t;
@@ -2175,7 +2167,7 @@ no_new_sel:
 }
 
 
-int x_exec(unsigned char *command, int fg)
+static int x_exec(unsigned char *command, int fg)
 {
 	unsigned char *run;
 	int retval;

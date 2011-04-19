@@ -11,11 +11,6 @@ long cache_size;
 
 tcount cache_count = 1;
 
-/* prototypes */
-unsigned char *extract_proxy(unsigned char *);
-int shrink_file_cache(int);
-
-
 long cache_info(int type)
 {
 	int i = 0;
@@ -40,7 +35,7 @@ long cache_info(int type)
 	return 0;
 }
 
-unsigned char *extract_proxy(unsigned char *url)
+static unsigned char *extract_proxy(unsigned char *url)
 {
 	char *a;
 	if (strlen(url) < 8 || casecmp(url, "proxy://", 8)) return url;
@@ -100,6 +95,7 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 	off_t ca;
 	if (!length) return 0;
 	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
+	e->incomplete = 1;
 	if (offset + length < 0 || offset + length < offset) overalloc();
 	if (offset + (off_t)C_ALIGN(length) < 0 || offset + (off_t)C_ALIGN(length) < offset) overalloc();
 	if (e->length < offset + length) e->length = offset + length;
@@ -254,6 +250,7 @@ void truncate_entry(struct cache_entry *e, off_t off, int final)
 void free_entry_to(struct cache_entry *e, off_t off)
 {
 	struct fragment *f, *g;
+	e->incomplete = 1;
 	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 	foreach(f, e->frag) {
 		if (f->offset + f->length <= off) {
@@ -307,13 +304,12 @@ void delete_cache_entry(struct cache_entry *e)
 	mem_free(e);
 }
 
-int shrink_file_cache(int u)
+static int shrink_file_cache(int u)
 {
 	int r = 0;
 	struct cache_entry *e, *f;
 	long ncs = cache_size;
 	long ccs = 0;
-	int no = 0;
 
 	if (u == SH_FREE_SOMETHING) goto ret;	/* !!! FIXME: remove after locking check */
 
@@ -336,7 +332,6 @@ int shrink_file_cache(int u)
 	for (e = cache.prev; (void *)e != &cache; e = e->prev) {
 		if (u == SH_CHECK_QUOTA && ncs <= memory_cache_size * MEMORY_CACHE_GC_PERCENT) goto g;
 		if (e->refcount || is_entry_used(e)) {
-			no = 1;
 			e->tgc = 0;
 			continue;
 		}
@@ -346,7 +341,7 @@ int shrink_file_cache(int u)
 			ncs = 0;
 		}
 	}
-	if (/*!no &&*/ ncs) internal("cache_size(%ld) is larger than size of all objects(%ld)", cache_size, cache_size - ncs);
+	if (ncs) internal("cache_size(%ld) is larger than size of all objects(%ld)", cache_size, cache_size - ncs);
 	g:
 	if ((void *)(e = e->next) == &cache) goto ret;
 	if (u == SH_CHECK_QUOTA) for (f = e; (void *)f != &cache; f = f->next) {
@@ -362,9 +357,6 @@ int shrink_file_cache(int u)
 			r |= ST_SOMETHING_FREED;
 		}
 	}
-	/*if (!no && cache_size > memory_cache_size * MEMORY_CACHE_GC_PERCENT) {
-		internal("garbage collection doesn't work, cache size %ld", cache_size);
-	}*/
 	ret:
 	return r | list_empty(cache) * ST_CACHE_EMPTY;
 }

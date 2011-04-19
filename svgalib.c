@@ -658,7 +658,11 @@ static void svga_shutdown_driver(void)
 #ifndef __SPAD__
 	kill_timer(svgalib_timer_id);
 #endif
-	vga_setmode(TEXT);
+	if (vga_setmode(TEXT) < 0) {
+		error("ERROR: vga_setmode failed");
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
 	svgalib_free_trm(ditrm);
 	if (svga_driver_param)mem_free(svga_driver_param);
 	install_signal_handler(SIGINT, NULL, NULL, 0);
@@ -1311,7 +1315,6 @@ static int hscroll_accel(struct graphics_device *dev, struct rect_set **ignore, 
 {
 	HSCROLL_CLIP_PREFACE
 
-	ignore=NULL;
 	if (sc>0){
 		/* Move data to the right */
 		vga_accel(ACCEL_SCREENCOPY,dev->clip.x1,dev->clip.y1,dev->clip.x1+sc,dev->clip.y1
@@ -1337,7 +1340,6 @@ static int vscroll_accel(struct graphics_device *dev, struct rect_set **ignore, 
 {
 	VSCROLL_CLIP_PREFACE
 
-	ignore=NULL;
 	if (sc>0){
 		/* Move down */
 		vga_accel(ACCEL_SCREENCOPY,dev->clip.x1,dev->clip.y1,dev->clip.x1,dev->clip.y1+sc
@@ -1357,7 +1359,6 @@ static int hscroll_scansegment(struct graphics_device *dev, struct rect_set **ig
 	int len;
 	HSCROLL_CLIP_PREFACE
 	SYNC	
-	ignore=NULL;
 	if (sc>0){
 		/* Right */
 		len=dev->clip.x2-dev->clip.x1-sc;
@@ -1384,7 +1385,6 @@ static int hscroll_linear(struct graphics_device *dev, struct rect_set **ignore,
 	int len;
 	HSCROLL_CLIP_PREFACE
 	SYNC
-	ignore=NULL;
 	if (sc>0){
 		len=(dev->clip.x2-dev->clip.x1-sc)*vga_bytes;
 		src=my_graph_mem+vga_linewidth*dev->clip.y1+dev->clip.x1*vga_bytes;
@@ -1414,7 +1414,6 @@ static int vscroll_scansegment(struct graphics_device *dev, struct rect_set **ig
 	int len;
 	VSCROLL_CLIP_PREFACE
 	SYNC
-	ignore=NULL;
 	len=dev->clip.x2-dev->clip.x1;
 	if (sc>0){
 		/* Down */
@@ -1440,7 +1439,6 @@ static int vscroll_linear(struct graphics_device *dev, struct rect_set **ignore,
 	int len;
 	VSCROLL_CLIP_PREFACE
 	SYNC
-	ignore=NULL;
 	len=(dev->clip.x2-dev->clip.x1)*vga_bytes;
 	if (sc>0){
 		/* Down */
@@ -1496,7 +1494,6 @@ static int vscroll_paged(struct graphics_device *dev, struct rect_set **ignore, 
 	int len;
 	VSCROLL_CLIP_PREFACE
 	SYNC
-	ignore=NULL;
 	len=(dev->clip.x2-dev->clip.x1)*vga_bytes;
 	if (sc>0){
 		/* Down */
@@ -1531,7 +1528,6 @@ static int hscroll_paged(struct graphics_device *dev, struct rect_set **ignore, 
 
 	HSCROLL_CLIP_PREFACE
 	SYNC	
-	ignore=NULL;
 	if (sc>0){
 		len=(dev->clip.x2-dev->clip.x1-sc)*vga_bytes;
 		src=vga_linewidth*dev->clip.y1+dev->clip.x1*vga_bytes;
@@ -2424,8 +2420,10 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 		if (j) {
 			add_to_str(&m, &l, "Video mode ");
 			add_to_str(&m, &l, param);
-			add_to_str(&m, &l, " not supported by ");
-			add_to_str(&m, &l, j == 2 ? "your video card" : "svgalib");
+			add_to_str(&m, &l,
+				j == 1 ? " not supported by svgalib" :
+				j == 2 ? " not supported by your video card" :
+				" could not be set");
 			add_to_str(&m, &l, ".\n");
 		} else add_to_str(&m, &l, "There is no default video mode.\n");
 		for (j=0;(size_t)j<sizeof(modes)/sizeof(*modes);j++) if (vga_hasmode(modes[j].number)) {
@@ -2462,7 +2460,16 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	svgalib_timer_id=install_timer(100,vtswitch_handler,NULL);
 	if (vga_runinbackground_version()>=1) vga_runinbackground(1);
 #endif
-	vga_setmode(vga_mode=modes[j].number);
+	if (vga_setmode(modes[j].number) < 0) {
+#ifndef __SPAD__
+		kill_timer(svgalib_timer_id);
+#endif
+		vga_unlockvc();
+		shutdown_virtual_devices();
+		j = 3;
+		goto not_found;
+	}
+	vga_mode=modes[j].number;
 	setup_mode(modes[j].number);
 	handle_svgalib_keyboard((void (*)(void *, unsigned char *, int))svgalib_key_in);
 
@@ -2540,7 +2547,11 @@ static int vga_block(struct graphics_device *dev)
 			/* mouse_close(); This is not necessary as it is
 				handled by vga_setmode(TEXT). */
 		}
-		vga_setmode(TEXT);
+		if (vga_setmode(TEXT) < 0) {
+			error("ERROR: vga_setmode failed");
+			fatal_tty_exit();
+			exit(RET_FATAL);
+		}
 	}
 	flags|=2;
 	return overridden;
@@ -2557,7 +2568,11 @@ static int vga_unblock(struct graphics_device *dev)
 	flags&=~2;
 	if (!flags) current_virtual_device=backup_virtual_device;
 	vga_setmousesupport(1);
-	vga_setmode(vga_mode);
+	if (vga_setmode(vga_mode) < 0) {
+		error("ERROR: vga_setmode failed");
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
 	setup_mode(vga_mode);
 	if (mouse_works){
 		show_mouse();

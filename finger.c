@@ -6,10 +6,10 @@
 
 #include "links.h"
 
-void finger_send_request(struct connection *);
-void finger_sent_request(struct connection *);
-void finger_get_response(struct connection *, struct read_buffer *);
-void finger_end_request(struct connection *);
+static void finger_send_request(struct connection *);
+static void finger_sent_request(struct connection *);
+static void finger_get_response(struct connection *, struct read_buffer *);
+static void finger_end_request(struct connection *);
 
 void finger_func(struct connection *c)
 {
@@ -23,7 +23,7 @@ void finger_func(struct connection *c)
 	make_connection(c, p, &c->sock1, finger_send_request);
 }
 
-void finger_send_request(struct connection *c)
+static void finger_send_request(struct connection *c)
 {
 	unsigned char *req = init_str();
 	int rl = 0;
@@ -40,7 +40,7 @@ void finger_send_request(struct connection *c)
 	setcstate(c, S_SENT);
 }
 
-void finger_sent_request(struct connection *c)
+static void finger_sent_request(struct connection *c)
 {
 	struct read_buffer *rb;
 	set_timeout(c);
@@ -49,7 +49,7 @@ void finger_sent_request(struct connection *c)
 	read_from_socket(c, c->sock1, rb, finger_get_response);
 }
 
-void finger_get_response(struct connection *c, struct read_buffer *rb)
+static void finger_get_response(struct connection *c, struct read_buffer *rb)
 {
 	struct cache_entry *e;
 	int l;
@@ -79,7 +79,7 @@ void finger_get_response(struct connection *c, struct read_buffer *rb)
 	setcstate(c, S_TRANS);
 }
 
-void finger_end_request(struct connection *c)
+static void finger_end_request(struct connection *c)
 {
 	if (c->state == S_OK) {
 		if (c->cache) {

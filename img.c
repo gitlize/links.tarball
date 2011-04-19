@@ -43,24 +43,7 @@ int end_callback_hit;
 int dither_images=1;
 #ifdef G
 
-/* prototypes */
-int is_image_size_sane(int x, int y);
-void destroy_decoder (struct cached_image *);
-void img_destruct_image(struct g_object *);
-int img_scale_h(unsigned scale, int);
-int img_scale_v(unsigned scale, int);
-unsigned short *buffer_to_16(unsigned short *, struct cached_image *, unsigned char *, int);
-void r3l0ad(struct cached_image *, struct g_object_image *);
-void type(struct cached_image *, unsigned char *);
-int img_process_download(struct g_object_image *, struct f_data_c *);
-int get_foreground(int);
-void draw_frame_mark (struct graphics_driver *, struct graphics_device *, int, int, int, int, long, long, int);
-void update_bitmap(struct cached_image *);
-void img_draw_image (struct f_data_c *, struct g_object_image *, int, int);
-void find_or_make_cached_image(struct g_object_image *, unsigned char *, int);
-void buffer_to_bitmap(struct cached_image *);
-
-int is_image_size_sane(int x, int y)
+static int is_image_size_sane(int x, int y)
 {
 	unsigned a = (unsigned)x * (unsigned)y * 6;
 	if (y && a / (unsigned)y / 6 != (unsigned)x) return 0;
@@ -79,7 +62,7 @@ void img_release_decoded_image(struct decoded_image *d)
 }
 
 /* mem_free(cimg->decoder) */
-void destroy_decoder (struct cached_image *cimg)
+static void destroy_decoder (struct cached_image *cimg)
 {
 #ifdef HAVE_JPEG
 	struct jpg_decoder *jd;
@@ -129,7 +112,7 @@ void destroy_decoder (struct cached_image *cimg)
 	}
 }
 
-void img_destruct_image(struct g_object *object)
+static void img_destruct_image(struct g_object *object)
 {
 	struct g_object_image *goi=(struct g_object_image *)object;
 	
@@ -199,7 +182,7 @@ void img_destruct_cached_image(struct cached_image *cimg)
  * Input may be 0. In this case output=0.
  * If input is >0 the output is also >0.
  */
-int img_scale_h(unsigned scale, int in){
+static int img_scale_h(unsigned scale, int in){
 	int out;
 	/* We assume unsigned long holds at least 32 bits */
 	unsigned long pre;
@@ -211,7 +194,7 @@ int img_scale_h(unsigned scale, int in){
 	return out;
 }
 
-int img_scale_v(unsigned scale, int in){
+static int img_scale_v(unsigned scale, int in){
 	int out;
 	unsigned long divisor;
 
@@ -450,7 +433,7 @@ int header_dimensions_known(struct cached_image *cimg)
 /* Fills "tmp" buffer with the resulting data and does not free the input
  * buffer. May be called only in states 12 and 14 of cimg
  */
-unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *cimg
+static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *cimg
 	,unsigned char *buffer, int height)
 {
 	unsigned short red, green,blue;
@@ -624,7 +607,7 @@ end:
  * want to destroy gamma table and call buffer_to_bitmap, first call buffer_to_bitmap
  * and then destroy gamma_table).
  */
-void buffer_to_bitmap(struct cached_image *cimg)
+static void buffer_to_bitmap(struct cached_image *cimg)
 {
 	unsigned short *tmp, *tmp1;
 	int ix, iy, ox, oy, gonna_be_smart;
@@ -742,7 +725,7 @@ void img_end(struct cached_image *cimg)
 	cimg->state|=1;
 }
 
-void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
+static void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
 {
 	cimg->eof_hit=0;
 	cimg->last_count=goi->af->rq->ce->count;
@@ -814,7 +797,7 @@ static inline int dtest(unsigned char *template, unsigned char *test)
 
 /* content_type will be mem_free'd before return from this function.
  * This may be called only in state 0 or 2 */
-void type(struct cached_image *cimg, unsigned char *content_type)
+static void type(struct cached_image *cimg, unsigned char *content_type)
 {
 #ifdef DEBUG
 	if (cimg->state!=0&&cimg->state!=2){
@@ -882,7 +865,7 @@ void type(struct cached_image *cimg, unsigned char *content_type)
  *      	(because it would be too slow and because we are probably choked
  *      	up with the data)
  */
-int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
+static int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 {
 	unsigned char *data, *dataend, *ctype;
 	int length;
@@ -1007,7 +990,7 @@ int get_foreground(int rgb)
 	return (r<<16)|(g<<8)|b;
 }
 
-void draw_frame_mark (struct graphics_driver *drv, struct 
+static void draw_frame_mark (struct graphics_driver *drv, struct 
 	graphics_device *dev, int x, int y, int xw, int yw
 	, long bg, long fg, int broken)
 {
@@ -1108,7 +1091,7 @@ static void draw_picture(struct f_data_c *fdatac, struct g_object_image *goi,
 /* Ensures in buffer there is not newer picture than in bitmap. Allowed to be
  * called only in state 12, 13, 14, 15.
  */
-void update_bitmap(struct cached_image *cimg)
+static void update_bitmap(struct cached_image *cimg)
 {
 #ifdef DEBUG
 	if (cimg->state<12||cimg->state>=16){
@@ -1122,7 +1105,7 @@ void update_bitmap(struct cached_image *cimg)
 }
 
 /* Draws the image at x,y. Is called from other C sources. */
-void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
+static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 	int x, int y)
 {
 	long color_bg, color_fg;
@@ -1186,7 +1169,7 @@ void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
  * 
  * The URL will not be freed.
  */
-void find_or_make_cached_image(struct g_object_image *image, unsigned char *url,
+static void find_or_make_cached_image(struct g_object_image *image, unsigned char *url,
 	int scale)
 {
 	struct cached_image *cimg;

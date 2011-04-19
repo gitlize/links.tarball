@@ -15,14 +15,11 @@ struct http_auth {
 	int proxy;
 };
 
-unsigned char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static unsigned char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /* prototypes */
-unsigned char *base64_encode(unsigned char *);
-void free_auth_entry(struct http_auth *);
-unsigned char *basic_encode(unsigned char *, unsigned char *);
 
-unsigned char *base64_encode(unsigned char *in)
+static unsigned char *base64_encode(unsigned char *in)
 {
 	unsigned char *out, *outstr;
 	size_t inlen = strlen(in);
@@ -51,7 +48,7 @@ unsigned char *base64_encode(unsigned char *in)
 	return outstr;
 }
 
-unsigned char *basic_encode(unsigned char *user, unsigned char *password)
+static unsigned char *basic_encode(unsigned char *user, unsigned char *password)
 {
 	unsigned char *e, *p = mem_alloc(strlen(user) + strlen(password) + 2);
 	strcpy(p, user);
@@ -161,7 +158,7 @@ unsigned char *get_auth_string(unsigned char *url)
 	return r;
 }
 
-void free_auth_entry(struct http_auth *a)
+static void free_auth_entry(struct http_auth *a)
 {
 	mem_free(a->host);
 	mem_free(a->realm);

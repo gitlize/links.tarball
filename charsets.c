@@ -23,7 +23,7 @@ struct codepage_desc {
 #include "entity.inc"
 #include "upcase.inc"
 
-char strings[256][2] = {
+static char strings[256][2] = {
 	"\000", "\001", "\002", "\003", "\004", "\005", "\006", "\007",
 	"\010", "\011", "\012", "\013", "\014", "\015", "\016", "\017",
 	"\020", "\021", "\022", "\023", "\024", "\025", "\026", "\033",
@@ -58,24 +58,16 @@ char strings[256][2] = {
 	"\370", "\371", "\372", "\373", "\374", "\375", "\376", "\377",
 };
 
-/* prototypes */
-void free_translation_table(struct conv_table *);
-void new_translation_table(struct conv_table *);
-void add_utf_8(struct conv_table *, int, unsigned char *);
-void free_utf_table(void);
-struct conv_table *get_translation_table_to_utf_8(int);
-
-
-void free_translation_table(struct conv_table *p)
+static void free_translation_table(struct conv_table *p)
 {
 	int i;
 	for (i = 0; i < 256; i++) if (p[i].t) free_translation_table(p[i].u.tbl);
 	mem_free(p);
 }
 
-unsigned char *no_str = "*";
+static unsigned char *no_str = "*";
 
-void new_translation_table(struct conv_table *p)
+static void new_translation_table(struct conv_table *p)
 {
 	int i;
 	for (i = 0; i < 256; i++) if (p[i].t) free_translation_table(p[i].u.tbl);
@@ -83,7 +75,7 @@ void new_translation_table(struct conv_table *p)
 	for (; i < 256; i++) p[i].t = 0, p[i].u.str = no_str;
 }
 
-int strange_chars[32] = {
+static int strange_chars[32] = {
 	0x20ac, 0x0000, 0x002a, 0x0000, 0x201e, 0x2026, 0x2020, 0x2021,
 	0x005e, 0x2030, 0x0160, 0x003c, 0x0152, 0x0000, 0x0000, 0x0000,
 	0x0000, 0x0060, 0x0027, 0x0022, 0x0022, 0x002a, 0x2013, 0x2014,
@@ -115,15 +107,16 @@ unsigned char *u2cp(int u, int to, int fallback)
 	return NULL;
 }
 
-int cp2u(unsigned char ch, int from)
+int cp2u(unsigned ch, int from)
 {
 	struct table_entry *e;
+	if (from == utf8_table) return ch;
 	if (from < 0 || ch < 0x80) return ch;
 	for (e = codepages[from].table; e->c; e++) if (e->c == ch) return e->u;
 	return -1;
 }
 
-unsigned char utf_buffer[7];
+static unsigned char utf_buffer[7];
 
 unsigned char *encode_utf_8(int u)
 {
@@ -156,7 +149,7 @@ unsigned char *encode_utf_8(int u)
 	return utf_buffer;
 }
 
-void add_utf_8(struct conv_table *ct, int u, unsigned char *str)
+static void add_utf_8(struct conv_table *ct, int u, unsigned char *str)
 {
 	unsigned char *p = encode_utf_8(u);
 	while (p[1]) {
@@ -183,16 +176,16 @@ void add_utf_8(struct conv_table *ct, int u, unsigned char *str)
 	if (ct[*p].u.str == no_str) ct[*p].u.str = str;
 }
 
-struct conv_table utf_table[256];
-int utf_table_init = 1;
+static struct conv_table utf_table[256];
+static int utf_table_init = 1;
 
-void free_utf_table(void)
+static void free_utf_table(void)
 {
 	int i;
 	for (i = 128; i < 256; i++) mem_free(utf_table[i].u.str);
 }
 
-struct conv_table *get_translation_table_to_utf_8(int from)
+static struct conv_table *get_translation_table_to_utf_8(int from)
 {
 	int i;
 	static int lfr = -1;
@@ -290,8 +283,8 @@ int get_utf_8(unsigned char **s)
 	return v;
 }
 
-struct conv_table table[256];
-int table_init = 1;
+static struct conv_table table[256];
+static int table_init = 1;
 
 void free_conv_table(void)
 {
@@ -620,6 +613,12 @@ int strlen_utf8(unsigned char *s)
 		if (!c) return len;
 		len++;
 	}
+}
+
+int cp_len(int cp, unsigned char *s)
+{
+	if (is_cp_special(cp)) return strlen_utf8(s);
+	return strlen((char *)s);
 }
 
 unsigned char *cp_strchr(int charset, unsigned char *str, unsigned chr)

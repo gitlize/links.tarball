@@ -7,10 +7,7 @@
 
 #include "links.h"
 
-/* prototypes */
-void get_system_name(void);
-
-void get_system_name(void)
+static void get_system_name(void)
 {
 	FILE *f;
 	unsigned char *p;
@@ -1535,7 +1532,7 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 16, &max_tries, "retries", "retries"},
 	{1, gen_cmd, num_rd, num_wr, 1, 9999, &receive_timeout, "receive_timeout", "receive-timeout"},
 	{1, gen_cmd, num_rd, num_wr, 1, 9999, &unrestartable_receive_timeout, "unrestartable_receive_timeout", "unrestartable-receive-timeout"},
-	{1, gen_cmd, num_rd, num_wr, 0, 256, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
+	{1, gen_cmd, num_rd, num_wr, 0, 999, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &memory_cache_size, "memory_cache_size", "memory-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &image_cache_size, "image_cache_size", "image-cache-size"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.http_proxy, "http_proxy", "http-proxy"},

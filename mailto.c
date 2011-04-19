@@ -6,12 +6,8 @@
 
 #include "links.h"
 
-/* prototypes */
-void prog_func(struct terminal *, struct list_head *, unsigned char *, unsigned char *);
-void tn_func(struct session *, unsigned char *, struct list_head *, unsigned char *, unsigned char *);
 
-
-void prog_func(struct terminal *term, struct list_head *list, unsigned char *param, unsigned char *name)
+static void prog_func(struct terminal *term, struct list_head *list, unsigned char *param, unsigned char *name)
 {
 	unsigned char *prog, *cmd;
 	if (!(prog = get_prog(list)) || !*prog) {
@@ -45,7 +41,7 @@ void mailto_func(struct session *ses, unsigned char *url)
 	if (f) msg_box(ses->term, NULL, TEXT(T_BAD_URL_SYNTAX), AL_CENTER, TEXT(T_BAD_MAILTO_URL), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
-void tn_func(struct session *ses, unsigned char *url, struct list_head *prog, unsigned char *t1, unsigned char *t2)
+static void tn_func(struct session *ses, unsigned char *url, struct list_head *prog, unsigned char *t1, unsigned char *t2)
 {
 	unsigned char *m;
 	unsigned char *h, *p;

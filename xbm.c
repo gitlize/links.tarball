@@ -41,13 +41,8 @@ struct xbm_decoder{
 	unsigned char buffer[XBM_BUFFER_LEN];
 };
 
-extern int get_foreground(int rgb);
 
-unsigned char *my_memmem(unsigned char *, int, unsigned char *, int);
-void xbm_decode(struct cached_image *, unsigned char *, int);
-
-
-unsigned char *my_memmem(unsigned char *h, int hl, unsigned char *n, int nl)
+static unsigned char *my_memmem(unsigned char *h, int hl, unsigned char *n, int nl)
 {
 	for (;hl>=nl;hl--,h++)
 		if (*h==*n&&!memcmp(h,n,nl))return h;
@@ -138,7 +133,7 @@ static inline void put_eight(struct cached_image *cimg,int bits)
 
 /* opravdovy dekoder xbm, data jsou bez komentaru */
 /* length is always !=NULL */
-void xbm_decode(struct cached_image *cimg, unsigned char *data, int length)
+static void xbm_decode(struct cached_image *cimg, unsigned char *data, int length)
 {
 	struct xbm_decoder *deco=(struct xbm_decoder *)cimg->decoder;
 	/* okurky v decu ;-) */

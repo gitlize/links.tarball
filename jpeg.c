@@ -23,13 +23,11 @@ struct jerr_struct{
 	jmp_buf setjmp_buffer;
 };
 
-struct jerr_struct *global_jerr;
-struct jpeg_decompress_struct *global_cinfo;
-int mesg_unsup_emitted; /* Defaults to zero at program startup and once set
-			 * is never reset back to zero */
+static struct jerr_struct *global_jerr;
+static struct jpeg_decompress_struct *global_cinfo;
+static int mesg_unsup_emitted; /* Defaults to zero at program startup and once
+				* set is never reset back to zero */
 
-void cmyk_to_rgb(unsigned char *data, int pixels);
-void gray_to_rgb(unsigned char *data, int pixels);
 
 METHODDEF(void) my_error_exit(j_common_ptr cinfo)
 {
@@ -113,7 +111,7 @@ g19_2000:
  * to RGB so that we must do it ourselves.
  *
  * data must be non-NULL. */
-void cmyk_to_rgb(unsigned char *data, int pixels)
+static void cmyk_to_rgb(unsigned char *data, int pixels)
 {
 	for (;pixels;pixels--, data+=4)
 	{
@@ -132,7 +130,7 @@ void cmyk_to_rgb(unsigned char *data, int pixels)
 }
 
 /* data must be non-NULL */
-void gray_to_rgb(unsigned char *data, int pixels)
+static void gray_to_rgb(unsigned char *data, int pixels)
 {
 	unsigned char *dest;
 

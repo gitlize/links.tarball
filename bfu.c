@@ -13,31 +13,6 @@ unsigned G_SCROLL_BAR_AREA_COLOR;
 unsigned G_SCROLL_BAR_BAR_COLOR;
 unsigned G_SCROLL_BAR_FRAME_COLOR;
 
-/* prototypes */
-int is_in_str(unsigned char *, int);
-void select_menu(struct terminal *, struct menu *);
-void count_menu_size(struct terminal *, struct menu *);
-void scroll_menu(struct menu *, int);
-void display_menu_txt(struct terminal *, struct menu *);
-void display_menu_item_gfx(struct terminal *, struct menu *, int);
-void display_menu_gfx(struct terminal *, struct menu *);
-void display_mainmenu(struct terminal *, struct mainmenu *);
-void select_mainmenu(struct terminal *, struct mainmenu *);
-void u_display_dlg_item(struct terminal *, void *);
-void x_display_dlg_item(struct dialog_data *, struct dialog_item_data *, int);
-void dlg_select_item(struct dialog_data *, struct dialog_item_data *);
-void dlg_set_history(struct dialog_item_data *);
-int dlg_mouse(struct dialog_data *, struct dialog_item_data *, struct event *);
-void redraw_dialog_items(struct terminal *, struct dialog_data *);
-int dlg_is_braille_moving(struct dialog_data *);
-void redraw_dialog(struct terminal *, struct dialog_data *);
-void tab_compl(struct terminal *, unsigned char *, struct window *);
-void do_tab_compl(struct terminal *, struct list_head *, struct window *);
-int msg_box_button(struct dialog_data *, struct dialog_item_data *);
-int input_field_cancel(struct dialog_data *, struct dialog_item_data *);
-int input_field_ok(struct dialog_data *, struct dialog_item_data *);
-
-
 struct memory_list *getml(void *p, ...)
 {
 	struct memory_list *ml;
@@ -93,6 +68,17 @@ void freeml(struct memory_list *ml)
 	mem_free(ml);
 }
 
+static inline int is_utf_8(struct terminal *term)
+{
+#ifdef G
+	if (F) return 1;
+#endif
+#ifdef ENABLE_UTF8
+	if (term->spec->charset == utf8_table) return 1;
+#endif
+	return 0;
+}
+
 static inline int ttxtlen(struct terminal *term, unsigned char *s)
 {
 #ifdef ENABLE_UTF8
@@ -116,7 +102,7 @@ static inline int txtlen(struct terminal *term, unsigned char *s)
 
 #ifdef G
 
-int is_in_str(unsigned char *str, int u)
+static int is_in_str(unsigned char *str, int u)
 {
 	while (*str) {
 		int v;
@@ -230,7 +216,7 @@ void do_menu(struct terminal *term, struct menu_item *items, void *data)
 	do_menu_selected(term, items, data, 0);
 }
 
-void select_menu(struct terminal *term, struct menu *menu)
+static void select_menu(struct terminal *term, struct menu *menu)
 {
 	struct menu_item *it = &menu->items[menu->selected];
 	void (*func)(struct terminal *, void *, void *) = it->func;
@@ -244,7 +230,7 @@ void select_menu(struct terminal *term, struct menu *menu)
 	func(term, data1, data2);
 }
 
-void count_menu_size(struct terminal *term, struct menu *menu)
+static void count_menu_size(struct terminal *term, struct menu *menu)
 {
 	int sx = term->x;
 	int sy = term->y;
@@ -285,7 +271,7 @@ void count_menu_size(struct terminal *term, struct menu *menu)
 #endif
 }
 
-void scroll_menu(struct menu *menu, int d)
+static void scroll_menu(struct menu *menu, int d)
 {
 	int c = 0;
 	int w = menu->nview;
@@ -310,7 +296,7 @@ void scroll_menu(struct menu *menu, int d)
 	if (menu->view < 0) menu->view = 0;
 }
 
-void display_menu_txt(struct terminal *term, struct menu *menu)
+static void display_menu_txt(struct terminal *term, struct menu *menu)
 {
 	int p, s;
 	int setc = 0;
@@ -370,7 +356,7 @@ int menu_oldsel = -1;
 
 int menu_ptr_set;
 
-void display_menu_item_gfx(struct terminal *term, struct menu *menu, int it)
+static void display_menu_item_gfx(struct terminal *term, struct menu *menu, int it)
 {
 	struct menu_item *item = &menu->items[it];
 	struct graphics_device *dev = term->dev;
@@ -431,7 +417,7 @@ void display_menu_item_gfx(struct terminal *term, struct menu *menu, int it)
 	}
 }
 
-void display_menu_gfx(struct terminal *term, struct menu *menu)
+static void display_menu_gfx(struct terminal *term, struct menu *menu)
 {
 	int p;
 	struct graphics_device *dev = term->dev;
@@ -623,7 +609,7 @@ void do_mainmenu(struct terminal *term, struct menu_item *items, void *data, int
 	}
 }
 
-void display_mainmenu(struct terminal *term, struct mainmenu *menu)
+static void display_mainmenu(struct terminal *term, struct mainmenu *menu)
 {
 	if (!F) {
 		int i;
@@ -686,7 +672,7 @@ void display_mainmenu(struct terminal *term, struct mainmenu *menu)
 	}
 }
 
-void select_mainmenu(struct terminal *term, struct mainmenu *menu)
+static void select_mainmenu(struct terminal *term, struct mainmenu *menu)
 {
 	struct menu_item *it = &menu->items[menu->selected];
 	if (menu->selected < 0 || menu->selected >= menu->ni || it->hotkey == M_BAR) return;
@@ -821,7 +807,8 @@ void display_dlg_item(struct dialog_data *dlg, struct dialog_item_data *di, int 
 	struct terminal *term = dlg->win->term;
 	if (!F) switch (di->item->type) {
 		int co;
-		unsigned char *text, *t, *tt;
+		unsigned char *text, *t;
+		int vposlen, cposlen;
 		case D_CHECKBOX:
 			if (di->item->gid)	/* radio */
 			{
@@ -840,19 +827,32 @@ void display_dlg_item(struct dialog_data *dlg, struct dialog_item_data *di, int 
 			break;
 		case D_FIELD:
 		case D_FIELD_PASS:
-			if (di->vpos + di->l <= di->cpos) di->vpos = di->cpos - di->l + 1;
-			if (di->vpos > di->cpos) di->vpos = di->cpos;
-			if (di->vpos < 0) di->vpos = 0;
 			fill_area(term, di->x, di->y, di->l, 1, ' ', COLOR_DIALOG_FIELD);
+			if (di->vpos > di->cpos) di->vpos = di->cpos;
+			vposlen = ttxtlen(term, di->cdata + di->vpos);
+			cposlen = ttxtlen(term, di->cdata + di->cpos);
+			if (!di->l) {
+				di->vpos = di->cpos;
+				vposlen = cposlen;
+			} else {
+				while (vposlen - cposlen > di->l - 1) {
+					t = di->cdata + di->vpos;
+					GET_TERM_CHAR(term, &t);
+					di->vpos = t - di->cdata;
+					vposlen--;
+				}
+			}
 			if (di->item->type == D_FIELD_PASS) {
-				t = stracpy(di->cdata);
-				for (tt = t; *tt; *tt++ = '*');
-			} else t = di->cdata;
-			/* !!! UTF */
-			print_text(term, di->x, di->y, strlen(t + di->vpos) <= (size_t)di->l ? (int)strlen(t + di->vpos) : di->l, t + di->vpos, COLOR_DIALOG_FIELD_TEXT);
+				t = mem_alloc(vposlen + 1);
+				memset(t, '*', vposlen);
+				t[vposlen] = 0;
+			} else {
+				t = di->cdata + di->vpos;
+			}
+			print_text(term, di->x, di->y, di->l, t, COLOR_DIALOG_FIELD_TEXT);
 			if (di->item->type == D_FIELD_PASS) mem_free(t);
 			if (sel) {
-				set_cursor(term, di->x + di->cpos - di->vpos, di->y, di->x + di->cpos - di->vpos, di->y);
+				set_cursor(term, di->x + vposlen - cposlen, di->y, di->x + di->cpos - di->vpos, di->y);
 				set_window_ptr(dlg->win, di->x, di->y);
 			}
 			break;
@@ -991,20 +991,20 @@ struct dspd {
 	int sel;
 };
 
-void u_display_dlg_item(struct terminal *term, void *p)
+static void u_display_dlg_item(struct terminal *term, void *p)
 {
 	struct dspd *d = p;
 	display_dlg_item(d->dlg, d->di, d->sel);
 }
 
-void x_display_dlg_item(struct dialog_data *dlg, struct dialog_item_data *di, int sel)
+static void x_display_dlg_item(struct dialog_data *dlg, struct dialog_item_data *di, int sel)
 {
 	struct dspd dspd;
 	dspd.dlg = dlg, dspd.di = di, dspd.sel = sel;
 	draw_to_window(dlg->win, u_display_dlg_item, &dspd);
 }
 
-void dlg_select_item(struct dialog_data *dlg, struct dialog_item_data *di)
+static void dlg_select_item(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	if (di->item->type == D_CHECKBOX) {
 		if (!di->item->gid) di -> checked = *(int *)di->cdata = !*(int *)di->cdata;
@@ -1024,7 +1024,7 @@ void dlg_select_item(struct dialog_data *dlg, struct dialog_item_data *di)
 	else if (di->item->type == D_BUTTON) di->item->fn(dlg, di);
 }
 
-void dlg_set_history(struct dialog_item_data *di)
+static void dlg_set_history(struct dialog_item_data *di)
 {
 	unsigned char *s = "";
 	int l;
@@ -1036,7 +1036,7 @@ void dlg_set_history(struct dialog_item_data *di)
 	di->vpos = 0;
 }
 
-int dlg_mouse(struct dialog_data *dlg, struct dialog_item_data *di, struct event *ev)
+static int dlg_mouse(struct dialog_data *dlg, struct dialog_item_data *di, struct event *ev)
 {
 	switch (di->item->type) {
 		case D_BUTTON:
@@ -1051,10 +1051,8 @@ int dlg_mouse(struct dialog_data *dlg, struct dialog_item_data *di, struct event
 		case D_FIELD:
 		case D_FIELD_PASS:
 			if (gf_val(ev->y != di->y, ev->y < di->y || ev->y >= di->y + G_BFU_FONT_SIZE) || ev->x < di->x || ev->x >= di->x + di->l) return 0;
-			if (!F) {
-				/* !!! UTF */
+			if (!is_utf_8(dlg->win->term)) {
 				if ((size_t)(di->cpos = di->vpos + ev->x - di->x) > strlen(di->cdata)) di->cpos = strlen(di->cdata);
-#ifdef G
 			} else {
 				int p, u;
 				unsigned char *t = di->cdata;
@@ -1064,10 +1062,12 @@ int dlg_mouse(struct dialog_data *dlg, struct dialog_item_data *di, struct event
 					if (!*t) break;
 					GET_UTF_8(t, u);
 					if (!u) continue;
-					p += g_char_width(bfu_style_wb_mono, u);
+					if (!F) p++;
+#ifdef G
+					else p += g_char_width(bfu_style_wb_mono, u);
+#endif
 					if (p > ev->x) break;
 				}
-#endif
 			}
 			if (dlg->selected != di - dlg->items) {
 				x_display_dlg_item(dlg, &dlg->items[dlg->selected], 0);
@@ -1088,18 +1088,18 @@ int dlg_mouse(struct dialog_data *dlg, struct dialog_item_data *di, struct event
 	return 0;
 }
 
-void redraw_dialog_items(struct terminal *term, struct dialog_data *dlg)
+static void redraw_dialog_items(struct terminal *term, struct dialog_data *dlg)
 {
 	int i;
 	for (i = 0; i < dlg->n; i++) display_dlg_item(dlg, &dlg->items[i], i == dlg->selected);
 }
 
-int dlg_is_braille_moving(struct dialog_data *dlg)
+static int dlg_is_braille_moving(struct dialog_data *dlg)
 {
 	return dlg->win->term->spec->braille && (dlg->dlg->fn == msg_box_fn || dlg->dlg->fn == download_window_function);
 }
 
-void redraw_dialog(struct terminal *term, struct dialog_data *dlg)
+static void redraw_dialog(struct terminal *term, struct dialog_data *dlg)
 {
 #ifdef G
 	int i;
@@ -1121,7 +1121,7 @@ void redraw_dialog(struct terminal *term, struct dialog_data *dlg)
 #endif
 }
 
-void tab_compl(struct terminal *term, unsigned char *item, struct window *win)
+static void tab_compl(struct terminal *term, unsigned char *item, struct window *win)
 {
 	struct event ev = {EV_REDRAW, 0, 0, 0};
 	struct dialog_item_data *di = &((struct dialog_data*)win->data)->items[((struct dialog_data*)win->data)->selected];
@@ -1136,7 +1136,7 @@ void tab_compl(struct terminal *term, unsigned char *item, struct window *win)
 	dialog_func(win, &ev, 0);
 }
 
-void do_tab_compl(struct terminal *term, struct list_head *history, struct window *win)
+static void do_tab_compl(struct terminal *term, struct list_head *history, struct window *win)
 {
 	unsigned char *cdata = ((struct dialog_data*)win->data)->items[((struct dialog_data*)win->data)->selected].cdata;
 	int l = strlen(cdata), n = 0;
@@ -1262,30 +1262,25 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 					goto dsp_f;
 				}
 				if (ev->x == KBD_RIGHT) {
-					/* !!! UTF */
 					if ((size_t)di->cpos < strlen(di->cdata)) {
-						if (!F) di->cpos++;
-#ifdef G
+						if (!is_utf_8(term)) di->cpos++;
 						else {
 							int u;
 							unsigned char *p = di->cdata + di->cpos;
 							GET_UTF_8(p, u);
 							di->cpos = p - di->cdata;
 						}
-#endif
 					}
 					goto dsp_f;
 				}
 				if (ev->x == KBD_LEFT) {
 					if (di->cpos > 0) {
-						if (!F) di->cpos--;
-#ifdef G
+						if (!is_utf_8(term)) di->cpos--;
 						else {
 							unsigned char *p = di->cdata + di->cpos;
 							BACK_UTF_8(p, di->cdata);
 							di->cpos = p - di->cdata;
 						}
-#endif
 					}
 					goto dsp_f;
 				}
@@ -1300,12 +1295,11 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 				if (ev->x >= ' ' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 					unsigned char *u;
 					unsigned char p[2] = { 0, 0 };
-					if (!F) p[0] = ev->x, u = p;
-#ifdef G
-					else {
+					if (!is_utf_8(term)) {
+						p[0] = ev->x, u = p;
+					} else {
 						u = encode_utf_8(ev->x);
 					}
-#endif
 					if (strlen(di->cdata) < di->item->dlen - strlen(u)) {
 						memmove(di->cdata + di->cpos + strlen(u), di->cdata + di->cpos, strlen(di->cdata) - di->cpos + 1);
 						memcpy(&di->cdata[di->cpos], u, strlen(u));
@@ -1316,8 +1310,7 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 				if (ev->x == KBD_BS) {
 					if (di->cpos) {
 						int s = 1;
-#ifdef G
-						if (F) {
+						if (is_utf_8(term)) {
 							unsigned u;
 							unsigned char *p, *pp;
 							p = di->cdata;
@@ -1327,7 +1320,6 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 							if (p < di->cdata + di->cpos) goto a;
 							s = p - pp;
 						}
-#endif
 						memmove(di->cdata + di->cpos - s, di->cdata + di->cpos, strlen(di->cdata) - di->cpos + s);
 						di->cpos -= s;
 					}
@@ -1336,14 +1328,12 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 				if (ev->x == KBD_DEL || (upcase(ev->x) == 'D' && ev->y & KBD_CTRL)) {
 					if ((size_t)di->cpos < strlen(di->cdata)) {
 						int s = 1;
-#ifdef G
-						if (F) {
+						if (is_utf_8(term)) {
 							unsigned u;
 							unsigned char *p = di->cdata + di->cpos;
 							GET_UTF_8(p, u);
 							s = p - (di->cdata + di->cpos);
 						}
-#endif
 						memmove(di->cdata + di->cpos, di->cdata + di->cpos + s, strlen(di->cdata) - di->cpos + s);
 					}
 					goto dsp_f;
@@ -1647,14 +1637,15 @@ void max_text_width(struct terminal *term, unsigned char *text, int *width, int 
 	do {
 		int c = 0;
 		while (*text && *text != '\n') {
-			if (!F) text++, c++;
-#ifdef G
+			if (!is_utf_8(term)) text++, c++;
 			else {
 				int u;
 				GET_UTF_8(text, u);
-				c += g_char_width(align & AL_MONO ? bfu_style_wb_mono : bfu_style_wb, u);
-			}
+				if (!F) c++;
+#ifdef G
+				else c += g_char_width(align & AL_MONO ? bfu_style_wb_mono : bfu_style_wb, u);
 #endif
+			}
 		}
 		if (c > *width) *width = c;
 	} while (*(text++));
@@ -1667,14 +1658,15 @@ void min_text_width(struct terminal *term, unsigned char *text, int *width, int 
 	do {
 		int c = 0;
 		while (*text && *text != '\n' && *text != ' ') {
-			if (!F) text++, c++;
-#ifdef G
+			if (!is_utf_8(term)) text++, c++;
 			else {
 				int u;
 				GET_UTF_8(text, u);
-				c += g_char_width(align & AL_MONO ? bfu_style_wb_mono : bfu_style_wb, u);
-			}
+				if (!F) c++;
+#ifdef G
+				else c += g_char_width(align & AL_MONO ? bfu_style_wb_mono : bfu_style_wb, u);
 #endif
+			}
 		}
 		if (c > *width) *width = c;
 	} while (*(text++));
@@ -2101,7 +2093,7 @@ void msg_box_fn(struct dialog_data *dlg)
 	mem_free(text);
 }
 
-int msg_box_button(struct dialog_data *dlg, struct dialog_item_data *di)
+static int msg_box_button(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	void (*fn)(void *) = (void (*)(void *))di->item->udata;
 	void *data = dlg->dlg->udata2;
@@ -2201,7 +2193,7 @@ void add_to_history(struct history *h, unsigned char *t)
 	}
 }
 
-int input_field_cancel(struct dialog_data *dlg, struct dialog_item_data *di)
+static int input_field_cancel(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	void (*fn)(void *) = di->item->udata;
 	void *data = dlg->dlg->udata2;
@@ -2210,7 +2202,7 @@ int input_field_cancel(struct dialog_data *dlg, struct dialog_item_data *di)
 	return 0;
 }
 
-int input_field_ok(struct dialog_data *dlg, struct dialog_item_data *di)
+static int input_field_ok(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	void (*fn)(void *, unsigned char *) = di->item->udata;
 	void *data = dlg->dlg->udata2;

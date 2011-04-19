@@ -10,28 +10,19 @@
 
 /* DECLARATIONS */
 
-void assoc_edit_item(struct dialog_data *,void *,void (*)(struct dialog_data *,void *,void *,struct list_description *),void *, unsigned char);
-void assoc_copy_item(void *, void *);
-void *assoc_default_value(struct session*, unsigned char);
-void *assoc_new_item(void *);
-void assoc_delete_item(void *);
-void *assoc_find_item(void *start, unsigned char *str, int direction);
-unsigned char *assoc_type_item(struct terminal *, void *, int);
-void assoc_edit_item_fn(struct dialog_data *);
-void assoc_edit_done(void *);
-void assoc_edit_abort(struct dialog_data *);
-void ext_edit_item_fn(struct dialog_data *);
-void ext_edit_done(void *);
-void ext_edit_abort(struct dialog_data *);
-int is_in_list(unsigned char *, unsigned char *, int);
-unsigned char *get_content_type_by_extension(unsigned char *url);
-unsigned char *get_extension_by_content_type(unsigned char *ct);
-unsigned char *get_filename_from_header(unsigned char *head);
+static void assoc_edit_item(struct dialog_data *,void *,void (*)(struct dialog_data *,void *,void *,struct list_description *),void *, unsigned char);
+static void assoc_copy_item(void *, void *);
+static void *assoc_new_item(void *);
+static void assoc_delete_item(void *);
+static void *assoc_find_item(void *start, unsigned char *str, int direction);
+static unsigned char *assoc_type_item(struct terminal *, void *, int);
+
+static unsigned char *get_filename_from_header(unsigned char *head);
 
 
 struct list assoc={&assoc,&assoc,0,-1,NULL};
 
-struct history assoc_search_history = { 0, { &assoc_search_history.items, &assoc_search_history.items } };
+static struct history assoc_search_history = { 0, { &assoc_search_history.items, &assoc_search_history.items } };
 
 struct assoc_ok_struct{
 	void (*fn)(struct dialog_data *,void *,void *,struct list_description *);
@@ -75,7 +66,7 @@ void *assoc_default_value(struct session* ses, unsigned char type)
 	return NULL;
 }
 
-void *assoc_new_item(void *ignore)
+static void *assoc_new_item(void *ignore)
 {
 	struct assoc *new;
 
@@ -93,7 +84,7 @@ void *assoc_new_item(void *ignore)
 	return new;
 }
 
-void assoc_delete_item(void *data)
+static void assoc_delete_item(void *data)
 {
 	struct assoc *del=(struct assoc *)data;
 	struct assoc *next=del->next;
@@ -107,7 +98,7 @@ void assoc_delete_item(void *data)
 	mem_free(del);
 }
 
-void assoc_copy_item(void *in, void *out)
+static void assoc_copy_item(void *in, void *out)
 {
 	struct assoc *item_in=(struct assoc *)in;
 	struct assoc *item_out=(struct assoc *)out;
@@ -131,7 +122,7 @@ void assoc_copy_item(void *in, void *out)
 
 /* allocate string and print association into it */
 /* x: 0=type all, 1=type title only */
-unsigned char *assoc_type_item(struct terminal *term, void *data, int x)
+static unsigned char *assoc_type_item(struct terminal *term, void *data, int x)
 {
 	unsigned char *txt, *txt1;
 	struct conv_table *table;
@@ -175,7 +166,7 @@ unsigned char *ct_msg[] = {
 	TEXT(T_ACCEPT_FTP),
 };
 
-void assoc_edit_item_fn(struct dialog_data *dlg)
+static void assoc_edit_item_fn(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
 	int max = 0, min = 0;
@@ -233,7 +224,7 @@ void assoc_edit_item_fn(struct dialog_data *dlg)
 }
 
 /* Puts url and title into the bookmark item */
-void assoc_edit_done(void *data)
+static void assoc_edit_done(void *data)
 {
 	struct dialog *d=(struct dialog*)data;
 	struct assoc *item=(struct assoc *)d->udata;
@@ -261,7 +252,7 @@ void assoc_edit_done(void *data)
 }
 
 /* destroys an item, this function is called when edit window is aborted */
-void assoc_edit_abort(struct dialog_data *data)
+static void assoc_edit_abort(struct dialog_data *data)
 {
 	struct assoc *item=(struct assoc*)data->dlg->udata;
 	struct dialog *dlg=data->dlg;
@@ -270,7 +261,7 @@ void assoc_edit_abort(struct dialog_data *data)
 	if (item)assoc_delete_item(item);
 }
 
-void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title)
+static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title)
 {
 	int p;
 	struct assoc *new=(struct assoc*)data;
@@ -362,7 +353,7 @@ void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct d
 	do_dialog(term, d, getml(d, NULL));
 }
 
-void *assoc_find_item(void *start, unsigned char *str, int direction)
+static void *assoc_find_item(void *start, unsigned char *str, int direction)
 {
 	struct assoc *a,*s=(struct assoc *)start;
 	
@@ -542,7 +533,7 @@ unsigned char *ext_msg[] = {
 	TEXT(T_CONTENT_TYPE),
 };
 
-void ext_edit_item_fn(struct dialog_data *dlg)
+static void ext_edit_item_fn(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
 	int max = 0, min = 0;
@@ -582,7 +573,7 @@ void ext_edit_item_fn(struct dialog_data *dlg)
 
 
 /* Puts url and title into the bookmark item */
-void ext_edit_done(void *data)
+static void ext_edit_done(void *data)
 {
 	struct dialog *d=(struct dialog*)data;
 	struct extension *item=(struct extension *)d->udata;
@@ -607,7 +598,7 @@ void ext_edit_done(void *data)
 
 
 /* destroys an item, this function is called when edit window is aborted */
-void ext_edit_abort(struct dialog_data *data)
+static void ext_edit_abort(struct dialog_data *data)
 {
 	struct extension *item=(struct extension*)data->dlg->udata;
 	struct dialog *dlg=data->dlg;
@@ -787,7 +778,7 @@ struct list_head mms_prog = { &mms_prog, &mms_prog };
 struct list_head magnet_prog = { &magnet_prog, &magnet_prog };
 
 
-int is_in_list(unsigned char *list, unsigned char *str, int l)
+static int is_in_list(unsigned char *list, unsigned char *str, int l)
 {
 	unsigned char *l2, *l3;
 	if (!l) return 0;
@@ -803,7 +794,7 @@ int is_in_list(unsigned char *list, unsigned char *str, int l)
 	goto rep;
 }
 
-unsigned char *get_content_type_by_extension(unsigned char *url)
+static unsigned char *get_content_type_by_extension(unsigned char *url)
 {
 	struct extension *e;
 	struct assoc *a;
@@ -857,7 +848,7 @@ unsigned char *get_content_type_by_extension(unsigned char *url)
 	return NULL;
 }
 
-unsigned char *get_extension_by_content_type(unsigned char *ct)
+static unsigned char *get_extension_by_content_type(unsigned char *ct)
 {
 	struct extension *e;
 	unsigned char *x, *y;
@@ -912,7 +903,7 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 			memmove(ct, ct + 1, strlen(ct));
 			ct[strlen(ct) - 1] = 0;
 		}
-		if (!strcasecmp(ct, "text/plain") || !strcasecmp(ct, "application/octet-stream") || !strcasecmp(ct, "application/octetstream")) {
+		if (!strcasecmp(ct, "text/plain") || !strcasecmp(ct, "application/octet-stream") || !strcasecmp(ct, "application/octetstream") || !strcasecmp(ct, "application/octet_stream")) {
 			unsigned char *ctt = get_content_type_by_extension(url);
 			if (ctt) {
 				mem_free(ct);
@@ -1052,7 +1043,7 @@ int is_html_type(unsigned char *ct)
 	return !strcasecmp(ct, "text/html") || !strcasecmp(ct, "text/x-server-parsed-html") || !casecmp(ct, "application/xhtml", strlen("application/xhtml"));
 }
 
-unsigned char *get_filename_from_header(unsigned char *head)
+static unsigned char *get_filename_from_header(unsigned char *head)
 {
 	unsigned char *ct, *x, *y;
 	if ((ct = parse_http_header(head, "Content-Disposition", NULL))) {
@@ -1118,8 +1109,10 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 				add_to_strn(&want_ext, x);
 			}
 		} else {
-			if (strlen(x) + 1 < strlen(f) && f[strlen(f) - strlen(x) - 1] == '.' && !strcasecmp(f + strlen(f) - strlen(x), x)) {
-				f[strlen(f) - strlen(x) - 1] = 0;
+			if (x) {
+				if (strlen(x) + 1 < strlen(f) && f[strlen(f) - strlen(x) - 1] == '.' && !strcasecmp(f + strlen(f) - strlen(x), x)) {
+					f[strlen(f) - strlen(x) - 1] = 0;
+				}
 			}
 		}
 		mem_free(ct);

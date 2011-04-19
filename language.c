@@ -18,10 +18,10 @@ unsigned char dummyarray[T__N_TEXTS];
 
 #include "language.inc"
 
-unsigned char **translation_array[N_LANGUAGES][N_CODEPAGES];
+static unsigned char **translation_array[N_LANGUAGES][N_CODEPAGES];
 
 int current_language;
-int current_lang_charset;
+static int current_lang_charset;
 
 void init_trans(void)
 {

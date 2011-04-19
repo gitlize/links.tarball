@@ -12,10 +12,6 @@
 
 struct list_head image_cache = { &image_cache, &image_cache };
 
-/* prototypes */
-int image_size(struct cached_image *);
-int shrink_image_cache(int);
-
 /* xyw_meaning either MEANING_DIMS or MEANING_AUTOSCALE. */
 struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
 		yw, int xyw_meaning, int scale, int aspect)
@@ -58,7 +54,7 @@ void add_image_to_cache(struct cached_image *ci)
 	add_to_list(image_cache, ci);
 }
 
-int image_size(struct cached_image *cimg)
+static int image_size(struct cached_image *cimg)
 {
 	int siz = 100;
 	switch(cimg->state){
@@ -92,7 +88,7 @@ int image_size(struct cached_image *cimg)
 	return siz;
 }
 
-int shrink_image_cache(int u)
+static int shrink_image_cache(int u)
 {
 	struct cached_image *i;
 	int si = 0;

@@ -8,25 +8,19 @@
 
 int retval = RET_OK;
 
-void unhandle_basic_signals(struct terminal *);
-void sig_terminate(struct terminal *);
-void sig_intr(struct terminal *);
-void sig_ctrl_c(struct terminal *);
-void poll_fg(void *);
-void handle_basic_signals(struct terminal *);
-void end_dump(struct object_request *, void *);
-void init(void);
-void terminate_all_subsystems(void);
+static void unhandle_basic_signals(struct terminal *);
+static void poll_fg(void *);
 
-
-void sig_terminate(struct terminal *t)
+#if 0
+static void sig_terminate(struct terminal *t)
 {
 	unhandle_basic_signals(t);
 	terminate_loop = 1;
 	retval = RET_SIGNAL;
 }
+#endif
 
-void sig_intr(struct terminal *t)
+static void sig_intr(struct terminal *t)
 {
 	if (!t) {
 		unhandle_basic_signals(t);
@@ -37,7 +31,7 @@ void sig_intr(struct terminal *t)
 	}
 }
 
-void sig_ctrl_c(struct terminal *t)
+static void sig_ctrl_c(struct terminal *t)
 {
 	if (!is_blocked()) kbd_ctrl_c();
 }
@@ -80,7 +74,7 @@ void sig_tstp(struct terminal *t)
 	fg_poll_timer = install_timer(FG_POLL_TIME, poll_fg, t);
 }
 
-void poll_fg(void *t)
+static void poll_fg(void *t)
 {
 	int r;
 	fg_poll_timer = -1;
@@ -114,7 +108,7 @@ void sig_cont(struct terminal *t)
 	/*else register_bottom_half(raise, SIGSTOP);*/
 }
 
-void handle_basic_signals(struct terminal *term)
+static void handle_basic_signals(struct terminal *term)
 {
 	install_signal_handler(SIGHUP, (void (*)(void *))sig_intr, term, 0);
 	if (!F) install_signal_handler(SIGINT, (void (*)(void *))sig_ctrl_c, term, 0);
@@ -205,7 +199,7 @@ int attach_g_terminal(void *info, int len)
 struct object_request *dump_obj;
 off_t dump_pos;
 
-void end_dump(struct object_request *r, void *p)
+static void end_dump(struct object_request *r, void *p)
 {
 	struct cache_entry *ce;
 	int oh;
@@ -278,7 +272,7 @@ int init_b = 0;
 void initialize_all_subsystems(void);
 void initialize_all_subsystems_2(void);
 
-void init(void)
+static void init(void)
 {
 	int uh;
 	void *info;
@@ -392,7 +386,7 @@ void initialize_all_subsystems_2(void)
 	GF(init_grview());
 }
 
-void terminate_all_subsystems(void)
+static void terminate_all_subsystems(void)
 {
 	if (!F) af_unix_close();
 	check_bottom_halves();

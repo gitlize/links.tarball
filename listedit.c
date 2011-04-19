@@ -173,7 +173,7 @@
 #define BFU_ELEMENT_OPEN 3
 
 /* for mouse scrolling */
-long last_mouse_y;
+static long last_mouse_y;
 
 
 #ifdef G
@@ -181,26 +181,6 @@ long last_mouse_y;
 #else
 	#define sirka_scrollovadla 0
 #endif
-
-/* prototypes */
-int draw_bfu_element(struct terminal *, int, int, unsigned, long, long, unsigned char, unsigned char);
-struct list *next_in_tree(struct list_description *, struct list *);
-struct list *prev_in_tree(struct list_description *, struct list *);
-void list_insert_behind_item(struct dialog_data *, void *, void *, struct list_description *);
-void list_copy_item(struct dialog_data *, void *, void *, struct list_description *);
-int list_item_add(struct dialog_data *, struct dialog_item_data *);
-int list_folder_add(struct dialog_data *, struct dialog_item_data *);
-int list_item_edit(struct dialog_data *, struct dialog_item_data *);
-int list_item_move(struct dialog_data *, struct dialog_item_data *);
-int list_item_unselect(struct dialog_data *, struct dialog_item_data *);
-int list_item_button(struct dialog_data *, struct dialog_item_data *);
-int is_empty_dir(struct list_description *, struct list *);
-int list_item_delete(struct dialog_data *, struct dialog_item_data *);
-void redraw_list_line(struct terminal *, void *);
-void scroll_list(struct terminal *, void *);
-int list_event_handler(struct dialog_data *, struct event *);
-void create_list_window_fn(struct dialog_data *);
-void close_list_window(struct dialog_data *);
 
 
 /* This function uses these defines from setup.h:
@@ -214,7 +194,7 @@ void close_list_window(struct dialog_data *);
 /* BFU elements are used in the list window */
 /* this function also defines shape and size of the elements */
 /* returns width of the BFU element (all elements have the same size, but sizes differ if we're in text mode or in graphics mode) */
-int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, long f, unsigned char type, unsigned char selected)
+static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, long f, unsigned char type, unsigned char selected)
 {
 	if (!F){
 		unsigned char vertical=179;
@@ -411,7 +391,7 @@ struct list *next_in_tree(struct list_description *ld, struct list *item)
 /* returns previous visible item in tree list */
 /* works only with visible items (head or any item returned by this function) */
 /* when list is flat returns previous item */
-struct list *prev_in_tree(struct list_description *ld, struct list *item)
+static struct list *prev_in_tree(struct list_description *ld, struct list *item)
 {
 	struct list *last_closed;
 	int depth=item->depth;
@@ -519,7 +499,7 @@ static void unselect_in_folder(struct list_description *ld, struct list *l)
 
 
 /* aux function for list_item_add */
-void list_insert_behind_item(struct dialog_data *dlg, void *p, void *i, struct list_description *ld)
+static void list_insert_behind_item(struct dialog_data *dlg, void *p, void *i, struct list_description *ld)
 {
 	struct list *item=(struct list *)i;
 	struct list *pos=(struct list *)p;
@@ -560,7 +540,7 @@ void list_insert_behind_item(struct dialog_data *dlg, void *p, void *i, struct l
 /* aux function for list_item_edit */
 /* copies data of src to dest and calls free on the src */
 /* first argument is argument passed to user function */
-void list_copy_item(struct dialog_data *dlg, void *d, void *s, struct list_description *ld)
+static void list_copy_item(struct dialog_data *dlg, void *d, void *s, struct list_description *ld)
 {
 	struct list *src=(struct list *)s;
 	struct list *dest=(struct list *)d;
@@ -580,7 +560,7 @@ void list_copy_item(struct dialog_data *dlg, void *d, void *s, struct list_descr
 
 
 /* creates new item (calling new_item function) and calls edit_item function */
-int list_item_add(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_item_add(struct dialog_data *dlg,struct dialog_item_data *useless)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
 	struct list *item=ld->current_pos;
@@ -599,7 +579,7 @@ int list_item_add(struct dialog_data *dlg,struct dialog_item_data *useless)
 
 
 /* like list_item_add but creates folder */
-int list_folder_add(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_folder_add(struct dialog_data *dlg,struct dialog_item_data *useless)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
 	struct list *item=ld->current_pos;
@@ -617,7 +597,7 @@ int list_folder_add(struct dialog_data *dlg,struct dialog_item_data *useless)
 }
 
 
-int list_item_edit(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_item_edit(struct dialog_data *dlg,struct dialog_item_data *useless)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
 	struct list *item=ld->current_pos;
@@ -646,7 +626,7 @@ static inline int is_parent(struct list_description *ld, struct list *item, stru
 	return 0;
 }	
 
-int list_item_move(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_item_move(struct dialog_data *dlg,struct dialog_item_data *useless)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
 	struct list *i;
@@ -769,7 +749,7 @@ predratovano:
 
 
 /* unselect all items */
-int list_item_unselect(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_item_unselect(struct dialog_data *dlg,struct dialog_item_data *useless)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
 	struct list *item=ld->current_pos;
@@ -792,7 +772,7 @@ int list_item_unselect(struct dialog_data *dlg,struct dialog_item_data *useless)
 
 
 /* user button function - calls button_fn with current item */
-int list_item_button(struct dialog_data *dlg, struct dialog_item_data *useless)
+static int list_item_button(struct dialog_data *dlg, struct dialog_item_data *useless)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
 	struct list *item=ld->current_pos;
@@ -892,7 +872,7 @@ static void delete_folder_recursively(void * data)
 
 
 /* tests if directory is emty */
-int is_empty_dir(struct list_description *ld, struct list *dir)
+static int is_empty_dir(struct list_description *ld, struct list *dir)
 {
 	if (!(ld->type))return 1;  /* flat list */
 	if (!((dir->type)&1))return 1;   /* not a directory */
@@ -902,7 +882,7 @@ int is_empty_dir(struct list_description *ld, struct list *dir)
 
 
 /* delete dialog */
-int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *useless)
 {
 	struct terminal *term=dlg->win->term;
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
@@ -1157,7 +1137,7 @@ void redraw_list(struct terminal *term, void *bla)
 
 /* moves cursor from old position to a new one */
 /* direction: -1=old is previous, +1=old is next */
-void redraw_list_line(struct terminal *term, void *bla)
+static void redraw_list_line(struct terminal *term, void *bla)
 {
 	struct redraw_data *rd=(struct redraw_data *)bla;
 	struct list_description *ld=rd->ld;
@@ -1317,7 +1297,6 @@ void redraw_list_line(struct terminal *term, void *bla)
 	{
 		unsigned char *txt;
 		struct rect old_area;
-		int n=0;
 		int x=0;
 		int b;
 		struct list *l;
@@ -1375,7 +1354,6 @@ void redraw_list_line(struct terminal *term, void *bla)
 		mem_free(txt);
 		
 		if (!direction) goto skip_old_2;
-		n=0;
 		x=0;
 		/* previous/next */
 		if (direction==1)l=next_in_tree(ld,ld->current_pos);
@@ -1434,7 +1412,7 @@ void redraw_list_line(struct terminal *term, void *bla)
 /* like redraw_list, but scrolls window, prints new line to top/bottom */
 /* in text mode calls redraw list */
 /* direction: -1=up, 1=down */
-void scroll_list(struct terminal *term, void *bla)
+static void scroll_list(struct terminal *term, void *bla)
 {
 #ifdef G
 	struct redraw_data *rd=(struct redraw_data *)bla;
@@ -1555,7 +1533,7 @@ void list_search_for(struct redraw_data *rd, unsigned char *str)
 	list_find_next(rd, ld->search_direction);
 }
 
-int list_event_handler(struct dialog_data *dlg, struct event *ev)
+static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 {
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
 	static struct redraw_data rd;
@@ -1966,7 +1944,7 @@ int list_event_handler(struct dialog_data *dlg, struct event *ev)
 
 
 /* display function for the list window */
-void create_list_window_fn(struct dialog_data *dlg)
+static void create_list_window_fn(struct dialog_data *dlg)
 {
 	struct terminal *term=dlg->win->term;
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
@@ -2007,7 +1985,7 @@ void create_list_window_fn(struct dialog_data *dlg)
 }
 
 
-void close_list_window(struct dialog_data *dlg)
+static void close_list_window(struct dialog_data *dlg)
 {
 	struct dialog *d=dlg->dlg;
 	struct list_description *ld=(struct list_description*)(d->udata2);

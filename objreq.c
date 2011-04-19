@@ -6,16 +6,12 @@
 
 #include "links.h"
 
-void objreq_end(struct status *, struct object_request *);
-void object_timer(struct object_request *);
-void auth_fn(struct dialog_data *);
-int auth_cancel(struct dialog_data *, struct dialog_item_data *);
-int auth_ok(struct dialog_data *, struct dialog_item_data *);
-int auth_window(struct object_request *, unsigned char *);
+static void objreq_end(struct status *, struct object_request *);
+static void object_timer(struct object_request *);
 
 
-struct list_head requests = {&requests, &requests};
-tcount obj_req_count = 1;
+static struct list_head requests = {&requests, &requests};
+static tcount obj_req_count = 1;
 
 #define LL gf_val(1, G_BFU_FONT_SIZE)
 
@@ -36,7 +32,7 @@ static inline struct object_request *find_rq(tcount c)
 	return NULL;
 }
 
-void auth_fn(struct dialog_data *dlg)
+static void auth_fn(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
 	struct auth_dialog *a = dlg->dlg->udata;
@@ -78,7 +74,7 @@ void auth_fn(struct dialog_data *dlg)
 	dlg_format_buttons(dlg, term, dlg->items + 2, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
 
-int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
+static int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 {
 	struct object_request *rq = find_rq((my_intptr_t)dlg->dlg->udata2);
 	if (rq) {
@@ -91,7 +87,7 @@ int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 	return 0;
 }
 
-int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
+static int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 {
 	struct object_request *rq = find_rq((my_intptr_t)dlg->dlg->udata2);
 	if (rq) {
@@ -116,7 +112,7 @@ int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 	return 0;
 }
 
-int auth_window(struct object_request *rq, unsigned char *realm)
+static int auth_window(struct object_request *rq, unsigned char *realm)
 {
 	unsigned char *host, *port;
 	struct dialog *d;
@@ -209,7 +205,7 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 	load_url(url, prev_url, &rq->stat, pri, cache);
 }
 
-void objreq_end(struct status *stat, struct object_request *rq)
+static void objreq_end(struct status *stat, struct object_request *rq)
 {
 	if (stat->state < 0) {
 		if (stat->ce && rq->state == O_WAITING && stat->ce->redirect) {
@@ -274,7 +270,7 @@ void objreq_end(struct status *stat, struct object_request *rq)
 	rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
 }
 
-void object_timer(struct object_request *rq)
+static void object_timer(struct object_request *rq)
 {
 	int last = rq->last_bytes;
 	if (rq->ce) rq->last_bytes = rq->ce->length;

@@ -41,11 +41,7 @@
 #define R_ALL		3
 #define R_GROUPS	4
 
-void get_align(char *, int *);
-void get_valign(char *, int *);
-void get_c_width(char *, int *, int);
-
-void get_align(char *attr, int *a)
+static void get_align(char *attr, int *a)
 {
 	char *al;
 	if ((al = get_attr_val(attr, "align"))) {
@@ -58,7 +54,7 @@ void get_align(char *attr, int *a)
 	}
 }
 
-void get_valign(char *attr, int *a)
+static void get_valign(char *attr, int *a)
 {
 	char *al;
 	if ((al = get_attr_val(attr, "valign"))) {
@@ -70,7 +66,7 @@ void get_valign(char *attr, int *a)
 	}
 }
 
-void get_c_width(char *attr, int *w, int sh)
+static void get_c_width(char *attr, int *w, int sh)
 {
 	char *al;
 	if ((al = get_attr_val(attr, "width"))) {
@@ -164,40 +160,6 @@ struct table {
 #endif
 };
 
-/* prototype */
-void free_table(struct table *);
-void expand_cells(struct table *, int, int);
-struct table_cell *new_cell(struct table *, int, int);
-void new_columns(struct table *, int, int, int, int, int);
-void set_td_width(struct table *, int, int, int);
-void get_cell_widths(struct table *);
-void dst_width(int *, int, int, int *);
-int get_vline_width(struct table *, int);
-int get_hline_width(struct table *, int);
-int g_get_vline_pad(struct table *, int, int *, int *);
-int g_get_hline_pad(struct table *, int, int *, int *);
-int get_column_widths(struct table *);
-void get_table_width(struct table *);
-void distribute_widths(struct table *, int);
-void check_table_widths(struct table *);
-void get_table_heights(struct table *);
-void display_complicated_table(struct table *, int, int, int *);
-void get_table_frame(struct table *, signed char *, signed char *);
-void display_table_frames(struct table *, int, int);
-#ifdef G
-void add_to_rect_sets(struct rect_set ***, int *, struct rect *);
-void add_to_cell_sets(struct table_cell ****, int **, int *, struct rect *, struct table_cell *);
-void table_mouse_event(struct f_data_c *, struct g_object_table *, int, int, int);
-void draw_rect_set(struct graphics_device *, struct background *, struct rect_set *, int, int);
-void draw_rect_sets(struct graphics_device *, struct background *, struct rect_set **, int, int, int);
-void table_draw(struct f_data_c *, struct g_object_table *, int, int);
-void table_destruct(struct g_object_table *);
-void table_get_list(struct g_object_table *, void (*)(struct g_object *, struct g_object *));
-#endif
-struct table *new_table(void);
-
-void get_cell_width(char *, char *, int, int, int, int *, int *, int, int *, unsigned char *);
-
 
 #ifdef DEBUG
 #define CELL(t, x, y) (((x) < 0 || (x) >= (t)->rx || (y) < 0 || (y) >= (t)->ry) ? (internal("accessing cell out of table (%d,%d) - limit (%d,%d)", (x), (y), (t)->rx, (t)->ry), (t)->cells) : &(t)->cells[(y) * (t)->rx + (x)])
@@ -205,7 +167,7 @@ void get_cell_width(char *, char *, int, int, int, int *, int *, int, int *, uns
 #define CELL(t, x, y) (&(t)->cells[(y) * (t)->rx + (x)])
 #endif
 
-unsigned char frame_table[81] = {
+static unsigned char frame_table[81] = {
 	0x00, 0xb3, 0xba,	0xc4, 0xc0, 0xd3,	0xcd, 0xd4, 0xc8,
 	0xc4, 0xd9, 0xbd,	0xc4, 0xc1, 0xd0,	0xcd, 0xd4, 0xc8,
 	0xcd, 0xbe, 0xbc,	0xcd, 0xbe, 0xbc,	0xcd, 0xcf, 0xca,
@@ -219,10 +181,10 @@ unsigned char frame_table[81] = {
 	0xbb, 0xbb, 0xb9,	0xbb, 0xbb, 0xb9,	0xcb, 0xcb, 0xce,
 };
 
-unsigned char hline_table[3] = { 0x20, 0xc4, 0xcd };
-unsigned char vline_table[3] = { 0x20, 0xb3, 0xba };
+static unsigned char hline_table[3] = { 0x20, 0xc4, 0xcd };
+static unsigned char vline_table[3] = { 0x20, 0xb3, 0xba };
 
-struct table *new_table(void)
+static struct table *new_table(void)
 {
 	struct table *t;
 	t = mem_calloc(sizeof(struct table));
@@ -250,7 +212,7 @@ struct table *new_table(void)
 	return t;
 }
 
-void free_table(struct table *t)
+static void free_table(struct table *t)
 {
 #ifdef G
 	if (F) {
@@ -280,7 +242,7 @@ void free_table(struct table *t)
 	mem_free(t);
 }
 
-void expand_cells(struct table *t, int x, int y)
+static void expand_cells(struct table *t, int x, int y)
 {
 	int i, j;
 	if (x >= t->x) {
@@ -315,7 +277,7 @@ void expand_cells(struct table *t, int x, int y)
 	}
 }
 
-struct table_cell *new_cell(struct table *t, int x, int y)
+static struct table_cell *new_cell(struct table *t, int x, int y)
 {
 	struct table nt;
 	int i, j;
@@ -351,7 +313,7 @@ struct table_cell *new_cell(struct table *t, int x, int y)
 	return CELL(t, x, y);
 }
 
-void new_columns(struct table *t, int span, int width, int align, int valign, int group)
+static void new_columns(struct table *t, int span, int width, int align, int valign, int group)
 {
 	if ((unsigned)t->c + (unsigned)span > MAXINT) overalloc();
 	if (t->c + span > t->rc) {
@@ -375,7 +337,7 @@ void new_columns(struct table *t, int span, int width, int align, int valign, in
 	}
 }
 
-void set_td_width(struct table *t, int x, int width, int f)
+static void set_td_width(struct table *t, int x, int width, int f)
 {
 	if (x >= t->xc) {
 		int n = t->xc ? t->xc : 1;
@@ -664,7 +626,7 @@ struct table *parse_table(unsigned char *html, unsigned char *eof, unsigned char
 	return t;
 }
 
-void get_cell_width(char *start, char *end, int cellpd, int w, int a, int *min, int *max, int n_link, int *n_links, unsigned char *bgc)
+static void get_cell_width(char *start, char *end, int cellpd, int w, int a, int *min, int *max, int n_link, int *n_links, unsigned char *bgc)
 {
 	struct part *p;
 #ifdef G
@@ -712,7 +674,7 @@ do {									\
 		get_cell_width(c->start, c->end, t->cellpd, 0, 0, &c->min_width, &c->max_width, nl, &nl, gf_val(NULL, c->bgcolor_str));\
 } while (0)
 
-void get_cell_widths(struct table *t)
+static void get_cell_widths(struct table *t)
 {
 	int nl = gf_val(t->p->link_num, t->gp->link_num);
 	int i, j;
@@ -723,7 +685,7 @@ void get_cell_widths(struct table *t)
 	t->link_num = nl;
 }
 
-void dst_width(int *p, int n, int w, int *lim)
+static void dst_width(int *p, int n, int w, int *lim)
 {
 	int i, s = 0, d, r;
 	for (i = 0; i < n; i++) s += p[i];
@@ -745,7 +707,7 @@ void dst_width(int *p, int n, int w, int *lim)
 	}
 }
 
-int get_vline_width(struct table *t, int col)
+static int get_vline_width(struct table *t, int col)
 {			/* return: -1 none, 0, space, 1 line, 2 double */
 	int w = 0;
 	NO_GFX;
@@ -756,7 +718,7 @@ int get_vline_width(struct table *t, int col)
 	return w;
 }
 
-int get_hline_width(struct table *t, int row)
+static int get_hline_width(struct table *t, int row)
 {
 	int w = 0;
 	NO_GFX;
@@ -776,7 +738,7 @@ int get_hline_width(struct table *t, int row)
 }
 
 #ifdef G
-int g_get_vline_pad(struct table *t, int col, int *plpos, int *plsize)
+static int g_get_vline_pad(struct table *t, int col, int *plpos, int *plsize)
 {
 	int pad, lpos, lsize;
 	int border;
@@ -803,7 +765,7 @@ int g_get_vline_pad(struct table *t, int col, int *plpos, int *plsize)
 	return pad;
 }
 
-int g_get_hline_pad(struct table *t, int row, int *plpos, int *plsize)
+static int g_get_hline_pad(struct table *t, int row, int *plpos, int *plsize)
 {
 	int pad, lpos, lsize;
 	int border;
@@ -838,7 +800,7 @@ int g_get_hline_pad(struct table *t, int row, int *plpos, int *plsize)
 }
 #endif
 	
-int get_column_widths(struct table *t)
+static int get_column_widths(struct table *t)
 {
 	int i, j, s, ns;
 	if ((unsigned)t->x > MAXINT / sizeof(int)) overalloc();
@@ -877,7 +839,7 @@ int get_column_widths(struct table *t)
 	return 0;
 }
 
-void get_table_width(struct table *t)
+static void get_table_width(struct table *t)
 {
 	int i, vl;
 	int min = 0, max = 0;
@@ -909,7 +871,7 @@ void get_table_width(struct table *t)
 	/*if (min > max) internal("min(%d) > max(%d)", min, max);*/
 }
 
-void distribute_widths(struct table *t, int width)
+static void distribute_widths(struct table *t, int width)
 {
 	int i;
 	int d = width - t->min_t;
@@ -1015,7 +977,7 @@ void distribute_widths(struct table *t, int width)
 }
 
 #ifdef HTML_TABLE_2ND_PASS
-void check_table_widths(struct table *t)
+static void check_table_widths(struct table *t)
 {
 	int *w;
 	int i, j;
@@ -1100,7 +1062,7 @@ void check_table_widths(struct table *t)
 }
 #endif
 
-void get_table_heights(struct table *t)
+static void get_table_heights(struct table *t)
 {
 	int s, ns;
 	int i, j;
@@ -1181,7 +1143,7 @@ void get_table_heights(struct table *t)
 	}
 }
 
-void display_complicated_table(struct table *t, int x, int y, int *yy)
+static void display_complicated_table(struct table *t, int x, int y, int *yy)
 {
 	int i, j;
 	struct f_data *f = t->p->data;
@@ -1257,7 +1219,7 @@ if (H_LINE_X((ii), (jj)) >= 0) xset_hchars(t->p, (xx), (yy), (ll), hline_table[H
 #define H_LINE(xx, yy) (H_LINE_X((xx), (yy)) < 0 ? 0 : H_LINE_X((xx), (yy)))
 #define V_LINE(xx, yy) (V_LINE_X((xx), (yy)) < 0 ? 0 : V_LINE_X((xx), (yy)))
 
-void get_table_frame(struct table *t, signed char *fv, signed char *fh)
+static void get_table_frame(struct table *t, signed char *fv, signed char *fh)
 {
 	int i, j;
 	memset(fh, -1, (t->x + 2) * (t->y + 1));
@@ -1299,7 +1261,7 @@ void get_table_frame(struct table *t, signed char *fv, signed char *fh)
 	}
 }
 
-void display_table_frames(struct table *t, int x, int y)
+static void display_table_frames(struct table *t, int x, int y)
 {
 	signed char *fh, *fv;
 	int i, j;
@@ -1558,7 +1520,7 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 
 #ifdef G
 
-void add_to_rect_sets(struct rect_set ***s, int *n, struct rect *r)
+static void add_to_rect_sets(struct rect_set ***s, int *n, struct rect *r)
 {
 	int i, j;
 	for (i = r->y1 >> RECT_BOUND_BITS; i <= (r->y2 - 1) >> RECT_BOUND_BITS; i++) {
@@ -1574,7 +1536,7 @@ void add_to_rect_sets(struct rect_set ***s, int *n, struct rect *r)
 	}
 }
 
-void add_to_cell_sets(struct table_cell ****s, int **nn, int *n, struct rect *r, struct table_cell *c)
+static void add_to_cell_sets(struct table_cell ****s, int **nn, int *n, struct rect *r, struct table_cell *c)
 {
 	int i, j;
 	for (i = r->y1 >> RECT_BOUND_BITS; i <= (r->y2 - 1) >> RECT_BOUND_BITS; i++) {
@@ -1601,7 +1563,7 @@ void add_to_cell_sets(struct table_cell ****s, int **nn, int *n, struct rect *r,
 	}
 }
 
-void table_mouse_event(struct f_data_c *fd, struct g_object_table *o, int x, int y, int b)
+static void table_mouse_event(struct f_data_c *fd, struct g_object_table *o, int x, int y, int b)
 {
 	struct table *t = o->t;
 	int i, j;
@@ -1611,7 +1573,7 @@ void table_mouse_event(struct f_data_c *fd, struct g_object_table *o, int x, int
 	}
 }
 
-void draw_rect_set(struct graphics_device *dev, struct background *bg, struct rect_set *rs, int x, int y)
+static void draw_rect_set(struct graphics_device *dev, struct background *bg, struct rect_set *rs, int x, int y)
 {
 	int i;
 	for (i = 0; i < rs->m; i++) {
@@ -1621,7 +1583,7 @@ void draw_rect_set(struct graphics_device *dev, struct background *bg, struct re
 	}
 }
 
-void draw_rect_sets(struct graphics_device *dev, struct background *bg, struct rect_set **rs, int nrs, int x, int y)
+static void draw_rect_sets(struct graphics_device *dev, struct background *bg, struct rect_set **rs, int nrs, int x, int y)
 {
 	int i;
 	for (i = (dev->clip.y1 - y) >> RECT_BOUND_BITS; i <= (dev->clip.y2 - y - 1) >> RECT_BOUND_BITS; i++) if (i >= 0 && i < nrs) {
@@ -1629,7 +1591,7 @@ void draw_rect_sets(struct graphics_device *dev, struct background *bg, struct r
 	}
 }
 
-void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int y)
+static void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int y)
 {
 	static int dgen = 1;
 	int i, j;
@@ -1665,13 +1627,13 @@ void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int y)
 	draw_rect_sets(dev, t->frame_bg, t->r_frame, t->nr_frame, x, y);
 }
 
-void table_destruct(struct g_object_table *o)
+static void table_destruct(struct g_object_table *o)
 {
 	free_table(o->t);
 	mem_free(o);
 }
 
-void table_get_list(struct g_object_table *o, void (*fn)(struct g_object *parent, struct g_object *child))
+static void table_get_list(struct g_object_table *o, void (*fn)(struct g_object *parent, struct g_object *child))
 {
 	struct table *t = o->t;
 	int i, j;

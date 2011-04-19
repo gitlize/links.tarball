@@ -27,20 +27,20 @@ extern struct graphics_driver pmshell_driver;
 
 #include <sys/builtin.h>
 #include <sys/fmutex.h>
-_fmutex pm_mutex;
+static _fmutex pm_mutex;
 #define pm_lock_init	_fmutex_create(&pm_mutex, 0)
 #define pm_lock		_fmutex_request(&pm_mutex, _FMR_IGNINT)
 #define pm_unlock	_fmutex_release(&pm_mutex)
 
-unsigned char *pm_class_name = "links";
-unsigned char *pm_msg_class_name = "links.msg";
+static unsigned char *pm_class_name = "links";
+static unsigned char *pm_msg_class_name = "links.msg";
 
-ULONG pm_frame = (FCF_TITLEBAR | FCF_SYSMENU | FCF_SIZEBORDER | FCF_MINMAX | FCF_SHELLPOSITION | FCF_TASKLIST | FCF_NOBYTEALIGN);
+static ULONG pm_frame = (FCF_TITLEBAR | FCF_SYSMENU | FCF_SIZEBORDER | FCF_MINMAX | FCF_SHELLPOSITION | FCF_TASKLIST | FCF_NOBYTEALIGN);
 
-ULONG pm_msg_frame = 0;
+static ULONG pm_msg_frame = 0;
 
-MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2);
-MRESULT EXPENTRY pm_msg_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2);
+static MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2);
+static MRESULT EXPENTRY pm_msg_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2);
 
 #define E_KEY		1
 #define E_MOUSE		2
@@ -72,7 +72,7 @@ struct pm_window {
 
 #define WIN_HASH	64
 
-struct pm_window *pm_windows[WIN_HASH];
+static struct pm_window *pm_windows[WIN_HASH];
 
 static void pm_hash_window(struct pm_window *win)
 {
@@ -97,10 +97,10 @@ static inline struct pm_window *pm_lookup_window(HWND h)
 
 #define pm_win(dev) ((struct pm_window *)dev->driver_data)
 
-int pm_pipe[2];
+static int pm_pipe[2];
 
-HEV pm_sem;
-ULONG pm_sem_dummy;
+static HEV pm_sem;
+static ULONG pm_sem_dummy;
 
 #define pm_wait	do {					\
 	DosWaitEventSem(pm_sem, SEM_INDEFINITE_WAIT);	\
@@ -109,20 +109,20 @@ ULONG pm_sem_dummy;
 
 #define pm_signal DosPostEventSem(pm_sem)
 
-unsigned char *pm_not_ses = "Not in a pmshell session.\n";
-unsigned char *pm_status;
+static unsigned char *pm_not_ses = "Not in a pmshell session.\n";
+static unsigned char *pm_status;
 
-HAB hab_disp;
-HAB hab;
-HMQ hmq;
-HWND hwnd_msg;
-HPS hps_msg;
-HDC hdc_mem;
-HPS hps_mem;
+static HAB hab_disp;
+static HAB hab;
+static HMQ hmq;
+static HWND hwnd_msg;
+static HPS hps_msg;
+static HDC hdc_mem;
+static HPS hps_mem;
 
-int pm_cp;
+static int pm_cp;
 
-struct list_head pm_event_windows = { &pm_event_windows, &pm_event_windows };
+static struct list_head pm_event_windows = { &pm_event_windows, &pm_event_windows };
 
 static void pm_send_event(struct pm_window *win, int t, int x1, int y1, int x2, int y2)
 {
@@ -199,7 +199,7 @@ static void pm_redraw(struct pm_window *win, RECTL *r)
 
 #define N_VK	0x42
 
-struct os2_key pm_vk_table[N_VK] = {
+static struct os2_key pm_vk_table[N_VK] = {
 	{0, 0}, {0, 0}, {0, 0}, {0, 0}, {KBD_CTRL_C, 0}, {KBD_BS, 0}, {KBD_TAB, 0}, {KBD_TAB, KBD_SHIFT},
 	{KBD_ENTER, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {KBD_ESC, 0},
 	{' ', 0}, {KBD_PAGE_UP, 0}, {KBD_PAGE_DOWN, 0}, {KBD_END, 0}, {KBD_HOME, 0}, {KBD_LEFT, 0}, {KBD_UP, 0}, {KBD_RIGHT, 0},
@@ -359,7 +359,7 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 	return WinDefWindowProc(hwnd, msg, mp1, mp2);
 }
 
-int pm_thread_shutdown;
+static int pm_thread_shutdown;
 
 #define MSG_CREATE_WINDOW	1
 #define MSG_DELETE_WINDOW	2
@@ -526,11 +526,11 @@ static void pm_handler(void *p)
 	free(ev);
 }
 
-BITMAPINFO *pm_bitmapinfo;
+static BITMAPINFO *pm_bitmapinfo;
 
-int pm_bitmap_count;
+static int pm_bitmap_count;
 
-pid_t pm_child_pid;
+static pid_t pm_child_pid;
 
 static void pm_sigcld(void *p)
 {
@@ -541,8 +541,8 @@ static void pm_sigcld(void *p)
 	else exit(RET_FATAL);
 }
 
-int pm_sin, pm_sout, pm_serr, pm_ip[2], pm_op[2], pm_ep[2];
-int pm_cons_ok = 0;
+static int pm_sin, pm_sout, pm_serr, pm_ip[2], pm_op[2], pm_ep[2];
+static int pm_cons_ok = 0;
 	
 static void pm_setup_console(void)
 {

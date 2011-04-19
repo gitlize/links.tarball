@@ -25,12 +25,12 @@
 
 #ifdef HAVE_SSL
 
-SSL_CTX *context = NULL;
+static SSL_CTX *context = NULL;
 
 SSL *getSSL(void)
 {
 	if (!context) {
-		SSL_METHOD *m;
+		const SSL_METHOD *m;
 		char f_randfile[PATH_MAX];
 
 		const char *f = RAND_file_name(f_randfile, sizeof(f_randfile));
@@ -42,7 +42,7 @@ SSL *getSSL(void)
 		SSLeay_add_ssl_algorithms();
 		m = SSLv23_client_method();
 		if (!m) return NULL;
-		context = SSL_CTX_new(m);
+		context = SSL_CTX_new((void *)m);
 		if (!context) return NULL;
 		SSL_CTX_set_options(context, SSL_OP_ALL);
 		SSL_CTX_set_default_verify_paths(context);

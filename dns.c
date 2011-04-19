@@ -49,16 +49,6 @@ static inline int get_addr_byte(unsigned char **ptr, unsigned char *res, char st
 	return 0;
 }
 
-/* prototypes */
-void lookup_fn(unsigned char *, int);
-void end_real_lookup(struct dnsquery *);
-int do_lookup(struct dnsquery *, int);
-int do_queued_lookup(struct dnsquery *);
-int find_in_dns_cache(char *, struct dnsentry **);
-void end_dns_lookup(struct dnsquery *, int);
-int shrink_dns_cache(int);
-void failed_real_lookup(struct dnsquery *);
-
 
 int do_real_lookup(unsigned char *name, ip__address *host)
 {
@@ -82,14 +72,14 @@ int do_real_lookup(unsigned char *name, ip__address *host)
 	return 0;
 }
 
-void lookup_fn(unsigned char *name, int h)
+static void lookup_fn(unsigned char *name, int h)
 {
 	ip__address host;
 	if (do_real_lookup(name, &host)) return;
 	write(h, &host, sizeof(ip__address));
 }
 
-void end_real_lookup(struct dnsquery *q)
+static void end_real_lookup(struct dnsquery *q)
 {
 	int r = 1;
 	if (!q->addr || read(q->h, q->addr, sizeof(ip__address)) != sizeof(ip__address)) goto end;
@@ -101,14 +91,14 @@ void end_real_lookup(struct dnsquery *q)
 	q->xfn(q, r);
 }
 
-void failed_real_lookup(struct dnsquery *q)
+static void failed_real_lookup(struct dnsquery *q)
 {
 	set_handlers(q->h, NULL, NULL, NULL, NULL);
 	close(q->h);
 	q->xfn(q, -1);
 }
 
-int do_lookup(struct dnsquery *q, int force_async)
+static int do_lookup(struct dnsquery *q, int force_async)
 {
 	/*debug("starting lookup for %s", q->name);*/
 #ifndef NO_ASYNC_LOOKUP
@@ -128,7 +118,7 @@ int do_lookup(struct dnsquery *q, int force_async)
 #endif
 }
 
-int do_queued_lookup(struct dnsquery *q)
+static int do_queued_lookup(struct dnsquery *q)
 {
 #ifndef THREAD_SAFE_LOOKUP
 	q->next_in_queue = NULL;
@@ -148,7 +138,7 @@ int do_queued_lookup(struct dnsquery *q)
 #endif
 }
 
-int find_in_dns_cache(char *name, struct dnsentry **dnsentry)
+static int find_in_dns_cache(char *name, struct dnsentry **dnsentry)
 {
 	struct dnsentry *e;
 	foreach(e, dns_cache)
@@ -161,7 +151,7 @@ int find_in_dns_cache(char *name, struct dnsentry **dnsentry)
 	return -1;
 }
 
-void end_dns_lookup(struct dnsquery *q, int a)
+static void end_dns_lookup(struct dnsquery *q, int a)
 {
 	struct dnsentry *dnsentry;
 	void (*fn)(void *, int);
@@ -242,7 +232,7 @@ void kill_dns_request(void **qp)
 	*qp = NULL;
 }
 
-int shrink_dns_cache(int u)
+static int shrink_dns_cache(int u)
 {
 	struct dnsentry *d, *e;
 	int f = 0;

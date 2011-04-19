@@ -73,10 +73,6 @@ struct graphics_driver *graphics_drivers[] = {
 	NULL
 };
 
-/* prototypes */
-unsigned char *init_graphics_driver(struct graphics_driver *, unsigned char *, unsigned char *);
-unsigned char *list_graphics_drivers(void);
-
 int dummy_block(struct graphics_device *dev)
 {
 	return 0;
@@ -87,7 +83,8 @@ int dummy_unblock(struct graphics_device *dev)
 	return 0;
 }
 
-unsigned char *list_graphics_drivers(void)
+#if 0
+static unsigned char *list_graphics_drivers(void)
 { 
 	unsigned char *d = init_str();
 	int l = 0;
@@ -98,13 +95,14 @@ unsigned char *list_graphics_drivers(void)
 	}
 	return d;
 }
+#endif
 
 /* Driver je jednorazovy argument, kterej se preda grafickymu driveru, nikde se dal
  * neuklada.  Param se skladuje v default_driver param a uklada se do konfiguraku. Pred
  * ukoncenim grafickeho driveru se nastavi default_driver_param podle
  * drv->get_driver_param.
  */
-unsigned char *init_graphics_driver(struct graphics_driver *gd, unsigned char *param, unsigned char *display)
+static unsigned char *init_graphics_driver(struct graphics_driver *gd, unsigned char *param, unsigned char *display)
 {
 	unsigned char *r;
 	unsigned char *p = param;

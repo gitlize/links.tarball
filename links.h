@@ -28,9 +28,9 @@
 #ifndef _LINKS_H
 #define _LINKS_H
 
-#define LINKS_COPYRIGHT "(C) 1999 - 2009 Mikulas Patocka\n(C) 2000 - 2009 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2009 Mikulás Patocka\n(C) 2000 - 2009 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2009 Mikulá¹ Patoèka\n(C) 2000 - 2009 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT "(C) 1999 - 2011 Mikulas Patocka\n(C) 2000 - 2011 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2011 Mikulás Patocka\n(C) 2000 - 2011 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2011 Mikulá¹ Patoèka\n(C) 2000 - 2011 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -325,12 +325,7 @@ extern long last_mem_amount;
 
 #endif
 
-static inline void malloc_oom(void)
-{
-	error((unsigned char *)"ERROR: out of memory (malloc returned NULL)\n");
-	fatal_tty_exit();
-	exit(RET_FATAL);
-}
+void malloc_oom(void);
 
 #ifdef LEAK_DEBUG
 
@@ -348,59 +343,10 @@ unsigned char *get_mem_comment(void *);
 
 #else
 
-static inline void *mem_alloc(size_t size)
-{
-	void *p;
-	if (!size) return DUMMY;
-	if (size > MAXINT) overalloc();
-	if (!(p = malloc(size))) {
-		malloc_oom();
-	}
-	return p;
-}
-
-static inline void *mem_calloc(size_t size)
-{
-	void *p;
-	if (!size) return DUMMY;
-	if (size > MAXINT) overalloc();
-	if (!(p = x_calloc(size))) {
-		error((unsigned char *)"ERROR: out of memory (calloc returned NULL)\n");
-		fatal_tty_exit();
-		exit(RET_FATAL);
-	}
-	return p;
-}
-
-static inline void mem_free(void *p)
-{
-	if (p == DUMMY) return;
-	if (!p) {
-		internal((unsigned char *)"mem_free(NULL)");
-		return;
-	}
-	free(p);
-}
-
-static inline void *mem_realloc(void *p, size_t size)
-{
-	if (p == DUMMY) return mem_alloc(size);
-	if (!p) {
-		internal((unsigned char *)"mem_realloc(NULL, %d)", size);
-		return NULL;
-	}
-	if (!size) {
-		mem_free(p);
-		return DUMMY;
-	}
-	if (size > MAXINT) overalloc();
-	if (!(p = realloc(p, size))) {
-		error((unsigned char *)"ERROR: out of memory (realloc returned NULL)\n");
-		fatal_tty_exit();
-		exit(RET_FATAL);
-	}
-	return p;
-}
+void *mem_alloc(size_t size);
+void *mem_calloc(size_t size);
+void mem_free(void *p);
+void *mem_realloc(void *p, size_t size);
 
 static inline void *debug_mem_alloc(unsigned char *f, int l, size_t s) { return mem_alloc(s); }
 static inline void *debug_mem_calloc(unsigned char *f, int l, size_t s) { return mem_calloc(s); }
@@ -432,38 +378,15 @@ static inline int cmpbeg(unsigned char *str, unsigned char *b)
 
 #if !(defined(LEAK_DEBUG) && defined(LEAK_DEBUG_LIST))
 
-static inline unsigned char *memacpy(const unsigned char *src, int len)
-{
-	unsigned char *m;
-	m = (unsigned char *)mem_alloc(len + 1);
-	memcpy(m, src, len);
-	m[len] = 0;
-	return m;
-}
-
-static inline unsigned char *stracpy(const unsigned char *src)
-{
-	return src ? memacpy(src, src != DUMMY ? strlen((char *)src) : 0) : NULL;
-}
+unsigned char *memacpy(const unsigned char *src, int len);
+unsigned char *stracpy(const unsigned char *src);
 
 #else
 
-static inline unsigned char *debug_memacpy(unsigned char *f, int l, unsigned char *src, size_t len)
-{
-	unsigned char *m;
-	m = (unsigned char *)debug_mem_alloc(f, l, len + 1);
-	memcpy(m, src, len);
-	m[len] = 0;
-	return m;
-}
-
+unsigned char *debug_memacpy(unsigned char *f, int l, unsigned char *src, size_t len);
 #define memacpy(s, l) debug_memacpy((unsigned char *)__FILE__, __LINE__, s, l)
 
-static inline unsigned char *debug_stracpy(unsigned char *f, int l, unsigned char *src)
-{
-	return src ? (unsigned char *)debug_memacpy(f, l, src, src != DUMMY ? strlen((char *)src) : 0L) : NULL;
-}
-
+unsigned char *debug_stracpy(unsigned char *f, int l, unsigned char *src);
 #define stracpy(s) debug_stracpy((unsigned char *)__FILE__, __LINE__, s)
 
 #endif
@@ -485,37 +408,10 @@ void xpr(void);
 void nopr(void);
 #endif
 
-static inline int snprint(unsigned char *s, int n, off_t num)
-{
-	off_t q = 1;
-	while (q <= num / 10) q *= 10;
-	while (n-- > 1 && q) *(s++) = num / q + '0', num %= q, q /= 10;
-	*s = 0;
-	return !!q;
-}
-
-static inline int snzprint(unsigned char *s, int n, off_t num)
-{
-	if (n > 1 && num < 0) *(s++) = '-', num = -num, n--;
-	return snprint(s, n, num);
-}
-
-static inline void add_to_strn(unsigned char **s, unsigned char *a)
-{
-	unsigned char *p;
-	size_t l1 = strlen((char *)*s), l2 = strlen((char *)a);
-	if (((l1 | l2) | (l1 + l2 + 1)) > MAXINT) overalloc();
-	p = (unsigned char *)mem_realloc(*s, l1 + l2 + 1);
-	strcat((char *)p, (char *)a);
-	*s = p;
-}
-
-static inline void extend_str(unsigned char **s, int n)
-{
-	size_t l = strlen((char *)*s);
-	if (((l | n) | (l + n + 1)) > MAXINT) overalloc();
-	*s = (unsigned char *)mem_realloc(*s, l + n + 1);
-}
+int snprint(unsigned char *s, int n, off_t num);
+int snzprint(unsigned char *s, int n, off_t num);
+void add_to_strn(unsigned char **s, unsigned char *a);
+void extend_str(unsigned char **s, int n);
 
 #define ALLOC_GR	0x040		/* must be power of 2 */
 
@@ -530,178 +426,14 @@ static inline unsigned char *init_str_x(unsigned char *file, int line)
 	return p;
 }
 
-static inline void add_to_str(unsigned char **s, int *l, unsigned char *a)
-{
-	unsigned char *p=*s;
-	unsigned old_length;
-	size_t new_length;
-	unsigned x;
-
-	old_length=*l;
-	new_length=strlen((char *)a);
-	if (new_length + old_length >= MAXINT / 2 || new_length + old_length < new_length) overalloc();
-	new_length+=old_length;
-	*l=new_length;
-	x=old_length^new_length;
-	if (x>=old_length){
-		/* Need to realloc */
-		new_length|=(new_length>>1);
-		new_length|=(new_length>>2);
-		new_length|=(new_length>>4);
-		new_length|=(new_length>>8);
-		new_length|=(new_length>>16);
-		p=(unsigned char *)mem_realloc(p,new_length+1L);
-	}
-	*s=p;
-	strcpy((char *)(p+old_length),(char *)a);
-}
-
-static inline void add_bytes_to_str(unsigned char **s, int *l, unsigned char *a, size_t ll)
-{
-	unsigned char *p=*s;
-	unsigned long old_length;
-	unsigned long new_length;
-	unsigned long x;
-
-	old_length=*l;
-	if (ll + old_length >= (unsigned)MAXINT / 2 || ll + old_length < (unsigned)ll) overalloc();
-	new_length=old_length+ll;
-	*l=new_length;
-	x=old_length^new_length;
-	if (x>=old_length){
-		/* Need to realloc */
-		new_length|=(new_length>>1);
-		new_length|=(new_length>>2);
-		new_length|=(new_length>>4);
-		new_length|=(new_length>>8);
-		new_length|=(new_length>>16);
-		p=(unsigned char *)mem_realloc(p,new_length+1);
-	}
-	*s=p;
-	memcpy(p+old_length,a,ll);
-	p[*l]=0;
-}
-
-static inline void add_chr_to_str(unsigned char **s, int *l, unsigned char a)
-{
-	unsigned char *p=*s;
-	unsigned long old_length;
-	unsigned long new_length;
-	unsigned long x;
-
-	old_length=*l;
-	if (1 + old_length >= MAXINT / 2 || 1 + old_length < 1) overalloc();
-	new_length=old_length+1;
-	*l=new_length;
-	x=old_length^new_length;
-	if (x>=old_length){
-		p=(unsigned char *)mem_realloc(p,new_length<<1);
-	}
-	*s=p;
-	p[old_length]=a;
-	p[new_length]=0;
-}
-
-static inline void add_num_to_str(unsigned char **s, int *l, off_t n)
-{
-	unsigned char a[64];
-	/*sprintf(a, "%d", n);*/
-	snzprint(a, 64, n);
-	add_to_str(s, l, a);
-}
-
-static inline void add_knum_to_str(unsigned char **s, int *l, off_t n)
-{
-	unsigned char a[13];
-	if (n && n / (1024 * 1024) * (1024 * 1024) == n) snzprint(a, 12, n / (1024 * 1024)), a[strlen((char *)a) + 1] = 0, a[strlen((char *)a)] = 'M';
-	else if (n && n / 1024 * 1024 == n) snzprint(a, 12, n / 1024), a[strlen((char *)a) + 1] = 0, a[strlen((char *)a)] = 'k';
-	else snzprint(a, 13, n);
-	add_to_str(s, l, a);
-}
-
-static inline long strtolx(unsigned char *c, unsigned char **end)
-{
-	long l;
-	if (c[0] == '0' && upcase(c[1]) == 'X' && c[2]) l = strtol((char *)c + 2, (char **)end, 16);
-	else l = strtol((char *)c, (char **)end, 10);
-	if (!*end) return l;
-	if (upcase(**end) == 'K') {
-		(*end)++;
-		if (l < -MAXINT / 1024) return -MAXINT;
-		if (l > MAXINT / 1024) return MAXINT;
-		return l * 1024;
-	}
-	if (upcase(**end) == 'M') {
-		(*end)++;
-		if (l < -MAXINT / (1024 * 1024)) return -MAXINT;
-		if (l > MAXINT / (1024 * 1024)) return MAXINT;
-		return l * (1024 * 1024);
-	}
-	return l;
-}
-
-/* Copies at most dst_size chars into dst. Ensures null termination of dst. */
-static inline unsigned char *safe_strncpy(unsigned char *dst, const unsigned char *src, size_t dst_size)
-{
-	strncpy((char *)dst, (char *)src, dst_size);
-	if (strlen((char *)src) >= dst_size) dst[dst_size - 1] = 0;
-	return dst;
-}
-
-
-
-/* deletes all nonprintable characters from string */
-static inline void skip_nonprintable(unsigned char *txt)
-{
-	unsigned char *txt1=txt;
-
-	if (!txt||!*txt)return;
-	for (;*txt;txt++)
-		switch(*txt)
-		{
-			case 1:
-			case 2:
-			case 3:
-			case 4:
-			case 5:
-			case 6:
-			case 7:
-			case 8:
-			case 11:
-			case 12:
-			case 13:
-			case 14:
-			case 15:
-			case 16:
-			case 17:
-			case 18:
-			case 19:
-			case 20:
-			case 21:
-			case 22:
-			case 23:
-			case 24:
-			case 25:
-			case 26:
-			case 27:
-			case 28:
-			case 29:
-			case 30:
-			case 31:
-			break;
-
-			case 9:
-			*txt1=' ';
-			txt1++;
-			break;
-
-			default:
-			*txt1=*txt;
-			txt1++;
-			break;
-		}
-	*txt1=0;
-}
+void add_to_str(unsigned char **s, int *l, unsigned char *a);
+void add_bytes_to_str(unsigned char **s, int *l, unsigned char *a, size_t ll);
+void add_chr_to_str(unsigned char **s, int *l, unsigned char a);
+void add_num_to_str(unsigned char **s, int *l, off_t n);
+void add_knum_to_str(unsigned char **s, int *l, off_t n);
+long strtolx(unsigned char *c, unsigned char **end);
+unsigned char *safe_strncpy(unsigned char *dst, const unsigned char *src, size_t dst_size);
+void skip_nonprintable(unsigned char *txt);
 
 
 struct list_head {
@@ -736,66 +468,17 @@ struct xlist_head {
 #define WHITECHAR(x) ((x) == 9 || (x) == 10 || (x) == 12 || (x) == 13 || (x) == ' ')
 #define U(x) ((x) == '"' || (x) == '\'')
 
-static inline int isA(unsigned char c)
-{
-	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
-	        c == '_' || c == '-';
-}
-
 /* case insensitive compare of 2 strings */
 /* comparison ends after len (or less) characters */
 /* return value: 1=strings differ, 0=strings are same */
-static inline int casecmp(unsigned char *c1, unsigned char *c2, size_t len)
-{
-	size_t i;
-	for (i = 0; i < len; i++) if (upcase(c1[i]) != upcase(c2[i])) return 1;
-	return 0;
-}
-
+int casecmp(unsigned char *c1, unsigned char *c2, size_t len);
 
 static inline int srch_cmp(unsigned char c1, unsigned char c2)
 {
 	return upcase(c1) != upcase(c2);
 }
 
-static inline int casestrstr(unsigned char *h, unsigned char *n)
-{
-	unsigned char *p;
-
-	for (p=h;*p;p++)
-	{
-		if (!srch_cmp(*p,*n))  /* same */
-		{
-			unsigned char *q, *r;
-			for (q=n, r=p;*r&&*q;)
-			{
-				if (!srch_cmp(*q,*r)) r++,q++;    /* same */
-				else break;
-			}
-			if (!*q) return 1;
-		}
-	}
-
-	return 0;
-}
-
-static inline int can_write(int fd)
-{
-	fd_set fds;
-	struct timeval tv = {0, 0};
-	FD_ZERO(&fds);
-	FD_SET(fd, &fds);
-	return select(fd + 1, NULL, &fds, NULL, &tv);
-}
-
-static inline int can_read(int fd)
-{
-	fd_set fds;
-	struct timeval tv = {0, 0};
-	FD_ZERO(&fds);
-	FD_SET(fd, &fds);
-	return select(fd + 1, &fds, NULL, NULL, &tv);
-}
+int casestrstr(unsigned char *h, unsigned char *n);
 
 #define CI_BYTES	1
 #define CI_FILES	2
@@ -891,6 +574,8 @@ typedef unsigned tcount;
 
 extern int terminate_loop;
 
+int can_write(int fd);
+int can_read(int fd);
 long select_info(int);
 void select_loop(void (*)(void));
 int register_bottom_half(void (*)(void *), void *);
@@ -1147,7 +832,7 @@ int is_last_try(struct connection *c);
 void retry_connection(struct connection *c);
 void abort_connection(struct connection *c);
 void end_connection(struct connection *c);
-int load_url(unsigned char *, unsigned char *, struct status *, int, int);
+void load_url(unsigned char *, unsigned char *, struct status *, int, int);
 void change_connection(struct status *, struct status *, int);
 void detach_connection(struct status *, off_t);
 void abort_all_connections(void);
@@ -2113,6 +1798,7 @@ extern struct list_head tn3270_prog;
 extern struct list_head mms_prog;
 extern struct list_head magnet_prog;
 
+void *assoc_default_value(struct session* ses, unsigned char type);
 unsigned char *get_content_type(unsigned char *, unsigned char *);
 unsigned char *get_content_encoding(unsigned char *head, unsigned char *url);
 unsigned char *encoding_2_extension(unsigned char *);
@@ -3012,6 +2698,7 @@ void print_screen_status(struct session *);
 void change_screen_status(struct session *);
 void print_error_dialog(struct session *, struct status *, unsigned char *);
 void start_download(struct session *, unsigned char *);
+int test_abort_downloads_to_file(unsigned char *, unsigned char *, int);
 void abort_all_downloads(void);
 void display_download(struct terminal *, struct download *, struct session *);
 struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq, unsigned char *url, struct document_options *opt, int *cch);
@@ -3524,7 +3211,7 @@ unsigned char *get_cp_mime_name(int);
 void free_conv_table(void);
 unsigned char *encode_utf_8(int);
 unsigned char *u2cp(int u, int to, int fallback);
-int cp2u(unsigned char, int);
+int cp2u(unsigned, int);
 
 unsigned charset_upcase(unsigned, int);
 unsigned uni_upcase(unsigned);
@@ -3540,11 +3227,7 @@ extern unsigned short int utf8_2_uni_table[0x200];
 #define GET_UTF_8(s, c)	do {if ((unsigned char)(s)[0] < 0x80) (c) = (s)++[0]; else if (((c) = utf8_2_uni_table[((unsigned char)(s)[0] << 2) + ((unsigned char)(s)[1] >> 6) - 0x200])) (c) += (unsigned char)(s)[1] & 0x3f, (s) += 2; else (c) = get_utf_8(&(s));} while (0)
 #define FWD_UTF_8(s) do {if ((unsigned char)(s)[0] < 0x80) (s)++; else get_utf_8(&(s));} while (0)
 #define BACK_UTF_8(p, b) do {while ((p) > (b)) {(p)--; if ((*(p) & 0xc0) != 0x80) break; }} while (0)
-static inline int cp_len(int cp, unsigned char *s)
-{
-	if (is_cp_special(cp)) return strlen_utf8(s);
-	return strlen((char *)s);
-}
+int cp_len(int cp, unsigned char *s);
 
 extern unsigned char utf_8_1[256];
 
@@ -3570,10 +3253,17 @@ static inline unsigned GET_TERM_CHAR(struct terminal *term, unsigned char **str)
 
 /* view.c */
 
-unsigned char *utf8_add(unsigned char *t, int i);
-int utf8_diff(unsigned char *t2, unsigned char *t1);
+unsigned char *textptr_add(unsigned char *t, int i, int cp);
+int textptr_diff(unsigned char *t2, unsigned char *t1, int cp);
 
 extern int ismap_link, ismap_x, ismap_y;
+
+struct line_info {
+	unsigned char *st;
+	unsigned char *en;
+};
+
+struct line_info *format_text(unsigned char *text, int width, int wrap, int cp);
 
 void frm_download(struct session *, struct f_data_c *);
 void frm_download_image(struct session *, struct f_data_c *);
@@ -3582,14 +3272,7 @@ struct form_state *find_form_state(struct f_data_c *, struct form_control *);
 void fixup_select_state(struct form_control *fc, struct form_state *fs);
 int enter(struct session *ses, struct f_data_c *f, int a);
 int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct event *ev, int rep);
-int _area_cursor(struct form_control *form, struct form_state *fs);
-
-struct line_info {
-	unsigned char *st;
-	unsigned char *en;
-};
-
-struct line_info *format_text(unsigned char *text, int width, int wrap);
+int area_cursor(struct f_data_c *f, struct form_control *form, struct form_state *fs);
 
 int can_open_in_new(struct terminal *);
 void open_in_new_window(struct terminal *, void (*)(struct terminal *, void (*)(struct terminal *, unsigned char *, unsigned char *), struct session *ses), struct session *);
@@ -3766,6 +3449,7 @@ void buffer_to_bitmap_incremental(struct cached_image *cimg
 /* Below is external interface provided by img.c */
 struct g_part;
 void img_draw_decoded_image(struct graphics_device *, struct decoded_image *img, int, int, int, int, int, int);
+int get_foreground(int rgb);
 struct g_object_image *insert_image(struct g_part *p, struct image_description *im);
 void change_image (struct g_object_image *goi, unsigned char *url, unsigned char *src, struct f_data *fdata);
 void img_destruct_cached_image(struct cached_image *img);
@@ -3878,6 +3562,7 @@ void g_area_get_list(struct g_object_area *, void (*)(struct g_object *parent, s
 void draw_one_object(struct f_data_c *fd, struct g_object *o);
 void draw_title(struct f_data_c *f);
 void draw_graphical_doc(struct terminal *t, struct f_data_c *scr, int active);
+int g_next_link(struct f_data_c *fd, int dir);
 int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev);
 void g_find_next(struct f_data_c *f, int);
 
@@ -4348,6 +4033,7 @@ struct list{
 	int depth;
 	void *fotr;   /* ignored when list is flat */
 };
+
 /* regexp.c */
 
 char *regexp_replace(char *, char *, char *);
@@ -4388,10 +4074,11 @@ struct list_description{
 	int search_direction;
 };
 
-extern int create_list_window(struct list_description *,struct list *,struct terminal *,struct session *);
+struct list *next_in_tree(struct list_description *ld, struct list *item);
+int create_list_window(struct list_description *,struct list *,struct terminal *,struct session *);
 /* following 2 functions should be called after calling create_list_window fn */
-extern void redraw_list_window(struct list_description *ld);	/* redraws list window */
-extern void reinit_list_window(struct list_description *ld);	/* reinitializes list window */
+void redraw_list_window(struct list_description *ld);	/* redraws list window */
+void reinit_list_window(struct list_description *ld);	/* reinitializes list window */
 
 /* bookmarks.c */
 

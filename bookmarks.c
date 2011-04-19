@@ -18,23 +18,15 @@ int bookmarks_codepage=0;
 int can_write_bookmarks=0;	/* global flag if we can write bookmarks */
 
 unsigned char bookmarks_file[MAX_STR_LEN]="";
-void *bookmark_new_item(void *);
-unsigned char *bookmark_type_item(struct terminal *, void *, int);
-void bookmark_delete_item(void *);
-void bookmark_edit_item(struct dialog_data *,void *,void (*)(struct dialog_data *,void *,void *,struct list_description *),void *, unsigned char);
-void bookmark_copy_item(void *, void *);
-void bookmark_goto_item(struct session *, void *);
-void *bookmark_default_value(struct session*, unsigned char);
-void *bookmark_find_item(void *start, unsigned char *str, int direction);
-void free_bookmarks(void);
-void bookmark_edit_item_fn(struct dialog_data *);
-void bookmark_edit_done(void *);
-void bookmark_edit_abort(struct dialog_data *);
-struct bookmark_list *previous_on_this_level(struct bookmark_list *);
-void add_bookmark(unsigned char *, unsigned char *, int);
-void create_initial_bookmarks(void);
-void load_bookmarks(void);
 
+static void *bookmark_new_item(void *);
+static unsigned char *bookmark_type_item(struct terminal *, void *, int);
+static void bookmark_delete_item(void *);
+static void bookmark_edit_item(struct dialog_data *,void *,void (*)(struct dialog_data *,void *,void *,struct list_description *),void *, unsigned char);
+static void bookmark_copy_item(void *, void *);
+static void bookmark_goto_item(struct session *, void *);
+static void *bookmark_default_value(struct session*, unsigned char);
+static void *bookmark_find_item(void *start, unsigned char *str, int direction);
 
 struct list bookmarks={&bookmarks,&bookmarks,0,-1,NULL};
 
@@ -101,7 +93,7 @@ struct kawasaki
 
 
 /* clears the bookmark list */
-void free_bookmarks(void) 
+static void free_bookmarks(void) 
 {
 	struct bookmark_list *bm;
 
@@ -127,7 +119,7 @@ void finalize_bookmarks(void)
 /* allocates struct kawasaki and puts current page title and url */
 /* type: 0=item, 1=directory */
 /* on error returns NULL */
-void *bookmark_default_value(struct session *ses, unsigned char type)
+static void *bookmark_default_value(struct session *ses, unsigned char type)
 {
 	struct kawasaki *zelena;
 	unsigned char *txt;
@@ -166,7 +158,7 @@ void *bookmark_default_value(struct session *ses, unsigned char type)
 }
 
 
-void bookmark_copy_item(void *in, void *out)
+static void bookmark_copy_item(void *in, void *out)
 {
 	struct bookmark_list *item_in=(struct bookmark_list*)in;
 	struct bookmark_list *item_out=(struct bookmark_list*)out;
@@ -197,7 +189,7 @@ unsigned char *bm_add_msg[] = {
 
 
 /* Called to setup the add bookmark dialog */
-void bookmark_edit_item_fn(struct dialog_data *dlg)
+static void bookmark_edit_item_fn(struct dialog_data *dlg)
 {
 	int max = 0, min = 0;
 	int w, rw;
@@ -250,7 +242,7 @@ void bookmark_edit_item_fn(struct dialog_data *dlg)
 
 
 /* Puts url and title into the bookmark item */
-void bookmark_edit_done(void *data)
+static void bookmark_edit_done(void *data)
 {
 	struct dialog *d=(struct dialog*)data;
 	struct bookmark_list *item=(struct bookmark_list *)d->udata;
@@ -289,7 +281,7 @@ void bookmark_edit_done(void *data)
 
 
 /* destroys an item, this function is called when edit window is aborted */
-void bookmark_edit_abort(struct dialog_data *data)
+static void bookmark_edit_abort(struct dialog_data *data)
 {
 	struct bookmark_list *item=(struct bookmark_list*)data->dlg->udata;
 	struct dialog *dlg=data->dlg;
@@ -301,7 +293,7 @@ void bookmark_edit_abort(struct dialog_data *data)
 
 /* dlg_title is TITLE_EDIT or TITLE_ADD */
 /* edit item function */
-void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(struct dialog_data *,void * ,void *, struct list_description *),void * ok_arg, unsigned char dlg_title)
+static void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(struct dialog_data *,void * ,void *, struct list_description *),void * ok_arg, unsigned char dlg_title)
 {
 	struct bookmark_list *item=(struct bookmark_list *)data;
 	unsigned char *title, *url;
@@ -395,7 +387,7 @@ void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(struct 
 
 /* create new bookmark item and returns pointer to it, on error returns 0*/
 /* bookmark is filled with given data, data are deallocated afterwards */
-void *bookmark_new_item(void * data)
+static void *bookmark_new_item(void * data)
 {
 	struct bookmark_list *b;
 	struct kawasaki *zelena=(struct kawasaki *)data;
@@ -429,7 +421,7 @@ void *bookmark_new_item(void * data)
 
 /* allocate string and print bookmark into it */
 /* x: 0=type all, 1=type title only */
-unsigned char *bookmark_type_item(struct terminal *term, void *data, int x)
+static unsigned char *bookmark_type_item(struct terminal *term, void *data, int x)
 {
 	unsigned char *txt, *txt1;
 	struct bookmark_list* item=(struct bookmark_list*)data;
@@ -458,7 +450,7 @@ unsigned char *bookmark_type_item(struct terminal *term, void *data, int x)
 
 
 /* goto bookmark (called when goto button is pressed) */
-void bookmark_goto_item(struct session *ses, void *i)
+static void bookmark_goto_item(struct session *ses, void *i)
 {
 	struct bookmark_list *item=(struct bookmark_list*)i;
 
@@ -467,7 +459,7 @@ void bookmark_goto_item(struct session *ses, void *i)
 
 
 /* delete bookmark from list */
-void bookmark_delete_item(void *data)
+static void bookmark_delete_item(void *data)
 {
 	struct bookmark_list* item=(struct bookmark_list*)data;
 	struct bookmark_list *prev=item->prev;
@@ -492,7 +484,7 @@ static int substr_utf8(unsigned char *string, unsigned char *substr)
 	return r;
 }
 
-void * bookmark_find_item(void *start, unsigned char *str, int direction)
+static void * bookmark_find_item(void *start, unsigned char *str, int direction)
 {
 	struct bookmark_list *b,*s=(struct bookmark_list *)start;
 	
@@ -530,7 +522,7 @@ void * bookmark_find_item(void *start, unsigned char *str, int direction)
 
 /* returns previous item in the same folder and with same the depth, or father if there's no previous item */
 /* we suppose that previous items have correct pointer fotr */
-struct bookmark_list *previous_on_this_level(struct bookmark_list *item)
+static struct bookmark_list *previous_on_this_level(struct bookmark_list *item)
 {
 	struct bookmark_list *p;
 
@@ -542,7 +534,7 @@ struct bookmark_list *previous_on_this_level(struct bookmark_list *item)
 /* create new bookmark at the end of the list */
 /* if url is NULL, create folder */
 /* both strings are null terminated */
-void add_bookmark(unsigned char *title, unsigned char *url, int depth)
+static void add_bookmark(unsigned char *title, unsigned char *url, int depth)
 {
 	struct bookmark_list *b,*p;
 	struct document_options *dop;
@@ -597,7 +589,7 @@ void add_bookmark(unsigned char *title, unsigned char *url, int depth)
 }
 
 /* Created pre-cooked bookmarks */
-void create_initial_bookmarks(void)
+static void create_initial_bookmarks(void)
 {
 	bookmarks_codepage=get_cp_index("8859-2");
 	add_bookmark("Links",NULL,0);
@@ -611,7 +603,7 @@ void create_initial_bookmarks(void)
 	add_bookmark("Manuál k Linksu","http://links.twibright.com/user.html",2);
 }
 
-void load_bookmarks(void)
+static void load_bookmarks(void)
 {
 	unsigned char *buf;
 	long len;

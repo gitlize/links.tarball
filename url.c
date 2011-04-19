@@ -5,7 +5,7 @@
 
 #include "links.h"
 
-struct {
+static const struct {
 	unsigned char *prot;
 	int port;
 	void (*func)(struct connection *);
@@ -36,14 +36,9 @@ struct {
 		{NULL, 0, NULL, NULL,			0, 0, 0, 0, 0}
 };
 
-/* prototypes */
-int check_protocol(unsigned char *, int);
-int get_prot_info(unsigned char *, int *, void (**)(struct connection *), void (**)(struct session *ses, unsigned char *), int *, int *);
-void translate_directories(unsigned char *);
-void insert_wd(unsigned char **, unsigned char *);
 
 
-int check_protocol(unsigned char *p, int l)
+static int check_protocol(unsigned char *p, int l)
 {
 	int i;
 	for (i = 0; protocols[i].prot; i++)
@@ -53,7 +48,7 @@ int check_protocol(unsigned char *p, int l)
 	return -1;
 }
 
-int get_prot_info(unsigned char *prot, int *port, void (**func)(struct connection *), void (**nc_func)(struct session *ses, unsigned char *), int *allow_post, int *bypasses_socks)
+static int get_prot_info(unsigned char *prot, int *port, void (**func)(struct connection *), void (**nc_func)(struct session *ses, unsigned char *), int *allow_post, int *bypasses_socks)
 {
 	int i;
 	for (i = 0; protocols[i].prot; i++)
@@ -251,7 +246,7 @@ unsigned char *get_url_data(unsigned char *url)
 
 #define dsep(x) (lo ? dir_sep(x) : (x) == '/')
 
-void translate_directories(unsigned char *url)
+static void translate_directories(unsigned char *url)
 {
 	unsigned char *dd = get_url_data(url);
 	unsigned char *s, *d;
@@ -294,7 +289,7 @@ void translate_directories(unsigned char *url)
 	if ((*d++ = *s++)) goto r;
 }
 
-void insert_wd(unsigned char **up, unsigned char *cwd)
+static void insert_wd(unsigned char **up, unsigned char *cwd)
 {
 	unsigned char *url = *up;
 	if (!url || !cwd || !*cwd) return;

@@ -33,22 +33,6 @@ struct f_data *init_formatted(struct document_options *opt)
 	return scr;
 }
 
-/* prototypes */
-void clear_formatted(struct f_data *);
-void r_xpand_spaces(struct part *, int);
-int split_line(struct part *);
-int put_chars_conv(struct part *, unsigned char *, int);
-void html_form_control(struct part *, struct form_control *);
-void add_frameset_entry(struct frameset_desc *, struct frameset_desc *, unsigned char *, unsigned char *, int, int, unsigned char);
-void *html_special(struct part *, int, ...);
-void do_format(char *, char *, struct part *, unsigned char *);
-void release_part(struct part *);
-void push_base_format(unsigned char *, struct document_options *, int);
-void add_srch_chr(struct f_data *, unsigned, int, int, int);
-void sort_srch(struct f_data *);
-int get_srch(struct f_data *);
-
-
 void destroy_fc(struct form_control *fc)
 {
 	int i;
@@ -114,7 +98,7 @@ void free_additional_files(struct additional_files **a)
 	*a = NULL;
 }
 
-void clear_formatted(struct f_data *scr)
+static void clear_formatted(struct f_data *scr)
 {
 	int n;
 	int y;
@@ -308,7 +292,7 @@ static inline int fg_color(int fg, int bg)
 
 int nowrap = 0;
 
-static inline void xpand_lines(struct part *p, int y)
+static void xpand_lines(struct part *p, int y)
 {
 	/*if (y >= p->y) p->y = y + 1;*/
 	if (!p->data) return;
@@ -329,7 +313,7 @@ static inline void xpand_lines(struct part *p, int y)
 	}
 }
 
-static inline void xpand_line(struct part *p, int y, int x)
+static void xpand_line(struct part *p, int y, int x)
 {
 	if (!p->data) return;
 	if (XALIGN((unsigned)x + (unsigned)p->xp) > MAXINT) overalloc();
@@ -356,7 +340,7 @@ static inline void xpand_line(struct part *p, int y, int x)
 	}
 }
 
-void r_xpand_spaces(struct part *p, int l)
+static void r_xpand_spaces(struct part *p, int l)
 {
 	unsigned char *c;
 	if ((unsigned)l >= MAXINT) overalloc();
@@ -542,7 +526,7 @@ static inline void del_chars(struct part *p, int x, int y)
 
 void line_break(struct part *);
 
-int split_line(struct part *p)
+static int split_line(struct part *p)
 {
 	int i;
 	/*if (!p->data) goto r;*/
@@ -639,7 +623,7 @@ void put_chars(struct part *, unsigned char *, int);
 
 #define CH_BUF	256
 
-int put_chars_conv(struct part *p, unsigned char *c, int l)
+static int put_chars_conv(struct part *p, unsigned char *c, int l)
 {
 	static char buffer[CH_BUF];
 	int bp = 0;
@@ -953,7 +937,7 @@ void line_break(struct part *p)
 int g_ctrl_num;
 
 /* SHADOWED IN g_html_form_control */
-void html_form_control(struct part *p, struct form_control *fc)
+static void html_form_control(struct part *p, struct form_control *fc)
 {
 	if (!p->data) {
 		/*destroy_fc(fc);
@@ -985,7 +969,7 @@ void html_form_control(struct part *p, struct form_control *fc)
 	add_to_list(p->data->forms, fc);
 }
 
-void add_frameset_entry(struct frameset_desc *fsd, struct frameset_desc *subframe, unsigned char *name, unsigned char *url, int marginwidth, int marginheight, unsigned char scrolling)
+static void add_frameset_entry(struct frameset_desc *fsd, struct frameset_desc *subframe, unsigned char *name, unsigned char *url, int marginwidth, int marginheight, unsigned char scrolling)
 {
 	if (fsd->yp >= fsd->y) return;
 	fsd->f[fsd->xp + fsd->yp * fsd->x].subframe = subframe;
@@ -1055,7 +1039,7 @@ void html_process_refresh(struct f_data *f, unsigned char *url, int time)
 	f->refresh_seconds = time;
 }
 
-void *html_special(struct part *p, int c, ...)
+static void *html_special(struct part *p, int c, ...)
 {
 	va_list l;
 	unsigned char *t;
@@ -1114,7 +1098,7 @@ void *html_special(struct part *p, int c, ...)
 	return NULL;
 }
 
-void do_format(char *start, char *end, struct part *part, unsigned char *head)
+static void do_format(char *start, char *end, struct part *part, unsigned char *head)
 {
 	pr(
 	parse_html(start, end, (int (*)(void *, unsigned char *, int)) put_chars_conv, (void (*)(void *)) line_break, (void *(*)(void *, int, ...)) html_special, part, head);
@@ -1277,12 +1261,12 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	return p;
 }
 
-void release_part(struct part *p)
+static void release_part(struct part *p)
 {
 	mem_free(p);
 }
 
-void push_base_format(unsigned char *url, struct document_options *opt, int frame)
+static void push_base_format(unsigned char *url, struct document_options *opt, int frame)
 {
 	struct html_element *e;
 	if (html_stack.next != &html_stack) {
@@ -1491,7 +1475,7 @@ void copy_opt(struct document_options *o1, struct document_options *o2)
 	o1->framename = stracpy(o2->framename);
 }
 
-void add_srch_chr(struct f_data *f, unsigned c, int x, int y, int nn)
+static void add_srch_chr(struct f_data *f, unsigned c, int x, int y, int nn)
 {
 	int n = f->nsearch;
 	if (c == ' ' && (!n || f->search[n - 1].c == ' ')) return;
@@ -1513,7 +1497,7 @@ void add_srch_chr(struct f_data *f, unsigned c, int x, int y, int nn)
 	debug("!");
 }*/
 
-void sort_srch(struct f_data *f)
+static void sort_srch(struct f_data *f)
 {
 	int i;
 	int *min, *max;
@@ -1538,7 +1522,7 @@ static inline int is_spc(chr *cc)
 	return cc->ch <= ' ' || cc->at & ATTR_FRAME;
 }
 
-int get_srch(struct f_data *f)
+static int get_srch(struct f_data *f)
 {
 	struct node *n;
 	int cnt = 0;

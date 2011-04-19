@@ -12,28 +12,9 @@
 
 #include "links.h"
 
-/* prototypes */
-int gray (int, int, int);
-int too_near(int, int, int, int, int, int);
-void separate_fg_bg(int *, int *, int *, int, int, int);
-unsigned char *make_html_font_name(int);
-int get_real_font_size(int size);
+static int g_nobreak;
 
-struct style *get_style_by_ta(struct text_attrib *);
-void split_line_object(struct g_part *, struct g_object_text *, unsigned char *);
-void g_line_break(struct g_part *);
-void g_html_form_control(struct g_part *, struct form_control *);
-void do_image(struct g_part *, struct image_description *);
-void g_hr(struct g_part *p, struct hr_param *hr);
-void *g_html_special(struct g_part *, int, ...);
-void g_do_format(char *, char *, struct g_part *, unsigned char *);
-void g_scan_width(struct g_object **, int, int *);
-void g_scan_lines(struct g_object_line **, int, int *);
-int g_put_chars_conv(struct g_part *, unsigned char *, int);
-
-int g_nobreak;
-
-int get_real_font_size(int size)
+static int get_real_font_size(int size)
 {
 	int fs=d_opt->font_size;
 	
@@ -72,7 +53,7 @@ void g_put_chars(struct g_part *, unsigned char *, int);
 
 #define CH_BUF	256
 
-int g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
+static int g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
 {
 	static char buffer[CH_BUF];
 	int bp = 0;
@@ -138,14 +119,14 @@ int g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
 }
 
 /* Returns 0 to 2550 */
-int gray (int r, int g, int b)
+static int gray (int r, int g, int b)
 {
 	return r*3+g*6+b;
 }
 
 /* Tells if two colors are too near to be legible one on another */
 /* 1=too near 0=not too near */
-int too_near(int r1, int g1, int b1, int r2, int g2, int b2)
+static int too_near(int r1, int g1, int b1, int r2, int g2, int b2)
 {
 	int gray1,gray2;
 
@@ -158,7 +139,7 @@ int too_near(int r1, int g1, int b1, int r2, int g2, int b2)
 }
 
 /* Fixes foreground based on background */
-void separate_fg_bg(int *fgr, int *fgg, int *fgb
+static void separate_fg_bg(int *fgr, int *fgg, int *fgb
 	, int bgr, int bgg, int bgb)
 {
 	if (too_near(*fgr, *fgg, *fgb, bgr, bgg, bgb)){
@@ -174,7 +155,7 @@ void separate_fg_bg(int *fgr, int *fgg, int *fgb
 	}
 }
 
-unsigned char *make_html_font_name(int attr)
+static unsigned char *make_html_font_name(int attr)
 {
 	unsigned char *str;
 	int len;
@@ -188,7 +169,7 @@ unsigned char *make_html_font_name(int attr)
 	return str;
 }
 
-struct style *get_style_by_ta(struct text_attrib *ta)
+static struct style *get_style_by_ta(struct text_attrib *ta)
 {
 	int fg_r,fg_g,fg_b; /* sRGB 0-255 values */
 	int fs = get_real_font_size(ta->fontsize);
@@ -342,12 +323,11 @@ void flush_pending_text_to_line(struct g_part *p)
 	p->text = NULL;
 }
 
-void split_line_object(struct g_part *p, struct g_object_text *text, unsigned char *ptr)
+static void split_line_object(struct g_part *p, struct g_object_text *text, unsigned char *ptr)
 {
 	struct g_object_text *t2;
 	struct g_object_line *l2;
 	int n;
-	int esp;
 	if (!ptr) {
 		if (p->line && p->line->n_entries && (struct g_object *)text == p->line->entries[p->line->n_entries - 1]) {
 			flush_pending_line_to_obj(p, 0);
@@ -361,7 +341,6 @@ void split_line_object(struct g_part *p, struct g_object_text *text, unsigned ch
 	t2->draw = g_text_draw;
 	t2->destruct = g_text_destruct;
 	t2->get_list = NULL;
-	esp = 1;
 	if (*ptr == ' ') {
 		strcpy(t2->text, ptr + 1);
 		*ptr = 0;
@@ -370,7 +349,6 @@ void split_line_object(struct g_part *p, struct g_object_text *text, unsigned ch
 		strcpy(t2->text, ptr);
 		ptr[0] = '-';
 		ptr[1] = 0;
-		esp = 0;
 	}
 	t2->y = text->y;
 	t2->style = g_clone_style(text->style);
@@ -451,7 +429,7 @@ void add_object(struct g_part *p, struct g_object *o)
 	*/
 }
 
-void g_line_break(struct g_part *p)
+static void g_line_break(struct g_part *p)
 {
 	if (g_nobreak) {
 		g_nobreak = 0;
@@ -470,7 +448,7 @@ void g_line_break(struct g_part *p)
 }
 
 /* SHADOWED IN html_form_control */
-void g_html_form_control(struct g_part *p, struct form_control *fc)
+static void g_html_form_control(struct g_part *p, struct form_control *fc)
 {
 	if (!p->data) {
 		/*destroy_fc(fc);
@@ -558,7 +536,7 @@ int is_in_area(struct map_area *a, int x, int y)
  * not specified. Autoscale is requested in im->autoscale.
  * If autoscale is specified, im->xsize and im->ysize must
  * be >0. */
-void do_image(struct g_part *p, struct image_description *im)
+static void do_image(struct g_part *p, struct image_description *im)
 {
 	struct g_object_image *io;
 	struct link *link;
@@ -661,7 +639,7 @@ void do_image(struct g_part *p, struct image_description *im)
 	ab:;
 }
 
-void g_hr(struct g_part *gp, struct hr_param *hr)
+static void g_hr(struct g_part *gp, struct hr_param *hr)
 {
 	unsigned char bgstr[8];
 	struct g_object_line *o;
@@ -686,7 +664,7 @@ void g_hr(struct g_part *gp, struct hr_param *hr)
 }
 
 
-void *g_html_special(struct g_part *p, int c, ...)
+static void *g_html_special(struct g_part *p, int c, ...)
 {
 	va_list l;
 	unsigned char *t;
@@ -934,7 +912,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 	goto back_link;
 }
 
-void g_do_format(char *start, char *end, struct g_part *part, unsigned char *head)
+static void g_do_format(char *start, char *end, struct g_part *part, unsigned char *head)
 {
 	pr(
 	parse_html(start, end, (int (*)(void *, unsigned char *, int)) g_put_chars_conv, (void (*)(void *)) g_line_break, (void *(*)(void *, int, ...)) g_html_special, part, head);
@@ -1087,7 +1065,7 @@ void g_release_part(struct g_part *p)
 	if (p->current_style) g_free_style(p->current_style);
 }
 
-void g_scan_width(struct g_object **o, int n, int *w)
+static void g_scan_width(struct g_object **o, int n, int *w)
 {
 	while (n--) {
 		if ((*o)->x + (*o)->xw > *w) *w = (*o)->x + (*o)->xw;
@@ -1095,7 +1073,7 @@ void g_scan_width(struct g_object **o, int n, int *w)
 	}
 }
 
-void g_scan_lines(struct g_object_line **o, int n, int *w)
+static void g_scan_lines(struct g_object_line **o, int n, int *w)
 {
 	while (n--) {
 		if ((*o)->n_entries) {

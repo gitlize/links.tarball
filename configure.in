@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.3pre1)
+AM_INIT_AUTOMAKE(links, 2.3pre2)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -161,7 +161,6 @@ if test "$ac_cv_rename_over_existing_files" = yes; then
 fi
 
 dnl Checks for library functions.
-AC_FUNC_MEMCMP
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
@@ -289,14 +288,14 @@ AC_MSG_CHECKING([if you want to use graphics])
 AC_ARG_ENABLE(graphics, [  --enable-graphics       use graphics], cf_use_graphics=$enableval )
 AC_MSG_RESULT($cf_use_graphics)
 
-dnl AC_MSG_CHECKING([if you want to enable UTF-8 terminal])
-dnl cf_enable_utf8=yes
-dnl AC_ARG_ENABLE(utf8, [  --disable-utf8          disable UTF-8 terminal (saves memory)], cf_enable_utf8=$enableval )
-dnl AC_MSG_RESULT($cf_enable_utf8)
-dnl 
-dnl if test "$cf_enable_utf8" != no; then
-dnl 	AC_DEFINE(ENABLE_UTF8)
-dnl fi
+AC_MSG_CHECKING([if you want to enable UTF-8 terminal])
+cf_enable_utf8=yes
+AC_ARG_ENABLE(utf8, [  --disable-utf8          disable UTF-8 terminal (saves memory)], cf_enable_utf8=$enableval )
+AC_MSG_RESULT($cf_enable_utf8)
+
+if test "$cf_enable_utf8" != no; then
+	AC_DEFINE(ENABLE_UTF8)
+fi
 
 AC_ARG_WITH(gpm, [  --without-gpm           compile without gpm mouse],[if test "$withval" = no; then disable_gpm=yes; else disable_gpm=no; fi])
 
@@ -530,7 +529,7 @@ if test "$disable_x" != yes ; then
 	elif test "$ac_cv_have_x2" != no; then
 		AC_CHECK_LIB(X11, XOpenDisplay)
 		AC_CHECK_HEADERS(X11/Xlib.h X11/X.h X11/Xutil.h X11/Xlocale.h)
-		if test "$ac_cv_have_libx11" = yes && test "$ac_cv_have_x11_xlib_h" = test && test "$ac_cv_have_x11_x_h" = test && test "$ac_cv_have_x11_xutil_h" = test && test "$ac_cv_have_x11_xlocale_h" = test; then
+		if test "$ac_cv_lib_X11_XOpenDisplay" = yes && test "$ac_cv_have_x11_xlib_h" = test && test "$ac_cv_have_x11_x_h" = test && test "$ac_cv_have_x11_xutil_h" = test && test "$ac_cv_have_x11_xlocale_h" = test; then
 			AC_DEFINE(GRDRV_X)
 			drivers="$drivers X"
 			LIBS="-lX11 $LIBS"
@@ -690,7 +689,7 @@ AC_OUTPUT(Makefile)
 echo "---------------------------------------------------------"
 echo "Configuration results:"
 echo ""
-dnl if test "$cf_enable_utf8" != no; then echo "UTF-8 terminal:		YES"; else echo "UTF-8 terminal:		NO"; fi
+if test "$cf_enable_utf8" != no; then echo "UTF-8 terminal:		YES"; else echo "UTF-8 terminal:		NO"; fi
 if test "$cf_have_gpm" = yes; then echo "GPM support:		YES"; else echo "GPM support:		NO"; fi
 echo "SSL support:		`echo $cf_have_ssl|tr a-z A-Z`"
 compression="`echo "$compression"|sed 's/^ //'`"

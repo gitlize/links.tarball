@@ -96,20 +96,6 @@ float fancy_constants[64]={
 	.01,1  		/* 32 */
 };
 
-/* prototypes */
-void decimate_3(unsigned short **, int, int);
-struct letter *find_stored_letter(int *, int);
-void read_stored_data(png_structp, png_bytep, png_uint_32);
-void my_png_warning(png_structp, png_const_charp);
-void my_png_error(png_structp, png_const_charp);
-struct font_cache_entry *supply_color_cache_entry (struct graphics_driver *, struct style *, struct letter *);
-void get_underline_pos(int, int *, int *);
-int compare_font_entries(void *, void *);
-void init_font_cache(int);
-void recode_font_name(unsigned char **);
-int compare_family(unsigned char *, unsigned char *);
-int fill_style_table(int *, unsigned char *);
-
 
 /* This shall be hopefully reasonably fast and portable
  * We assume ix is <65536. If not, the letters will be smaller in
@@ -773,7 +759,7 @@ inline static void scale_gray(unsigned char *in, int ix, int iy, unsigned char *
  * x must be >=1.
  * Performs realloc onto the buffer after decimation to save memory.
  */
-void decimate_3(unsigned short **data0, int x, int y)
+static void decimate_3(unsigned short **data0, int x, int y)
 {
 	unsigned short *data=*data0;
 	unsigned short *ahead=data;
@@ -1343,7 +1329,7 @@ extern int n_fonts; /* Number of fonts. font number 0 is system_font (it's
  * if the letter is not found. Tries all possibilities in the style table
  * before returning NULL.
  */
-struct letter *find_stored_letter(int *style_table, int letter_number)
+static struct letter *find_stored_letter(int *style_table, int letter_number)
 {
 	int first, last, half, diff, font_index, font_number;
 
@@ -1379,7 +1365,7 @@ struct letter *find_stored_letter(int *style_table, int letter_number)
 	return letter_data+font_table[0].begin;
 }
 
-void read_stored_data(png_structp png_ptr, png_bytep data, png_uint_32 length)
+static void read_stored_data(png_structp png_ptr, png_bytep data, png_uint_32 length)
 {
 	struct read_work *work;
 
@@ -1390,11 +1376,11 @@ void read_stored_data(png_structp png_ptr, png_bytep data, png_uint_32 length)
 	work->pointer+=length;
 }
 
-void my_png_warning(png_structp a, png_const_charp b)
+static void my_png_warning(png_structp a, png_const_charp b)
 {
 }
 
-void my_png_error(png_structp a, png_const_charp error_string)
+static void my_png_error(png_structp a, png_const_charp error_string)
 {
 	error("Error when loading compiled-in font: %s.",error_string);
 }
@@ -1570,7 +1556,7 @@ unsigned char *png_data, int png_length, struct style *style)
 /* Adds required entry into font_cache and returns pointer to the entry.
  * We assume the entry is FC_COLOR.
  */
-struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
+static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 *gd, struct style *style, struct letter *letter)
 {
 	struct font_cache_entry *found, *new;
@@ -1715,7 +1701,7 @@ inline static int print_letter(struct graphics_driver *gd, struct
  * at least 1 apart
  * Otherwise g_print_text will print nonsense (but won't segfault)
  */
-void get_underline_pos(int height, int *top, int *bottom)
+static void get_underline_pos(int height, int *top, int *bottom)
 {
 	int thickness, baseline;
 	thickness=(height+15)/16;
@@ -1814,7 +1800,7 @@ int x, int y, struct style *style, unsigned char *text, int *width)
 }
 
 /* 0=equality 1=inequality */
-int compare_font_entries(void *entry, void *template)
+static int compare_font_entries(void *entry, void *template)
 {
 	struct font_cache_entry*e1=entry;
 	struct font_cache_entry*e2=template;
@@ -1839,7 +1825,7 @@ int compare_font_entries(void *entry, void *template)
 /* If the cache already exists, it is destroyed and reallocated. If you call it with the same
  * size argument, only a cache flush will yield.
  */
-void init_font_cache(int bytes)
+static void init_font_cache(int bytes)
 {
 	lru_init(&font_cache, &compare_font_entries, bytes);
 }
@@ -1941,7 +1927,7 @@ void shutdown_dip(void)
 	destroy_font_cache();
 }
 
-void recode_font_name(unsigned char **name)
+static void recode_font_name(unsigned char **name)
 {
 	int dashes=0;
 	unsigned char *p;
@@ -1961,7 +1947,7 @@ void recode_font_name(unsigned char **name)
  * 0 matches
  * 1 doesn't match
  */
-int compare_family(unsigned char *single, unsigned char *multi)
+static int compare_family(unsigned char *single, unsigned char *multi)
 {
 	unsigned char *p,*r;
 	int single_length=strlen(single);
@@ -1982,7 +1968,7 @@ int compare_family(unsigned char *single, unsigned char *multi)
  * will result deterministically random results).
  * Returns 1 if the font is monospaced or 0 if not.
  */
-int fill_style_table(int * table, unsigned char *name)
+static int fill_style_table(int * table, unsigned char *name)
 {
 	unsigned char *p;
 	unsigned char *family, *weight, *slant, *adstyl, *spacing;

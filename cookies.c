@@ -27,18 +27,6 @@ struct c_server {
 
 struct list_head c_servers = { &c_servers, &c_servers };
 
-void accept_cookie(struct cookie *);
-void delete_cookie(struct cookie *);
-
-/* prototypes */
-int check_domain_security(unsigned char *, unsigned char *);
-struct cookie *find_cookie_id(void *);
-void reject_cookie(void *);
-void cookie_default(void *, int);
-void accept_cookie_always(void *);
-void accept_cookie_never(void *);
-
-
 void free_cookie(struct cookie *c)
 {
 	mem_free(c->name);
@@ -48,7 +36,7 @@ void free_cookie(struct cookie *c)
 	if (c->domain) mem_free(c->domain);
 }
 
-int check_domain_security(unsigned char *server, unsigned char *domain)
+static int check_domain_security(unsigned char *server, unsigned char *domain)
 {
 	size_t i, j, dl;
 	int nd;
@@ -83,6 +71,8 @@ int check_domain_security(unsigned char *server, unsigned char *domain)
 	return 0;
 }
 
+static void accept_cookie(struct cookie *);
+
 /* sezere 1 cookie z retezce str, na zacatku nesmi byt zadne whitechars
  * na konci muze byt strednik nebo 0
  * cookie musi byt ve tvaru nazev=hodnota, kolem rovnase nesmi byt zadne mezery
@@ -93,7 +83,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	int noval = 0;
 	struct cookie *cookie;
 	struct c_server *cs;
-	unsigned char *p, *q, *s, *server, *date, *document;
+	unsigned char *p, *q, *s, *server, *date;
 	if (accept_cookies == ACCEPT_NONE) return 0;
 	for (p = str; *p != ';' && *p; p++) /*if (WHITECHAR(*p)) return 0*/;
 	for (q = str; *q != '='; q++) if (!*q || q >= p) {
@@ -102,7 +92,6 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	}
 	if (str == q || q + 1 == p) return 0;
 	cookie = mem_alloc(sizeof(struct cookie));
-	document = get_url_data(url);
 	server = get_host_name(url);
 	cookie->name = memacpy(str, q - str);
 	cookie->value = !noval ? memacpy(q + 1, p - q - 1) : NULL;
@@ -169,7 +158,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	return 0;
 }
 
-void accept_cookie(struct cookie *c)
+static void accept_cookie(struct cookie *c)
 {
 	struct c_domain *cd;
 	struct cookie *d, *e;
@@ -192,7 +181,8 @@ void accept_cookie(struct cookie *c)
 	add_to_list(c_domains, cd);
 }
 
-void delete_cookie(struct cookie *c)
+#if 0
+static void delete_cookie(struct cookie *c)
 {
 	struct c_domain *cd;
 	struct cookie *d;
@@ -208,7 +198,7 @@ void delete_cookie(struct cookie *c)
 	mem_free(c);
 }
 
-struct cookie *find_cookie_id(void *idp)
+static struct cookie *find_cookie_id(void *idp)
 {
 	long id = (my_intptr_t)idp;
 	struct cookie *c;
@@ -216,14 +206,14 @@ struct cookie *find_cookie_id(void *idp)
 	return NULL;
 }
 
-void reject_cookie(void *idp)
+static void reject_cookie(void *idp)
 {
 	struct cookie *c;
 	if (!(c = find_cookie_id(idp))) return;
 	delete_cookie(c);
 }
 
-void cookie_default(void *idp, int a)
+static void cookie_default(void *idp, int a)
 {
 	struct cookie *c;
 	struct c_server *s;
@@ -236,16 +226,17 @@ void cookie_default(void *idp, int a)
 	s->accept = a;
 }
 
-void accept_cookie_always(void *idp)
+static void accept_cookie_always(void *idp)
 {
 	cookie_default(idp, 1);
 }
 
-void accept_cookie_never(void *idp)
+static void accept_cookie_never(void *idp)
 {
 	cookie_default(idp, 0);
 	reject_cookie(idp);
 }
+#endif
 
 int is_in_domain(unsigned char *d, unsigned char *s)
 {

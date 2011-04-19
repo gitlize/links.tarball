@@ -8,65 +8,10 @@
 struct list_head downloads = {&downloads, &downloads};
 
 /* prototypes */
-void add_xnum_to_str(unsigned char **, int *, off_t);
-void add_time_to_str(unsigned char **, int *, ttime);
-unsigned char *get_stat_msg(struct status *, struct terminal *);
-void x_print_screen_status(struct terminal *, struct session *);
-struct session *get_download_ses(struct download *);
-void delete_download_file(struct download *down);
-void close_download_file(struct download *down);
-void abort_download(struct download *);
-void abort_and_delete_download(struct download *);
-void kill_downloads_to_file(unsigned char *, unsigned char *);
-void undisplay_download(struct download *);
-int dlg_abort_download(struct dialog_data *, struct dialog_item_data *);
-int dlg_abort_and_delete_download(struct dialog_data *, struct dialog_item_data *);
-int dlg_undisplay_download(struct dialog_data *, struct dialog_item_data *);
-void download_abort_function(struct dialog_data *);
-void download_data(struct status *, struct download *);
-void increase_download_file(unsigned char **f);
-unsigned char *get_temp_name(unsigned char *, unsigned char *);
-int f_is_cacheable(struct f_data *);
-int f_need_reparse(struct f_data *);
-struct f_data *format_html(struct f_data_c *, struct object_request *, unsigned char *, struct document_options *, int *);
-void count_frames(struct f_data_c *, int *);
-void f_data_attach(struct f_data_c *, struct f_data *);
-void detach_f_data(struct f_data **);
-int shrink_format_cache(int);
-void create_new_frames(struct f_data_c *, struct frameset_desc *, struct document_options *);
-void image_timer(struct f_data_c *);
-int plain_type(struct session *, struct object_request *, unsigned char **);
-int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *err);
-void refresh_timer(struct f_data_c *);
-void subst_location(struct f_data_c *, struct location *, struct location *);
-struct location *copy_sublocations(struct session *, struct location *, struct location *, struct location *);
-struct location *copy_location(struct session *, struct location *);
-struct f_data_c *new_main_location(struct session *);
-struct f_data_c *copy_location_and_replace_frame(struct session *, struct f_data_c *);
-void ses_go_forward(struct session *, int, int);
-void ses_go_backward(struct session *);
-void tp_cancel(struct session *);
-void continue_download(struct session *, unsigned char *);
-void tp_save(struct session *);
-void tp_open(struct session *);
-int ses_abort_1st_state_loading(struct session *);
-void tp_display(struct session *);
-int direct_download_possible(struct object_request *rq, struct assoc *a);
-int prog_sel_save(struct dialog_data *, struct dialog_item_data*);
-int prog_sel_display(struct dialog_data *, struct dialog_item_data*);
-int prog_sel_cancel(struct dialog_data *, struct dialog_item_data*);
-int prog_sel_open(struct dialog_data *, struct dialog_item_data*);
-void vysad_dvere(struct dialog_data *);
-void vysad_okno(struct session *, unsigned char *, struct assoc *, int);
-void type_query(struct session *, unsigned char *, struct assoc *, int);
-void ses_go_to_2nd_state(struct session *);
-void ses_go_back_to_2nd_state(struct session *);
-void ses_finished_1st_state(struct object_request *, struct session *);
-void ses_imgmap(struct session *);
-void reload_frame(struct f_data_c *, int);
-void set_doc_view(struct session *);
-struct session *create_session(struct window *);
-int read_session_info(struct session *, void *, int);
+static void increase_download_file(unsigned char **f);
+static struct location *new_location(void);
+static int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *err);
+static void refresh_timer(struct f_data_c *);
 
 
 int are_there_downloads(void)
@@ -111,7 +56,7 @@ unsigned char *get_err_msg(int state)
 	return s->msg;
 }
 
-void add_xnum_to_str(unsigned char **s, int *l, off_t n)
+static void add_xnum_to_str(unsigned char **s, int *l, off_t n)
 {
 	unsigned char suff = 0;
 	int d = -1;
@@ -125,7 +70,7 @@ void add_xnum_to_str(unsigned char **s, int *l, off_t n)
 	add_chr_to_str(s, l, 'B');
 }
 
-void add_time_to_str(unsigned char **s, int *l, ttime t)
+static void add_time_to_str(unsigned char **s, int *l, ttime t)
 {
 	unsigned char q[64];
 	if (t < 0) t = 0;
@@ -136,7 +81,7 @@ void add_time_to_str(unsigned char **s, int *l, ttime t)
 	sprintf(q, ":%02d", (int)(t % 60)), add_to_str(s, l, q);
 }
 
-unsigned char *get_stat_msg(struct status *stat, struct terminal *term)
+static unsigned char *get_stat_msg(struct status *stat, struct terminal *term)
 {
 	if (stat->state == S_TRANS && stat->prg->elapsed / 100) {
 		unsigned char *m = init_str();
@@ -190,7 +135,7 @@ void change_screen_status(struct session *ses)
 	}
 }
 
-void x_print_screen_status(struct terminal *term, struct session *ses)
+static void x_print_screen_status(struct terminal *term, struct session *ses)
 {
 	unsigned char *m;
 	if (!F) {
@@ -293,7 +238,7 @@ unsigned char *decode_url(unsigned char *url)
 	return u;
 }
 
-struct session *get_download_ses(struct download *down)
+static struct session *get_download_ses(struct download *down)
 {
 	struct session *ses;
 	foreach(ses, sessions) if (ses == down->ses) return ses;
@@ -301,12 +246,12 @@ struct session *get_download_ses(struct download *down)
 	return NULL;
 }
 
-void close_download_file(struct download *down)
+static void close_download_file(struct download *down)
 {
 	if (down->handle != -1) prealloc_truncate(down->handle, down->last_pos - down->file_shift), close(down->handle), down->handle = -1;
 }
 
-void delete_download_file(struct download *down)
+static void delete_download_file(struct download *down)
 {
 	unsigned char *file = stracpy(down->orig_file);
 	unsigned char *wd = get_cwd();
@@ -322,7 +267,7 @@ void delete_download_file(struct download *down)
 	if (wd) set_cwd(wd), mem_free(wd);
 }
 
-void abort_download(struct download *down)
+static void abort_download(struct download *down)
 {
 	if (down->win) delete_window(down->win);
 	if (down->ask) delete_window(down->ask);
@@ -341,14 +286,15 @@ void abort_download(struct download *down)
 	mem_free(down);
 }
 
-void abort_and_delete_download(struct download *down)
+static void abort_and_delete_download(struct download *down)
 {
 	if (!down->prog) down->prog = DUMMY;
 	abort_download(down);
 }
 
-void kill_downloads_to_file(unsigned char *file, unsigned char *cwd)
+int test_abort_downloads_to_file(unsigned char *file, unsigned char *cwd, int abort_downloads)
 {
+	int ret = 0;
 	struct download *down;
 	foreach(down, downloads) {
 		if (strcmp(down->cwd, cwd)) {
@@ -362,34 +308,40 @@ void kill_downloads_to_file(unsigned char *file, unsigned char *cwd)
 			continue;
 		}
 		abs:
-		if (!strcmp(down->file, file) || !strcmp(down->orig_file, file)) down = down->prev, abort_download(down->next);
+		if (!strcmp(down->file, file) || !strcmp(down->orig_file, file)) {
+			ret = 1;
+			if (!abort_downloads) break;
+			down = down->prev;
+			abort_download(down->next);
+		}
 	}
+	return ret;
 }
 
-void undisplay_download(struct download *down)
+static void undisplay_download(struct download *down)
 {
 	if (down->win) delete_window(down->win);
 }
 
-int dlg_abort_download(struct dialog_data *dlg, struct dialog_item_data *di)
+static int dlg_abort_download(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	register_bottom_half((void (*)(void *))abort_download, dlg->dlg->udata);
 	return 0;
 }
 
-int dlg_abort_and_delete_download(struct dialog_data *dlg, struct dialog_item_data *di)
+static int dlg_abort_and_delete_download(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	register_bottom_half((void (*)(void *))abort_and_delete_download, dlg->dlg->udata);
 	return 0;
 }
 
-int dlg_undisplay_download(struct dialog_data *dlg, struct dialog_item_data *di)
+static int dlg_undisplay_download(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	register_bottom_half((void (*)(void *))undisplay_download, dlg->dlg->udata);
 	return 0;
 }
 
-void download_abort_function(struct dialog_data *dlg)
+static void download_abort_function(struct dialog_data *dlg)
 {
 	struct download *down = dlg->dlg->udata;
 	down->win = NULL;
@@ -681,7 +633,7 @@ static int download_write(struct download *down, void *ptr, off_t to_write)
 	return 0;
 }
 
-void download_data(struct status *stat, struct download *down)
+static void download_data(struct status *stat, struct download *down)
 {
 	struct cache_entry *ce;
 	struct fragment *frag;
@@ -850,7 +802,7 @@ int create_download_file(struct session *ses, unsigned char *cwd, unsigned char 
 	return h;
 }
 
-void increase_download_file(unsigned char **f)
+static void increase_download_file(unsigned char **f)
 {
 	unsigned char *p = NULL, *pp = *f;
 	unsigned char *q;
@@ -872,7 +824,7 @@ void increase_download_file(unsigned char **f)
 	add_to_strn(f, "0");
 }
 
-unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
+static unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
 {
 	int nl;
 	unsigned char *name, *fn, *fnx;
@@ -945,7 +897,7 @@ void start_download(struct session *ses, unsigned char *file)
 	int h;
 	unsigned char *url = ses->dn_url;
 	if (!url) return;
-	kill_downloads_to_file(file, ses->term->cwd);
+	test_abort_downloads_to_file(file, ses->term->cwd, 1);
 	if ((h = create_download_file(ses, ses->term->cwd, file, 0, 0)) < 0) return;
 	down = mem_calloc(sizeof(struct download));
 	down->url = stracpy(url);
@@ -979,14 +931,14 @@ int f_is_finished(struct f_data *f)
 	return 1;
 }
 
-int f_is_cacheable(struct f_data *f)
+static int f_is_cacheable(struct f_data *f)
 {
 	if (!f || f->rq->state >= 0) return 0;
 	if (f->fd && f->fd->rq && f->fd->rq->state >= 0) return 0;
 	return 1;
 }
 
-int f_need_reparse(struct f_data *f)
+static int f_need_reparse(struct f_data *f)
 {
 	struct additional_file *af;
 	if (!f || f->rq->state >= 0) return 1;
@@ -994,7 +946,7 @@ int f_need_reparse(struct f_data *f)
 	return 0;
 }
 
-struct f_data *format_html(struct f_data_c *fd, struct object_request *rq, unsigned char *url, struct document_options *opt, int *cch)
+static struct f_data *format_html(struct f_data_c *fd, struct object_request *rq, unsigned char *url, struct document_options *opt, int *cch)
 {
 	struct f_data *f;
 	pr(
@@ -1039,7 +991,7 @@ struct f_data *format_html(struct f_data_c *fd, struct object_request *rq, unsig
 	return f;
 }
 
-void count_frames(struct f_data_c *fd, int *i)
+static void count_frames(struct f_data_c *fd, int *i)
 {
 	struct f_data_c *sub;
 	if (!fd) return;
@@ -1067,7 +1019,7 @@ long formatted_info(int type)
 	return 0;
 }
 
-void f_data_attach(struct f_data_c *fd, struct f_data *f)
+static void f_data_attach(struct f_data_c *fd, struct f_data *f)
 {
 	struct additional_file *af;
 	f->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
@@ -1087,7 +1039,7 @@ void f_data_attach(struct f_data_c *fd, struct f_data *f)
 	}
 }
 
-void detach_f_data(struct f_data **ff)
+static void detach_f_data(struct f_data **ff)
 {
 	struct f_data *f = *ff;
 	if (!f) return;
@@ -1126,7 +1078,7 @@ static inline int is_format_cache_entry_uptodate(struct f_data *f)
 	return 1;
 }
 
-int shrink_format_cache(int u)
+static int shrink_format_cache(int u)
 {
 	static int sc = 0;
 	int scc;
@@ -1212,9 +1164,7 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 	return f;
 }
 
-struct location *new_location(void);
-
-void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, struct document_options *o)
+static void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, struct document_options *o)
 {
 	struct location *loc;
 	struct frame_desc *frm;
@@ -1442,7 +1392,7 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 
 #ifdef G
 
-void image_timer(struct f_data_c *fd)
+static void image_timer(struct f_data_c *fd)
 {
 	struct image_refresh *ir;
 	struct list_head new;
@@ -1546,7 +1496,7 @@ struct f_data_c *create_f_data_c(struct session *ses, struct f_data_c *parent)
 	return fd;
 }
 
-int plain_type(struct session *ses, struct object_request *rq, unsigned char **p)
+static int plain_type(struct session *ses, struct object_request *rq, unsigned char **p)
 {
 	struct cache_entry *ce;
 	unsigned char *ct;
@@ -1882,7 +1832,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 }
 #endif
 
-int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *errp)
+static int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *errp)
 {
 	unsigned char *enc;
 	struct fragment *fr;
@@ -1936,7 +1886,7 @@ int get_file(struct object_request *o, unsigned char **start, unsigned char **en
 	return get_file_by_term(term, o->ce, start, end, NULL);
 }
 
-void refresh_timer(struct f_data_c *fd)
+static void refresh_timer(struct f_data_c *fd)
 {
 	if (fd->ses->rq) {
 		fd->refresh_timer = install_timer(500, (void (*)(void *))refresh_timer, fd);
@@ -2044,7 +1994,7 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 	if (rq && (rq->state == O_FAILED || rq->state == O_INCOMPLETE) && (fd->rq == rq || fd->ses->rq == rq)) print_error_dialog(fd->ses, &rq->stat, rq->url);
 }
 
-struct location *new_location(void)
+static struct location *new_location(void)
 {
 	struct location *loc;
 	loc = mem_calloc(sizeof(struct location));
@@ -2061,14 +2011,14 @@ static inline struct location *alloc_ses_location(struct session *ses)
 	return loc;
 }
 
-void subst_location(struct f_data_c *fd, struct location *old, struct location *new)
+static void subst_location(struct f_data_c *fd, struct location *old, struct location *new)
 {
 	struct f_data_c *f;
 	foreach(f, fd->subframes) subst_location(f, old, new);
 	if (fd->loc == old) fd->loc = new;
 }
 
-struct location *copy_sublocations(struct session *ses, struct location *d, struct location *s, struct location *x)
+static struct location *copy_sublocations(struct session *ses, struct location *d, struct location *s, struct location *x)
 {
 	struct location *dl, *sl, *y, *z;
 	d->name = stracpy(s->name);
@@ -2092,7 +2042,7 @@ struct location *copy_sublocations(struct session *ses, struct location *d, stru
 	return y;
 }
 
-struct location *copy_location(struct session *ses, struct location *loc)
+static struct location *copy_location(struct session *ses, struct location *loc)
 {
 	struct location *l2, *l1, *nl;
 	l1 = cur_loc(ses);
@@ -2101,7 +2051,7 @@ struct location *copy_location(struct session *ses, struct location *loc)
 	return nl;
 }
 
-struct f_data_c *new_main_location(struct session *ses)
+static struct f_data_c *new_main_location(struct session *ses)
 {
 	struct location *loc;
 	if (!(loc = alloc_ses_location(ses))) return NULL;
@@ -2112,7 +2062,7 @@ struct f_data_c *new_main_location(struct session *ses)
 	return ses->screen;
 }
 
-struct f_data_c *copy_location_and_replace_frame(struct session *ses, struct f_data_c *fd)
+static struct f_data_c *copy_location_and_replace_frame(struct session *ses, struct f_data_c *fd)
 {
 	struct location *loc;
 	if (!(loc = copy_location(ses, fd->loc))) return NULL;
@@ -2168,7 +2118,7 @@ void destroy_location(struct location *loc)
 	mem_free(loc);
 }
 
-void ses_go_forward(struct session *ses, int plain, int refresh)
+static void ses_go_forward(struct session *ses, int plain, int refresh)
 {
 	struct location *cl;
 	struct f_data_c *fd;
@@ -2193,7 +2143,7 @@ void ses_go_forward(struct session *ses, int plain, int refresh)
 	draw_formatted(ses);
 }
 
-void ses_go_backward(struct session *ses)
+static void ses_go_backward(struct session *ses)
 {
 	if (ses->search_word) mem_free(ses->search_word), ses->search_word = NULL;
 	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
@@ -2212,12 +2162,12 @@ void ses_go_backward(struct session *ses)
 
 }
 
-void tp_cancel(struct session *ses)
+static void tp_cancel(struct session *ses)
 {
 	release_object(&ses->tq);
 }
 
-void continue_download(struct session *ses, unsigned char *file)
+static void continue_download(struct session *ses, unsigned char *file)
 {
 	unsigned char *enc;
 	struct download *down;
@@ -2239,7 +2189,7 @@ void continue_download(struct session *ses, unsigned char *file)
 			return;
 		}
 	}
-	if (!ses->tq_prog) kill_downloads_to_file(file, ses->term->cwd);
+	if (!ses->tq_prog) test_abort_downloads_to_file(file, ses->term->cwd, 1);
 	if ((h = create_download_file(ses, ses->term->cwd, file, !!ses->tq_prog, 0)) < 0) {
 		if (h == -2 && ses->tq_prog) {
 			if (++namecount < DOWNLOAD_NAME_TRIES) {
@@ -2288,18 +2238,18 @@ void continue_download(struct session *ses, unsigned char *file)
 }
 
 
-void tp_save(struct session *ses)
+static void tp_save(struct session *ses)
 {
 	if (ses->tq_prog) mem_free(ses->tq_prog), ses->tq_prog = NULL;
 	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, continue_download, tp_cancel);
 }
 
-void tp_open(struct session *ses)
+static void tp_open(struct session *ses)
 {
 	continue_download(ses, "");
 }
 
-int ses_abort_1st_state_loading(struct session *ses)
+static int ses_abort_1st_state_loading(struct session *ses)
 {
 	int r = !!ses->rq;
 	release_object(&ses->rq);
@@ -2312,7 +2262,7 @@ int ses_abort_1st_state_loading(struct session *ses)
 	return r;
 }
 
-void tp_display(struct session *ses)
+static void tp_display(struct session *ses)
 {
 	ses_abort_1st_state_loading(ses);
 	ses->rq = ses->tq;
@@ -2320,7 +2270,7 @@ void tp_display(struct session *ses)
 	ses_go_forward(ses, 1, 0);
 }
 
-int direct_download_possible(struct object_request *rq, struct assoc *a)
+static int direct_download_possible(struct object_request *rq, struct assoc *a)
 {
 	unsigned char *proto = get_protocol_name(rq->url);
 	int ret = 0;
@@ -2332,7 +2282,7 @@ int direct_download_possible(struct object_request *rq, struct assoc *a)
 	return ret;
 }
 
-int prog_sel_save(struct dialog_data *dlg, struct dialog_item_data* idata)
+static int prog_sel_save(struct dialog_data *dlg, struct dialog_item_data* idata)
 {
 	struct session *ses=(struct session *)(dlg->dlg->udata2);
 
@@ -2343,7 +2293,7 @@ int prog_sel_save(struct dialog_data *dlg, struct dialog_item_data* idata)
 	return 0;
 }
 
-int prog_sel_display(struct dialog_data *dlg, struct dialog_item_data* idata)
+static int prog_sel_display(struct dialog_data *dlg, struct dialog_item_data* idata)
 {
 	struct session *ses=(struct session *)(dlg->dlg->udata2);
 
@@ -2356,7 +2306,7 @@ int prog_sel_display(struct dialog_data *dlg, struct dialog_item_data* idata)
 	return 0;
 }
 
-int prog_sel_cancel(struct dialog_data *dlg, struct dialog_item_data* idata)
+static int prog_sel_cancel(struct dialog_data *dlg, struct dialog_item_data* idata)
 {
 	struct session *ses=(struct session *)(dlg->dlg->udata2);
 
@@ -2365,7 +2315,7 @@ int prog_sel_cancel(struct dialog_data *dlg, struct dialog_item_data* idata)
 	return 0;
 }
 
-int prog_sel_open(struct dialog_data *dlg, struct dialog_item_data* idata)
+static int prog_sel_open(struct dialog_data *dlg, struct dialog_item_data* idata)
 {
 	struct assoc *a=(struct assoc*)idata->item->udata;
 	struct session *ses=(struct session *)(dlg->dlg->udata2);
@@ -2377,7 +2327,7 @@ int prog_sel_open(struct dialog_data *dlg, struct dialog_item_data* idata)
 	return 0;
 }
 
-void vysad_dvere(struct dialog_data *dlg)
+static void vysad_dvere(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
 	/*struct session *ses=(struct session *)(dlg->dlg->udata2);*/
@@ -2430,7 +2380,7 @@ void vysad_dvere(struct dialog_data *dlg)
 }
 
 
-void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, int n)
+static void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 {
 	int i;
 	struct dialog *d;
@@ -2478,7 +2428,7 @@ void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 
 
 /* deallocates a */
-void type_query(struct session *ses, unsigned char *ct, struct assoc *a, int n)
+static void type_query(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 {
 	unsigned char *m1;
 	unsigned char *m2;
@@ -2506,7 +2456,7 @@ void type_query(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 	if (ct)mem_free(ct);
 }
 
-void ses_go_to_2nd_state(struct session *ses)
+static void ses_go_to_2nd_state(struct session *ses)
 {
 	struct assoc *a;
 	int n;
@@ -2533,12 +2483,12 @@ void ses_go_to_2nd_state(struct session *ses)
 	if (ct) mem_free(ct);
 }
 
-void ses_go_back_to_2nd_state(struct session *ses)
+static void ses_go_back_to_2nd_state(struct session *ses)
 {
 	ses_go_backward(ses);
 }
 
-void ses_finished_1st_state(struct object_request *rq, struct session *ses)
+static void ses_finished_1st_state(struct object_request *rq, struct session *ses)
 {
 	if (rq->state != O_WAITING) {
 		if (ses->wtd_refresh && ses->wtd_target_base && ses->wtd_target_base->refresh_timer != -1) {
@@ -2652,7 +2602,7 @@ void goto_url_not_from_dialog(struct session *ses, unsigned char *url)
 	goto_url_f(ses, NULL, url, NULL, NULL, -1, 0, 0, 0);
 }
 
-void ses_imgmap(struct session *ses)
+static void ses_imgmap(struct session *ses)
 {
 	unsigned char *start, *end;
 	struct memory_list *ml;
@@ -2709,7 +2659,7 @@ void go_back(struct session *ses)
 	request_object(ses->term, loc->url, loc->prev_url, PRI_MAIN, NC_ALWAYS_CACHE, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);
 }
 
-void reload_frame(struct f_data_c *fd, int no_cache)
+static void reload_frame(struct f_data_c *fd, int no_cache)
 {
 	unsigned char *u;
 	if (!list_empty(fd->subframes)) {
@@ -2740,7 +2690,7 @@ void reload(struct session *ses, int no_cache)
 	/*request_object(ses->term, cur_loc(ses)->url, cur_loc(ses)->prev_url, PRI_MAIN, no_cache, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);*/
 }
 
-void set_doc_view(struct session *ses)
+static void set_doc_view(struct session *ses)
 {
 	ses->screen->xp = 0;
 	ses->screen->yp = gf_val(1, G_BFU_FONT_SIZE);
@@ -2749,7 +2699,7 @@ void set_doc_view(struct session *ses)
 	else ses->screen->yw = ses->term->y - gf_val(2, 2 * G_BFU_FONT_SIZE);
 }
 
-struct session *create_session(struct window *win)
+static struct session *create_session(struct window *win)
 {
 	static int session_id = 1;
 	struct terminal *term = win->term;
@@ -2801,7 +2751,7 @@ void *create_session_info(int cp, unsigned char *url, unsigned char *framename, 
 /* dostane data z create_session_info a nainicializuje podle nich session
    vraci -1 pokud jsou data vadna
  */
-int read_session_info(struct session *ses, void *data, int len)
+static int read_session_info(struct session *ses, void *data, int len)
 {
 	unsigned char *h;
 	int cpfrom, sz, sz1;

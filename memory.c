@@ -12,7 +12,7 @@ struct cache_upcall {
 	unsigned char name[1];
 };
 
-struct list_head cache_upcalls = { &cache_upcalls, &cache_upcalls }; /* cache_upcall */
+static struct list_head cache_upcalls = { &cache_upcalls, &cache_upcalls }; /* cache_upcall */
 
 int shrink_memory(int type)
 {

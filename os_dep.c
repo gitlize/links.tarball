@@ -17,19 +17,6 @@
 #include <gpm.h>
 #endif
 
-/* prototypes */
-int get_e(char *);
-void sigwinch(void *);
-void exec_new_links(struct terminal *, unsigned char *, unsigned char *, unsigned char *);
-void open_in_new_twterm(struct terminal *, unsigned char *, unsigned char *);
-void open_in_new_xterm(struct terminal *, unsigned char *, unsigned char *);
-void open_in_new_screen(struct terminal *, unsigned char *, unsigned char *);
-void open_in_new_vio(struct terminal *, unsigned char *, unsigned char *);
-void open_in_new_fullscreen(struct terminal *, unsigned char *, unsigned char *);
-void open_in_new_win32(struct terminal *, unsigned char *, unsigned char *);
-void open_in_new_be(struct terminal *, unsigned char *, unsigned char *);
-void open_in_new_g(struct terminal *, unsigned char *, unsigned char *);
-
 
 int is_safe_in_shell(unsigned char c)
 {
@@ -73,7 +60,7 @@ unsigned char *escape_path(unsigned char *path)
 	return result;
 }
 
-int get_e(char *env)
+static int get_e(char *env)
 {
 	char *v;
 	if ((v = getenv(env))) return atoi(v);
@@ -169,7 +156,7 @@ static void win32_resize_poll(void)
 
 #if defined(UNIX) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(WIN32) || defined(SPAD)
 
-void sigwinch(void *s)
+static void sigwinch(void *s)
 {
 	((void (*)(void))s)();
 }
@@ -1639,6 +1626,7 @@ static void gpm_mouse_in(struct gpm_mouse_spec *gms)
 	restore_gpm_signals();
 	if (g <= 0) {
 		set_handlers(gms->h, NULL, NULL, NULL, NULL);
+		gms->h = -1;
 		return;
 	}
 	ev.ev = EV_MOUSE;
@@ -1681,7 +1669,7 @@ void *handle_mouse(int cons, void (*fn)(void *, unsigned char *, int), void *dat
 void unhandle_mouse(void *h)
 {
 	struct gpm_mouse_spec *gms = h;
-	set_handlers(gms->h, NULL, NULL, NULL, NULL);
+	if (gms->h != -1) set_handlers(gms->h, NULL, NULL, NULL, NULL);
 	save_gpm_signals();
 	Gpm_Close();
 	restore_gpm_signals();
@@ -1729,7 +1717,7 @@ int get_system_env(void)
 
 #endif
 
-void exec_new_links(struct terminal *term, unsigned char *xterm, unsigned char *exe, unsigned char *param)
+static void exec_new_links(struct terminal *term, unsigned char *xterm, unsigned char *exe, unsigned char *param)
 {
 	unsigned char *str;
 	str = mem_alloc(strlen(xterm) + 1 + strlen(exe) + 1 + strlen(param) + 1);
@@ -1739,27 +1727,27 @@ void exec_new_links(struct terminal *term, unsigned char *xterm, unsigned char *
 	mem_free(str);
 }
 
-void open_in_new_twterm(struct terminal *term, unsigned char *exe, unsigned char *param)
+static void open_in_new_twterm(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	unsigned char *twterm;
 	if (!(twterm = getenv("LINKS_TWTERM"))) twterm = "twterm -e";
 	exec_new_links(term, twterm, exe, param);
 }
 
-void open_in_new_xterm(struct terminal *term, unsigned char *exe, unsigned char *param)
+static void open_in_new_xterm(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	unsigned char *xterm;
 	if (!(xterm = getenv("LINKS_XTERM"))) xterm = "xterm -e";
 	exec_new_links(term, xterm, exe, param);
 }
 
-void open_in_new_screen(struct terminal *term, unsigned char *exe, unsigned char *param)
+static void open_in_new_screen(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	exec_new_links(term, "screen", exe, param);
 }
 
 #ifdef OS2
-void open_in_new_vio(struct terminal *term, unsigned char *exe, unsigned char *param)
+static void open_in_new_vio(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	unsigned char *x = stracpy("\"");
 	add_to_strn(&x, exe);
@@ -1768,7 +1756,7 @@ void open_in_new_vio(struct terminal *term, unsigned char *exe, unsigned char *p
 	mem_free(x);
 }
 
-void open_in_new_fullscreen(struct terminal *term, unsigned char *exe, unsigned char *param)
+static void open_in_new_fullscreen(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	unsigned char *x = stracpy("\"");
 	add_to_strn(&x, exe);
@@ -1779,21 +1767,21 @@ void open_in_new_fullscreen(struct terminal *term, unsigned char *exe, unsigned 
 #endif
 
 #ifdef WIN32
-void open_in_new_win32(struct terminal *term, unsigned char *exe, unsigned char *param)
+static void open_in_new_win32(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	exec_new_links(term, "", exe, param);
 }
 #endif
 
 #ifdef BEOS
-void open_in_new_be(struct terminal *term, unsigned char *exe, unsigned char *param)
+static void open_in_new_be(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	exec_new_links(term, "Terminal", exe, param);
 }
 #endif
 
 #ifdef G
-void open_in_new_g(struct terminal *term, unsigned char *exe, unsigned char *param)
+static void open_in_new_g(struct terminal *term, unsigned char *exe, unsigned char *param)
 {
 	void *info;
 	unsigned char *target=NULL;

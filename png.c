@@ -30,28 +30,18 @@
 	  
 /* Decoder structs */
 
-/* prototypes */
-void img_my_png_warning(png_structp, png_const_charp);
-void img_my_png_error(png_structp, png_const_charp);
-void png_info_callback(png_structp, png_infop);
-void a2char_from_unsigned_short(unsigned char *, unsigned short *, int);
-void unsigned_short_from_2char(unsigned short *, unsigned char *, int);
-void png_row_callback(png_structp, png_bytep, png_uint_32, int);
-void png_end_callback(png_structp, png_infop);
-
-
 /* Warning for from-web PNG images */
-void img_my_png_warning(png_structp a, png_const_charp b)
+static void img_my_png_warning(png_structp a, png_const_charp b)
 {
 }
 
 /* Error for from-web PNG images. */
-void img_my_png_error(png_structp png_ptr, png_const_charp error_string)
+static void img_my_png_error(png_structp png_ptr, png_const_charp error_string)
 {
 	longjmp(png_ptr->jmpbuf,1);
 }
 
-void png_info_callback(png_structp png_ptr, png_infop info_ptr)
+static void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 {
 	int bit_depth, color_type, intent;
 	double gamma;
@@ -115,8 +105,9 @@ void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 		img_my_png_error(png_ptr, "bad image size");
 }
 
+#ifdef REPACK_16
 /* Converts unsigned shorts to doublechars (in big endian) */
-void a2char_from_unsigned_short(unsigned char *chr, unsigned short *shrt, int len)
+static void a2char_from_unsigned_short(unsigned char *chr, unsigned short *shrt, int len)
 {
 	unsigned short s;
 
@@ -128,7 +119,7 @@ void a2char_from_unsigned_short(unsigned char *chr, unsigned short *shrt, int le
 }
 
 /* Converts doublechars (in big endian) to unsigned shorts */
-void unsigned_short_from_2char(unsigned short *shrt, unsigned char *chr, int len)
+static void unsigned_short_from_2char(unsigned short *shrt, unsigned char *chr, int len)
 {
 	unsigned short s;
 	
@@ -137,8 +128,9 @@ void unsigned_short_from_2char(unsigned short *shrt, unsigned char *chr, int len
 		*shrt=s;
 	}
 }
+#endif
 
-void png_row_callback(png_structp png_ptr, png_bytep new_row, png_uint_32
+static void png_row_callback(png_structp png_ptr, png_bytep new_row, png_uint_32
 	row_num, int pass)
 {
 	struct cached_image *cimg;
@@ -182,7 +174,7 @@ void png_row_callback(png_structp png_ptr, png_bytep new_row, png_uint_32
 	cimg->rows_added=1;
 }
 
-void png_end_callback(png_structp png_ptr, png_infop info)
+static void png_end_callback(png_structp png_ptr, png_infop info)
 {
 	end_callback_hit=1;
 }

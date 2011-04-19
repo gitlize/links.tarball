@@ -5,27 +5,15 @@
 
 #include "links.h"
 
-/* prototypes */
-void setrwx(int, unsigned char *);
-void setst(int, unsigned char *);
-void stat_mode(unsigned char **, int *, struct stat *);
-void stat_links(unsigned char **, int *, struct stat *);
-void stat_user(unsigned char **, int *, struct stat *, int);
-void stat_size(unsigned char **, int *, struct stat *);
-void stat_date(unsigned char **, int *, struct stat *);
-unsigned char *get_filename(unsigned char *);
-
-
-
 #ifdef FS_UNIX_RIGHTS
-void setrwx(int m, unsigned char *p)
+static void setrwx(int m, unsigned char *p)
 {
 	if(m & S_IRUSR) p[0] = 'r';
 	if(m & S_IWUSR) p[1] = 'w';
 	if(m & S_IXUSR) p[2] = 'x';
 }
 
-void setst(int m, unsigned char *p)
+static void setst(int m, unsigned char *p)
 {
 #ifdef S_ISUID
 	if (m & S_ISUID) {
@@ -48,7 +36,7 @@ void setst(int m, unsigned char *p)
 }
 #endif
 
-void stat_mode(unsigned char **p, int *l, struct stat *stp)
+static void stat_mode(unsigned char **p, int *l, struct stat *stp)
 {
 	unsigned char c = '?';
 	if (stp) {
@@ -92,7 +80,7 @@ void stat_mode(unsigned char **p, int *l, struct stat *stp)
 }
 
 
-void stat_links(unsigned char **p, int *l, struct stat *stp)
+static void stat_links(unsigned char **p, int *l, struct stat *stp)
 {
 #ifdef FS_UNIX_HARDLINKS
 	unsigned char lnk[64];
@@ -110,7 +98,7 @@ char last_user[64];
 int last_gid = -1;
 char last_group[64];
 
-void stat_user(unsigned char **p, int *l, struct stat *stp, int g)
+static void stat_user(unsigned char **p, int *l, struct stat *stp, int g)
 {
 #ifdef FS_UNIX_USERS
 	struct passwd *pwd;
@@ -142,7 +130,7 @@ void stat_user(unsigned char **p, int *l, struct stat *stp, int g)
 #endif
 }
 
-void stat_size(unsigned char **p, int *l, struct stat *stp)
+static void stat_size(unsigned char **p, int *l, struct stat *stp)
 {
 	unsigned char size[64];
 	if (!stp) z: add_to_str(p, l, "         ");
@@ -154,7 +142,7 @@ void stat_size(unsigned char **p, int *l, struct stat *stp)
 	}
 }
 
-void stat_date(unsigned char **p, int *l, struct stat *stp)
+static void stat_date(unsigned char **p, int *l, struct stat *stp)
 {
 	time_t current_time = time(NULL);
 	time_t when;
@@ -182,7 +170,7 @@ void stat_date(unsigned char **p, int *l, struct stat *stp)
 	add_chr_to_str(p, l, ' ');
 }
 
-unsigned char *get_filename(unsigned char *url)
+static unsigned char *get_filename(unsigned char *url)
 {
 	unsigned char *p, *m;
 	int ml;

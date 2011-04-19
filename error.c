@@ -28,8 +28,8 @@
 
 void er(int, unsigned char *, va_list); /* prototype */
 
-char dummy_val;
-volatile char *dummy_ptr = &dummy_val;
+volatile char dummy_val;
+volatile char * volatile dummy_ptr = &dummy_val;
 
 void *do_not_optimize_here(void *p)
 {
@@ -65,6 +65,7 @@ struct list_head memory_list = { &memory_list, &memory_list };
 #endif
 
 #define L_D_S ((sizeof(struct alloc_header) + 15) & ~15)
+
 #endif
 
 static inline void force_dump(void)
@@ -351,8 +352,70 @@ unsigned char *get_mem_comment(void *p)
 #endif
 }
 
+#else
+
+void *mem_alloc(size_t size)
+{
+	void *p;
+	if (!size) return DUMMY;
+	if (size > MAXINT) overalloc();
+	if (!(p = malloc(size))) {
+		malloc_oom();
+	}
+	return p;
+}
+
+void *mem_calloc(size_t size)
+{
+	void *p;
+	if (!size) return DUMMY;
+	if (size > MAXINT) overalloc();
+	if (!(p = x_calloc(size))) {
+		error((unsigned char *)"ERROR: out of memory (calloc returned NULL)\n");
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
+	return p;
+}
+
+void mem_free(void *p)
+{
+	if (p == DUMMY) return;
+	if (!p) {
+		internal((unsigned char *)"mem_free(NULL)");
+		return;
+	}
+	free(p);
+}
+
+void *mem_realloc(void *p, size_t size)
+{
+	if (p == DUMMY) return mem_alloc(size);
+	if (!p) {
+		internal((unsigned char *)"mem_realloc(NULL, %d)", size);
+		return NULL;
+	}
+	if (!size) {
+		mem_free(p);
+		return DUMMY;
+	}
+	if (size > MAXINT) overalloc();
+	if (!(p = realloc(p, size))) {
+		error((unsigned char *)"ERROR: out of memory (realloc returned NULL)\n");
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
+	return p;
+}
 
 #endif
+
+void malloc_oom(void)
+{
+	error((unsigned char *)"ERROR: out of memory (malloc returned NULL)\n");
+	fatal_tty_exit();
+	exit(RET_FATAL);
+}
 
 #ifdef OOPS
 
@@ -410,3 +473,272 @@ void nopr()
 }
 
 #endif
+
+#if !(defined(LEAK_DEBUG) && defined(LEAK_DEBUG_LIST))
+
+unsigned char *memacpy(const unsigned char *src, int len)
+{
+	unsigned char *m;
+	m = (unsigned char *)mem_alloc(len + 1);
+	memcpy(m, src, len);
+	m[len] = 0;
+	return m;
+}
+
+unsigned char *stracpy(const unsigned char *src)
+{
+	return src ? memacpy(src, src != DUMMY ? strlen((char *)src) : 0) : NULL;
+}
+
+#else
+
+unsigned char *debug_memacpy(unsigned char *f, int l, unsigned char *src, size_t len)
+{
+	unsigned char *m;
+	m = (unsigned char *)debug_mem_alloc(f, l, len + 1);
+	memcpy(m, src, len);
+	m[len] = 0;
+	return m;
+}
+
+unsigned char *debug_stracpy(unsigned char *f, int l, unsigned char *src)
+{
+	return src ? (unsigned char *)debug_memacpy(f, l, src, src != DUMMY ? strlen((char *)src) : 0L) : NULL;
+}
+
+#endif
+
+int snprint(unsigned char *s, int n, off_t num)
+{
+	off_t q = 1;
+	while (q <= num / 10) q *= 10;
+	while (n-- > 1 && q) *(s++) = num / q + '0', num %= q, q /= 10;
+	*s = 0;
+	return !!q;
+}
+
+int snzprint(unsigned char *s, int n, off_t num)
+{
+	if (n > 1 && num < 0) *(s++) = '-', num = -num, n--;
+	return snprint(s, n, num);
+}
+
+void add_to_strn(unsigned char **s, unsigned char *a)
+{
+	unsigned char *p;
+	size_t l1 = strlen((char *)*s), l2 = strlen((char *)a);
+	if (((l1 | l2) | (l1 + l2 + 1)) > MAXINT) overalloc();
+	p = (unsigned char *)mem_realloc(*s, l1 + l2 + 1);
+	strcat((char *)p, (char *)a);
+	*s = p;
+}
+
+void extend_str(unsigned char **s, int n)
+{
+	size_t l = strlen((char *)*s);
+	if (((l | n) | (l + n + 1)) > MAXINT) overalloc();
+	*s = (unsigned char *)mem_realloc(*s, l + n + 1);
+}
+
+void add_to_str(unsigned char **s, int *l, unsigned char *a)
+{
+	unsigned char *p=*s;
+	unsigned old_length;
+	size_t new_length;
+	unsigned x;
+
+	old_length=*l;
+	new_length=strlen((char *)a);
+	if (new_length + old_length >= MAXINT / 2 || new_length + old_length < new_length) overalloc();
+	new_length+=old_length;
+	*l=new_length;
+	x=old_length^new_length;
+	if (x>=old_length){
+		/* Need to realloc */
+		new_length|=(new_length>>1);
+		new_length|=(new_length>>2);
+		new_length|=(new_length>>4);
+		new_length|=(new_length>>8);
+		new_length|=(new_length>>16);
+		p=(unsigned char *)mem_realloc(p,new_length+1L);
+	}
+	*s=p;
+	strcpy((char *)(p+old_length),(char *)a);
+}
+
+void add_bytes_to_str(unsigned char **s, int *l, unsigned char *a, size_t ll)
+{
+	unsigned char *p=*s;
+	unsigned long old_length;
+	unsigned long new_length;
+	unsigned long x;
+
+	old_length=*l;
+	if (ll + old_length >= (unsigned)MAXINT / 2 || ll + old_length < (unsigned)ll) overalloc();
+	new_length=old_length+ll;
+	*l=new_length;
+	x=old_length^new_length;
+	if (x>=old_length){
+		/* Need to realloc */
+		new_length|=(new_length>>1);
+		new_length|=(new_length>>2);
+		new_length|=(new_length>>4);
+		new_length|=(new_length>>8);
+		new_length|=(new_length>>16);
+		p=(unsigned char *)mem_realloc(p,new_length+1);
+	}
+	*s=p;
+	memcpy(p+old_length,a,ll);
+	p[*l]=0;
+}
+
+void add_chr_to_str(unsigned char **s, int *l, unsigned char a)
+{
+	unsigned char *p=*s;
+	unsigned long old_length;
+	unsigned long new_length;
+	unsigned long x;
+
+	old_length=*l;
+	if (1 + old_length >= MAXINT / 2 || 1 + old_length < 1) overalloc();
+	new_length=old_length+1;
+	*l=new_length;
+	x=old_length^new_length;
+	if (x>=old_length){
+		p=(unsigned char *)mem_realloc(p,new_length<<1);
+	}
+	*s=p;
+	p[old_length]=a;
+	p[new_length]=0;
+}
+
+void add_num_to_str(unsigned char **s, int *l, off_t n)
+{
+	unsigned char a[64];
+	/*sprintf(a, "%d", n);*/
+	snzprint(a, 64, n);
+	add_to_str(s, l, a);
+}
+
+void add_knum_to_str(unsigned char **s, int *l, off_t n)
+{
+	unsigned char a[13];
+	if (n && n / (1024 * 1024) * (1024 * 1024) == n) snzprint(a, 12, n / (1024 * 1024)), a[strlen((char *)a) + 1] = 0, a[strlen((char *)a)] = 'M';
+	else if (n && n / 1024 * 1024 == n) snzprint(a, 12, n / 1024), a[strlen((char *)a) + 1] = 0, a[strlen((char *)a)] = 'k';
+	else snzprint(a, 13, n);
+	add_to_str(s, l, a);
+}
+
+long strtolx(unsigned char *c, unsigned char **end)
+{
+	long l;
+	if (c[0] == '0' && upcase(c[1]) == 'X' && c[2]) l = strtol((char *)c + 2, (char **)end, 16);
+	else l = strtol((char *)c, (char **)end, 10);
+	if (!*end) return l;
+	if (upcase(**end) == 'K') {
+		(*end)++;
+		if (l < -MAXINT / 1024) return -MAXINT;
+		if (l > MAXINT / 1024) return MAXINT;
+		return l * 1024;
+	}
+	if (upcase(**end) == 'M') {
+		(*end)++;
+		if (l < -MAXINT / (1024 * 1024)) return -MAXINT;
+		if (l > MAXINT / (1024 * 1024)) return MAXINT;
+		return l * (1024 * 1024);
+	}
+	return l;
+}
+
+/* Copies at most dst_size chars into dst. Ensures null termination of dst. */
+unsigned char *safe_strncpy(unsigned char *dst, const unsigned char *src, size_t dst_size)
+{
+	strncpy((char *)dst, (char *)src, dst_size);
+	if (strlen((char *)src) >= dst_size) dst[dst_size - 1] = 0;
+	return dst;
+}
+
+/* deletes all nonprintable characters from string */
+void skip_nonprintable(unsigned char *txt)
+{
+	unsigned char *txt1=txt;
+
+	if (!txt||!*txt)return;
+	for (;*txt;txt++)
+		switch(*txt)
+		{
+			case 1:
+			case 2:
+			case 3:
+			case 4:
+			case 5:
+			case 6:
+			case 7:
+			case 8:
+			case 11:
+			case 12:
+			case 13:
+			case 14:
+			case 15:
+			case 16:
+			case 17:
+			case 18:
+			case 19:
+			case 20:
+			case 21:
+			case 22:
+			case 23:
+			case 24:
+			case 25:
+			case 26:
+			case 27:
+			case 28:
+			case 29:
+			case 30:
+			case 31:
+			break;
+
+			case 9:
+			*txt1=' ';
+			txt1++;
+			break;
+
+			default:
+			*txt1=*txt;
+			txt1++;
+			break;
+		}
+	*txt1=0;
+}
+
+/* case insensitive compare of 2 strings */
+/* comparison ends after len (or less) characters */
+/* return value: 1=strings differ, 0=strings are same */
+int casecmp(unsigned char *c1, unsigned char *c2, size_t len)
+{
+	size_t i;
+	for (i = 0; i < len; i++) if (upcase(c1[i]) != upcase(c2[i])) return 1;
+	return 0;
+}
+
+int casestrstr(unsigned char *h, unsigned char *n)
+{
+	unsigned char *p;
+
+	for (p=h;*p;p++)
+	{
+		if (!srch_cmp(*p,*n))  /* same */
+		{
+			unsigned char *q, *r;
+			for (q=n, r=p;*r&&*q;)
+			{
+				if (!srch_cmp(*q,*r)) r++,q++;    /* same */
+				else break;
+			}
+			if (!*q) return 1;
+		}
+	}
+
+	return 0;
+}
+

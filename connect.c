@@ -9,12 +9,6 @@
 #define LOG_TRANSFER	"/tmp/log"
 */
 
-/* prototypes */
-void ssl_want_read(struct connection *);
-void write_select(struct connection *);
-void read_select(struct connection *);
-
-
 #ifdef LOG_TRANSFER
 static void log_data(unsigned char *data, int len)
 {
@@ -145,7 +139,7 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 }
 
 #ifdef HAVE_SSL
-void ssl_want_read(struct connection *c)
+static void ssl_want_read(struct connection *c)
 {
 	struct conn_info *b = c->newconn;
 
@@ -360,7 +354,7 @@ struct write_buffer {
 	unsigned char data[1];
 };
 
-void write_select(struct connection *c)
+static void write_select(struct connection *c)
 {
 	struct write_buffer *wb;
 	int wr;
@@ -423,7 +417,7 @@ void write_to_socket(struct connection *c, int s, unsigned char *data, int len, 
 
 #define READ_SIZE	64240
 
-void read_select(struct connection *c)
+static void read_select(struct connection *c)
 {
 	struct read_buffer *rb;
 	int rd;

@@ -17,19 +17,19 @@ struct thread {
 	void *data;
 };
 
-struct thread threads[FD_SETSIZE];
+static struct thread threads[FD_SETSIZE];
 
-fd_set w_read;
-fd_set w_write;
-fd_set w_error;
+static fd_set w_read;
+static fd_set w_write;
+static fd_set w_error;
 
-fd_set x_read;
-fd_set x_write;
-fd_set x_error;
+static fd_set x_read;
+static fd_set x_write;
+static fd_set x_error;
 
-int w_max;
+static int w_max;
 
-int timer_id = 0;
+static int timer_id = 0;
 
 struct timer {
 	struct timer *next;
@@ -40,14 +40,7 @@ struct timer {
 	int id;
 };
 
-struct list_head timers = {&timers, &timers};
-
-/* prototypes */
-void signal_break(void *);
-void got_signal(int);
-void sigchld(void *);
-void check_timers(void);
-int check_signals(void);
+static struct list_head timers = {&timers, &timers};
 
 
 ttime get_time(void)
@@ -55,6 +48,24 @@ ttime get_time(void)
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+int can_write(int fd)
+{
+	fd_set fds;
+	struct timeval tv = {0, 0};
+	FD_ZERO(&fds);
+	FD_SET(fd, &fds);
+	return select(fd + 1, NULL, &fds, NULL, &tv);
+}
+
+int can_read(int fd)
+{
+	fd_set fds;
+	struct timeval tv = {0, 0};
+	FD_ZERO(&fds);
+	FD_SET(fd, &fds);
+	return select(fd + 1, &fds, NULL, NULL, &tv);
 }
 
 long select_info(int type)
@@ -130,9 +141,9 @@ void check_bottom_halves(void)
 
 #define CHK_BH if (!list_empty(bottom_halves)) check_bottom_halves()
 		
-ttime last_time;
+static ttime last_time;
 
-void check_timers(void)
+static void check_timers(void)
 {
 	ttime interval = get_time() - last_time;
 	struct timer *t;
@@ -173,7 +184,11 @@ int install_timer(ttime t, void (*func)(void *), void *data)
 	tm->interval = t;
 	tm->func = func;
 	tm->data = data;
-	tm->id = timer_id++;
+	new_id:
+	tm->id = timer_id;
+	timer_id++;
+	if (timer_id == MAXINT) timer_id = 0;
+	foreach(tt, timers) if (tt->id == tm->id) goto new_id;
 	foreach(tt, timers) if (tt->interval >= t) break;
 	add_at_pos(tt->prev, tm);
 	return tm->id;
@@ -254,18 +269,18 @@ struct signal_handler {
 	int critical;
 };
 
-int signal_mask[NUM_SIGNALS];
-struct signal_handler signal_handlers[NUM_SIGNALS];
+static int signal_mask[NUM_SIGNALS];
+static struct signal_handler signal_handlers[NUM_SIGNALS];
 
-int signal_pipe[2];
+static int signal_pipe[2];
 
-void signal_break(void *data)
+static void signal_break(void *data)
 {
 	char c;
 	while (can_read(signal_pipe[0])) read(signal_pipe[0], &c, 1);
 }
 
-void got_signal(int sig)
+static void got_signal(int sig)
 {
 	int sv_errno = errno;
 		/*fprintf(stderr, "ERROR: signal number: %d", sig);*/
@@ -284,7 +299,7 @@ void got_signal(int sig)
 	errno = sv_errno;
 }
 
-struct sigaction sa_zero;
+static struct sigaction sa_zero;
 
 void install_signal_handler(int sig, void (*fn)(void *), void *data, int critical)
 {
@@ -318,7 +333,7 @@ void interruptible_signal(int sig, int in)
 	sigaction(sig, &sa, NULL);
 }
 
-int check_signals(void)
+static int check_signals(void)
 {
 	int i, r = 0;
 	for (i = 0; i < NUM_SIGNALS; i++)
@@ -339,7 +354,7 @@ int check_signals(void)
 	return r;
 }
 
-void sigchld(void *p)
+static void sigchld(void *p)
 {
 #ifndef WNOHANG
 	wait(NULL);

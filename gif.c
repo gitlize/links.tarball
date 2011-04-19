@@ -16,14 +16,6 @@
 
 #include "links.h"
 
-/* prototypes */
-void alloc_color_map(int);
-void implant_transparent(struct gif_decoder *);
-int gif_dimensions_known(void);
-void gif_restart_internal(unsigned char *, int);
-void init_table(void);
-
-
 /****************************** Functions *************************************/
 
 /* Takes the argument from global_cimg. Does not free the gif_decoder
@@ -37,8 +29,7 @@ void gif_destroy_decoder(struct cached_image *cimg)
 }
 
 /* colors: number of triplets (color entries) */
-void
-alloc_color_map(int colors)
+static void alloc_color_map(int colors)
 {
  struct gif_decoder* deco=global_cimg->decoder;
 
@@ -59,8 +50,7 @@ alloc_color_map(int colors)
    (drawing a pixel from previous image or an infinite loop in outputting
    string)
 */
-void
-init_table(void)
+static void init_table(void)
 {
  int i;
  struct gif_decoder *deco;
@@ -304,7 +294,7 @@ accept_byte(unsigned char c)
 /* if deco->transparent >=0, then fill it with transparent colour.
  * actual line must exist, must be set to the beginning of the image,
  * and the buffer must be formatted. */
-void implant_transparent(struct gif_decoder *deco)
+static void implant_transparent(struct gif_decoder *deco)
 {
 	if (deco->transparent>=0&&deco->transparent<(1<<deco->im_bpp)){
 		if (global_cimg->strip_optimized){
@@ -318,7 +308,7 @@ void implant_transparent(struct gif_decoder *deco)
 }
 
 /* Dimensions are in deco->im_width and deco->im_height */
-int gif_dimensions_known(void)
+static int gif_dimensions_known(void)
 {
 	struct gif_decoder *deco;
 
@@ -529,11 +519,8 @@ void gif_start(struct cached_image *cimg)
 	cimg->decoder=deco;
 }
 
-void gif_restart_internal(unsigned char *data, int length)
+static void gif_restart_internal(unsigned char *data, int length)
 {
-	struct gif_decoder *deco;
-
-	deco=global_cimg->decoder;
 	while(length){
 		gif_accept_byte(*data);
 		if (end_callback_hit) return;

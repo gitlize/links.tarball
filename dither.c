@@ -97,39 +97,39 @@ void (*dither_fn_internal)(unsigned short *in, struct bitmap *out, int * dregs);
 
 
      /* prototypes */
-void dither_1byte(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
-void round_1byte(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
-void dither_2byte(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
-void round_2byte(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
-void dither_195(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
-void round_195(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
-void dither_451(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
-void round_451(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
-void dither_196(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
-void round_196(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
-void dither_452(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
-void round_452(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
-void dither_708(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
-void round_708(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
-long color_332(int);
-long color_121(int);
-long color_pass_rgb(int);
-long color_888_bgr(int);
-void pass_bgr(unsigned short *, struct bitmap *);
-long color_8888_bgr0(int);
-long color_8888_0bgr(int);
-long color_8888_0rgb(int);
-void pass_0bgr(unsigned short *, struct bitmap *);
-long color_555be(int);
-long color_555(int);
-long color_565be(int);
-long color_565(int);
-void make_8_table(int *, double);
-void make_16_table(int *, int, int, double , int, int);
-void make_red_table(int, int, int, int);
-void make_green_table(int, int, int, int);
-void make_blue_table(int, int, int, int);
-void make_round_tables(void);
+static void dither_1byte(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+static void round_1byte(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+static void dither_2byte(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+static void round_2byte(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+static void dither_195(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+static void round_195(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+static void dither_451(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+static void round_451(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+static void dither_196(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+static void round_196(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+static void dither_452(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+static void round_452(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+static void dither_708(unsigned short *, struct bitmap *, int *);   /* DITHER_TEMPLATE */
+static void round_708(unsigned short *, struct bitmap *);           /* ROUND_TEMPLATE */
+static long color_332(int);
+static long color_121(int);
+static long color_pass_rgb(int);
+static long color_888_bgr(int);
+/*static void pass_bgr(unsigned short *, struct bitmap *);*/
+static long color_8888_bgr0(int);
+static long color_8888_0bgr(int);
+static long color_8888_0rgb(int);
+/*static void pass_0bgr(unsigned short *, struct bitmap *);*/
+static long color_555be(int);
+static long color_555(int);
+static long color_565be(int);
+static long color_565(int);
+/*static void make_8_table(int *, double);*/
+static void make_16_table(int *, int, int, double , int, int);
+static void make_red_table(int, int, int, int);
+static void make_green_table(int, int, int, int);
+static void make_blue_table(int, int, int, int);
+static void make_round_tables(void);
 
 int slow_fpu = -1;
 
@@ -223,14 +223,14 @@ int slow_fpu = -1;
 	bptr+=3;
 	
 #define DITHER_TEMPLATE(template_name) \
-	void template_name(unsigned short *in, struct bitmap *out, int *dregs)\
+	static void template_name(unsigned short *in, struct bitmap *out, int *dregs)\
 		{\
 		int r,g,b,o,rt,gt,bt,y,x;\
 		unsigned char *outp=out->data;\
 		int *bptr;\
 		int skip=out->skip-SKIP_CODE;\
 \
-		o=0; /*warning go away */\
+		o=0;o=o; /*warning go away */\
 		switch(out->x){\
 \
 			case 0:\
@@ -258,13 +258,13 @@ int slow_fpu = -1;
 	}
 
 #define ROUND_TEMPLATE(template_name)\
-	void template_name(unsigned short *in, struct bitmap *out)\
+	static void template_name(unsigned short *in, struct bitmap *out)\
 	{\
 		int rt,gt,bt,o,x,y;\
 		unsigned char *outp=out->data;\
 		int skip=out->skip-SKIP_CODE;\
 	\
-		o=0; /*warning go away */\
+		o=0;o=o; /*warning go away */\
 		for (y=out->y;y;y--){\
 			for (x=out->x;x;x--){\
 				rt=red_table[in[0]];\
@@ -375,7 +375,7 @@ ROUND_TEMPLATE(round_708)
 
 
 /* For 256-color cube */
-long color_332(int rgb)
+static long color_332(int rgb)
 {
 	int r,g,b;
 	long ret;
@@ -392,7 +392,7 @@ long color_332(int rgb)
 
 }
 
-long color_121(int rgb)
+static long color_121(int rgb)
 {
 	int r,g,b;
 	long ret;
@@ -408,7 +408,7 @@ long color_121(int rgb)
 
 }
 
-long color_pass_rgb(int rgb)
+static long color_pass_rgb(int rgb)
 {
 	long ret;
 
@@ -420,7 +420,7 @@ long color_pass_rgb(int rgb)
 
 }
 
-long color_888_bgr(int rgb)
+static long color_888_bgr(int rgb)
 {
 	long ret;
 
@@ -431,8 +431,9 @@ long color_888_bgr(int rgb)
 	return ret;
 }
 
+#if 0
 /* Long live the Manchester Modulation! */
-void pass_bgr(unsigned short *in, struct bitmap *out)
+static void pass_bgr(unsigned short *in, struct bitmap *out)
 {
 	int skip=out->skip-3*out->x,y,x;
 	unsigned char *outp=out->data;
@@ -449,8 +450,9 @@ void pass_bgr(unsigned short *in, struct bitmap *out)
 	}
 		
 }
+#endif
 
-long color_8888_bgr0(int rgb)
+static long color_8888_bgr0(int rgb)
 {
 	long ret;
 
@@ -463,7 +465,7 @@ long color_8888_bgr0(int rgb)
 }
 
 /* Long live the sigma-delta modulator! */
-long color_8888_0bgr(int rgb)
+static long color_8888_0bgr(int rgb)
 {
 	long ret;
 
@@ -479,7 +481,7 @@ long color_8888_0bgr(int rgb)
 /* Long live His Holiness The 14. Dalai Lama Taendzin Gjamccho! */
 /* The above line will probably cause a ban of this browser in China under
  * the capital punishment ;-) */
-long color_8888_0rgb(int rgb)
+static long color_8888_0rgb(int rgb)
 {
 	long ret;
 
@@ -492,8 +494,9 @@ long color_8888_0rgb(int rgb)
 	return ret;
 }
 
+#if 0
 /* We assume unsgned short holds at least 16 bits. */
-void pass_0bgr(unsigned short *in, struct bitmap *out)
+static void pass_0bgr(unsigned short *in, struct bitmap *out)
 {
 	int skip=out->skip-4*out->x,y,x;
 	unsigned char *outp=out->data;
@@ -511,9 +514,10 @@ void pass_0bgr(unsigned short *in, struct bitmap *out)
 	}
 		
 }
+#endif
 
 /* We assume long holds at least 32 bits */
-long color_555be(int rgb)
+static long color_555be(int rgb)
 {
 	int r=(rgb>>16)&255;
 	int g=(rgb>>8)&255;
@@ -548,7 +552,7 @@ long color_555(int rgb)
 	return ret;
 }
 
-long color_565be(int rgb)
+static long color_565be(int rgb)
 {
 	int r,g,b;
 	long ret;
@@ -649,7 +653,8 @@ long (*get_color_fn(int depth))(int rgb)
 	}
 }
 
-void make_8_table(int *table, double gamma)
+#if 0
+static void make_8_table(int *table, double gamma)
 {
 	int i,light0;
 	double light;
@@ -663,12 +668,13 @@ void make_8_table(int *table, double gamma)
 		table[i]=light0;
 	}
 }
+#endif
 
 /* Gamma says that light=electricity raised to gamma */
 /* dump_t2c means memory organization defined in comment for
  * red_table on the top of dither.c */
 /* dump_t2c is taken into account only if t2c is defined. */
-void make_16_table(int *table, int bits, int pos,double gamma, int dump_t2c,
+static void make_16_table(int *table, int bits, int pos,double gamma, int dump_t2c,
 	int bigendian)
 {
 	int j,light_val,grades=(1<<bits)-1,grade;
@@ -769,17 +775,17 @@ void make_16_table(int *table, int bits, int pos,double gamma, int dump_t2c,
 	if (gamma_bits == 2 && x_slow_fpu == 1) slow_fpu = 1;
 }
 
-void make_red_table(int bits, int pos, int dump_t2c, int be)
+static void make_red_table(int bits, int pos, int dump_t2c, int be)
 {
 	make_16_table(red_table,bits,pos,display_red_gamma,dump_t2c, be);
 }
 
-void make_green_table(int bits, int pos, int dump_t2c, int be)
+static void make_green_table(int bits, int pos, int dump_t2c, int be)
 {
 	make_16_table(green_table,bits,pos,display_green_gamma,dump_t2c, be);
 }
 
-void make_blue_table(int bits, int pos,int dump_t2c, int be)
+static void make_blue_table(int bits, int pos,int dump_t2c, int be)
 {
 	make_16_table(blue_table,bits,pos,display_blue_gamma, dump_t2c, be);
 }
@@ -811,7 +817,7 @@ void dither_restart(unsigned short *in, struct bitmap *out, int *dregs)
 	(*dither_fn_internal)(in, out, dregs);
 }
 
-void make_round_tables(void)
+static void make_round_tables(void)
 {
 	int a;
 	unsigned short v;

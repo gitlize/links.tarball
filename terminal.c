@@ -5,16 +5,8 @@
 
 #include "links.h"
 
-void alloc_term_screen(struct terminal *, int, int);
-void clear_terminal(struct terminal *);
-void redraw_terminal_ev(struct terminal *, int);
-void erase_screen(struct terminal *);
-void redraw_windows(struct terminal *);
-void empty_window_handler(struct window *, struct event *, int);
-struct term_spec *get_term_spec(unsigned char *);
-int process_utf_8(struct terminal *term, struct event *ev);
-void unblock_terminal(struct terminal *);
-
+static void in_term(struct terminal *);
+static void check_if_no_terminal(void);
 
 
 int hard_write(int fd, unsigned char *p, int l)
@@ -73,7 +65,7 @@ void set_cwd(unsigned char *path)
 
 struct list_head terminals = {&terminals, &terminals};
 
-void alloc_term_screen(struct terminal *term, int x, int y)
+static void alloc_term_screen(struct terminal *term, int x, int y)
 {
 	chr *s, *t;
 	NO_GFX;
@@ -90,11 +82,7 @@ void alloc_term_screen(struct terminal *term, int x, int y)
 	term->dirty = 1;
 }
 
-void in_term(struct terminal *);
-void destroy_terminal(struct terminal *);
-void check_if_no_terminal(void);
-
-void clear_terminal(struct terminal *term)
+static void clear_terminal(struct terminal *term)
 {
 	NO_GFX;
 	fill_area(term, 0, 0, term->x, term->y, ' ', 0);
@@ -119,7 +107,7 @@ void redraw_below_window(struct window *win)
 	term->redrawing = tr;
 }
 
-void redraw_terminal_ev(struct terminal *term, int e)
+static void redraw_terminal_ev(struct terminal *term, int e)
 {
 	struct window *win;
 	struct event ev = {0, 0, 0, 0};
@@ -145,7 +133,7 @@ void redraw_terminal_all(struct terminal *term)
 	redraw_terminal_ev(term, EV_RESIZE);
 }
 
-void erase_screen(struct terminal *term)
+static void erase_screen(struct terminal *term)
 {
 	NO_GFX;
 	if (!term->master || !is_blocked()) {
@@ -352,7 +340,7 @@ void draw_to_window(struct window *win, void (*fn)(struct terminal *term, void *
 
 #ifdef G
 
-void redraw_windows(struct terminal *term)
+static void redraw_windows(struct terminal *term)
 {
 	struct terminal *t1;
 	struct window *win;
@@ -460,7 +448,7 @@ struct ewd {
 	int b;
 };
 
-void empty_window_handler(struct window *win, struct event *ev, int fwd)
+static void empty_window_handler(struct window *win, struct event *ev, int fwd)
 {
 	struct window *n;
 	struct ewd *ewd = win->data;
@@ -503,9 +491,9 @@ void free_term_specs(void)
 
 struct list_head term_specs = {&term_specs, &term_specs};
 
-struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0, 0 };
+static struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0, 0 };
 
-struct term_spec *get_term_spec(unsigned char *term)
+static struct term_spec *get_term_spec(unsigned char *term)
 {
 	struct term_spec *t;
 	NO_GFX;
@@ -562,7 +550,7 @@ struct terminal *init_term(int fdin, int fdout, void (*root_window)(struct windo
 	return term;
 }
 
-int process_utf_8(struct terminal *term, struct event *ev)
+static int process_utf_8(struct terminal *term, struct event *ev)
 {
 #if defined(G) || defined(ENABLE_UTF8)
 	if (ev->ev == EV_KBD && ((!F && term->spec->charset == utf8_table)
@@ -1144,7 +1132,7 @@ void close_handle(void *p)
 	set_handlers(h, NULL, NULL, NULL, NULL);
 }
 
-void unblock_terminal(struct terminal *term)
+static void unblock_terminal(struct terminal *term)
 {
 	close_handle((void *)(my_intptr_t)term->blocked);
 	term->blocked = -1;
