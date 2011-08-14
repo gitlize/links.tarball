@@ -85,7 +85,7 @@ static void stat_timer(struct connection *c)
 {
 	struct remaining_info *r = &c->prg;
 	ttime a = get_time() - r->last_time;
-	if (getpri(c) == PRI_CANCEL && (c->est_length > memory_cache_size * MAX_CACHED_OBJECT || c->from > memory_cache_size * MAX_CACHED_OBJECT)) register_bottom_half(check_queue, NULL);
+	if (getpri(c) == PRI_CANCEL && (c->est_length > (longlong)memory_cache_size * MAX_CACHED_OBJECT || c->from > (longlong)memory_cache_size * MAX_CACHED_OBJECT)) register_bottom_half(check_queue, NULL);
 	if (c->state > S_WAIT) {
 		r->loaded = c->received;
 		if ((r->size = c->est_length) < (r->pos = c->from) && r->size != -1)
@@ -550,7 +550,7 @@ void check_queue(void *dummy)
 			setcstate(c, S_INTERRUPTED);
 			del_connection(c);
 			goto again2;
-		} else if (c->est_length > memory_cache_size * MAX_CACHED_OBJECT || c->from > memory_cache_size * MAX_CACHED_OBJECT) {
+		} else if (c->est_length > (longlong)memory_cache_size * MAX_CACHED_OBJECT || c->from > (longlong)memory_cache_size * MAX_CACHED_OBJECT) {
 			setcstate(c, S_INTERRUPTED);
 			abort_connection(c);
 			goto again2;
@@ -736,7 +736,7 @@ void detach_connection(struct status *stat, off_t pos)
 	if (!c->cache) return;
 	if (c->est_length == -1) l = c->from;
 	else l = c->est_length;
-	if (l < memory_cache_size * MAX_CACHED_OBJECT) return;
+	if (l < (longlong)memory_cache_size * MAX_CACHED_OBJECT) return;
 	l = 0;
 	for (i = 0; i < PRI_CANCEL; i++) l += c->pri[i];
 	if (!l) internal("detaching free connection");

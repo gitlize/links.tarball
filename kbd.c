@@ -37,7 +37,7 @@ static void free_trm(struct itrm *);
 static void in_kbd(struct itrm *);
 static void in_sock(struct itrm *);
 
-struct itrm *ditrm = NULL;
+static struct itrm *ditrm = NULL;
 
 
 int is_blocked(void)
@@ -120,7 +120,7 @@ static void send_init_sequence(int h, int flags)
 	done_draw();
 }
 
-static void send_term_sequence(int h,int flags)
+static void send_term_sequence(int h, int flags)
 {
 	want_draw();
 	hard_write(h, term_seq, strlen(term_seq));
@@ -184,7 +184,18 @@ static int setraw(int fd, struct termios *p)
 {
 	struct termios t;
 	memset(&t, 0, sizeof(struct termios));
-	if (ttcgetattr(fd, &t)) return -1;
+	if (ttcgetattr(fd, &t)) {
+		/*fprintf(stderr, "getattr result %s\n", strerror(errno));*/
+		/* If the terminal was destroyed (the user logged off),
+		 * we fake success here so that we can destroy the terminal
+		 * later.
+		 *
+		 * Linux returns EIO
+		 * FreeBSD returns ENXIO
+		 */
+		if (errno == EIO || errno == ENXIO) return 0;
+		return -1;
+	}
 	if (p) memcpy(p, &t, sizeof(struct termios));
 	os_cfmakeraw(&t);
 	t.c_lflag |= ISIG;
@@ -192,7 +203,10 @@ static int setraw(int fd, struct termios *p)
 	t.c_lflag |= TOSTOP;
 #endif
 	t.c_oflag |= OPOST;
-	if (ttcsetattr(fd, TCSANOW, &t)) return -1;
+	if (ttcsetattr(fd, TCSANOW, &t)) {
+		/*fprintf(stderr, "setattr result %s\n", strerror(errno));*/
+		return -1;
+	}
 	return 0;
 }
 
@@ -294,7 +308,7 @@ void block_itrm(int fd)
 	itrm->blocked = fd + 1;
 	block_stdin();
 	unhandle_terminal_resize(itrm->ctl_in);
-	send_term_sequence(itrm->std_out,itrm->flags);
+	send_term_sequence(itrm->std_out, itrm->flags);
 	ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
 	if (itrm->mouse_h) unhandle_mouse(itrm->mouse_h), itrm->mouse_h = NULL;
 	set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm->free_trm, itrm);
@@ -306,7 +320,7 @@ static void free_trm(struct itrm *itrm)
 	set_window_title(itrm->orig_title);
 	if (itrm->orig_title) mem_free(itrm->orig_title), itrm->orig_title = NULL;
 	unhandle_terminal_resize(itrm->ctl_in);
-	send_term_sequence(itrm->std_out,itrm->flags);
+	send_term_sequence(itrm->std_out, itrm->flags);
 	ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
 	if (itrm->mouse_h) unhandle_mouse(itrm->mouse_h);
 	set_handlers(itrm->std_in, NULL, NULL, NULL, NULL);
@@ -439,7 +453,7 @@ static int get_esc_code(char *, int, char *, int *, int *);
 
 static void kbd_timeout(struct itrm *itrm)
 {
-	struct event ev = {EV_KBD, KBD_ESC, 0, 0};
+	struct event ev = { EV_KBD, KBD_ESC, 0, 0 };
 	char code;
 	int num;
 	int len;
@@ -770,7 +784,7 @@ int xterm_button = -1;
 
 static int process_queue(struct itrm *itrm)
 {
-	struct event ev = {EV_KBD, -1, 0, 0};
+	struct event ev = { EV_KBD, -1, 0, 0 };
 	int el = 0;
 	if (!itrm->qlen) goto end;
 	if (itrm->kqueue[0] == '\033') {
@@ -941,7 +955,9 @@ static void in_kbd(struct itrm *itrm)
 		return;
 	}
 	if ((r = read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen)) <= 0) {
-		itrm->free_trm(itrm);
+		struct event ev = { EV_ABORT, 0, 0, 0 };
+		set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm->free_trm, itrm);
+		itrm->queue_event(itrm, (unsigned char *)&ev, sizeof(struct event));
 		return;
 	}
 	if ((itrm->qlen += r) > IN_BUF_SIZE) {

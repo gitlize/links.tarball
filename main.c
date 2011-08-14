@@ -40,7 +40,7 @@ void sig_ign(void *x)
 {
 }
 
-int fg_poll_timer = -1;
+static int fg_poll_timer = -1;
 
 void sig_tstp(struct terminal *t)
 {
@@ -166,7 +166,7 @@ void unhandle_basic_signals(struct terminal *term)
 	if (fg_poll_timer != -1) kill_timer(fg_poll_timer), fg_poll_timer = -1;
 }
 
-int terminal_pipe[2];
+static int terminal_pipe[2];
 
 int attach_terminal(int in, int out, int ctl, void *info, int len)
 {

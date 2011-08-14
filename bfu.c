@@ -852,7 +852,7 @@ void display_dlg_item(struct dialog_data *dlg, struct dialog_item_data *di, int 
 			print_text(term, di->x, di->y, di->l, t, COLOR_DIALOG_FIELD_TEXT);
 			if (di->item->type == D_FIELD_PASS) mem_free(t);
 			if (sel) {
-				set_cursor(term, di->x + vposlen - cposlen, di->y, di->x + di->cpos - di->vpos, di->y);
+				set_cursor(term, di->x + vposlen - cposlen, di->y, di->x + vposlen - cposlen, di->y);
 				set_window_ptr(dlg->win, di->x, di->y);
 			}
 			break;
@@ -1339,7 +1339,7 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 					goto dsp_f;
 				}
 				if (upcase(ev->x) == 'U' && ev->y & KBD_CTRL) {
-					char *a = memacpy(di->cdata, di->cpos);
+					unsigned char *a = memacpy(di->cdata, di->cpos);
 					if (a) {
 						set_clipboard_text(term, a);
 						mem_free(a);

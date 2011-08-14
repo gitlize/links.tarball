@@ -275,7 +275,7 @@ void add_cookies(unsigned char **s, int *l, unsigned char *url)
 	mem_free(server);
 	return;
 	ok:
-	foreach (c, cookies) if (is_in_domain(c->domain, server)) if (is_path_prefix(c->path, data)) {
+	foreachback (c, cookies) if (is_in_domain(c->domain, server)) if (is_path_prefix(c->path, data)) {
 		if (cookie_expired(c)) {
 			d = c;
 			c = c->prev;

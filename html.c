@@ -141,7 +141,7 @@ unsigned char *get_attr_val(unsigned char *e, unsigned char *name)
 			e++;
 		}
 	} else {
-		char uu = *e;
+		unsigned char uu = *e;
 		/*a:*/
 		e++;
 		while (*e != uu) {
@@ -190,7 +190,7 @@ unsigned char *get_attr_val(unsigned char *e, unsigned char *name)
 
 int has_attr(unsigned char *e, unsigned char *name)
 {
-	char *a;
+	unsigned char *a;
 	if (!(a = get_attr_val(e, name))) return 0;
 	mem_free(a);
 	return 1;
@@ -245,7 +245,7 @@ static unsigned char *get_exact_attr_val(unsigned char *e, unsigned char *name)
 
 struct {
 	unsigned short int n;
-	char *s;
+	unsigned char *s;
 } roman_tbl[] = {
 	{1000,	"m"},
 	{999,	"im"},
@@ -301,7 +301,7 @@ static void roman(char *p, unsigned n)
 }
 
 struct color_spec {
-	char *name;
+	unsigned char *name;
 	int rgb;
 };
 
@@ -479,7 +479,7 @@ found:
 
 int get_color(unsigned char *a, unsigned char *c, struct rgb *rgb)
 {
-	char *at;
+	unsigned char *at;
 	int r = -1;
 	if (d_opt->col >= 1 || F) if ((at = get_attr_val(a, c))) {
 		r = decode_color(at, rgb);
@@ -683,7 +683,7 @@ static void kill_until(int ls, ...)
 		va_list arg;
 		va_start(arg, ls);
 		while (1) {
-			char *s = va_arg(arg, char *);
+			unsigned char *s = va_arg(arg, unsigned char *);
 			if (!s) break;
 			if (!*s) sk++;
 			else if ((size_t)e->namelen == strlen(s) && !casecmp(e->name, s, strlen(s))) {
@@ -719,7 +719,7 @@ static void kill_until(int ls, ...)
 
 int get_num(unsigned char *a, unsigned char *n)
 {
-	char *al;
+	unsigned char *al;
 	if ((al = get_attr_val(a, n))) {
 		char *end;
 		unsigned long s = strtoul(al, &end, 10);
@@ -848,12 +848,12 @@ static void html_invert(unsigned char *a)
 
 static void html_a(unsigned char *a)
 {
-	char *al;
+	unsigned char *al;
 
 	int ev = get_js_events(a);
 
 	if ((al = get_url_val(a, "href"))) {
-		char *all = al;
+		unsigned char *all = al;
 		while (all[0] == ' ') all++;
 		while (all[0] && all[strlen(all) - 1] == ' ') all[strlen(all) - 1] = 0;
 		if (format.link) mem_free(format.link);
@@ -905,11 +905,11 @@ static void html_sup(unsigned char *a)
 
 static void html_font(unsigned char *a)
 {
-	char *al;
+	unsigned char *al;
 	if ((al = get_attr_val(a, "size"))) {
 		int p = 0;
 		unsigned long s;
-		char *nn = al;
+		unsigned char *nn = al;
 		char *end;
 		if (*al == '+') p = 1, nn++;
 		if (*al == '-') p = -1, nn++;
@@ -1149,7 +1149,7 @@ static void html_center(unsigned char *a)
 
 static void html_linebrk(unsigned char *a)
 {
-	char *al;
+	unsigned char *al;
 	if ((al = get_attr_val(a, "align"))) {
 		if (!strcasecmp(al, "left")) par_format.align = AL_LEFT;
 		if (!strcasecmp(al, "right")) par_format.align = AL_RIGHT;
@@ -1311,7 +1311,7 @@ static void html_td(unsigned char *a)
 
 static void html_base(unsigned char *a)
 {
-	char *al;
+	unsigned char *al;
 	if ((al = get_url_val(a, "href"))) {
 		if (format.href_base) mem_free(format.href_base);
 		format.href_base = join_urls(((struct html_element *)html_stack.prev)->attr.href_base, al);
@@ -1326,7 +1326,7 @@ static void html_base(unsigned char *a)
 
 static void html_ul(unsigned char *a)
 {
-	char *al;
+	unsigned char *al;
 	/*debug_stack();*/
 	par_format.list_level++;
 	par_format.list_number = 0;
@@ -1344,7 +1344,7 @@ static void html_ul(unsigned char *a)
 
 static void html_ol(unsigned char *a)
 {
-	char *al;
+	unsigned char *al;
 	int st;
 	par_format.list_level++;
 	st = get_num(a, "start");
@@ -1371,7 +1371,7 @@ static void html_li(unsigned char *a)
 {
 	/*kill_until(0, "", "UL", "OL", NULL);*/
 	if (!par_format.list_number) {
-		char x[7] = "*&nbsp;";
+		unsigned char x[7] = "*&nbsp;";
 		if ((par_format.flags & P_LISTMASK) == P_O) x[0] = 'o';
 		if ((par_format.flags & P_LISTMASK) == P_PLUS) x[0] = '+';
 		if (F) par_format.leftmargin += 2;
@@ -1380,8 +1380,8 @@ static void html_li(unsigned char *a)
 		par_format.align = AL_LEFT;
 		putsp = -1;
 	} else {
-		char c = 0;
-		char n[32];
+		unsigned char c = 0;
+		unsigned char n[32];
 		int t = par_format.flags & P_LISTMASK;
 		int s = get_num(a, "value");
 		if (F) par_format.leftmargin += 4;
@@ -1393,7 +1393,7 @@ static void html_li(unsigned char *a)
 		} else if (t == P_ROMAN || t == P_roman) {
 			roman(n, par_format.list_number);
 			if (t == P_ROMAN) {
-				char *x;
+				unsigned char *x;
 				for (x = n; *x; x++) *x = upcase(*x);
 			}
 		} else sprintf(n, "%d", par_format.list_number);
@@ -1448,7 +1448,7 @@ static void get_html_form(unsigned char *a, struct form *form)
 	form->method = FM_GET;
 	if ((al = get_attr_val(a, "method"))) {
 		if (!strcasecmp(al, "post")) {
-			char *ax;
+			unsigned char *ax;
 			form->method = FM_POST;
 			if ((ax = get_attr_val(a, "enctype"))) {
 				if (!strcasecmp(ax, "multipart/form-data"))
@@ -1459,7 +1459,7 @@ static void get_html_form(unsigned char *a, struct form *form)
 		mem_free(al);
 	}
 	if ((al = get_url_val(a, "action"))) {
-		char *all = al;
+		unsigned char *all = al;
 		while (all[0] == ' ') all++;
 		while (all[0] && all[strlen(all) - 1] == ' ') all[strlen(all) - 1] = 0;
 		form->action = join_urls(format.href_base, all);
@@ -1534,7 +1534,7 @@ static void find_form_for_input(unsigned char *i)
 
 static void html_button(unsigned char *a)
 {
-	char *al;
+	unsigned char *al;
 	struct form_control *fc;
 	find_form_for_input(a);
 	fc = mem_calloc(sizeof(struct form_control));
@@ -1693,7 +1693,7 @@ static void html_input(unsigned char *a)
 
 static void html_select(unsigned char *a)
 {
-	char *al;
+	unsigned char *al;
 	if (!(al = get_attr_val(a, "name"))) return;
 	html_top.dontkill = 1;
 	if (format.select) mem_free(format.select);
@@ -2014,7 +2014,7 @@ static int do_html_select(unsigned char *attr, unsigned char *html, unsigned cha
 		if (group) new_menu_item(NULL, -1, 0), group = 0;
 	}
 	if (t_namelen == 8 && !casecmp(t_name, "OPTGROUP", 8)) {
-		char *la;
+		unsigned char *la;
 		if (!(la = get_attr_val(t_attr, "label"))) la = stracpy("");
 		new_menu_item(convert_string(ct, la, strlen(la), d_opt), -1, 0);
 		mem_free(la);
@@ -2181,7 +2181,7 @@ static void html_frame(unsigned char *a)
 	if (!d_opt->frames || !html_top.frameset) put_link_line("Frame: ", name, url, "");
 	else {
 		struct frame_param fp;
-		char *scroll = get_attr_val(a, "scrolling");
+		unsigned char *scroll = get_attr_val(a, "scrolling");
 		fp.name = name;
 		fp.url = url;
 		fp.parent = html_top.frameset;
@@ -2406,7 +2406,7 @@ static void html_link(unsigned char *a)
 }
 
 struct element_info {
-	char *name;
+	unsigned char *name;
 	void (*func)(unsigned char *);
 	int linebreak;
 	int nopair; /* Somehow relates to paired elements */
@@ -2688,6 +2688,7 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 				continue;
 			if (!inv) {
 				int display_none = 0;
+				int noskip = 0;
 				ln_break(ei->linebreak, line_break, f);
 				if ((a = get_attr_val(attr, "id"))) {
 					special(f, SP_TAG, a);
@@ -2695,9 +2696,19 @@ void parse_html(unsigned char *html, unsigned char *eof, int (*put_chars)(void *
 				}
 				if ((a = get_attr_val(attr, "style"))) {
 					unsigned char *d, *s;
+
+					if (!strcasecmp(ei->name, "INPUT")) {
+						unsigned char *aa = get_attr_val(attr, "type");
+						if (aa) {
+							if (!strcasecmp(aa, "hidden"))
+								noskip = 1;
+							mem_free(aa);
+						}
+					}
+
 					for (d = s = a; *s; s++) if (*s > ' ') *d++ = *s;
 					*d = 0;
-					display_none |= !casecmp(a, "display:none", 12);
+					display_none |= !casecmp(a, "display:none", 12) && !noskip;
 					mem_free(a);
 				}
 				if (display_none) {

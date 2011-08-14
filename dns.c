@@ -72,6 +72,7 @@ int do_real_lookup(unsigned char *name, ip__address *host)
 	return 0;
 }
 
+#ifndef NO_ASYNC_LOOKUP
 static void lookup_fn(unsigned char *name, int h)
 {
 	ip__address host;
@@ -97,6 +98,7 @@ static void failed_real_lookup(struct dnsquery *q)
 	close(q->h);
 	q->xfn(q, -1);
 }
+#endif
 
 static int do_lookup(struct dnsquery *q, int force_async)
 {
@@ -105,7 +107,9 @@ static int do_lookup(struct dnsquery *q, int force_async)
 	if (!async_lookup && !force_async) {
 #endif
 		int r;
+#ifndef NO_ASYNC_LOOKUP
 		sync_lookup:
+#endif
 		r = do_real_lookup(q->name, q->addr);
 		q->xfn(q, r);
 		return 0;

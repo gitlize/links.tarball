@@ -23,7 +23,7 @@ struct codepage_desc {
 #include "entity.inc"
 #include "upcase.inc"
 
-static char strings[256][2] = {
+static unsigned char strings[256][2] = {
 	"\000", "\001", "\002", "\003", "\004", "\005", "\006", "\007",
 	"\010", "\011", "\012", "\013", "\014", "\015", "\016", "\017",
 	"\020", "\021", "\022", "\023", "\024", "\025", "\026", "\033",
@@ -305,11 +305,11 @@ struct conv_table *get_translation_table(int from, int to)
 	new_translation_table(table);
 	if (codepages[from].table == table_utf_8) {
 		int j;
-		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? "\001" : codepages[to].table[j].u == 0xad ? "" : strings[codepages[to].table[j].c]);
+		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? (unsigned char *)"\001" : codepages[to].table[j].u == 0xad ? (unsigned char *)"" : strings[codepages[to].table[j].c]);
 		for (i = 0; unicode_7b[i].x != -1; i++) if (unicode_7b[i].x >= 0x80) add_utf_8(table, unicode_7b[i].x, unicode_7b[i].s);
 	} else for (i = 128; i < 256; i++) {
 		int j;
-		char *u;
+		unsigned char *u;
 		for (j = 0; codepages[from].table[j].c; j++) {
 			if (codepages[from].table[j].c == i) goto f;
 		}
@@ -338,7 +338,7 @@ int get_entity_number(unsigned char *st, int l)
 		st++, l--;
 		if (!l) return -1;
 		do {
-			char c = upcase(*(st++));
+			unsigned char c = upcase(*(st++));
 			if (c >= '0' && c <= '9') n = n * 16 + c - '0';
 			else if (c >= 'A' && c <= 'F') n = n * 16 + c - 'A' + 10;
 			else return -1;
@@ -347,7 +347,7 @@ int get_entity_number(unsigned char *st, int l)
 	} else {
 		if (!l) return -1;
 		do {
-			char c = *(st++);
+			unsigned char c = *(st++);
 			if (c >= '0' && c <= '9') n = n * 10 + c - '0';
 			else return -1;
 			if (n >= 0x10000) return -1;
@@ -626,7 +626,7 @@ unsigned char *cp_strchr(int charset, unsigned char *str, unsigned chr)
 	if (!is_cp_special(charset)) {
 		if (chr >= 0x100)
 			return NULL;
-		return strchr(str, chr);
+		return (unsigned char *)strchr(str, chr);
 	}
 	while (1) {
 		unsigned char *o_str = str;

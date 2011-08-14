@@ -9,6 +9,9 @@
 #include <gui/bitmap.h>
 #include <util/locker.h>
 #include <util/application.h>
+#include <string>
+
+using namespace std;
 
 extern "C" {
 #include "links.h"
@@ -309,7 +312,7 @@ unsigned char *ath_init_driver(unsigned char *param, unsigned char *display)
 	fcntl(rpipe, F_SETFL, O_NONBLOCK);
 	fcntl(wpipe, F_SETFL, O_NONBLOCK);
 	set_handlers(rpipe, ath_get_event, NULL, NULL, NULL);
-	ath_app_thread_id = spawn_thread("links_app", ath_app_thread, 0, 0, NULL);
+	ath_app_thread_id = spawn_thread("links_app", (void *)ath_app_thread, 0, 0, NULL);
 	resume_thread(ath_app_thread_id);
 	if ((d = new Desktop)) {
 		ath_cs_desktop = d->GetColorSpace();
@@ -408,7 +411,7 @@ void ath_set_title(struct graphics_device *dev, unsigned char *title)
 {
 	LinksWindow *win = lv(dev)->win;
 	lock_dev(dev);
-	win->SetTitle((string)(char *)title);
+	win->SetTitle(string((char *)title));
 	lv(dev)->d_flush();
 	unlock_dev(dev);
 }

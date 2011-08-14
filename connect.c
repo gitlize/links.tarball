@@ -384,6 +384,12 @@ static void write_select(struct connection *c)
 	} else
 #endif
 		if ((wr = write(wb->sock, wb->data + wb->pos, wb->len - wb->pos)) <= 0) {
+#ifdef ATHEOS
+	/* Workaround for a bug in Syllable */
+			if (wr && errno == EAGAIN) {
+				return;
+			}
+#endif
 			setcstate(c, wr ? -errno : S_CANT_WRITE);
 			retry_connection(c);
 			return;

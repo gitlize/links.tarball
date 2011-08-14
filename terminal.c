@@ -94,7 +94,7 @@ void redraw_below_window(struct window *win)
 	int tr;
 	struct terminal *term = win->term;
 	struct window *end = win;
-	struct event ev = {EV_REDRAW, 0, 0, 0};
+	struct event ev = { EV_REDRAW, 0, 0, 0 };
 	NO_GFX;
 	ev.x = term->x;
 	ev.y = term->y;
@@ -302,7 +302,7 @@ void draw_to_window(struct window *win, void (*fn)(struct terminal *term, void *
 		if (win->prev == end || term->redrawing) return;
 		term->redrawing = 1;
 		{
-			struct event ev = {EV_REDRAW, 0, 0, 0};
+			struct event ev = { EV_REDRAW, 0, 0, 0 };
 			ev.x = term->x;
 			ev.y = term->y;
 			for (win = win->prev; win != end; win = win->prev) win->handler(win, &ev, 0);
@@ -376,7 +376,7 @@ void set_window_pos(struct window *win, int x1, int y1, int x2, int y2)
 
 void add_window_at_pos(struct terminal *term, void (*handler)(struct window *, struct event *, int), void *data, struct window *at)
 {
-	struct event ev = {EV_INIT, 0, 0, 0};
+	struct event ev = { EV_INIT, 0, 0, 0 };
 	struct window *win;
 	ev.x = term->x;
 	ev.y = term->y;
@@ -396,7 +396,7 @@ void add_window(struct terminal *term, void (*handler)(struct window *, struct e
 
 void delete_window(struct window *win)
 {
-	struct event ev = {EV_ABORT, 0, 0, 0};
+	struct event ev = { EV_ABORT, 0, 0, 0 };
 	win->handler(win, &ev, 1);
 	del_from_list(win);
 	if (win->data) mem_free(win->data);
@@ -653,7 +653,7 @@ void t_resize(struct graphics_device *dev)
 {
 	struct terminal *term = dev->user_data;
 	struct window *win;
-	struct event ev = {EV_RESIZE, 0, 0, 0};
+	struct event ev = { EV_RESIZE, 0, 0, 0 };
 	term->x = ev.x = dev->size.x2;
 	term->y = ev.y = dev->size.y2;
 	drv->set_clip_area(dev, &dev->size);
@@ -666,7 +666,7 @@ void t_resize(struct graphics_device *dev)
 void t_kbd(struct graphics_device *dev, int key, int flags)
 {
 	struct terminal *term = dev->user_data;
-	struct event ev = {EV_KBD, 0, 0, 0};
+	struct event ev = { EV_KBD, 0, 0, 0 };
 	struct rect r = {0, 0, 0, 0};
 	r.x2 = dev->size.x2, r.y2 = dev->size.y2;
 	ev.x = key;
@@ -688,7 +688,7 @@ void t_kbd(struct graphics_device *dev, int key, int flags)
 void t_mouse(struct graphics_device *dev, int x, int y, int b)
 {
 	struct terminal *term = dev->user_data;
-	struct event ev = {EV_MOUSE, 0, 0, 0};
+	struct event ev = { EV_MOUSE, 0, 0, 0 };
 	struct rect r = {0, 0, 0, 0};
 	r.x2 = dev->size.x2, r.y2 = dev->size.y2;
 	ev.x = x, ev.y = y, ev.b = b;
@@ -699,7 +699,7 @@ void t_mouse(struct graphics_device *dev, int x, int y, int b)
 
 #endif
 
-void in_term(struct terminal *term)
+static void in_term(struct terminal *term)
 {
 	struct event *ev;
 	int r;
@@ -988,7 +988,7 @@ void destroy_all_terminals(void)
 	while ((void *)(term = terminals.next) != &terminals) destroy_terminal(term);
 }
 
-void check_if_no_terminal(void)
+static void check_if_no_terminal(void)
 {
 	if (!list_empty(terminals)) return;
 	terminate_loop = 1;

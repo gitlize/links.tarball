@@ -195,7 +195,7 @@ int get_port(unsigned char *url)
 		if (n && n < MAXINT) return n;
 	}
 	if ((h = get_protocol_name(url))) {
-		int nn = 0	/* against warning */;
+		int nn = -1;	/* against warning */
 		get_prot_info(h, &nn, NULL, NULL, NULL, NULL);
 		mem_free(h);
 		n = nn;
@@ -229,7 +229,7 @@ void (*get_external_protocol_function(unsigned char *url))(struct session *, uns
 
 int url_bypasses_socks(unsigned char *url)
 {
-	int ret = 0	/* against warning */;
+	int ret = 0;	/* against warning */
 	unsigned char *p;
 	if (!(p = get_protocol_name(url))) return 1;
 	get_prot_info(p, NULL, NULL, NULL, NULL, &ret);

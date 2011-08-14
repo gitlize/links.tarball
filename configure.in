@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.3pre2)
+AM_INIT_AUTOMAKE(links, 2.3)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -61,6 +61,7 @@ AC_CHECK_HEADERS(netinet/in_systm.h)
 AC_CHECK_HEADERS(netinet/in_system.h)
 AC_CHECK_HEADERS(netinet/ip.h)
 AC_CHECK_HEADERS(netinet/dhcp.h)
+AC_CHECK_HEADERS(net/socket.h)
 AC_CHECK_HEADERS(sys/select.h)
 AC_CHECK_HEADERS(sys/resource.h)
 AC_CHECK_HEADERS(sys/utsname.h)
@@ -203,7 +204,10 @@ AC_CHECK_FUNC(socket, cf_result=yes, cf_result=no)
 if test "$cf_result" = no; then
 	AC_CHECK_LIB(socket, socket)
 	if test "$ac_cv_lib_socket_socket" = no; then
-		AC_ERROR([socket function not present])
+		AC_CHECK_LIB(network, socket)
+		if test "$ac_cv_lib_network_socket" = no; then
+			AC_ERROR([socket function not present])
+		fi
 	fi
 fi
 AC_CHECK_FUNC(setsockopt, cf_result=yes, cf_result=no)
@@ -595,7 +599,10 @@ if test "$disable_atheos" != yes ; then
 	   test "$ac_cv_header_util_application_h" = yes; then
 		AC_CHECK_LIB(stdc++, main)
 		AC_CHECK_LIB(atheos, main)
-		if test "$ac_cv_lib_atheos_main" = yes; then
+		if test "$ac_cv_lib_atheos_main" = no; then
+			AC_CHECK_LIB(syllable, main)
+		fi
+		if test "$ac_cv_lib_atheos_main" = yes -o "$ac_cv_lib_syllable_main" = yes; then
 			AC_PROG_CXX
 			AC_DEFINE(GRDRV_ATHEOS)
 			drivers="$drivers ATHEOS"

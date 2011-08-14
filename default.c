@@ -307,7 +307,13 @@ unsigned char *get_home(int *n)
 
 	if (n) *n = 1;
 #ifdef WIN32
-	if (!home) home = stracpy(getenv("APPDATA"));
+	if (!home) {
+		home = stracpy(getenv("APPDATA"));
+		if (home && (stat(home, &st) == -1 || !S_ISDIR(st.st_mode))) {
+			mem_free(home);
+			home = NULL;
+		}
+	}
 #endif
 	if (!home) home = stracpy(getenv("HOME"));
 	if (!home

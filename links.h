@@ -161,6 +161,9 @@ x #endif*/
 #define PNG_THREAD_UNSAFE_OK
 #include <libpng/png.h>
 #endif /* #if defined(HAVE_PNG_H) */
+#ifndef png_jmpbuf
+#define png_jmpbuf(png_ptr)	((png_ptr)->jmpbuf)
+#endif
 #endif /* #if defined(G) */
 
 #include <termios.h>
@@ -1101,7 +1104,7 @@ struct lru{
 
 void lru_insert(struct lru *cache, void *entry, struct lru_entry ** row
 	, unsigned bytes_consumed);
-void * lru_get_bottom(struct lru *cache);
+void *lru_get_bottom(struct lru *cache);
 void lru_destroy_bottom(struct lru* cache);
 void lru_destroy (struct lru* cache);
 void lru_init (struct lru *cache, int
@@ -1145,10 +1148,10 @@ struct graphics_device{
                 /* right, bottom are coords of the first point that are outside the clipping area */
         
         struct graphics_driver *drv;
-        void * driver_data;
+        void *driver_data;
 
         /* Only user is allowed to write here, driver inits to zero's */
-        void * user_data;
+        void *user_data;
         void (*redraw_handler)(struct graphics_device *dev, struct rect *r);
         void (*resize_handler)(struct graphics_device *dev);
         void (*keyboard_handler)(struct graphics_device *dev, int key, int flags);
@@ -1477,7 +1480,7 @@ void get_links_icon(unsigned char **data, int *width, int* height, int depth);
 
 /* x.c */
 #if defined(G) && defined (GRDRV_X)
-void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text);
+void x_set_clipboard_text(struct graphics_device *gd, unsigned char *text);
 unsigned char *x_get_clipboard_text(void);
 #endif
 
@@ -2838,7 +2841,7 @@ struct f_data_c *jsint_find_document(long doc_id);
 
 struct js_document_description *js_upcall_get_document_description(void *, long);
 void js_upcall_document_write(void *p, unsigned char *str, int len);
-void js_upcall_alert(void * struct_fax_me_tender_string);
+void js_upcall_alert(void *struct_fax_me_tender_string);
 unsigned char *js_upcall_get_title(void *data);
 void js_upcall_set_title(void *data, unsigned char *title);
 unsigned char *js_upcall_get_location(void *data);
@@ -2893,12 +2896,12 @@ int js_upcall_get_select_index(void *smirak, long document_id, long select_id); 
 struct js_select_item* js_upcall_get_select_options(void *smirak, long document_id, long select_id, int *n);
 void js_upcall_goto_url(void* struct_fax_me_tender_string);
 int js_upcall_get_history_length(void *context);
-void js_upcall_goto_history(void * data);
+void js_upcall_goto_history(void* data);
 void js_upcall_set_default_status(void *context, unsigned char *tak_se_ukaz_Kolbene);
-unsigned char* js_upcall_get_default_status(void *context);
+unsigned char *js_upcall_get_default_status(void *context);
 void js_upcall_set_status(void *context, unsigned char *tak_se_ukaz_Kolbene);
-unsigned char* js_upcall_get_status(void *context);
-unsigned char * js_upcall_get_cookies(void *context);
+unsigned char *js_upcall_get_status(void *context);
+unsigned char *js_upcall_get_cookies(void *context);
 long *js_upcall_get_images(void *smirak, long document_id, int *len);
 long * js_upcall_get_all(void *context, long document_id, int *len);
 int js_upcall_get_image_width(void *smirak, long document_id, long image_id);
@@ -2906,11 +2909,11 @@ int js_upcall_get_image_height(void *smirak, long document_id, long image_id);
 int js_upcall_get_image_border(void *smirak, long document_id, long image_id);
 int js_upcall_get_image_vspace(void *smirak, long document_id, long image_id);
 int js_upcall_get_image_hspace(void *smirak, long document_id, long image_id);
-unsigned char * js_upcall_get_image_name(void *smirak, long document_id, long image_id);
-unsigned char * js_upcall_get_image_alt(void *smirak, long document_id, long image_id);
+unsigned char *js_upcall_get_image_name(void *smirak, long document_id, long image_id);
+unsigned char *js_upcall_get_image_alt(void *smirak, long document_id, long image_id);
 void js_upcall_set_image_name(void *smirak, long document_id, long image_id, unsigned char *name);
 void js_upcall_set_image_alt(void *smirak, long document_id, long image_id, unsigned char *alt);
-unsigned char * js_upcall_get_image_src(void *smirak, long document_id, long image_id);
+unsigned char *js_upcall_get_image_src(void *smirak, long document_id, long image_id);
 void js_upcall_set_image_src(void *chuligane);
 int js_upcall_image_complete(void *smirak, long document_id, long image_id);
 long js_upcall_get_parent(void *smirak, long frame_id);
@@ -3163,6 +3166,7 @@ void download_window_function(struct dialog_data *dlg);
 
 extern struct history goto_url_history;
 
+void activate_keys(struct session *ses);
 void activate_bfu_technology(struct session *, int);
 void dialog_goto_url(struct session *ses, unsigned char *url);
 void dialog_save_url(struct session *ses);

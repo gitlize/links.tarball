@@ -91,10 +91,10 @@ static int image_size(struct cached_image *cimg)
 static int shrink_image_cache(int u)
 {
 	struct cached_image *i;
-	int si = 0;
+	longlong si = 0;
 	int r = 0;
 	foreach(i, image_cache) if (!i->refcount) si += image_size(i);
-	if (u == SH_FREE_SOMETHING) si = image_cache_size + si * 1 / 4;
+	if (u == SH_FREE_SOMETHING) si = (longlong)image_cache_size + si * 1 / 4;
 	while ((si >= image_cache_size || u == SH_FREE_ALL) && !list_empty(image_cache)) {
 		i = image_cache.prev;
 		while (i->refcount) {

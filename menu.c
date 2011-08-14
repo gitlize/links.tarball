@@ -25,6 +25,11 @@ static void menu_keys(struct terminal *term, void *d, struct session *ses)
 	msg_box(term, NULL, TEXT(T_KEYS), AL_LEFT | AL_MONO, TEXT(T_KEYS_DESC), NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
 }
 
+void activate_keys(struct session *ses)
+{
+	menu_keys(ses->term, NULL, ses);
+}
+
 static void menu_copying(struct terminal *term, void *d, struct session *ses)
 {
 	msg_box(term, NULL, TEXT(T_COPYING), AL_CENTER, TEXT(T_COPYING_DESC), NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
@@ -1642,11 +1647,13 @@ static int dlg_assume_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 	return 0;
 }
 
+#ifdef G
 static int dlg_kb_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	charset_sel_list(dlg->win->term, dlg->dlg->udata2, (int *)di->cdata, 0);
 	return 0;
 }
+#endif
 
 static void menu_html_options(struct terminal *term, void *xxx, struct session *ses)
 {
@@ -2291,7 +2298,7 @@ struct menu_item view_menu_anon[] = {
 
 struct menu_item help_menu[] = {
 	{ TEXT(T_ABOUT), "", TEXT(T_HK_ABOUT), MENU_FUNC menu_about, (void *)0, 0, 0 },
-	{ TEXT(T_KEYS), "", TEXT(T_HK_KEYS), MENU_FUNC menu_keys, (void *)0, 0, 0 },
+	{ TEXT(T_KEYS), "F1", TEXT(T_HK_KEYS), MENU_FUNC menu_keys, (void *)0, 0, 0 },
 	{ TEXT(T_MANUAL), "", TEXT(T_HK_MANUAL), MENU_FUNC menu_manual, (void *)0, 0, 0 },
 	{ TEXT(T_HOMEPAGE), "", TEXT(T_HK_HOMEPAGE), MENU_FUNC menu_homepage, (void *)0, 0, 0 },
 	{ TEXT(T_COPYING), "", TEXT(T_HK_COPYING), MENU_FUNC menu_copying, (void *)0, 0, 0 },
@@ -2300,7 +2307,7 @@ struct menu_item help_menu[] = {
 
 struct menu_item help_menu_g[] = {
 	{ TEXT(T_ABOUT), "", TEXT(T_HK_ABOUT), MENU_FUNC menu_about, (void *)0, 0, 0 },
-	{ TEXT(T_KEYS), "", TEXT(T_HK_KEYS), MENU_FUNC menu_keys, (void *)0, 0, 0 },
+	{ TEXT(T_KEYS), "F1", TEXT(T_HK_KEYS), MENU_FUNC menu_keys, (void *)0, 0, 0 },
 	{ TEXT(T_MANUAL), "", TEXT(T_HK_MANUAL), MENU_FUNC menu_manual, (void *)0, 0, 0 },
 	{ TEXT(T_HOMEPAGE), "", TEXT(T_HK_HOMEPAGE), MENU_FUNC menu_homepage, (void *)0, 0, 0 },
 	{ TEXT(T_CALIBRATION), "", TEXT(T_HK_CALIBRATION), MENU_FUNC menu_calibration, (void *)0, 0, 0 },

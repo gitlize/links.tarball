@@ -16,7 +16,7 @@
 /* no one will probably ever port svgalib on atheos or beos or port atheos
    interface to beos, but anyway: make sure they don't clash */
 
-#ifdef __BEOS__
+#if defined(__BEOS__) || defined(__HAIKU__)
 #ifdef GRDRV_SVGALIB
 #undef GRDRV_SVGALIB
 #endif

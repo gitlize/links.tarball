@@ -282,8 +282,10 @@ static void signal_break(void *data)
 
 static void got_signal(int sig)
 {
+#ifndef BEOS
 	int sv_errno = errno;
-		/*fprintf(stderr, "ERROR: signal number: %d", sig);*/
+#endif
+		/*fprintf(stderr, "ERROR: signal number: %d\n", sig);*/
 	if (sig >= NUM_SIGNALS || sig < 0) {
 		/*error("ERROR: bad signal number: %d", sig);*/
 		goto ret;
@@ -296,7 +298,9 @@ static void got_signal(int sig)
 	signal_mask[sig] = 1;
 	ret:
 	if (can_write(signal_pipe[1])) write(signal_pipe[1], "x", 1);
+#ifndef BEOS
 	errno = sv_errno;
+#endif
 }
 
 static struct sigaction sa_zero;

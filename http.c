@@ -10,7 +10,7 @@ struct http_connection_info {
 	int bl_flags;
 	int http10;
 	int close;
-	int length;
+	off_t length;
 	int version;
 	int chunk_remaining;
 };
@@ -807,7 +807,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		mem_free(d);
 	}
 	if ((d = parse_http_header(head, "Cache-Control", NULL))) {
-		char *f = d;
+		unsigned char *f = d;
 		while (1) {
 			while (*f && (*f == ' ' || *f == ',')) f++;
 			if (!*f) break;
@@ -835,7 +835,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 #endif
 	if (e->redirect) mem_free(e->redirect), e->redirect = NULL;
 	if (h == 301 || h == 302 || h == 303 || h == 307) {
-		if ((h == 302 || h == 307) && !e->expire_time) e->expire_time = 1;
+		if ((h == 302 || h == 303 || h == 307) && !e->expire_time) e->expire_time = 1;
 		if ((d = parse_http_header(e->head, "Location", NULL))) {
 			unsigned char *user, *ins;
 			unsigned char *newuser, *newpassword;

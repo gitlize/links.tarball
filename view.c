@@ -1910,7 +1910,7 @@ static void encode_controls(struct list_head *l, unsigned char **data, int *len,
 {
 	struct submitted_value *sv;
 	int lst = 0;
-	char *p2;
+	unsigned char *p2;
 	struct conv_table *convert_table = get_translation_table(cp_from, cp_to);
 	*len = 0;
 	*data = init_str();
@@ -1939,7 +1939,7 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 	struct submitted_value *sv;
 	int i, j;
 	int flg = 0;
-	char *p;
+	unsigned char *p;
 	struct conv_table *convert_table = get_translation_table(cp_from, cp_to);
 	memset(bound, 'x', BL);
 	*len = 0;
@@ -1994,8 +1994,7 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 			}*/
 			if (*sv->value) {
 				if (anonymous) {
-					errno = EPERM;
-					goto error;
+					goto not_allowed;
 				}
 				if ((fh = open(sv->value, O_RDONLY)) == -1) goto error;
 				set_bin(fh);
@@ -2031,6 +2030,7 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 	for (i = 0; i < nbound_ptrs; i++) memcpy(*data + bound_ptrs[i], bound, BL);
 	mem_free(bound_ptrs);
 	return;
+
 	error:
 	mem_free(bound_ptrs);
 	mem_free(*data);
@@ -2038,6 +2038,13 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 	m1 = stracpy(sv->value);
 	m2 = stracpy(strerror(errno));
 	msg_box(ses->term, getml(m1, m2, NULL), TEXT(T_ERROR_WHILE_POSTING_FORM), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_GET_FILE), " ", m1, ": ", m2, NULL, ses, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	return;
+
+	not_allowed:
+	mem_free(bound_ptrs);
+	mem_free(*data);
+	*data = NULL;
+	msg_box(ses->term, NULL, TEXT(T_ERROR_WHILE_POSTING_FORM), AL_CENTER | AL_EXTD_TEXT, TEXT(T_READING_FILES_IS_NOT_ALLOWED), NULL, ses, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
 void reset_form(struct f_data_c *f, int form_num)
@@ -2398,7 +2405,7 @@ int get_current_state(struct session *ses)
 	return -1;
 }
 
-int find_pos_in_link(struct f_data_c *fd,struct link *l,struct event *ev,int *xx,int *yy);
+static int find_pos_in_link(struct f_data_c *fd,struct link *l,struct event *ev,int *xx,int *yy);
 
 static void set_form_position(struct f_data_c *fd, struct link *l, struct event *ev)
 {
@@ -2406,7 +2413,7 @@ static void set_form_position(struct f_data_c *fd, struct link *l, struct event 
 	/* if links is a field, set cursor position */
 	if (l->form&&(l->type==L_AREA||l->type==L_FIELD)&&(fs=find_form_state(fd,l->form)))
 	{
-		int xx,yy;
+		int xx = 0, yy = 0; /* against uninitialized warning */
 	
 		if (l->type==L_AREA) {
 			struct line_info *ln;
@@ -2634,7 +2641,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 			field_op_changed(f,l);
 #endif
 		} else if ((ev->x == KBD_INS && ev->y & KBD_SHIFT) || (upcase(ev->x) == 'V' && ev->y & KBD_CTRL)) {
-			char * clipboard;
+			unsigned char *clipboard;
 			set_br_pos(f, l);
 			clipboard = get_clipboard_text(ses->term);
 			if (!clipboard) goto brk;
@@ -2697,7 +2704,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 		} else if (upcase(ev->x) == 'U' && ev->y & KBD_CTRL) {
 			set_br_pos(f, l);
 			if (!form->ro) {
-				char *a = memacpy(fs->value, fs->state);
+				unsigned char *a = memacpy(fs->value, fs->state);
 				if (a) {
 					set_clipboard_text(ses->term, a);
 					mem_free(a);
@@ -2971,7 +2978,7 @@ static void goto_link_number(struct session *ses, unsigned char *num)
 
 
 /* l must be a valid link, ev must be a mouse event */
-int find_pos_in_link(struct f_data_c *fd,struct link *l,struct event *ev,int *xx,int *yy)
+static int find_pos_in_link(struct f_data_c *fd,struct link *l,struct event *ev,int *xx,int *yy)
 {
 	int a;
 	int minx,miny;
@@ -3390,6 +3397,10 @@ void send_event(struct session *ses, struct event *ev)
 			} else goto x;
 			ev->y |= KBD_ALT;
 		}
+		if (ev->x == KBD_F1) {
+			activate_keys(ses);
+			goto x;
+		}
 		if (ev->x == KBD_ESC || ev->x == KBD_F9) {
 			activate_bfu_technology(ses, -1);
 			goto x;
@@ -3637,6 +3648,7 @@ static void send_reset(struct terminal *term, void *xxx, struct session *ses)
 	draw_fd(fd);
 }
 
+#ifdef G
 static void copy_link_location(struct terminal *term, void *xxx, struct session *ses)
 {
 	unsigned char *current_link = print_current_link(ses);
@@ -3647,6 +3659,7 @@ static void copy_link_location(struct terminal *term, void *xxx, struct session 
 	}
 
 }
+#endif
 
 void copy_url_location(struct terminal *term, void *xxx, struct session *ses)
 {

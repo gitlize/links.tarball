@@ -56,36 +56,36 @@
 #define TTY 0
 
 #ifndef USE_GPM_DX
-int fb_txt_xsize, fb_txt_ysize;
-struct winsize fb_old_ws;
-struct winsize fb_new_ws;
-int fb_old_ws_v;
-int fb_msetsize;
+static int fb_txt_xsize, fb_txt_ysize;
+static struct winsize fb_old_ws;
+static struct winsize fb_new_ws;
+static int fb_old_ws_v;
+static int fb_msetsize;
 #endif
-int fb_hgpm;
+static int fb_hgpm;
 
-int fb_console;
+static int fb_console;
 
-struct itrm *fb_kbd;
+static struct itrm *fb_kbd;
 
-struct graphics_device *fb_old_vd;
-struct graphics_device *fb_block_dev;
+static struct graphics_device *fb_old_vd;
+static struct graphics_device *fb_block_dev;
 
-int fb_handler;
-char *fb_mem, *fb_vmem;
-int fb_mem_size,fb_linesize,fb_bits_pp,fb_pixelsize;
-int fb_xsize,fb_ysize;
-int border_left, border_right, border_top, border_bottom;
-int fb_colors, fb_palette_colors;
-struct fb_var_screeninfo vi;
-struct fb_fix_screeninfo fi;
+static int fb_handler;
+static char *fb_mem, *fb_vmem;
+static int fb_mem_size,fb_linesize,fb_bits_pp,fb_pixelsize;
+static int fb_xsize,fb_ysize;
+static int border_left, border_right, border_top, border_bottom;
+static int fb_colors, fb_palette_colors;
+static struct fb_var_screeninfo vi;
+static struct fb_fix_screeninfo fi;
 
 static void fb_draw_bitmap(struct graphics_device *dev,struct bitmap* hndl, int x, int y);
 
 static unsigned char *fb_driver_param;
 struct graphics_driver fb_driver;
-int have_cmap=0;
-volatile int fb_active=1;
+static int have_cmap=0;
+static volatile int fb_active=1;
 
 struct palette
 {
@@ -94,8 +94,8 @@ struct palette
 	unsigned short *blue;
 };
 
-struct palette old_palette;
-struct palette global_pal;
+static struct palette old_palette;
+static struct palette global_pal;
 static struct vt_mode vt_mode,vt_omode;
 
 struct fb_var_screeninfo oldmode;
@@ -391,7 +391,9 @@ static void fb_mouse_move(int dx, int dy)
 
 static void fb_key_in(void *p, struct event *ev, int size)
 {
-	if (size != sizeof(struct event) || ev->ev != EV_KBD) return;
+	if (size != sizeof(struct event)) return;
+	if (ev->ev == EV_ABORT) terminate_loop = 1;
+	if (ev->ev != EV_KBD) return;
 	if ((ev->y & KBD_ALT) && ev->x >= '0' && ev->x <= '9') {
 		switch_virtual_device((ev->x - '1' + 10) % 10);
 		return;

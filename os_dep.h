@@ -20,7 +20,7 @@
 #define OS2
 #elif defined(_WIN32) || defined(__CYGWIN__)
 #define WIN32
-#elif defined(__BEOS__)
+#elif defined(__BEOS__) || defined(__HAIKU__)
 #define BEOS
 #elif defined(__riscos__)
 #define RISCOS
@@ -99,6 +99,7 @@ static inline int dir_sep(char x) { return x == '/' || x == '\\'; }
 
 static inline int dir_sep(char x) { return x == '/'; }
 #define NEWLINE	"\n"
+#define NO_ASYNC_LOOKUP /* async lookup works on BeOS but crashes the Haiku kernel */
 #define FS_UNIX_RIGHTS
 #define FS_UNIX_SOFTLINKS
 #define FS_UNIX_USERS
@@ -114,7 +115,10 @@ static inline int dir_sep(char x) { return x == '/'; }
 
 #include <sys/time.h>
 #include <sys/types.h>
+#ifdef HAVE_NET_SOCKET_H
 #include <net/socket.h>
+#endif
+#include <sys/socket.h>
 
 int be_socket(int, int, int);
 int be_connect(int, struct sockaddr *, int);

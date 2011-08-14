@@ -981,7 +981,7 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 
 	if (param)
 	{
-		char *p, *e, *f;
+		unsigned char *p, *e, *f;
 		int w,h;
 		
 		x_driver_param=stracpy(param);
@@ -989,8 +989,8 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 		for (p=x_driver_param;(*p)&&(*p)!='x'&&(*p)!='X';p++);
 		if (!(*p))goto done;
 		*p=0;
-		w=strtoul(x_driver_param,&e,10);
-		h=strtoul(p+1,&f,10);
+		w=strtoul(x_driver_param,(char **)(void *)&e,10);
+		h=strtoul(p+1,(char **)(void *)&f,10);
 		if (!(*e)&&!(*f)&&w&&h){x_default_window_width=w;x_default_window_height=h;}
 		*p='x';
 		done:;

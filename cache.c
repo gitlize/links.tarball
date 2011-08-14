@@ -37,7 +37,7 @@ long cache_info(int type)
 
 static unsigned char *extract_proxy(unsigned char *url)
 {
-	char *a;
+	unsigned char *a;
 	if (strlen(url) < 8 || casecmp(url, "proxy://", 8)) return url;
 	if (!(a = strchr(url + 8, '/'))) return url;
 	return a + 1;
@@ -330,7 +330,7 @@ static int shrink_file_cache(int u)
 	if (ccs != cache_size) internal("cache size badly computed: %ld != %ld", cache_size, ccs), cache_size = ccs;
 	if (u == SH_CHECK_QUOTA && ncs <= memory_cache_size) goto ret;
 	for (e = cache.prev; (void *)e != &cache; e = e->prev) {
-		if (u == SH_CHECK_QUOTA && ncs <= memory_cache_size * MEMORY_CACHE_GC_PERCENT) goto g;
+		if (u == SH_CHECK_QUOTA && ncs <= (longlong)memory_cache_size * MEMORY_CACHE_GC_PERCENT) goto g;
 		if (e->refcount || is_entry_used(e)) {
 			e->tgc = 0;
 			continue;
@@ -345,7 +345,7 @@ static int shrink_file_cache(int u)
 	g:
 	if ((void *)(e = e->next) == &cache) goto ret;
 	if (u == SH_CHECK_QUOTA) for (f = e; (void *)f != &cache; f = f->next) {
-		if (ncs + f->data_size <= memory_cache_size * MEMORY_CACHE_GC_PERCENT) {
+		if (ncs + f->data_size <= (longlong)memory_cache_size * MEMORY_CACHE_GC_PERCENT) {
 			ncs += f->data_size;
 			f->tgc = 0;
 		}

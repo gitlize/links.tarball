@@ -28,7 +28,7 @@
 #include <vgamouse.h>
 #include "arrow.inc"
 
-extern struct itrm *ditrm;
+struct itrm *svgalib_kbd;
 
 extern struct graphics_driver svga_driver;
 static int mouse_x, mouse_y, mouse_buttons; /* For tracking the state of the mouse */
@@ -91,25 +91,25 @@ struct modeline{
 #define END_MOUSE if (mouse_hidden) show_mouse();
 
 /* Actual vga mode definition */
-int vga_linewidth;		/* Prepared out from vga_getmodeinfo */
-int xsize, ysize;		/* Prepared out from vga_getmodeinfo */
-int vga_bytes;			/* Prepared out from vga_getmodeinfo */
-int vga_colors;			/* Prepared out from vga_getmodeinfo */
-int vga_misordered;		/* Prepared out from vga_getmodeinfo */
-int vga_linear;			/* 1 linear mode, 0 nonlinear mode (paged) */
-int palette_depth;		/* 6 for normal VGA, 8 for VGA which supports 8 bit DAC */
-int accel_avail;		/* Which accel fns are available */
-int do_sync;			/* Tells the "normal" memory operations (those
+static int vga_linewidth;		/* Prepared out from vga_getmodeinfo */
+static int xsize, ysize;		/* Prepared out from vga_getmodeinfo */
+static int vga_bytes;			/* Prepared out from vga_getmodeinfo */
+static int vga_colors;			/* Prepared out from vga_getmodeinfo */
+static int vga_misordered;		/* Prepared out from vga_getmodeinfo */
+static int vga_linear;			/* 1 linear mode, 0 nonlinear mode (paged) */
+static int palette_depth;		/* 6 for normal VGA, 8 for VGA which supports 8 bit DAC */
+static int accel_avail;		/* Which accel fns are available */
+static int do_sync;			/* Tells the "normal" memory operations (those
 				 * that do not use accelerator) to do
 				 * vga_accel(ACCEL_SYNC) before writing into the
 				 * memory.
 				 */
-int vga_page=-1;
-int mode_x;			/* 1 if mode_X organization is set up */
-int bmpixelsize;		/* Number of bytes per pixel in bitmap */
-unsigned char *my_graph_mem;
-unsigned char *scroll_buffer = NULL; /* For paged scrolling only */
-struct modeline modes[]={
+static int vga_page=-1;
+static int mode_x;			/* 1 if mode_X organization is set up */
+static int bmpixelsize;		/* Number of bytes per pixel in bitmap */
+static unsigned char *my_graph_mem;
+static unsigned char *scroll_buffer = NULL; /* For paged scrolling only */
+static struct modeline modes[]={
 #ifdef G320x200x16
 	{"320x200x16", G320x200x16 },
 #endif
@@ -663,7 +663,7 @@ static void svga_shutdown_driver(void)
 		fatal_tty_exit();
 		exit(RET_FATAL);
 	}
-	svgalib_free_trm(ditrm);
+	svgalib_free_trm(svgalib_kbd);
 	if (svga_driver_param)mem_free(svga_driver_param);
 	install_signal_handler(SIGINT, NULL, NULL, 0);
 }
@@ -1830,7 +1830,9 @@ void dump_mode_info_into_file(vga_modeinfo* i)
 
 static void svgalib_key_in(void *p, struct event *ev, int size)
 {
-	if (size != sizeof(struct event) || ev->ev != EV_KBD) return;
+	if (size != sizeof(struct event)) return;
+	if (ev->ev == EV_ABORT) terminate_loop = 1;
+	if (ev->ev != EV_KBD) return;
 	if ((ev->y & KBD_ALT) && ev->x >= '0' && ev->x <= '9') {
 		switch_virtual_device((ev->x - '1' + 10) % 10);
 		return;
@@ -2471,7 +2473,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	}
 	vga_mode=modes[j].number;
 	setup_mode(modes[j].number);
-	handle_svgalib_keyboard((void (*)(void *, unsigned char *, int))svgalib_key_in);
+	svgalib_kbd = handle_svgalib_keyboard((void (*)(void *, unsigned char *, int))svgalib_key_in);
 
 	if (mouse_works){
 		if ((unsigned)arrow_area > (unsigned)MAXINT / bmpixelsize) overalloc();
@@ -2493,7 +2495,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	}
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
-	install_signal_handler(SIGINT, (void (*)(void *))svga_ctrl_c, ditrm, 0);
+	install_signal_handler(SIGINT, (void (*)(void *))svga_ctrl_c, svgalib_kbd, 0);
 	return NULL;
 }
 
@@ -2541,7 +2543,7 @@ static int vga_block(struct graphics_device *dev)
 			backup_virtual_device=current_virtual_device;
 			current_virtual_device=NULL;
 		}
-		svgalib_block_itrm(ditrm);
+		svgalib_block_itrm(svgalib_kbd);
 		if (mouse_works){
 			hide_mouse();
 			/* mouse_close(); This is not necessary as it is
@@ -2578,7 +2580,7 @@ static int vga_unblock(struct graphics_device *dev)
 		show_mouse();
 		mouse_seteventhandler(mouse_event_handler);
 	}
-	svgalib_unblock_itrm(ditrm);
+	svgalib_unblock_itrm(svgalib_kbd);
 	if (current_virtual_device) current_virtual_device->redraw_handler(current_virtual_device
 			,&current_virtual_device->size);
 	return 0;

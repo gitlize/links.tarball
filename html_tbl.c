@@ -43,7 +43,7 @@
 
 static void get_align(char *attr, int *a)
 {
-	char *al;
+	unsigned char *al;
 	if ((al = get_attr_val(attr, "align"))) {
 		if (!(strcasecmp(al, "left"))) *a = AL_LEFT;
 		if (!(strcasecmp(al, "right"))) *a = AL_RIGHT;
@@ -56,7 +56,7 @@ static void get_align(char *attr, int *a)
 
 static void get_valign(char *attr, int *a)
 {
-	char *al;
+	unsigned char *al;
 	if ((al = get_attr_val(attr, "valign"))) {
 		if (!(strcasecmp(al, "top"))) *a = VAL_TOP;
 		if (!(strcasecmp(al, "middle"))) *a = VAL_MIDDLE;
@@ -68,7 +68,7 @@ static void get_valign(char *attr, int *a)
 
 static void get_c_width(char *attr, int *w, int sh)
 {
-	char *al;
+	unsigned char *al;
 	if ((al = get_attr_val(attr, "width"))) {
 		if (*al && al[strlen(al) - 1] == '*') {
 			char *en;
@@ -1327,7 +1327,7 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	int frame, rules, width, wf;
 	struct rgb bgcolor;
 	struct table *t;
-	char *al;
+	unsigned char *al;
 	int cye;
 	int x;
 	int i;

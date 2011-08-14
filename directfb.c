@@ -101,6 +101,9 @@ directfb_fb_init_driver (unsigned char *param, unsigned char *display)
   directfb_driver.depth = (((DFB_BYTES_PER_PIXEL (pixelformat) & 0x7)) |
                            ((DFB_BITS_PER_PIXEL  (pixelformat) & 0x1F) << 3));
 
+  if (directfb_driver.depth == 4)
+	directfb_driver.depth = 196;
+
   /* endian test */
   if (htons (0x1234) == 0x1234)
     directfb_driver.depth |= 0x100;

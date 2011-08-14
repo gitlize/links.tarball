@@ -602,13 +602,15 @@ time_t parse_http_date(unsigned char *date)	/* this functions is bad !!! */
 static int download_write(struct download *down, void *ptr, off_t to_write)
 {
 	int w;
+	int err;
 	if (to_write != (int)to_write || (int)to_write < 0) to_write = MAXINT;
 	try_write_again:
-	errno = 0;
 	w = write(down->handle, ptr, to_write);
+	if (w >= 0) err = 0;
+	else err = errno;
 	if (w <= -!to_write) {
 #ifdef EFBIG
-		if (errno == EFBIG && !down->prog) {
+		if (err == EFBIG && !down->prog) {
 			if (to_write > 1) {
 				to_write >>= 1;
 				goto try_write_again;
@@ -623,7 +625,7 @@ static int download_write(struct download *down, void *ptr, off_t to_write)
 		}
 #endif
 		if (get_download_ses(down)) {
-			unsigned char *emsg = stracpy(errno ? strerror(errno) : "Zero returned");
+			unsigned char *emsg = stracpy(err ? strerror(err) : "Zero returned");
 			unsigned char *msg = stracpy(down->file);
 			msg_box(get_download_ses(down)->term, getml(msg, emsg, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_WRITE_TO_FILE), " ", msg, ": ", emsg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
 		}
@@ -2779,7 +2781,7 @@ static int read_session_info(struct session *ses, void *data, int len)
 	}
 	bla:
 	if (sz) {
-		char *u, *uu;
+		unsigned char *u, *uu;
 		if (len < 3 * (int)sizeof(int) + sz) return 0;
 		if ((unsigned)sz >= MAXINT) overalloc();
 		u = mem_alloc(sz + 1);

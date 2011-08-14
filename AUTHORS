@@ -291,6 +291,7 @@ Daniel Berlin <dan@cgsoftware.com>
 Thomas Klausner <tk@giga.or.at>
 	Support for 16-bit 565 RGB big endian
 	Fix for 24-bit RGB big endian
+	libpng-1.5 support
 
 Strahinya Radich <mr99164@alas.matf.bg.ac.yu>
 	Serbian translation

@@ -3,7 +3,7 @@
  * This file is a part of the Links program, released under GPL
  */
 
-#ifdef __BEOS__
+#if defined(__BEOS__) || defined(__HAIKU__)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <be/kernel/OS.h>
 
@@ -18,6 +19,10 @@
 
 #ifndef MAXINT
 #define MAXINT 0x7fffffff
+#endif
+
+#ifdef __HAIKU__
+int closesocket(int);
 #endif
 
 int be_read(int s, void *ptr, int len)
@@ -153,7 +158,7 @@ int be_select(int n, struct fd_set *rd, struct fd_set *wr, struct fd_set *exc, s
 	if (!rd) rd = &d;
 	if (!wr) wr = &d;
 	if (!exc) exc = &d;
-	if (n >= FDSETSIZE) n = FDSETSIZE;
+	if (n >= FD_SETSIZE) n = FD_SETSIZE;
 	FD_ZERO(exc);
 	for (i = 0; i < n; i++) if ((i < SHS && FD_ISSET(i, rd)) || FD_ISSET(i, wr)) {
 		for (i = SHS; i < n; i++) FD_CLR(i, rd);

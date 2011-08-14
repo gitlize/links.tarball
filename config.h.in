@@ -251,6 +251,9 @@
 /* Define if you have the <ndir.h> header file.  */
 #undef HAVE_NDIR_H
 
+/* Define if you have the <net/socket.h> header file.  */
+#undef HAVE_NET_SOCKET_H
+
 /* Define if you have the <netinet/dhcp.h> header file.  */
 #undef HAVE_NETINET_DHCP_H
 
@@ -347,6 +350,9 @@
 /* Define if you have the m library (-lm).  */
 #undef HAVE_LIBM
 
+/* Define if you have the network library (-lnetwork).  */
+#undef HAVE_LIBNETWORK
+
 /* Define if you have the nsl library (-lnsl).  */
 #undef HAVE_LIBNSL
 
@@ -358,6 +364,9 @@
 
 /* Define if you have the stdc++ library (-lstdc++).  */
 #undef HAVE_LIBSTDC__
+
+/* Define if you have the syllable library (-lsyllable).  */
+#undef HAVE_LIBSYLLABLE
 
 /* Define if you have the tiff library (-ltiff).  */
 #undef HAVE_LIBTIFF
