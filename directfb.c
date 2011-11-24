@@ -20,10 +20,6 @@
 
 #ifdef GRDRV_DIRECTFB
 
-#ifdef TEXT
-#undef TEXT
-#endif
-
 #include <netinet/in.h>  /* for htons */
 
 #include <directfb.h>
@@ -36,7 +32,7 @@
 #define UNFOCUSED_OPACITY  0xC0
 
 #define DIRECTFB_HASH_TABLE_SIZE  23
-struct graphics_device **directfb_hash_table[DIRECTFB_HASH_TABLE_SIZE];
+static struct graphics_device **directfb_hash_table[DIRECTFB_HASH_TABLE_SIZE];
 
 typedef struct _DFBDeviceData DFBDeviceData;
 struct _DFBDeviceData
@@ -44,7 +40,6 @@ struct _DFBDeviceData
   DFBWindowID       id;
   IDirectFBWindow  *window;
   IDirectFBSurface *surface;
-  int               mapped;
   DFBRegion         flip_region;
   int               flip_pending;
 };
@@ -77,24 +72,24 @@ directfb_fb_init_driver (unsigned char *param, unsigned char *display)
 {
   DFBDisplayLayerConfig  config;
   DFBResult              ret;
-
-  if (dfb)
-    return NULL;
+  unsigned char          *error;
+  unsigned char          *result;
 
   DirectFBInit (&g_argc, (char ***)(void *)&g_argv);
-  ret = DirectFBCreate (&dfb);
-
-  if (ret)
-    {
-      char message[128];
-
-      snprintf (message, sizeof (message), "%s\n", DirectFBErrorString (ret));
-      return stracpy (message);
+  if ((ret = DirectFBCreate (&dfb)) != DFB_OK) {
+      error = (unsigned char *)DirectFBErrorString(ret);
+      goto ret;
     }
 
-  dfb->GetDisplayLayer (dfb, DLID_PRIMARY, &layer);
+  if ((ret = dfb->GetDisplayLayer (dfb, DLID_PRIMARY, &layer)) != DFB_OK) {
+      error = (unsigned char *)DirectFBErrorString(ret);
+      goto ret_dfb;
+  }
 
-  layer->GetConfiguration (layer, &config);
+  if ((ret = layer->GetConfiguration (layer, &config)) != DFB_OK) {
+      error = (unsigned char *)DirectFBErrorString(ret);
+      goto ret_layer;
+  }
 
   pixelformat = config.pixelformat;
 
@@ -122,9 +117,8 @@ directfb_fb_init_driver (unsigned char *param, unsigned char *display)
 	case 708:
 		break;
 	default:
-		layer->Release(layer);
-		dfb->Release(dfb);
-		return stracpy("Unsupported color depth.\n");
+		error = "Unsupported color depth";
+		goto ret_layer;
   }
 
   directfb_driver.x = config.width;
@@ -132,10 +126,27 @@ directfb_fb_init_driver (unsigned char *param, unsigned char *display)
 
   memset (directfb_hash_table, 0, sizeof (directfb_hash_table));
 
-  if (dfb->CreateSurface (dfb, &arrow_desc, &arrow) != DFB_OK)
+  if ((ret = dfb->CreateEventBuffer (dfb, &events)) != DFB_OK) {
+      error = (unsigned char *)DirectFBErrorString(ret);
+      goto ret_layer;
+  }
+
+  event_timer = install_timer (20, directfb_check_events, events);
+
+  if (dfb->CreateSurface (dfb, directfb_get_arrow_desc(), &arrow) != DFB_OK)
     arrow = NULL;
 
   return NULL;
+
+ret_layer:
+  layer->Release(layer);
+ret_dfb:
+  dfb->Release(dfb);
+ret:
+  result = init_str();
+  add_to_strn(&result, error);
+  add_to_strn(&result, "\n");
+  return result;
 }
 
 static struct graphics_device *
@@ -146,17 +157,18 @@ directfb_init_device (void)
   IDirectFBWindow        *window;
   DFBWindowDescription    desc;
 
-  if (!dfb || !layer)
-    return NULL;
-
   desc.flags  = DWDESC_WIDTH | DWDESC_HEIGHT | DWDESC_POSX | DWDESC_POSY;
   desc.width  = directfb_driver.x;
   desc.height = directfb_driver.y;
   desc.posx   = 0;
   desc.posy   = 0;
 
-  if (layer->CreateWindow (layer, &desc, &window) != DFB_OK)
+  retry:
+  if (layer->CreateWindow (layer, &desc, &window) != DFB_OK) {
+    if (out_of_memory(NULL, 0))
+      goto retry;
     return NULL;
+  }
 
   gd = mem_alloc (sizeof (struct graphics_device));
 
@@ -169,7 +181,6 @@ directfb_init_device (void)
   data = mem_alloc (sizeof (DFBDeviceData));
   
   data->window       = window;
-  data->mapped       = 0;
   data->flip_pending = 0;
 
   if (arrow)
@@ -178,21 +189,14 @@ directfb_init_device (void)
   window->GetSurface (window, &data->surface);
   window->GetID (window, &data->id);
 
-  gd->drv = &directfb_driver;
   gd->driver_data = data;
   gd->user_data   = NULL;
 
   directfb_add_to_table (gd);
 
-  if (!events)
-    {
-      window->CreateEventBuffer (window, &events);
-      event_timer = install_timer (20, directfb_check_events, events);
-    }
-  else
-    {
-      window->AttachEventBuffer (window, events);
-    }
+  window->AttachEventBuffer (window, events);
+
+  window->SetOpacity (window, FOCUSED_OPACITY);
 
   return gd;
 }
@@ -211,6 +215,7 @@ directfb_shutdown_device (struct graphics_device *gd)
   directfb_remove_from_table (gd);
 
   data->surface->Release (data->surface);
+  data->window->Destroy (data->window);
   data->window->Release (data->window);
 
   mem_free (data);
@@ -222,15 +227,9 @@ directfb_shutdown_driver (void)
 {
   int i;
 
-  if (!dfb)
-    return;
-
-  if (events)
-    {
-      kill_timer (event_timer);
-      events->Release (events);
-      events = NULL;
-    }
+  kill_timer (event_timer);
+  events->Release (events);
+  events = NULL;
 
   if (arrow)
     arrow->Release (arrow);
@@ -263,8 +262,12 @@ directfb_get_empty_bitmap (struct bitmap *bmp)
   desc.width  = bmp->x;
   desc.height = bmp->y;
 
-  if (dfb->CreateSurface (dfb, &desc, &surface) != DFB_OK)
-    return 0;
+  retry:
+  if (dfb->CreateSurface (dfb, &desc, &surface) != DFB_OK) {
+    if (out_of_memory(NULL, 0))
+    	goto retry;
+    return -1;
+  }
 
   surface->Lock (surface, DSLF_READ | DSLF_WRITE, &bmp->data, &bmp->skip);
 
@@ -286,8 +289,12 @@ directfb_get_filled_bitmap (struct bitmap *bmp, long color)
   desc.width  = bmp->x;
   desc.height = bmp->y;
 
-  if (dfb->CreateSurface (dfb, &desc, &surface) != DFB_OK)
+  retry:
+  if (dfb->CreateSurface (dfb, &desc, &surface) != DFB_OK) {
+    if (out_of_memory(NULL, 0))
+    	goto retry;
     return 0;
+  }
 
   directfb_set_color (surface, color);
   surface->FillRectangle (surface, 0, 0, bmp->x, bmp->y);
@@ -303,6 +310,7 @@ static void
 directfb_register_bitmap (struct bitmap *bmp)
 {
   IDirectFBSurface *surface = bmp->flags;
+  if (!surface) return;
 
   surface->Unlock (surface);
   bmp->data = NULL;
@@ -312,6 +320,7 @@ static void *
 directfb_prepare_strip (struct bitmap *bmp, int top, int lines)
 {
   IDirectFBSurface *surface = bmp->flags;
+  if (!surface) return NULL;
 
   surface->Lock (surface, DSLF_READ | DSLF_WRITE, &bmp->data, &bmp->skip);
 
@@ -322,6 +331,7 @@ static void
 directfb_commit_strip (struct bitmap *bmp, int top, int lines)
 {
   IDirectFBSurface *surface = bmp->flags;
+  if (!surface) return;
 
   surface->Unlock (surface);
   bmp->data = NULL;
@@ -331,6 +341,7 @@ static void
 directfb_unregister_bitmap (struct bitmap *bmp)
 {
   IDirectFBSurface *surface = bmp->flags;
+  if (!surface) return;
 
   surface->Release (surface);
 }
@@ -341,12 +352,14 @@ directfb_draw_bitmap (struct graphics_device *gd, struct bitmap *bmp,
 {
   DFBDeviceData    *data = gd->driver_data;
   IDirectFBSurface *src  = bmp->flags;
+  if (!src) return;
 
   data->surface->Blit (data->surface, src, NULL, x, y);
 
   directfb_register_flip (data, x, y, bmp->x, bmp->y);
 }
 
+#if 0
 static void
 directfb_draw_bitmaps (struct graphics_device *gd, struct bitmap **bmps,
                        int n, int x, int y)
@@ -363,7 +376,8 @@ directfb_draw_bitmaps (struct graphics_device *gd, struct bitmap **bmps,
     {
       IDirectFBSurface *src = bmp->flags;
       
-      data->surface->Blit (data->surface, src, NULL, x, y);
+      if (src)
+        data->surface->Blit (data->surface, src, NULL, x, y);
 
       if (h < bmp->y)
         h = bmp->y;
@@ -375,6 +389,7 @@ directfb_draw_bitmaps (struct graphics_device *gd, struct bitmap **bmps,
 
   directfb_register_flip (data, x1, y, x - x1, h);
 }
+#endif
 
 static long
 directfb_get_color (int rgb)
@@ -429,7 +444,11 @@ static void
 directfb_set_clip_area (struct graphics_device *gd, struct rect *r)
 {
   DFBDeviceData *data   = gd->driver_data;
-  DFBRegion      region = { r->x1, r->y1, r->x2 - 1, r->y2 - 1};
+  DFBRegion      region;
+  region.x1 = r->x1;
+  region.y1 = r->y1;
+  region.x2 = r->x2 - 1;
+  region.y2 = r->y2 - 1;
 
   gd->clip = *r;
   
@@ -497,7 +516,7 @@ struct graphics_driver directfb_driver =
   directfb_commit_strip,
   directfb_unregister_bitmap,
   directfb_draw_bitmap,
-  directfb_draw_bitmaps,
+  /*directfb_draw_bitmaps,*/
   directfb_get_color,
   directfb_fill_area,
   directfb_draw_hline,
@@ -509,9 +528,11 @@ struct graphics_driver directfb_driver =
   dummy_unblock,
   NULL,	 /*  set_title  */
   NULL,	 /*  exec	*/
+  NULL,	 /*  set_clipboard_text */
+  NULL,	 /*  get_clipboard_text */
   0,	 /*  depth      */
   0, 0,	 /*  size       */
-  0,     /*  flags      */
+  GD_NO_OS_SHELL, /*  flags      */
   0,     /*  codepage   */
   NULL,	 /*  shell	*/
 };
@@ -576,9 +597,6 @@ directfb_check_events (void *pointer)
   DFBWindowEvent          event;
   DFBWindowEvent          next;
 
-  if (!events)
-    return;
-
   while (events->GetEvent (events, DFB_EVENT (&event)) == DFB_OK)
     {
       switch (event.type)
@@ -608,6 +626,7 @@ directfb_check_events (void *pointer)
 
       switch (event.type)
         {
+#if 0
         case DWET_GOTFOCUS:
           data->window->SetOpacity (data->window, FOCUSED_OPACITY);
           break;
@@ -615,18 +634,9 @@ directfb_check_events (void *pointer)
         case DWET_LOSTFOCUS:
           data->window->SetOpacity (data->window, UNFOCUSED_OPACITY);
           break;
+#endif
 
         case DWET_POSITION_SIZE:
-          if (!data->mapped)
-            {
-              struct rect r = { 0, 0, event.w, event.h };
-              
-              gd->redraw_handler (gd, &r);
-              data->window->SetOpacity (data->window, FOCUSED_OPACITY);
-              data->mapped = 1;
-            }
-          else
-          /* fallthru */
         case DWET_SIZE:
           while ((events->PeekEvent (events, DFB_EVENT (&next)) == DFB_OK)   &&
                  (next.type == DWET_SIZE || next.type == DWET_POSITION_SIZE) &&
@@ -652,6 +662,14 @@ directfb_check_events (void *pointer)
         case DWET_BUTTONUP:
           {
             int flags;
+
+	     /*
+	      * For unknown reason, we get the event twice
+	      */
+             while ((events->PeekEvent (events, DFB_EVENT (&next)) == DFB_OK)   &&
+                    (next.type == event.type && next.button == event.button &&
+		     next.x == event.x && next.y == event.y && next.window_id == data->id))
+               events->GetEvent (events, DFB_EVENT (&event));
 
             if (event.type == DWET_BUTTONUP)
               {

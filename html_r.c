@@ -225,8 +225,8 @@ struct rgb palette[] = {
 	{-1, -1, -1, 0}
 };
 
-/*struct rgb rgbcache = {0, 0, 0};
-int rgbcache_c = 0;
+/*static struct rgb rgbcache = {0, 0, 0};
+static int rgbcache_c = 0;
 
 static inline int find_nearest_color(struct rgb *r, int l)
 {
@@ -288,25 +288,25 @@ static inline int fg_color(int fg, int bg)
 	return fg;
 }
 
-#define XALIGN(x) (((x)+0x7f)&~0x7f)
+#define XALIGN(x) (((x)+0xf)&~0xf)
+#define YALIGN(x) (((x)+0x3ff)&~0x3ff)
 
-int nowrap = 0;
+static int nowrap = 0;
 
 static void xpand_lines(struct part *p, int y)
 {
 	/*if (y >= p->y) p->y = y + 1;*/
 	if (!p->data) return;
-	if (XALIGN((unsigned)y + (unsigned)p->yp) > MAXINT) overalloc();
+	if (YALIGN((unsigned)y + (unsigned)p->yp) > MAXINT) overalloc();
 	y += p->yp;
 	if (y >= p->data->y) {
 		int i;
-		if (XALIGN(y + 1) > XALIGN(p->data->y)) {
-			if (XALIGN((unsigned)y + 1) > MAXINT / sizeof(struct line)) overalloc();
-			p->data->data = mem_realloc(p->data->data, XALIGN(y+1)*sizeof(struct line));
+		if (YALIGN(y + 1) > YALIGN(p->data->y)) {
+			if (YALIGN((unsigned)y + 1) > MAXINT / sizeof(struct line)) overalloc();
+			p->data->data = mem_realloc(p->data->data, YALIGN(y+1)*sizeof(struct line));
 		}
 		for (i = p->data->y; i <= y; i++) {
 			p->data->data[i].l = 0;
-			p->data->data[i].c = p->bgcolor;
 			p->data->data[i].d = DUMMY;
 		}
 		p->data->y = i;
@@ -332,10 +332,9 @@ static void xpand_line(struct part *p, int y, int x)
 			p->data->data[y].d = mem_realloc(p->data->data[y].d, XALIGN(x+1)*sizeof(chr));
 		}
 		for (i = p->data->data[y].l; i <= x; i++) {
-			p->data->data[y].d[i].at = p->data->data[y].c << 3;
+			p->data->data[y].d[i].at = p->bgcolor << 3;
 			p->data->data[y].d[i].ch = ' ';
 		}
-		p->data->data[y].c = p->bgcolor;
 		p->data->data[y].l = i;
 	}
 }
@@ -440,9 +439,9 @@ static inline void set_hline_uni(struct part *p, int x, int y, int xl, char_t *d
 	}
 }
 
-int last_link_to_move;
-struct tag *last_tag_to_move;
-struct tag *last_tag_for_newline;
+static int last_link_to_move;
+static struct tag *last_tag_to_move;
+static struct tag *last_tag_for_newline;
 
 static inline void move_links(struct part *p, int xf, int yf, int xt, int yt)
 {
@@ -510,7 +509,7 @@ static inline void shift_chars(struct part *p, int y, int s)
 	if ((unsigned)l > MAXINT / sizeof(chr)) overalloc();
 	a = mem_alloc(l * sizeof(chr));
 	memcpy(a, &POS(0, y), l * sizeof(chr));
-	set_hchars(p, 0, y, s, ' ', p->data->data[y].c << 3);
+	set_hchars(p, 0, y, s, ' ', p->bgcolor << 3);
 	copy_chars(p, s, y, l, a);
 	mem_free(a);
 	move_links(p, 0, y, s, y);
@@ -524,7 +523,7 @@ static inline void del_chars(struct part *p, int x, int y)
 
 #define rm(x) ((x).width - (x).rightmargin > 0 ? (x).width - (x).rightmargin : 0)
 
-void line_break(struct part *);
+static void line_break(void *);
 
 static int split_line(struct part *p)
 {
@@ -566,7 +565,7 @@ static int split_line(struct part *p)
 	return 1 + (p->cx == -1);
 }
 
-void align_line(struct part *p, int y)
+static void align_line(struct part *p, int y)
 {
 	int na;
 	if (!p->data) return;
@@ -615,79 +614,14 @@ unsigned char *last_image = NULL;
 struct form_control *last_form = NULL;
 struct js_event_spec *last_js_event = NULL;
 
-int nobreak;
+static int nobreak;
 
 struct conv_table *convert_table;
 
-void put_chars(struct part *, unsigned char *, int);
-
-#define CH_BUF	256
-
-static int put_chars_conv(struct part *p, unsigned char *c, int l)
+static void put_chars(void *p_, unsigned char *c, int l)
 {
-	static char buffer[CH_BUF];
-	int bp = 0;
-	int pp = 0;
-	int total = 0;
-	if (format.attr & AT_GRAPHICS) {
-		put_chars(p, c, l);
-		return l;
-	}
-	if (!l) put_chars(p, NULL, 0);
-	while (pp < l) {
-		unsigned char *e;
-		if (c[pp] < 128 && c[pp] != '&') {
-			putc:
-			buffer[bp++] = c[pp++];
-			if (bp < CH_BUF) continue;
-			goto flush;
-		}
-		if (c[pp] != '&') {
-			struct conv_table *t;
-			int i;
-			if (!convert_table) goto putc;
-			t = convert_table;
-			i = pp;
-			decode:
-			if (!t[c[i]].t) {
-				e = t[c[i]].u.str;
-			} else {
-				t = t[c[i++]].u.tbl;
-				if (i >= l) goto putc;
-				goto decode;
-			}
-			pp = i + 1;
-		} else {
-			int i = pp + 1;
-			if (d_opt->plain & 1) goto putc;
-			while (i < l && c[i] != ';' && c[i] != '&' && c[i] > ' ') i++;
-			if (!(e = get_entity_string(&c[pp + 1], i - pp - 1, d_opt->cp))) goto putc;
-			pp = i + (i < l && c[i] == ';');
-		}
-		if (!e[0]) continue;
-		if (!e[1]) {
-			buffer[bp++] = e[0];
-			if (bp < CH_BUF) continue;
-			flush:
-			e = "";
-			goto flush1;
-		}
-		while (*e) {
-			buffer[bp++] = *(e++);
-			if (bp < CH_BUF) continue;
-			flush1:
-			put_chars(p, buffer, bp);
-			total += bp;
-			bp = 0;
-		}
-	}
-	if (bp) put_chars(p, buffer, bp);
-	total += bp;
-	return total;
-}
+	struct part *p = p_;
 
-void put_chars(struct part *p, unsigned char *c, int l)
-{
 	static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0, 0 };
 	static int bg_cache;
 	static int fg_cache;
@@ -907,8 +841,9 @@ void put_chars(struct part *p, unsigned char *c, int l)
 		goto end_format_change;
 }
 
-void line_break(struct part *p)
+static void line_break(void *p_)
 {
+	struct part *p = p_;
 	struct tag *t;
 	/*printf("-break-\n");*/
 	if (p->cx + par_format.rightmargin > p->x) p->x = p->cx + par_format.rightmargin;
@@ -1039,8 +974,9 @@ void html_process_refresh(struct f_data *f, unsigned char *url, int time)
 	f->refresh_seconds = time;
 }
 
-static void *html_special(struct part *p, int c, ...)
+static void *html_special(void *p_, int c, ...)
 {
+	struct part *p = p_;
 	va_list l;
 	unsigned char *t;
 	struct form_control *fc;
@@ -1101,7 +1037,7 @@ static void *html_special(struct part *p, int c, ...)
 static void do_format(char *start, char *end, struct part *part, unsigned char *head)
 {
 	pr(
-	parse_html(start, end, (int (*)(void *, unsigned char *, int)) put_chars_conv, (void (*)(void *)) line_break, (void *(*)(void *, int, ...)) html_special, part, head);
+	parse_html(start, end, put_chars, line_break, html_special, part, head);
 	/*if ((part->y -= line_breax) < 0) part->y = 0;*/
 	) {};
 }
@@ -1122,13 +1058,13 @@ struct table_cache_entry {
 	struct part p;
 };
 
-struct list_head table_cache = { &table_cache, &table_cache };
+static struct list_head table_cache = { &table_cache, &table_cache };
 
 #define TC_HASH_SIZE	4096
 
-struct table_cache_entry *table_cache_hash[TC_HASH_SIZE];
+static struct table_cache_entry *table_cache_hash[TC_HASH_SIZE];
 
-void free_table_cache()
+void free_table_cache(void)
 {
 	struct table_cache_entry *tce;
 	foreach(tce, table_cache) {
@@ -1352,6 +1288,7 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 	head = init_str(), hdl = 0;
 	if (ce->head) add_to_str(&head, &hdl, ce->head);
 	scan_http_equiv(start, end, &head, &hdl, &t, d_opt->plain ? NULL : &bg, d_opt->plain ? NULL : &bgcolor, &screen->js_event);
+	if (d_opt->plain) *t = 0;
 	convert_table = get_convert_table(head, screen->opt.cp, screen->opt.assume_cp, &screen->cp, &screen->ass, screen->opt.hard_assume);
 	screen->opt.real_cp = screen->cp;
 	i = d_opt->plain; d_opt->plain = 0;
@@ -1379,25 +1316,6 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 			if (screen->y > h) h = screen->y;
 			g_x_extend_area(rp->root, w, h);
 			screen->root = (struct g_object *)rp->root, rp->root = NULL;
-			screen->hsb = 0, screen->vsb = 0;
-			screen->hsbsize = 0, screen->vsbsize = 0;
-			if (screen->opt.scrolling == SCROLLING_YES) {
-				screen->hsb = 1, screen->vsb = 1;
-			} else if (screen->opt.scrolling == SCROLLING_AUTO) {
-				x:
-				if (!screen->hsb && screen->x > screen->opt.xw - screen->vsb * G_SCROLL_BAR_WIDTH) {
-					screen->hsb = 1;
-					goto x;
-				}
-				if (!screen->vsb && screen->y > screen->opt.yw - screen->hsb * G_SCROLL_BAR_WIDTH) {
-					screen->vsb = 1;
-					goto x;
-				}
-			}
-			if (screen->hsb) screen->hsbsize = screen->opt.xw - screen->vsb * G_SCROLL_BAR_WIDTH;
-			if (screen->vsb) screen->vsbsize = screen->opt.yw - screen->hsb * G_SCROLL_BAR_WIDTH;
-			if (screen->hsb < 0) screen->hsb = 0;
-			if (screen->vsb < 0) screen->vsb = 0;
 			g_release_part(rp);
 			mem_free(rp);
 			get_parents(screen, screen->root);

@@ -9,8 +9,6 @@
 
 static void get_system_name(void)
 {
-	FILE *f;
-	unsigned char *p;
 #if defined(HAVE_SYS_UTSNAME_H) && defined(HAVE_UNAME)
 	struct utsname name;
 	memset(&name, 0, sizeof name);
@@ -29,18 +27,22 @@ static void get_system_name(void)
 	}
 #endif
 #ifdef HAVE_POPEN
-	memset(system_name, 0, MAX_STR_LEN);
-	if (!(f = popen("uname -srm", "r"))) goto fail;
-	if (fread(system_name, 1, MAX_STR_LEN - 1, f) <= 0) {
+	{
+		FILE *f;
+		unsigned char *p;
+		memset(system_name, 0, MAX_STR_LEN);
+		if (!(f = popen("uname -srm", "r"))) goto fail;
+		if (fread(system_name, 1, MAX_STR_LEN - 1, f) <= 0) {
+			pclose(f);
+			goto fail;
+		}
 		pclose(f);
-		goto fail;
+		for (p = system_name; *p; p++) if (*p < ' ') {
+			*p = 0;
+			break;
+		}
+		if (system_name[0]) return;
 	}
-	pclose(f);
-	for (p = system_name; *p; p++) if (*p < ' ') {
-		*p = 0;
-		break;
-	}
-	if (system_name[0]) return;
 	fail:
 #endif
 	strcpy(system_name, SYSTEM_NAME);
@@ -57,57 +59,7 @@ struct option {
 	unsigned char *cmd_name;
 };
 
-extern struct option links_options[];
-extern struct option html_options[];
-
-struct option *all_options[] = { links_options, html_options, NULL, };
-
-
-/* prototypes */
-unsigned char *get_token(unsigned char **);
-void parse_config_file(unsigned char *, unsigned char *, struct option **);
-unsigned char *create_config_string(struct option *);
-unsigned char *get_home(int *);
-void load_config_file(unsigned char *, unsigned char *);
-int write_config_data(unsigned char *, unsigned char *, struct option *, struct terminal *);
-void add_nm(struct option *, unsigned char **, int *);
-void add_quoted_to_str(unsigned char **, int *, unsigned char *);
-unsigned char *num_rd(struct option *, unsigned char *);
-void num_wr(struct option *, unsigned char **, int *);
-unsigned char *dbl_rd(struct option *, unsigned char *);
-void dbl_wr(struct option *, unsigned char **, int *);
-unsigned char *str_rd(struct option *, unsigned char *);
-void str_wr(struct option *, unsigned char **, int *);
-unsigned char *cp_rd(struct option *, unsigned char *);
-void cp_wr(struct option *, unsigned char **, int *);
-unsigned char *lang_rd(struct option *, unsigned char *);
-void lang_wr(struct option *, unsigned char **, int *);
-int getnum(unsigned char *, int *, int, int);
-unsigned char *type_rd(struct option *, unsigned char *);
-void type_wr(struct option *, unsigned char **, int *);
-unsigned char *ext_rd(struct option *, unsigned char *);
-void ext_wr(struct option *, unsigned char **, int *);
-unsigned char *prog_rd(struct option *, unsigned char *);
-void prog_wr(struct option *, unsigned char **, int *);
-unsigned char *term_rd(struct option *, unsigned char *);
-unsigned char *term2_rd(struct option *, unsigned char *);
-void term_wr(struct option *, unsigned char **, int *);
-unsigned char *dp_rd(struct option *, unsigned char *);
-void dp_wr(struct option *, unsigned char **, int *);
-unsigned char *gen_cmd(struct option *, unsigned char ***, int *);
-unsigned char *lookup_cmd(struct option *, unsigned char ***, int *);
-unsigned char *version_cmd(struct option *, unsigned char ***, int *);
-unsigned char *set_cmd(struct option *, unsigned char ***, int *);
-unsigned char *unset_cmd(struct option *, unsigned char ***, int *);
-unsigned char *setstr_cmd(struct option *, unsigned char ***, int *);
-unsigned char *force_html_cmd(struct option *, unsigned char ***, int *);
-unsigned char *dump_cmd(struct option *, unsigned char ***, int *);
-unsigned char *printhelp_cmd(struct option *, unsigned char ***, int *);
-unsigned char *p_arse_options(int, unsigned char *[], struct option **);
-unsigned char *block_rd(struct option *, unsigned char *);
-void block_wr(struct option *, unsigned char **, int *);
-
-unsigned char *p_arse_options(int argc, unsigned char *argv[], struct option **opt)
+static unsigned char *p_arse_options(int argc, unsigned char *argv[], struct option **opt)
 {
 	unsigned char *e, *u = NULL;
 	while (argc) {
@@ -140,12 +92,7 @@ unsigned char *p_arse_options(int argc, unsigned char *argv[], struct option **o
 	return "";
 }
 
-unsigned char *parse_options(int argc, unsigned char *argv[])
-{
-	return p_arse_options(argc, argv, all_options);
-}
-
-unsigned char *get_token(unsigned char **line)
+static unsigned char *get_token(unsigned char **line)
 {
 	unsigned char *s = NULL;
 	int l = 0;
@@ -173,7 +120,7 @@ unsigned char *get_token(unsigned char **line)
 	return s;
 }
 
-void parse_config_file(unsigned char *name, unsigned char *file, struct option **opt)
+static void parse_config_file(unsigned char *name, unsigned char *file, struct option **opt)
 {
 	struct option *options;
 	struct option **op;
@@ -223,7 +170,7 @@ void parse_config_file(unsigned char *name, unsigned char *file, struct option *
 	if (err) fprintf(stderr, "\007"), sleep(1);
 }
 
-unsigned char *create_config_string(struct option *options)
+static unsigned char *create_config_string(struct option *options)
 {
 	unsigned char *s = init_str();
 	int l = 0;
@@ -237,7 +184,7 @@ unsigned char *create_config_string(struct option *options)
 
 #define FILE_BUF	1024
 
-unsigned char cfg_buffer[FILE_BUF];
+static unsigned char cfg_buffer[FILE_BUF];
 
 unsigned char *read_config_file(unsigned char *name)
 {
@@ -269,7 +216,7 @@ int write_to_config_file(unsigned char *name, unsigned char *c)
 	add_to_strn(&tmp_name, ".tmp");
 	if ((h = open(tmp_name, O_WRONLY | O_NOCTTY | O_CREAT | O_TRUNC, 0666)) == -1) {
 		mem_free(tmp_name);
-		return errno;
+		return get_error_from_errno(errno);
 	}
 	set_bin(h);
 	rr = strlen(c);
@@ -280,7 +227,7 @@ int write_to_config_file(unsigned char *name, unsigned char *c)
 			close(h);
 			unlink(tmp_name);
 			mem_free(tmp_name);
-			return err;
+			return get_error_from_errno(err);
 		}
 		r -= w;
 	}
@@ -292,13 +239,13 @@ int write_to_config_file(unsigned char *name, unsigned char *c)
 		int err = errno;
 		unlink(tmp_name);
 		mem_free(tmp_name);
-		return err;
+		return get_error_from_errno(err);
 	}
 	mem_free(tmp_name);
 	return 0;
 }
 
-unsigned char *get_home(int *n)
+static unsigned char *get_home(int *n)
 {
 	struct stat st;
 	unsigned char *home = NULL;
@@ -309,6 +256,27 @@ unsigned char *get_home(int *n)
 #ifdef WIN32
 	if (!home) {
 		home = stracpy(getenv("APPDATA"));
+#ifdef HAVE_CYGWIN_CONV_PATH
+		/*
+		 * Newer Cygwin complains about windows-style path, so
+		 * we have to convert it.
+		 */
+		if (home) {
+			unsigned char *new_path;
+			ssize_t sz = cygwin_conv_path(CCP_WIN_A_TO_POSIX | CCP_ABSOLUTE, home, NULL, 0);
+			if (sz < 0)
+				goto skip_path_conv;
+			new_path = mem_alloc(sz);
+			sz = cygwin_conv_path(CCP_WIN_A_TO_POSIX | CCP_ABSOLUTE, home, new_path, sz);
+			if (sz < 0) {
+				mem_free(new_path);
+				goto skip_path_conv;
+			}
+			mem_free(home);
+			home = new_path;
+skip_path_conv:;
+		}
+#endif
 		if (home && (stat(home, &st) == -1 || !S_ISDIR(st.st_mode))) {
 			mem_free(home);
 			home = NULL;
@@ -316,13 +284,15 @@ unsigned char *get_home(int *n)
 	}
 #endif
 	if (!home) home = stracpy(getenv("HOME"));
-	if (!home
 #ifdef WIN32
 /* When we run in Cygwin without Cygwin environment, it reports home "/".
    Unfortunatelly, it can't write anything to that directory */
-		|| !strcmp(home, "/")
+	if (home && !strcmp(home, "/")) {
+		mem_free(home);
+		home = NULL;
+	}
 #endif
-		) {
+	if (!home) {
   		int i;
 		home = stracpy(path_to_exe);
 		if (!home) {
@@ -409,41 +379,10 @@ void init_home(void)
 	}
 }
 
-void load_config_file(unsigned char *prefix, unsigned char *name)
-{
-	unsigned char *c, *config_file;
-	config_file = stracpy(prefix);
-	if (!config_file) return;
-	add_to_strn(&config_file, name);
-	if ((c = read_config_file(config_file))) goto ok;
-	mem_free(config_file);
-	config_file = stracpy(prefix);
-	if (!config_file) return;
-	add_to_strn(&config_file, ".");
-	add_to_strn(&config_file, name);
-	if ((c = read_config_file(config_file))) goto ok;
-	mem_free(config_file);
-	return;
-	ok:
-	parse_config_file(config_file, c, all_options);
-	mem_free(c);
-	mem_free(config_file);
-}
-
-void load_config(void)
-{
-#ifdef SHARED_CONFIG_DIR
-	load_config_file(SHARED_CONFIG_DIR, "links.cfg");
-#endif
-	load_config_file(links_home, "links.cfg");
-	load_config_file(links_home, "html.cfg");
-	load_config_file(links_home, "user.cfg");
-}
-
 /* prefix: directory
  * name: name of the configuration file (typ. links.cfg)
  */
-int write_config_data(unsigned char *prefix, unsigned char *name, struct option *o, struct terminal *term)
+static int write_config_data(unsigned char *prefix, unsigned char *name, struct option *o, struct terminal *term)
 {
 	int err;
 	unsigned char *c, *config_file;
@@ -455,7 +394,7 @@ int write_config_data(unsigned char *prefix, unsigned char *name, struct option 
 	}
 	add_to_strn(&config_file, name);
 	if ((err = write_to_config_file(config_file, c))) {
-		if (term) msg_box(term, NULL, TEXT(T_CONFIG_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_UNABLE_TO_WRITE_TO_CONFIG_FILE), ": ", get_err_msg(-err), NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		if (term) msg_box(term, NULL, TEXT_(T_CONFIG_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_UNABLE_TO_WRITE_TO_CONFIG_FILE), ": ", get_err_msg(err), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		mem_free(c);
 		mem_free(config_file);
 		return -1;
@@ -465,27 +404,14 @@ int write_config_data(unsigned char *prefix, unsigned char *name, struct option 
 	return 0;
 }
 
-void write_config(struct terminal *term)
-{
-#ifdef G
-	if (F) update_driver_param();
-#endif
-	write_config_data(links_home, "links.cfg", links_options, term);
-}
-
-void write_html_config(struct terminal *term)
-{
-	write_config_data(links_home, "html.cfg", html_options, term);
-}
-
-void add_nm(struct option *o, unsigned char **s, int *l)
+static void add_nm(struct option *o, unsigned char **s, int *l)
 {
 	if (*l) add_to_str(s, l, NEWLINE);
 	add_to_str(s, l, o->cfg_name);
 	add_to_str(s, l, " ");
 }
 
-void add_quoted_to_str(unsigned char **s, int *l, unsigned char *q)
+static void add_quoted_to_str(unsigned char **s, int *l, unsigned char *q)
 {
 	add_chr_to_str(s, l, '"');
 	while (*q) {
@@ -496,7 +422,7 @@ void add_quoted_to_str(unsigned char **s, int *l, unsigned char *q)
 	add_chr_to_str(s, l, '"');
 }
 
-unsigned char *num_rd(struct option *o, unsigned char *c)
+static unsigned char *num_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *tok = get_token(&c);
 	unsigned char *end;
@@ -516,13 +442,13 @@ unsigned char *num_rd(struct option *o, unsigned char *c)
 	return NULL;
 }
 
-void num_wr(struct option *o, unsigned char **s, int *l)
+static void num_wr(struct option *o, unsigned char **s, int *l)
 {
 	add_nm(o, s, l);
 	add_knum_to_str(s, l, *(int *)o->ptr);
 }
 
-unsigned char *dbl_rd(struct option *o, unsigned char *c)
+static unsigned char *dbl_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *tok = get_token(&c);
 	char *end;
@@ -544,7 +470,7 @@ unsigned char *dbl_rd(struct option *o, unsigned char *c)
 	return NULL;
 }
 
-void dbl_wr(struct option *o, unsigned char **s, int *l)
+static void dbl_wr(struct option *o, unsigned char **s, int *l)
 {
 	char number[80];
 	snprintf(number, sizeof number, "%.4f", *(double*)o->ptr);
@@ -553,7 +479,7 @@ void dbl_wr(struct option *o, unsigned char **s, int *l)
 	add_to_str(s, l, number);
 }
 
-unsigned char *str_rd(struct option *o, unsigned char *c)
+static unsigned char *str_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *tok = get_token(&c);
 	unsigned char *e = NULL;
@@ -564,7 +490,7 @@ unsigned char *str_rd(struct option *o, unsigned char *c)
 	return e;
 }
 
-void str_wr(struct option *o, unsigned char **s, int *l)
+static void str_wr(struct option *o, unsigned char **s, int *l)
 {
 	add_nm(o, s, l);
 	if (strlen(o->ptr) + 1 > (size_t)o->max) {
@@ -577,7 +503,7 @@ void str_wr(struct option *o, unsigned char **s, int *l)
 	else add_quoted_to_str(s, l, o->ptr);
 }
 
-unsigned char *cp_rd(struct option *o, unsigned char *c)
+static unsigned char *cp_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *tok = get_token(&c);
 	unsigned char *e = NULL;
@@ -590,14 +516,14 @@ unsigned char *cp_rd(struct option *o, unsigned char *c)
 	return e;
 }
 
-void cp_wr(struct option *o, unsigned char **s, int *l)
+static void cp_wr(struct option *o, unsigned char **s, int *l)
 {
 	unsigned char *n = get_cp_mime_name(*(int *)o->ptr);
 	add_nm(o, s, l);
 	add_to_str(s, l, n);
 }
 
-unsigned char *lang_rd(struct option *o, unsigned char *c)
+static unsigned char *lang_rd(struct option *o, unsigned char *c)
 {
 	int i;
 	unsigned char *tok = get_token(&c);
@@ -612,13 +538,13 @@ unsigned char *lang_rd(struct option *o, unsigned char *c)
 	return "Unknown language";
 }
 
-void lang_wr(struct option *o, unsigned char **s, int *l)
+static void lang_wr(struct option *o, unsigned char **s, int *l)
 {
 	add_nm(o, s, l);
 	add_quoted_to_str(s, l, language_name(current_language));
 }
 
-int getnum(unsigned char *s, int *n, int r1, int r2)
+static int getnum(unsigned char *s, int *n, int r1, int r2)
 {
 	unsigned char *e;
 	long l = strtol(s, (char **)(void *)&e, 10);
@@ -628,12 +554,12 @@ int getnum(unsigned char *s, int *n, int r1, int r2)
 	return 0;
 }
 
-unsigned char *type_rd(struct option *o, unsigned char *c)
+static unsigned char *type_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *err = "Error reading association specification";
 	struct assoc new;
 	unsigned char *w;
-	int n;
+	int n = 0;	/* against warning */
 	memset(&new, 0, sizeof(struct assoc));
 	if (!(new.label = get_token(&c))) goto err;
 	if (!(new.ct = get_token(&c))) goto err;
@@ -664,7 +590,7 @@ unsigned char *type_rd(struct option *o, unsigned char *c)
 	goto err;
 }
 
-unsigned char *block_rd(struct option *o, unsigned char *c)
+static unsigned char *block_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *err = "Error reading image block specification";
 	unsigned char* url;
@@ -679,7 +605,7 @@ unsigned char *block_rd(struct option *o, unsigned char *c)
 	return NULL;
 }
 
-void block_wr(struct option *o, unsigned char **s, int *l)
+static void block_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct block *a;
 	foreachback(a, blocks) {
@@ -688,7 +614,7 @@ void block_wr(struct option *o, unsigned char **s, int *l)
 	}
 }
 
-void type_wr(struct option *o, unsigned char **s, int *l)
+static void type_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct assoc *a;
 	foreachback(a, assoc) {
@@ -705,7 +631,7 @@ void type_wr(struct option *o, unsigned char **s, int *l)
 	}
 }
 
-unsigned char *ext_rd(struct option *o, unsigned char *c)
+static unsigned char *ext_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *err = "Error reading extension specification";
 	struct extension new;
@@ -720,7 +646,7 @@ unsigned char *ext_rd(struct option *o, unsigned char *c)
 	return err;
 }
 
-void ext_wr(struct option *o, unsigned char **s, int *l)
+static void ext_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct extension *a;
 	foreachback(a, extensions) {
@@ -731,7 +657,7 @@ void ext_wr(struct option *o, unsigned char **s, int *l)
 	}
 }
 
-unsigned char *prog_rd(struct option *o, unsigned char *c)
+static unsigned char *prog_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *err = "Error reading program specification";
 	unsigned char *prog, *w;
@@ -748,7 +674,7 @@ unsigned char *prog_rd(struct option *o, unsigned char *c)
 	return err;
 }
 
-void prog_wr(struct option *o, unsigned char **s, int *l)
+static void prog_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct protocol_program *a;
 	foreachback(a, *(struct list_head *)o->ptr) {
@@ -760,7 +686,7 @@ void prog_wr(struct option *o, unsigned char **s, int *l)
 	}
 }
 
-unsigned char *term_rd(struct option *o, unsigned char *c)
+static unsigned char *term_rd(struct option *o, unsigned char *c)
 {
 	struct term_spec *ts;
 	unsigned char *w;
@@ -803,7 +729,7 @@ unsigned char *term_rd(struct option *o, unsigned char *c)
 	return "Error reading terminal specification";
 }
 
-unsigned char *term2_rd(struct option *o, unsigned char *c)
+static unsigned char *term2_rd(struct option *o, unsigned char *c)
 {
 	struct term_spec *ts;
 	unsigned char *w;
@@ -847,7 +773,7 @@ unsigned char *term2_rd(struct option *o, unsigned char *c)
 	return "Error reading terminal specification";
 }
 
-void term_wr(struct option *o, unsigned char **s, int *l)
+static void term_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct term_spec *ts;
 	foreachback(ts, term_specs) {
@@ -864,7 +790,7 @@ void term_wr(struct option *o, unsigned char **s, int *l)
 	}
 }
 
-struct list_head driver_params = { &driver_params, &driver_params };
+static struct list_head driver_params = { &driver_params, &driver_params };
 
 struct driver_param *get_driver_param(unsigned char *n)
 {
@@ -879,7 +805,7 @@ struct driver_param *get_driver_param(unsigned char *n)
 	return dp;
 }
 
-unsigned char *dp_rd(struct option *o, unsigned char *c)
+static unsigned char *dp_rd(struct option *o, unsigned char *c)
 {
 	int cc;
 	unsigned char *n, *param, *cp, *shell;
@@ -921,7 +847,7 @@ unsigned char *dp_rd(struct option *o, unsigned char *c)
 	return "Error reading driver mode specification";
 }
 
-void dp_wr(struct option *o, unsigned char **s, int *l)
+static void dp_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct driver_param *dp;
 	foreachback(dp, driver_params) {
@@ -938,7 +864,7 @@ void dp_wr(struct option *o, unsigned char **s, int *l)
 	}
 }
 
-unsigned char *gen_cmd(struct option *o, unsigned char ***argv, int *argc)
+static unsigned char *gen_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	unsigned char *e;
 	int l;
@@ -954,7 +880,7 @@ unsigned char *gen_cmd(struct option *o, unsigned char ***argv, int *argc)
 	return NULL;
 }
 
-unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *argc)
+static unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	ip__address addr;
 	unsigned char *p = (unsigned char *)&addr;
@@ -962,7 +888,7 @@ unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *argc)
 	if (*argc >= 2) return "Too many parameters";
 	(*argv)++; (*argc)--;
 	if (do_real_lookup(*(*argv - 1), &addr)) {
-#ifdef HAVE_HERROR
+#if defined(HAVE_GETHOSTBYNAME) && defined(HAVE_HERROR)
 		herror("error");
 #else
 		fprintf(stderr, "error: host not found\n");
@@ -974,41 +900,34 @@ unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *argc)
 	return "";
 }
 
-unsigned char *version_cmd(struct option *o, unsigned char ***argv, int *argc)
+static unsigned char *version_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	printf("Links " VERSION_STRING "\n");
 	fflush(stdout);
 	return "";
 }
 
-unsigned char *set_cmd(struct option *o, unsigned char ***argv, int *argc)
+static unsigned char *set_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	*(int *)o->ptr = 1;
 	return NULL;
 }
 
-unsigned char *unset_cmd(struct option *o, unsigned char ***argv, int *argc)
+static unsigned char *unset_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	*(int *)o->ptr = 0;
 	return NULL;
 }
 
-unsigned char *setstr_cmd(struct option *o, unsigned char ***argv, int *argc)
+static unsigned char *setstr_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	if (!*argc) return "Parameter expected";
-	strncpy(o->ptr, **argv, o->max);
-	((unsigned char *)o->ptr)[o->max - 1] = 0;
+	safe_strncpy(o->ptr, **argv, o->max);
 	(*argv)++; (*argc)--;
 	return NULL;
 }
 
-unsigned char *force_html_cmd(struct option *o, unsigned char ***argv, int *argc)
-{
-	force_html = 1;
-	return NULL;
-}
-
-unsigned char *dump_cmd(struct option *o, unsigned char ***argv, int *argc)
+static unsigned char *dump_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	if (dmp != o->min && dmp) return "Can't use both -dump and -source";
 	dmp = o->min;
@@ -1016,7 +935,7 @@ unsigned char *dump_cmd(struct option *o, unsigned char ***argv, int *argc)
 	return NULL;
 }
 
-unsigned char *printhelp_cmd(struct option *o, unsigned char ***argv, int *argc)
+static unsigned char *printhelp_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 /* Changed and splited - translation is much easier.
  * Print to stdout instead stderr (,,links -help | more''
@@ -1438,7 +1357,6 @@ unsigned char default_target[MAX_STR_LEN] ="";
 
 unsigned char *links_home = NULL;
 int first_use = 0;
-int created_home = 0;
 
 int no_connect = 0;
 int base_session = 0;
@@ -1460,9 +1378,6 @@ int max_format_cache_entries = 5;
 int memory_cache_size = 1048576;
 int image_cache_size = 1048576;
 
-int enable_html_tables = 1;
-int enable_html_frames = 1;
-
 struct document_setup dds = { 0, 0, 1, 1, 0, 0, 3, 0, 0, 0, 18, 1, 
 	100, /* Image scale */
 	0, /* Porn enable */
@@ -1477,8 +1392,6 @@ struct rgb default_fg_g = { 0, 0, 0, 0 };
 struct rgb default_bg_g = { 192, 192, 192, 0 };
 struct rgb default_link_g = { 0, 0, 255, 0 };
 struct rgb default_vlink_g = { 0, 0, 128, 0 };
-
-int default_left_margin = HTML_LEFT_MARGIN;
 
 struct proxies proxies = { "", "", "", "", 0 };
 int js_enable=1;   /* 0=disable javascript */
@@ -1510,7 +1423,7 @@ struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { REFERER_NONE, "", ""
 	/* No keepalive connection after POST request. Some buggy PHP databases report bad
 	   results if GET wants to retreive data POSTed in the same connection */
 
-struct option links_options[] = {
+static struct option links_options[] = {
 	{1, printhelp_cmd, NULL, NULL, 0, 0, NULL, NULL, "?"},
 	{1, printhelp_cmd, NULL, NULL, 0, 0, NULL, NULL, "h"},
 	{1, printhelp_cmd, NULL, NULL, 0, 0, NULL, NULL, "help"},
@@ -1526,7 +1439,7 @@ struct option links_options[] = {
 	{1, setstr_cmd, NULL, NULL, 0, MAX_STR_LEN, &ggr_mode, NULL, "mode"},
 	{1, setstr_cmd, NULL, NULL, 0, MAX_STR_LEN, &ggr_display, NULL, "display"},
 	{1, gen_cmd, num_rd, NULL, 0, MAXINT, &base_session, NULL, "base-session"},
-	{1, force_html_cmd, NULL, NULL, 0, 0, NULL, NULL, "force-html"},
+	{1, set_cmd, NULL, NULL, 0, 0, &force_html, NULL, "force-html"},
 	{1, dump_cmd, NULL, NULL, D_SOURCE, 0, NULL, NULL, "source"},
 	{1, dump_cmd, NULL, NULL, D_DUMP, 0, NULL, NULL, "dump"},
 	{1, gen_cmd, num_rd, NULL, 10, 512, &screen_width, "dump_width", "width" },
@@ -1557,9 +1470,9 @@ struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.retry_internal_errors, "http_bugs.retry_internal_errors", "http-bugs.retry-internal-errors"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &aggressive_cache, "http_bugs.aggressive_cache", "aggressive-cache"},
 	{1, gen_cmd, num_rd, num_wr, 0, 4, &http_options.header.referer, "http_referer", "http.referer"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_options.header.fake_referer, "fake_referer", "http.fake-referer"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_options.header.fake_useragent, "fake_useragent", "http.fake-user-agent"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, http_options.header.extra_header, "http.extra_header", "http.extra-header"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &http_options.header.fake_referer, "fake_referer", "http.fake-referer"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &http_options.header.fake_useragent, "fake_useragent", "http.fake-user-agent"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &http_options.header.extra_header, "http.extra_header", "http.extra-header"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, ftp_options.anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.passive_ftp, "ftp.use_passive", "ftp.use-passive"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.fast_ftp, "ftp.fast", "ftp.fast"},
@@ -1605,7 +1518,7 @@ struct option links_options[] = {
 	{0, NULL, NULL, NULL, 0, 0, NULL, NULL, NULL},
 };
 
-struct option html_options[] = {
+static struct option html_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.hard_assume, "html_hard_assume", "html-hard-assume"},
 	{1, gen_cmd, cp_rd, cp_wr, 0, 0, &dds.assume_cp, "html_assume_codepage", "html-assume-codepage"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.tables, "html_tables", "html-tables"},
@@ -1624,6 +1537,57 @@ struct option html_options[] = {
 	{0, NULL, NULL, NULL, 0, 0, NULL, NULL, NULL},
 };
 
+static struct option *all_options[] = { links_options, html_options, NULL, };
+
+unsigned char *parse_options(int argc, unsigned char *argv[])
+{
+	return p_arse_options(argc, argv, all_options);
+}
+
+static void load_config_file(unsigned char *prefix, unsigned char *name)
+{
+	unsigned char *c, *config_file;
+	config_file = stracpy(prefix);
+	if (!config_file) return;
+	add_to_strn(&config_file, name);
+	if ((c = read_config_file(config_file))) goto ok;
+	mem_free(config_file);
+	config_file = stracpy(prefix);
+	if (!config_file) return;
+	add_to_strn(&config_file, ".");
+	add_to_strn(&config_file, name);
+	if ((c = read_config_file(config_file))) goto ok;
+	mem_free(config_file);
+	return;
+	ok:
+	parse_config_file(config_file, c, all_options);
+	mem_free(c);
+	mem_free(config_file);
+}
+
+void load_config(void)
+{
+#ifdef SHARED_CONFIG_DIR
+	load_config_file(SHARED_CONFIG_DIR, "links.cfg");
+#endif
+	load_config_file(links_home, "links.cfg");
+	load_config_file(links_home, "html.cfg");
+	load_config_file(links_home, "user.cfg");
+}
+
+void write_config(struct terminal *term)
+{
+#ifdef G
+	if (F) update_driver_param();
+#endif
+	write_config_data(links_home, "links.cfg", links_options, term);
+}
+
+void write_html_config(struct terminal *term)
+{
+	write_config_data(links_home, "html.cfg", html_options, term);
+}
+
 void load_url_history(void)
 {
 	unsigned char *history_file, *hs;
@@ -1639,9 +1603,10 @@ void load_url_history(void)
 	if (!hs) return;
 	for (hsp = hs; *hsp; ) {
 		unsigned char *hsl, *hsc;
-		for (hsl = hsp; *hsl && *hsl != 10 && *hsl != 13; hsl++) ;
+		for (hsl = hsp; *hsl && *hsl != 10 && *hsl != 13; hsl++)
+			;
 		hsc = memacpy(hsp, hsl - hsp);
-		add_to_history(&goto_url_history, hsc);
+		add_to_history(&goto_url_history, hsc, 0);
 		mem_free(hsc);
 		hsp = hsl;
 		while (*hsp == 10 || *hsp == 13) hsp++;

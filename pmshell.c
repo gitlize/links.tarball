@@ -211,6 +211,22 @@ static struct os2_key pm_vk_table[N_VK] = {
 	{0, 0}, {0, 0}
 };
 
+static int win_x(struct pm_window *win)
+{
+	int x = (short)(win->lastpos & 0xffff);
+	if (x < 0) x = -1;
+	if (x > win->x) x = win->x;
+	return x;
+}
+
+static int win_y(struct pm_window *win)
+{
+	int y = (short)(win->y - (win->lastpos >> 16));
+	if (y < 0) y = -1;
+	if (y > win->y) y = win->y;
+	return y;
+}
+
 MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 {
 	int k_usch, k_usvk, k_fsflags;
@@ -246,10 +262,19 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 		case WM_CHAR:
 			k_fsflags = (int)mp1;
 			scancode = ((unsigned long)mp1 >> 24) & 0xff;
-			if (k_fsflags & (KC_KEYUP | KC_DEADKEY | KC_INVALIDCOMP)) return 0;
 			k_usch = (int)mp2 & 0xffff;
 			k_usvk = ((int)mp2 >> 16) & 0xffff;
-			/*printf("%08x, %08x\n", mp1, mp2);fflush(stdout);*/
+
+			/*
+			 * F1 keydown is lost for unknown reason --- so catch
+			 * keyup instead.
+			 */
+			if ((k_fsflags & (KC_VIRTUALKEY | KC_CHAR)) == KC_VIRTUALKEY && k_usvk == 0x20)
+				k_fsflags ^= KC_KEYUP;
+
+			if (k_fsflags & (KC_KEYUP | KC_DEADKEY | KC_INVALIDCOMP))
+				return 0;
+
 			flags = (k_fsflags & KC_SHIFT ? KBD_SHIFT : 0) | (k_fsflags & KC_CTRL ? KBD_CTRL : 0) | (k_fsflags & KC_ALT ? KBD_ALT : 0);
 			if (k_fsflags & KC_ALT && ((scancode >= 0x47 && scancode <= 0x49) || (scancode >= 0x4b && scancode <= 0x4d) || (scancode >= 0x4f && scancode <= 0x52))) return 0;
 			if ((k_fsflags & (KC_VIRTUALKEY | KC_CHAR)) == KC_VIRTUALKEY) {
@@ -285,54 +310,63 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 			pm_unlock;
 			return 0;
 		case WM_BUTTON1DOWN:
+		case WM_BUTTON1DBLCLK:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
 			win->button |= 1 << B_LEFT;
 			win->lastpos = (unsigned)mp1;
-			pm_send_event(win, E_MOUSE, (unsigned)mp1 & 0xffff, win->y - ((unsigned)mp1 >> 16), B_DOWN | B_LEFT, 0);
+			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_DOWN | B_LEFT, 0);
+			WinSetCapture(HWND_DESKTOP, hwnd);
 			pm_unlock;
 			break;
 		case WM_BUTTON2DOWN:
+		case WM_BUTTON2DBLCLK:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
 			win->button |= 1 << B_RIGHT;
 			win->lastpos = (unsigned)mp1;
-			pm_send_event(win, E_MOUSE, (unsigned)mp1 & 0xffff, win->y - ((unsigned)mp1 >> 16), B_DOWN | B_RIGHT, 0);
+			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_DOWN | B_RIGHT, 0);
+			WinSetCapture(HWND_DESKTOP, hwnd);
 			pm_unlock;
 			break;
 		case WM_BUTTON3DOWN:
+		case WM_BUTTON3DBLCLK:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
 			win->button |= 1 << B_MIDDLE;
 			win->lastpos = (unsigned)mp1;
-			pm_send_event(win, E_MOUSE, (unsigned)mp1 & 0xffff, win->y - ((unsigned)mp1 >> 16), B_DOWN | B_MIDDLE, 0);
+			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_DOWN | B_MIDDLE, 0);
+			WinSetCapture(HWND_DESKTOP, hwnd);
 			pm_unlock;
 			break;
 		case WM_BUTTON1UP:
 		case WM_BUTTON1MOTIONEND:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
-			if (win->button & (1 << B_LEFT)) pm_send_event(win, E_MOUSE, (unsigned)mp1 & 0xffff, win->y - ((unsigned)mp1 >> 16), B_UP | B_LEFT, 0);
+			if (msg == WM_BUTTON1UP) win->lastpos = (unsigned)mp1;
+			if (win->button & (1 << B_LEFT)) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | B_LEFT, 0);
 			win->button &= ~(1 << B_LEFT);
-			win->lastpos = (unsigned)mp1;
+			if (!win->button) WinSetCapture(HWND_DESKTOP, NULLHANDLE);
 			pm_unlock;
 			break;
 		case WM_BUTTON2UP:
 		case WM_BUTTON2MOTIONEND:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
-			if (win->button & (1 << B_RIGHT)) pm_send_event(win, E_MOUSE, (unsigned)mp1 & 0xffff, win->y - ((unsigned)mp1 >> 16), B_UP | B_RIGHT, 0);
+			if (msg == WM_BUTTON2UP) win->lastpos = (unsigned)mp1;
+			if (win->button & (1 << B_RIGHT)) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | B_RIGHT, 0);
 			win->button &= ~(1 << B_RIGHT);
-			win->lastpos = (unsigned)mp1;
+			if (!win->button) WinSetCapture(HWND_DESKTOP, NULLHANDLE);
 			pm_unlock;
 			break;
 		case WM_BUTTON3UP:
 		case WM_BUTTON3MOTIONEND:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
-			if (win->button & (1 << B_MIDDLE)) pm_send_event(win, E_MOUSE, (unsigned)mp1 & 0xffff, win->y - ((unsigned)mp1 >> 16), B_UP | B_MIDDLE, 0);
+			if (msg == WM_BUTTON3UP) win->lastpos = (unsigned)mp1;
+			if (win->button & (1 << B_MIDDLE)) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | B_MIDDLE, 0);
 			win->button &= ~(1 << B_MIDDLE);
-			win->lastpos = (unsigned)mp1;
+			if (!win->button) WinSetCapture(HWND_DESKTOP, NULLHANDLE);
 			pm_unlock;
 			break;
 		case WM_MOUSEMOVE:
@@ -340,19 +374,19 @@ MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
 			if (win->lastpos == (unsigned)mp1) { pm_unlock; break; }
 			win->lastpos = (unsigned)mp1;
-			pm_send_mouse_event(win, (unsigned)mp1 & 0xffff, win->y - ((unsigned)mp1 >> 16), (win->button ? B_DRAG : B_MOVE) | (win->button & (1 << B_LEFT) ? B_LEFT : win->button & (1 << B_MIDDLE) ? B_MIDDLE : win->button & (1 << B_RIGHT) ? B_RIGHT : 0));
+			pm_send_mouse_event(win, win_x(win), win_y(win), (win->button ? B_DRAG : B_MOVE) | (win->button & (1 << B_LEFT) ? B_LEFT : win->button & (1 << B_MIDDLE) ? B_MIDDLE : win->button & (1 << B_RIGHT) ? B_RIGHT : 0));
 			pm_unlock;
 			break;
 		case WM_VSCROLL:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
-			if ((unsigned)mp2 == SB_LINEUP << 16 || (unsigned)mp2 == SB_LINEDOWN << 16) pm_send_event(win, E_MOUSE, win->lastpos & 0xffff, win->y - (win->lastpos >> 16), ((unsigned)mp2 == SB_LINEUP << 16 ? B_WHEELUP1 : B_WHEELDOWN1) | B_MOVE, 0);
+			if ((unsigned)mp2 == SB_LINEUP << 16 || (unsigned)mp2 == SB_LINEDOWN << 16) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), ((unsigned)mp2 == SB_LINEUP << 16 ? B_WHEELUP1 : B_WHEELDOWN1) | B_MOVE, 0);
 			pm_unlock;
 			break;
 		case WM_HSCROLL:
 			pm_lock;
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock; break; }
-			if ((unsigned)mp2 == SB_LINELEFT << 16 || (unsigned)mp2 == SB_LINERIGHT << 16) pm_send_event(win, E_MOUSE, win->lastpos & 0xffff, win->y - (win->lastpos >> 16), ((unsigned)mp2 == SB_LINELEFT << 16 ? B_WHEELLEFT1 : B_WHEELRIGHT1) | B_MOVE, 0);
+			if ((unsigned)mp2 == SB_LINELEFT << 16 || (unsigned)mp2 == SB_LINERIGHT << 16) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), ((unsigned)mp2 == SB_LINELEFT << 16 ? B_WHEELLEFT1 : B_WHEELRIGHT1) | B_MOVE, 0);
 			pm_unlock;
 			break;
 	}
@@ -726,8 +760,12 @@ static struct graphics_device *pm_init_device(void)
 	init_list(win->queue);
 	win->in = 0;
 	pm_send_msg(MSG_CREATE_WINDOW, win);
-	if (win->h == NULLHANDLE) goto r2;
-	if ((win->ps = WinGetPS(win->hc)) == NULLHANDLE) goto r3;
+	if (win->h == NULLHANDLE) {
+		goto r1;
+	}
+	if ((win->ps = WinGetPS(win->hc)) == NULLHANDLE) {
+		goto r2;
+	}
 	dev = mem_calloc(sizeof(struct graphics_device));
 	dev->driver_data = win;
 	win->dev = dev;
@@ -738,15 +776,14 @@ static struct graphics_device *pm_init_device(void)
 	dev->clip.x1 = dev->clip.y1 = 0;
 	dev->clip.x2 = dev->size.x2;
 	dev->clip.y2 = dev->size.y2;
-	dev->drv = &pmshell_driver;
 	GpiCreateLogColorTable(win->ps, 0, LCOLF_RGB, 0, 0, NULL);
 	pm_hash_window(win);
 	pm_unlock;
 	return dev;
 
-	r3:	pm_unlock;
+	r2:	pm_unlock;
 		pm_send_msg(MSG_DELETE_WINDOW, win);
-	r2:	if (win->in) del_from_list(win);
+	r1:	if (win->in) del_from_list(win);
 		pm_unlock;
 		mem_free(win);
 	return NULL;
@@ -813,17 +850,22 @@ static int pm_get_empty_bitmap(struct bitmap *bmp)
 {
 	debug_call(("get_empty_bitmap (%dx%d)\n", bmp->x, bmp->y));
 	if (bmp->x > 65535 || bmp->y > 65535) {
+		bmp->data = NULL;
+		bmp->flags = NULL;
+		return -1;
+#if 0
 		error("too big bitmap: %dx%d", bmp->x, bmp->y);
 		fatal_tty_exit();
 		exit(RET_FATAL);
+#endif
 	}
-	if ((unsigned)bmp->x > MAXINT / (pmshell_driver.depth & 7) - 4) overalloc();
+	if ((unsigned)bmp->x > (unsigned)MAXINT / (pmshell_driver.depth & 7) - 4) overalloc();
 	bmp->skip = -((bmp->x * (pmshell_driver.depth & 7) + 3) & ~3);
 	if (-bmp->skip && (unsigned)-bmp->skip * (unsigned)bmp->y / (unsigned)-bmp->skip != (unsigned)bmp->y) overalloc();
 	if ((unsigned)-bmp->skip * (unsigned)bmp->y > MAXINT) overalloc();
 	bmp->data = (char *)(bmp->flags = mem_alloc(-bmp->skip * bmp->y)) - bmp->skip * (bmp->y - 1);
 	debug_call(("done\n"));
-	return 1;
+	return 0;
 }
 
 static void pm_register_bitmap(struct bitmap *bmp)
@@ -831,9 +873,15 @@ static void pm_register_bitmap(struct bitmap *bmp)
 	HBITMAP hbm;
 	debug_call(("register_bitmap (%dx%d)\n", bmp->x, bmp->y));
 	pm_bitmap_count++;
+	if (!bmp->flags) {
+		bmp->flags = (void *)GPI_ERROR;
+		return;
+	}
 	pm_bitmapinfo->cx = bmp->x;
 	pm_bitmapinfo->cy = bmp->y;
 	hbm = GpiCreateBitmap(hps_msg, (PBITMAPINFOHEADER2)pm_bitmapinfo, CBM_INIT, bmp->flags, (PBITMAPINFO2)pm_bitmapinfo);
+	if (hbm == GPI_ERROR) {
+	}
 	mem_free(bmp->flags);
 	bmp->flags = (void *)hbm;
 	debug_call(("done\n"));
@@ -841,6 +889,10 @@ static void pm_register_bitmap(struct bitmap *bmp)
 
 static void *pm_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
+	if (bmp->flags == (void *)GPI_ERROR) {
+		bmp->data = NULL;
+		return NULL;
+	}
 	if (-bmp->skip && (unsigned)-bmp->skip * (unsigned)lines / (unsigned)-bmp->skip != (unsigned)lines) overalloc();
 	if ((unsigned)-bmp->skip * (unsigned)lines > MAXINT) overalloc();
 	bmp->data = mem_alloc(-bmp->skip * lines);
@@ -849,13 +901,18 @@ static void *pm_prepare_strip(struct bitmap *bmp, int top, int lines)
 
 static void pm_commit_strip(struct bitmap *bmp, int top, int lines)
 {
-	LONG s;
 	HBITMAP old;
-	old = GpiSetBitmap(hps_mem, (HBITMAP)bmp->flags);
+	HBITMAP new = (HBITMAP)bmp->flags;
+	if (new == GPI_ERROR || !bmp->data)
+		return;
+	old = GpiSetBitmap(hps_mem, new);
+	if (old == HBM_ERROR)
+		goto ret;
 	pm_bitmapinfo->cx = bmp->x;
 	pm_bitmapinfo->cy = bmp->y;
-	s = GpiSetBitmapBits(hps_mem, bmp->y - top - lines, lines, bmp->data, (PBITMAPINFO2)pm_bitmapinfo);
+	GpiSetBitmapBits(hps_mem, bmp->y - top - lines, lines, bmp->data, (PBITMAPINFO2)pm_bitmapinfo);
 	GpiSetBitmap(hps_mem, old);
+	ret:
 	mem_free(bmp->data);
 }
 
@@ -863,13 +920,17 @@ static void pm_unregister_bitmap(struct bitmap *bmp)
 {
 	debug_call(("unregister_bitmap (%dx%d)\n", bmp->x, bmp->y));
 	pm_bitmap_count--;
-	GpiDeleteBitmap((HBITMAP)bmp->flags);
+	if ((HBITMAP)bmp->flags != GPI_ERROR)
+		GpiDeleteBitmap((HBITMAP)bmp->flags);
 	debug_call(("done\n"));
 }
 
 static void pm_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x, int y)
 {
 	POINTL p;
+	if ((HBITMAP)bmp->flags == GPI_ERROR) {
+		return;
+	}
 	debug_call(("draw_bitmap (%dx%d -> %x,%x)\n", bmp->x, bmp->y, x, y));
 	p.x = x;
 	p.y = pm_win(dev)->y - y - bmp->y;
@@ -879,6 +940,7 @@ static void pm_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int 
 	debug_call(("done\n"));
 }
 
+#if 0
 static void pm_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmp, int n, int x, int y)
 {
 	HPS ps = pm_win(dev)->ps;
@@ -892,6 +954,7 @@ static void pm_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmp, in
 	}
 	debug_call(("done\n"));
 }
+#endif
 
 static long pm_get_color(int rgb)
 {
@@ -1070,7 +1133,7 @@ struct graphics_driver pmshell_driver = {
 	pm_commit_strip,
 	pm_unregister_bitmap,
 	pm_draw_bitmap,
-	pm_draw_bitmaps,
+	/*pm_draw_bitmaps,*/
 	pm_get_color,
 	pm_fill_area,
 	pm_draw_hline,
@@ -1082,6 +1145,8 @@ struct graphics_driver pmshell_driver = {
 	dummy_unblock,
 	pm_set_window_title,
 	NULL, /* exec */
+	NULL, /* set_clipboard_text */
+	NULL, /* get_clipboard_text */
 	0,			/* depth */
 	0, 0,			/* x, y */
 	0,			/* flags */

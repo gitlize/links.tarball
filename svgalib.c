@@ -20,15 +20,11 @@
 #include "links.h"
 #include "bits.h"
 
-#ifdef TEXT
-#undef TEXT
-#endif
-
 #include <vga.h>
 #include <vgamouse.h>
 #include "arrow.inc"
 
-struct itrm *svgalib_kbd;
+static struct itrm *svgalib_kbd;
 
 extern struct graphics_driver svga_driver;
 static int mouse_x, mouse_y, mouse_buttons; /* For tracking the state of the mouse */
@@ -106,7 +102,7 @@ static int do_sync;			/* Tells the "normal" memory operations (those
 				 */
 static int vga_page=-1;
 static int mode_x;			/* 1 if mode_X organization is set up */
-static int bmpixelsize;		/* Number of bytes per pixel in bitmap */
+static int fb_pixelsize;		/* Number of bytes per pixel in bitmap */
 static unsigned char *my_graph_mem;
 static unsigned char *scroll_buffer = NULL; /* For paged scrolling only */
 static struct modeline modes[]={
@@ -695,7 +691,7 @@ static void svga_unregister_bitmap(struct bitmap *bmp)
 	if (y+ys>dev->clip.y2) ys=dev->clip.y2-y;\
 	if (dev->clip.x1-x>0){\
 		xs-=(dev->clip.x1-x);\
-		data+=bmpixelsize*(dev->clip.x1-x);\
+		data+=fb_pixelsize*(dev->clip.x1-x);\
 		x=dev->clip.x1;\
 	}\
 	if (dev->clip.y1-y>0){\
@@ -713,7 +709,7 @@ static inline void draw_bitmap_accel(struct graphics_device *dev,
 {
 	CLIP_PREFACE
 	
-	if (xs*bmpixelsize==hndl->skip) vga_accel(ACCEL_PUTIMAGE,x,y,xs,ys,data);
+	if (xs*fb_pixelsize==hndl->skip) vga_accel(ACCEL_PUTIMAGE,x,y,xs,ys,data);
 	else for(;ys;ys--){
 		vga_accel(ACCEL_PUTIMAGE,x,y,xs,1,data);
 		data+=hndl->skip;
@@ -837,112 +833,7 @@ static void fill_area_accel_lines(struct graphics_device *dev, int left, int top
 	END_MOUSE
 }
 
-/* n is in bytes. dest must begin on pixel boundary. If n is not a whole number
- * of pixels, rounding is performed downwards.
- * if bmpixelsize is 1, no alignment is required.
- * if bmpixelsize is 2, dest must be aligned to 2 bytes.
- * if bmpixelsize is 3, no alignment is required.
- * if bmpixelsize is 4, dest must be aligned to 4 bytes.
- * -- The following do not occur, this is only for forward compatibility.
- * if bmpixelsize is 5, no alignment is required.
- * if bmpixelsize is 6, dest must be aligned to 2 bytes.
- * if bmpixelsize is 7, no alignment is required.
- * if bmpixelsize is 8, dest must be aligned to 8 bytes.
- */
-static inline void pixel_set(unsigned char *dest, int n,void * pattern)
-{
-	int a;
-
-	/* Originally there was vga_bytes here but this function is not
-	 * used in planar modes so that it's OK :-) */
-	switch(bmpixelsize)
-	{
-		case 1:
-		
-		memset(dest,*(char *)pattern,n);
-		break;
-
-		case 2:
-		{
-#ifdef t2c
-			t2c v=*(t2c *)pattern;
-			int a;
-#else
-			unsigned char c1=*(unsigned char *)pattern
-				,c2=((unsigned char *)pattern)[1];
-#endif /* #ifdef t2c */
-			
-			n>>=1;
-#ifdef t2c
-			/* [] is here because i386 has built-in address doubling
-			 * that costs nothing and we spare a register and
-			 * an addition of 2
-			 */
-			for (a=0;a<n;a++) ((t2c *)dest)[a]=v;
-#else
-			for (;n;n--,dest+=2){
-				*dest=c1;
-				dest[1]=c2;
-			}
-			
-#endif /* #ifdef t2c */
-		}
-		break;
-
-		case 3:
-		{
-			unsigned char a,b,c;
-			
-			a=*(unsigned char *)pattern;
-			b=((unsigned char *)pattern)[1];
-			c=((unsigned char *)pattern)[2];
-			for (n/=3;n;n--){
-				dest[0]=a;
-				dest[1]=b;
-				dest[2]=c;
-				dest+=3;
-			}
-		}
-		break;
-
-		case 4:
-		{
-#ifdef t4c
-			t4c v=*(t4c *)pattern;
-			int a;
-#else
-			unsigned char c1, c2, c3, c4;
-		
-			c1=*((unsigned char *) pattern);
-			c2=((unsigned char *) pattern)[1];
-			c3=((unsigned char *) pattern)[2];
-			c4=((unsigned char *) pattern)[3];
-#endif /* #ifdef t4c */
-
-			n>>=2;
-#ifdef t4c
-			/* [] is here because i386 has built-in address
-			 * quadrupling that costs nothing and we spare a
-			 * register and an addition of 4
-			 */
-			for (a=0;a<n;a++) ((t4c *)dest)[a]=v;
-#else
-			for (;n;n--, dest+=4){
-				*dest=c1;
-				dest[1]=c2;
-				dest[2]=c3;
-				dest[3]=c4;
-			}	
-#endif /* #ifdef t4c */
-		}
-		break;
-
-		default:
-		for (a=0;a<n/bmpixelsize;a++,dest+=bmpixelsize) memcpy(dest,pattern,bmpixelsize);
-		break;
-	}
-	
-}
+#include "fbcommon.inc"
 
 static void fill_area_linear(struct graphics_device *dev, int left, int top, int right, int bottom, long color)
 {
@@ -953,7 +844,7 @@ static void fill_area_linear(struct graphics_device *dev, int left, int top, int
 	SYNC
 	dest=my_graph_mem+top*vga_linewidth+left*vga_bytes;
 	for (y=bottom-top;y;y--){
-		pixel_set(dest,(right-left)*vga_bytes,do_not_optimize_here(&color));
+		pixel_set(dest,(right-left)*vga_bytes,&color);
 		dest+=vga_linewidth;
 	}
 	END_MOUSE
@@ -1076,7 +967,7 @@ static void draw_hline_linear(struct graphics_device *dev, int left, int y, int 
 	HLINE_CLIP_PREFACE
 	SYNC	
 	dest=my_graph_mem+y*vga_linewidth+left*vga_bytes;
-	pixel_set(dest,(right-left)*vga_bytes,do_not_optimize_here(&color));
+	pixel_set(dest,(right-left)*vga_bytes,&color);
 	END_MOUSE
 }
 
@@ -1273,7 +1164,7 @@ static void draw_vline_paged(struct graphics_device *dev, int x, int top, int bo
 	if (remains<vga_bytes){
 		memcpy(my_graph_mem+paga,&color,remains);
 		vga_setpage(++page);
-		memcpy(my_graph_mem,&color+remains,vga_bytes-remains);
+		memcpy(my_graph_mem,(char *)&color+remains,vga_bytes-remains);
 		lina+=vga_linewidth;
 		n--;
 		if (!n) goto end;
@@ -1587,14 +1478,14 @@ static inline void fill_area_drawscansegment(struct graphics_device *dev, int le
 /* Emulates horizontal line by calling fill_area */
 static void draw_hline_fill_area(struct graphics_device *dev, int left, int y, int right, long color)
 {
-	dev->drv->fill_area(dev,left,y,right,y+1,color);
+	svga_driver.fill_area(dev,left,y,right,y+1,color);
 }
 
 
 /* Emulates vline by fill_area */
 static void draw_vline_fill_area(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
-	dev->drv->fill_area(dev,x,top,x+1,bottom, color);
+	svga_driver.fill_area(dev,x,top,x+1,bottom, color);
 }
 
 /* This does no clipping and is used only by the mouse code
@@ -1641,6 +1532,7 @@ static int getscansegment_paged(unsigned char *colors, int x, int y, int length)
 	return 0;
 }
 
+#if 0
 static void svga_draw_bitmaps(struct graphics_device *dev, struct bitmap **hndls, int n
 	,int x, int y)
 {
@@ -1653,7 +1545,7 @@ static void svga_draw_bitmaps(struct graphics_device *dev, struct bitmap **hndls
 		n--;
 		hndls++;
 	}
-	draw_b = dev->drv->draw_bitmap;
+	draw_b = svga_driver.draw_bitmap;
 	while(n&&x<=xsize){
 		draw_b(dev, *hndls, x, y);
 		x+=(*hndls)->x;
@@ -1662,12 +1554,13 @@ static void svga_draw_bitmaps(struct graphics_device *dev, struct bitmap **hndls
 	}
 		
 }
+#endif
 
 static void alloc_scroll_buffer(void)
 {
 	if (!scroll_buffer) {
-		if ((unsigned)xsize > (unsigned)MAXINT / bmpixelsize) overalloc();
-		scroll_buffer=mem_alloc(xsize*bmpixelsize);
+		if ((unsigned)xsize > (unsigned)MAXINT / fb_pixelsize) overalloc();
+		scroll_buffer=mem_alloc(xsize*fb_pixelsize);
 	}
 }
 
@@ -1978,7 +1871,7 @@ static void place_mouse_background(void)
 
 	bmp.x=arrow_width;
 	bmp.y=arrow_height;
-	bmp.skip=arrow_width*bmpixelsize;
+	bmp.skip=arrow_width*fb_pixelsize;
 	bmp.data=background_buffer;
 
 	{
@@ -2010,12 +1903,12 @@ static void get_mouse_background(unsigned char *buffer_ptr)
 {
 	int width,height,skip,x,y;
 
-	skip=arrow_width*bmpixelsize;
+	skip=arrow_width*fb_pixelsize;
 
 	x=mouse_x;
 	y=mouse_y;
 
-	width=bmpixelsize*(arrow_width+x>xsize?xsize-x:arrow_width);
+	width=fb_pixelsize*(arrow_width+x>xsize?xsize-x:arrow_width);
 	height=arrow_height+y>ysize?ysize-y:arrow_height;
 
 	SYNC
@@ -2033,7 +1926,7 @@ static void render_mouse_arrow(void)
 {
 	int x,y, reg0, reg1;
 	unsigned char *mouse_ptr=mouse_buffer;
-	int *arrow_ptr=arrow;
+	unsigned *arrow_ptr=arrow;
 
 	for (y=arrow_height;y;y--){
 		reg0=*arrow_ptr;
@@ -2044,10 +1937,10 @@ static void render_mouse_arrow(void)
 			int mask=1<<(--x);
 
 			if (reg0&mask)
-				memcpy (mouse_ptr, &mouse_black, bmpixelsize);
+				memcpy (mouse_ptr, &mouse_black, fb_pixelsize);
 			else if (reg1&mask)
-				memcpy (mouse_ptr, &mouse_white, bmpixelsize);
-			mouse_ptr+=bmpixelsize;
+				memcpy (mouse_ptr, &mouse_white, fb_pixelsize);
+			mouse_ptr+=fb_pixelsize;
 		}
 	}
 }
@@ -2058,7 +1951,7 @@ static void place_mouse(void)
 
 	bmp.x=arrow_width;
 	bmp.y=arrow_height;
-	bmp.skip=arrow_width*bmpixelsize;
+	bmp.skip=arrow_width*fb_pixelsize;
 	bmp.data=mouse_buffer;	
 	{
 		struct graphics_device * current_graphics_device_backup;
@@ -2083,7 +1976,7 @@ static void show_mouse(void)
 	get_mouse_background(background_buffer);
 	background_x=mouse_x;
 	background_y=mouse_y;
-	memcpy(mouse_buffer,background_buffer,bmpixelsize*arrow_area);
+	memcpy(mouse_buffer,background_buffer,fb_pixelsize*arrow_area);
 	render_mouse_arrow();
 	place_mouse();
 }
@@ -2096,7 +1989,7 @@ static void put_and_clip_background_buffer_over_mouse_buffer(void)
 	int left=background_x-mouse_x;
 	int top=background_y-mouse_y;
 	int right,bottom;
-	int bmpixelsizeL=bmpixelsize;
+	int bmpixelsizeL=fb_pixelsize;
 	int number_of_bytes;
 	int byte_skip;
 
@@ -2136,7 +2029,7 @@ static inline void place_mouse_composite(void)
 	int mouse_bottom=mouse_top+arrow_height;
 	int background_right=background_left+arrow_width;
 	int background_bottom=background_top+arrow_height;
-	int skip=arrow_width*bmpixelsize;
+	int skip=arrow_width*fb_pixelsize;
 	int background_length,mouse_length;
 	unsigned char *mouse_ptr=mouse_buffer,*background_ptr=background_buffer;
 	int yend;
@@ -2166,7 +2059,7 @@ static inline void place_mouse_composite(void)
 			:arrow_width;
 		for (;background_top<mouse_top;background_top++){
 			mouse_drawscansegment(background_ptr,background_left
-				,background_top,background_length*bmpixelsize);
+				,background_top,background_length*fb_pixelsize);
 			background_ptr+=skip;
 		}
 			
@@ -2175,7 +2068,7 @@ static inline void place_mouse_composite(void)
 		mouse_length=mouse_right>xsize
 			?xsize-mouse_left:arrow_width;
 		for (;mouse_top<background_top;mouse_top++){
-			mouse_drawscansegment(mouse_ptr,mouse_left,mouse_top,mouse_length*bmpixelsize);
+			mouse_drawscansegment(mouse_ptr,mouse_left,mouse_top,mouse_length*fb_pixelsize);
 			mouse_ptr+=skip;
 		}
 	}
@@ -2187,8 +2080,8 @@ static inline void place_mouse_composite(void)
 		mouse_length=mouse_right>xsize?xsize-mouse_left:arrow_width;
 		for (;mouse_top<yend;mouse_top++){
 			mouse_drawscansegment(background_ptr,background_left,mouse_top
-				,(mouse_left-background_left)*bmpixelsize);
-			mouse_drawscansegment(mouse_ptr,mouse_left,mouse_top,mouse_length*bmpixelsize);
+				,(mouse_left-background_left)*fb_pixelsize);
+			mouse_drawscansegment(mouse_ptr,mouse_left,mouse_top,mouse_length*fb_pixelsize);
 			mouse_ptr+=skip;
 			background_ptr+=skip;
 		}
@@ -2201,9 +2094,9 @@ static inline void place_mouse_composite(void)
 		background_length=background_right-mouse_right;
 		if (background_length+mouse_right>xsize)
 			background_length=xsize-mouse_right;
-		l1=mouse_length*bmpixelsize;
-		l2=(mouse_right-background_left)*bmpixelsize;
-		l3=background_length*bmpixelsize;
+		l1=mouse_length*fb_pixelsize;
+		l2=(mouse_right-background_left)*fb_pixelsize;
+		l3=background_length*fb_pixelsize;
 		for (;mouse_top<yend;mouse_top++){
 			mouse_drawscansegment(mouse_ptr,mouse_left,mouse_top,l1);
 			if (background_length>0)
@@ -2222,7 +2115,7 @@ static inline void place_mouse_composite(void)
 			:arrow_width;
 		for (;background_bottom<mouse_bottom;background_bottom++){
 			mouse_drawscansegment(mouse_ptr,mouse_left,background_bottom
-				,mouse_length*bmpixelsize);
+				,mouse_length*fb_pixelsize);
 			mouse_ptr+=skip;
 		}
 	}else{
@@ -2231,7 +2124,7 @@ static inline void place_mouse_composite(void)
 			:arrow_width;
 		for (;mouse_bottom<background_bottom;mouse_bottom++){
 			mouse_drawscansegment(background_ptr,background_left,mouse_bottom
-				,background_length*bmpixelsize);
+				,background_length*fb_pixelsize);
 			background_ptr+=skip;
 		}
 	}
@@ -2246,12 +2139,12 @@ static inline void redraw_mouse_sophisticated(void)
 
 	get_mouse_background(mouse_buffer);
 	put_and_clip_background_buffer_over_mouse_buffer();
-	memcpy(new_background_buffer,mouse_buffer,bmpixelsize*arrow_area);
+	memcpy(new_background_buffer,mouse_buffer,fb_pixelsize*arrow_area);
 	new_background_x=mouse_x;
 	new_background_y=mouse_y;
 	render_mouse_arrow();
 	place_mouse_composite();
-	memcpy(background_buffer,new_background_buffer,bmpixelsize*arrow_area);
+	memcpy(background_buffer,new_background_buffer,fb_pixelsize*arrow_area);
 	background_x=new_background_x;
 	background_y=new_background_y;
 }
@@ -2270,12 +2163,12 @@ static void redraw_mouse(void){
 			/* Do a normal hide/show */
 			get_mouse_background(mouse_buffer);
 			memcpy(new_background_buffer,
-				mouse_buffer,arrow_area*bmpixelsize);
+				mouse_buffer,arrow_area*fb_pixelsize);
 			render_mouse_arrow();
 			hide_mouse();
 			place_mouse();
 			memcpy(background_buffer,new_background_buffer
-				,arrow_area*bmpixelsize);
+				,arrow_area*fb_pixelsize);
 			background_x=mouse_x;
 			background_y=mouse_y;
 		}
@@ -2314,7 +2207,7 @@ static void setup_mode(int mode)
 	}else palette_depth=6;
 	i=vga_getmodeinfo(mode);
 	vga_bytes=i->bytesperpixel;
-	bmpixelsize=vga_bytes?vga_bytes:1;
+	fb_pixelsize=vga_bytes?vga_bytes:1;
 	vga_misordered=!!(i->flags&RGB_MISORDERED);
 	mode_x=!!(i->flags&IS_MODEX);
 	vga_linear=!!(i->flags&IS_LINEAR);
@@ -2358,7 +2251,7 @@ static void setup_mode(int mode)
 		break;
 	}
 	svga_driver.depth|=sig<<3;
-	svga_driver.depth|=bmpixelsize;
+	svga_driver.depth|=fb_pixelsize;
 
 	/* setup_functions uses depth. */
 	setup_functions();
@@ -2366,11 +2259,10 @@ static void setup_mode(int mode)
 }
 
 #ifndef __SPAD__
-static void vtswitch_handler(void * nothing)
+static void vtswitch_handler(void *nothing)
 {
 	int oktowrite;
 
-	nothing=nothing;
 	vga_unlockvc();
 	vga_lockvc();
 	oktowrite=vga_oktowrite();
@@ -2476,10 +2368,10 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	svgalib_kbd = handle_svgalib_keyboard((void (*)(void *, unsigned char *, int))svgalib_key_in);
 
 	if (mouse_works){
-		if ((unsigned)arrow_area > (unsigned)MAXINT / bmpixelsize) overalloc();
-		mouse_buffer=mem_alloc(bmpixelsize*arrow_area);
-		background_buffer=mem_alloc(bmpixelsize*arrow_area);
-		new_background_buffer=mem_alloc(bmpixelsize*arrow_area);
+		if ((unsigned)arrow_area > (unsigned)MAXINT / fb_pixelsize) overalloc();
+		mouse_buffer=mem_alloc(fb_pixelsize*arrow_area);
+		background_buffer=mem_alloc(fb_pixelsize*arrow_area);
+		new_background_buffer=mem_alloc(fb_pixelsize*arrow_area);
 		mouse_black=svga_driver.get_color(0);
 		mouse_white=svga_driver.get_color(0xffffff);
 		mouse_graphics_device=svga_driver.init_device();
@@ -2509,11 +2401,11 @@ static int svga_get_filled_bitmap(struct bitmap *dest, long color)
 	int n;
 	
 	if (dest->x && (unsigned)dest->x * (unsigned)dest->y / (unsigned)dest->x != (unsigned)dest->y) overalloc();
-	if ((unsigned)dest->x * (unsigned)dest->y > MAXINT / bmpixelsize) overalloc();
-	n=dest->x*dest->y*bmpixelsize;
+	if ((unsigned)dest->x * (unsigned)dest->y > MAXINT / fb_pixelsize) overalloc();
+	n=dest->x*dest->y*fb_pixelsize;
 	dest->data=mem_alloc(n);
-	pixel_set(dest->data,n,do_not_optimize_here(&color));
-	dest->skip=dest->x*bmpixelsize;
+	pixel_set(dest->data,n,&color);
+	dest->skip=dest->x*fb_pixelsize;
 	dest->flags=0;
 	return 0;
 }
@@ -2526,9 +2418,9 @@ static int svga_get_filled_bitmap(struct bitmap *dest, long color)
 static int svga_get_empty_bitmap(struct bitmap *dest)
 {
 	if (dest->x && (unsigned)dest->x * (unsigned)dest->y / (unsigned)dest->x != (unsigned)dest->y) overalloc();
-	if ((unsigned)dest->x * (unsigned)dest->y > (unsigned)MAXINT / bmpixelsize) overalloc();
-	dest->data=mem_alloc(dest->x*dest->y*bmpixelsize);
-	dest->skip=dest->x*bmpixelsize;
+	if ((unsigned)dest->x * (unsigned)dest->y > (unsigned)MAXINT / fb_pixelsize) overalloc();
+	dest->data=mem_alloc(dest->x*dest->y*fb_pixelsize);
+	dest->skip=dest->x*fb_pixelsize;
 	dest->flags=0;
 	return 0;
 }
@@ -2656,7 +2548,7 @@ struct graphics_driver svga_driver={
 	svga_commit_strip,
 	svga_unregister_bitmap,
 	NULL, /* svga_draw_bitmap */
-	svga_draw_bitmaps,
+	/*svga_draw_bitmaps,*/
 	NULL, /* get_color */
 	NULL, /* fill_area */
 	NULL, /* draw_hline */
@@ -2668,6 +2560,8 @@ struct graphics_driver svga_driver={
 	vga_unblock, /* unblock */
 	NULL, /* set_title */
 	NULL, /* exec */
+	NULL, /* set_clipboard_text */
+	NULL, /* get_clipboard_text */
 	0,				/* depth */
 	0, 0,				/* size */
 	0,				/* flags */

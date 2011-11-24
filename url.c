@@ -324,7 +324,8 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 	int lo = !casecmp(base, "file://", 7);
 	if (rel[0] == '#' || !rel[0]) {
 		n = stracpy(base);
-		for (p = n; *p && *p != POST_CHAR && *p != '#'; p++) ;
+		for (p = n; *p && *p != POST_CHAR && *p != '#'; p++)
+			;
 		*p = 0;
 		add_to_strn(&n, rel);
 		extend_str(&n, 1);
@@ -449,7 +450,8 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		if (*url != '.' && *ch == '.') {
 			unsigned char *f, *e;
 			int i;
-			for (e = ch + 1; *(f = e + strcspn(e, ".:/")) == '.'; e = f + 1) ;
+			for (e = ch + 1; *(f = e + strcspn(e, ".:/")) == '.'; e = f + 1)
+				;
 			for (i = 0; i < f - e; i++) if (e[i] < '0' || e[i] > '9') goto noip;
 			goto http;
 			noip:
@@ -475,7 +477,6 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		}
 		return nu;
 	}
-	sl = 1;
 #ifdef DOS_FS
 	if (ch == url + 1) goto set_prefix;
 #endif

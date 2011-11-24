@@ -5,15 +5,17 @@
 
 #include "links.h"
 
+#if defined(HAVE_GETHOSTBYNAME_BUG) || !defined(HAVE_GETHOSTBYNAME)
+#define EXTERNAL_LOOKUP
+#endif
+
 struct dnsentry {
 	struct dnsentry *next;
 	struct dnsentry *prev;
 	ttime get_time;
 	ip__address addr;
-	char name[1];
+	unsigned char name[1];
 };
-
-#define DNS_PIPE_BUFFER	32
 
 #ifndef THREAD_SAFE_LOOKUP
 struct dnsquery *dns_queue = NULL;
@@ -29,12 +31,12 @@ struct dnsquery {
 	int h;
 	struct dnsquery **s;
 	ip__address *addr;
-	char name[1];
+	unsigned char name[1];
 };
 
-struct list_head dns_cache = {&dns_cache, &dns_cache};
+static struct list_head dns_cache = {&dns_cache, &dns_cache};
 
-static inline int get_addr_byte(unsigned char **ptr, unsigned char *res, char stp)
+static int get_addr_byte(unsigned char **ptr, unsigned char *res, unsigned char stp)
 {
 	unsigned u = 0;
 	if (!(**ptr >= '0' && **ptr <= '9')) return -1;
@@ -43,12 +45,69 @@ static inline int get_addr_byte(unsigned char **ptr, unsigned char *res, char st
 		if (u >= 256) return -1;
 		(*ptr)++;
 	}
-	if (**ptr != stp) return -1;
+	if (stp != 255 && **ptr != stp) return -1;
 	(*ptr)++;
 	*res = u;
 	return 0;
 }
 
+#ifdef EXTERNAL_LOOKUP
+
+static int do_external_lookup(unsigned char *name, ip__address *host)
+{
+	unsigned char buffer[1024];
+	unsigned char sink[16];
+	int rd;
+	int pi[2];
+	pid_t f;
+	unsigned char *n;
+	if (pipe(pi) == -1)
+		return -1;
+	f = fork();
+	if (f == -1) {
+		close(pi[0]);
+		close(pi[1]);
+		return -1;
+	}
+	if (!f) {
+		close(pi[0]);
+		if (dup2(pi[1], 1) == -1) _exit(1);
+		if (dup2(pi[1], 2) == -1) _exit(1);
+		close(pi[1]);
+		execlp("host", "host", name, NULL);
+		execl("/usr/sbin/host", "host", name, NULL);
+		_exit(1);
+	}
+	close(pi[1]);
+	rd = hard_read(pi[0], buffer, sizeof buffer - 1);
+	if (rd >= 0) buffer[rd] = 0;
+	if (rd > 0) {
+		while (hard_read(pi[0], sink, sizeof sink) > 0);
+	}
+	close(pi[0]);
+	/* Don't wait for the process, we already have sigchld handler that
+	 * does cleanup.
+	 * waitpid(f, NULL, 0); */
+	if (rd < 0) return -1;
+	/*fprintf(stderr, "query: '%s', result: %s\n", name, buffer);*/
+	while ((n = strstr(buffer, name))) {
+		memset(n, '-', strlen(name));
+	}
+	for (n = buffer; n < buffer + rd; n++) {
+		if (*n >= '0' && *n <= '9') {
+			if (get_addr_byte(&n, ((unsigned char *)host + 0), '.')) goto skip_addr;
+			if (get_addr_byte(&n, ((unsigned char *)host + 1), '.')) goto skip_addr;
+			if (get_addr_byte(&n, ((unsigned char *)host + 2), '.')) goto skip_addr;
+			if (get_addr_byte(&n, ((unsigned char *)host + 3), 255)) goto skip_addr;
+			return 0;
+skip_addr:
+			if (n >= buffer + rd) break;
+		}
+	}
+	return -1;
+}
+
+#endif
 
 int do_real_lookup(unsigned char *name, ip__address *host)
 {
@@ -64,10 +123,20 @@ int do_real_lookup(unsigned char *name, ip__address *host)
 	return 0;
 	skip_addr:
 #ifdef HAVE_GETHOSTBYADDR
-	if (!(hst = gethostbyaddr (name, strlen(name), AF_INET)))
+	if (!(hst = gethostbyaddr(name, strlen(name), AF_INET)))
 #endif
-		nogethostbyaddr: if (!(hst = gethostbyname(name)))
+	{
+		nogethostbyaddr:
+#ifdef HAVE_GETHOSTBYNAME
+		if (!(hst = gethostbyname(name)))
+#endif
+		{
+#ifdef EXTERNAL_LOOKUP
+			return do_external_lookup(name, host);
+#endif
 			return -1;
+		}
+	}
 	memcpy(host, hst->h_addr_list[0], sizeof(ip__address));
 	return 0;
 }
@@ -142,7 +211,7 @@ static int do_queued_lookup(struct dnsquery *q)
 #endif
 }
 
-static int find_in_dns_cache(char *name, struct dnsentry **dnsentry)
+static int find_in_dns_cache(unsigned char *name, struct dnsentry **dnsentry)
 {
 	struct dnsentry *e;
 	foreach(e, dns_cache)
@@ -197,7 +266,10 @@ static void end_dns_lookup(struct dnsquery *q, int a)
 int find_host_no_cache(unsigned char *name, ip__address *addr, void **qp, void (*fn)(void *, int), void *data)
 {
 	struct dnsquery *q;
-	if (!(q = malloc(sizeof(struct dnsquery) + strlen(name) + 1))) {
+	retry:
+	if (!(q = (struct dnsquery *)malloc(sizeof(struct dnsquery) + strlen(name) + 1))) {
+		if (out_of_memory(NULL, 0))
+			goto retry;
 		fn(data, -1);
 		return 0;
 	}
@@ -252,7 +324,7 @@ static int shrink_dns_cache(int u)
 		mem_free(e);
 		f = ST_SOMETHING_FREED;
 	}
-	return f | list_empty(dns_cache) * ST_CACHE_EMPTY;
+	return f | (list_empty(dns_cache) ? ST_CACHE_EMPTY : 0);
 }
 
 void init_dns(void)

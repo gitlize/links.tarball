@@ -13,7 +13,7 @@ for i in $languages; do
 	echo
 	echo 'static struct translation translation_'$i' [] = {'
 	echo '  { 0, NULL },'
-	cat $i.lng | sed 's/^/  {/' | sed 's/,[ 	]*$/ },/'
+	cat $i.lng | ./mangle-unprintable | sed 's/^/  {/' | sed 's/,[ 	]*$/ },/'
 	echo '  { 0, NULL }'
 	echo '};'
 	n=`expr $n + 1`

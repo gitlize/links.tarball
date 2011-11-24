@@ -22,14 +22,12 @@ void af_unix_close(void)
 #include <sys/un.h>
 #endif
 
-void af_unix_connection(void *);
+static void af_unix_connection(void *);
 
 static struct sockaddr *s_unix_acc = NULL;
 static struct sockaddr *s_unix = NULL;
 static socklen_t s_unix_l;
 static int s_unix_fd = -1;
-
-/* prototypes */
 
 #ifdef USE_AF_UNIX
 
@@ -61,7 +59,7 @@ static void unlink_unix(void)
 
 #else
 
-int get_address(void)
+static int get_address(void)
 {
 	struct sockaddr_in *sin;
 	sin = mem_alloc(sizeof(struct sockaddr_in));
@@ -75,7 +73,7 @@ int get_address(void)
 	return PF_INET;
 }
 
-void unlink_unix(void)
+static void unlink_unix(void)
 {
 }
 
@@ -134,7 +132,7 @@ int bind_to_af_unix(void)
 	return -1;
 }
 
-void af_unix_connection(void *xxx)
+static void af_unix_connection(void *xxx)
 {
 	socklen_t l = s_unix_l;
 	int ns;

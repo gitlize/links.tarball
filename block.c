@@ -7,10 +7,10 @@ static unsigned char *block_type_item(struct terminal *term, void *data, int x);
 static void block_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title);
 static void *block_find_item(void *start, unsigned char *str, int direction);
 
-struct history block_search_histroy = { 0, {&block_search_histroy.items, &block_search_histroy.items} };
+static struct history block_search_histroy = { 0, {&block_search_histroy.items, &block_search_histroy.items} };
 
 struct list blocks = { &blocks, &blocks, 0, -1, NULL};
-struct list_description blocks_ld={
+static struct list_description blocks_ld={
 	0, /*flat*/
 	&blocks,	/*list head*/
 	block_new_item, /*ext_new_item,*/
@@ -80,7 +80,7 @@ static unsigned char *block_type_item(struct terminal *term, void *data, int x)
 	struct conv_table *table;
 	struct block* item=(struct block*)data;
 
-	if ((struct list*)item==(&blocks)) return stracpy(_(TEXT(T_BLOCK_LIST),term));
+	if ((struct list*)item==(&blocks)) return stracpy(_(TEXT_(T_BLOCK_LIST),term));
 	txt=stracpy(item->url);
 	
 
@@ -182,9 +182,9 @@ static void block_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	if (!(d = mem_alloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item) + 1 * MAX_STR_LEN))) return;
 	memset(d, 0, sizeof(struct dialog) + 4 * sizeof(struct dialog_item) + 1 * MAX_STR_LEN);
 
-	/*Set up this striing */
+	/*Set up this string */
 	url=(unsigned char *)&d->items[4];
-	if (new->url)strncpy(url,new->url,MAX_STR_LEN);
+	if (new->url)safe_strncpy(url,new->url,MAX_STR_LEN);
 	
 	/* Create the dialog */
 	if (!(s=mem_alloc(sizeof(struct assoc_ok_struct))))
@@ -200,11 +200,11 @@ static void block_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	switch (dlg_title)
 	{
 		case TITLE_EDIT:
-		d->title=TEXT(T_BLOCK_EDIT);
+		d->title=TEXT_(T_BLOCK_EDIT);
 		break;
 
 		case TITLE_ADD:
-		d->title=TEXT(T_BLOCK_ADD);
+		d->title=TEXT_(T_BLOCK_ADD);
 		break;
 
 		default:
@@ -224,10 +224,10 @@ static void block_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	d->items[1].type = D_BUTTON;
 	d->items[1].gid = B_ENTER;
 	d->items[1].fn = ok_dialog;
-	d->items[1].text = TEXT(T_OK);
+	d->items[1].text = TEXT_(T_OK);
 	d->items[2].type = D_BUTTON;
 	d->items[2].gid = B_ESC;
-	d->items[2].text = TEXT(T_CANCEL);
+	d->items[2].text = TEXT_(T_CANCEL);
 	d->items[2].fn = cancel_dialog;
 	d->items[3].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
@@ -298,7 +298,7 @@ void block_add_URL(struct terminal *term, void *xxx, struct session *ses)
 	if (!(u = fd->f_data->links[fd->vs->current_link].where_img)) return;
 
 
-	input_field(ses->term, NULL, TEXT(T_BLOCK_URL) , TEXT(T_BLOCK_ADD), ses, 0, MAX_INPUT_URL_LEN, u, 0, 0, NULL, TEXT(T_OK), (void (*)(void *, unsigned char *)) block_add_URL_fn, TEXT(T_CANCEL), NULL, NULL);
+	input_field(ses->term, NULL, TEXT_(T_BLOCK_URL) , TEXT_(T_BLOCK_ADD), ses, 0, MAX_INPUT_URL_LEN, u, 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) block_add_URL_fn, TEXT_(T_CANCEL), NULL, NULL);
 
 }
 

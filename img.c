@@ -36,7 +36,7 @@ struct decoded_image {
 
 /* End of decoder structs */
 
-struct g_object_image *global_goi;
+static struct g_object_image *global_goi;
 struct cached_image *global_cimg;
 int end_callback_hit;
 #endif /* #ifdef G */
@@ -340,7 +340,10 @@ int header_dimensions_known(struct cached_image *cimg)
 		/* No buffer, bitmap is valid from the very beginning */
 		cimg->bmp.x=cimg->width;
 		cimg->bmp.y=cimg->height;
-		drv->get_empty_bitmap(&(cimg->bmp));
+		if (drv->get_empty_bitmap(&(cimg->bmp))) {
+			cimg->dregs = NULL;
+			goto skip_img;
+		}
 		if ((unsigned)cimg->width > MAXINT / sizeof(*buf_16) / 3) overalloc();
 		buf_16=mem_alloc(sizeof(*buf_16)*3*cimg->width);
 		round_color_sRGB_to_48(&red, &green, &blue
@@ -370,6 +373,7 @@ int header_dimensions_known(struct cached_image *cimg)
 				tmpbmp.data=(unsigned char *)tmpbmp.data+cimg->bmp.skip;
 			}
 		mem_free(buf_16);
+		skip_img:
 		drv->register_bitmap(&(cimg->bmp));
 		if(cimg->dregs) memset(cimg->dregs,0,cimg->width*sizeof(*cimg->dregs)*3);
 		cimg->bmp.user=(void *)&end_callback_hit; /* Nonzero value */
@@ -574,7 +578,10 @@ buffer_to_bitmap_incremental");
 	add2=cimg->buffer_bytes_per_pixel*cimg->width*max_height;
 not_enough:
 	tmpbmp.y=height<max_height?height:max_height;
-	if (use_strip) tmpbmp.data=drv->prepare_strip(&(cimg->bmp),yoff,tmpbmp.y);
+	if (use_strip) {
+		tmpbmp.data=drv->prepare_strip(&(cimg->bmp),yoff,tmpbmp.y);
+		if (!tmpbmp.data) goto prepare_failed;
+	}
 	tmpbmp.skip=cimg->bmp.skip;
 	buffer_to_16(tmp, cimg, buffer, tmpbmp.y);
 	if (dregs){
@@ -584,7 +591,10 @@ not_enough:
 		
 		(*round_fn)(tmp, &tmpbmp);
 	}
-	if (use_strip) drv->commit_strip(&(cimg->bmp),yoff,tmpbmp.y);
+	if (use_strip) {
+		prepare_failed:
+		drv->commit_strip(&(cimg->bmp),yoff,tmpbmp.y);
+	}
 	height-=tmpbmp.y;
 	if (!height) goto end;
 	buffer+=add2;
@@ -663,13 +673,18 @@ buffer_to_bitmap");
 	if (cimg->bmp.user) drv->unregister_bitmap(&cimg->bmp);
 	cimg->bmp.x=ox;
 	cimg->bmp.y=oy;
-	drv->get_empty_bitmap(&(cimg->bmp));
+	if (drv->get_empty_bitmap(&(cimg->bmp))) {
+		if (!gonna_be_smart) {
+			mem_free(tmp);
+		}
+		goto bitmap_failed;
+	}
 	if (gonna_be_smart){
 		if (dither_images) {
 			if ((unsigned)cimg->width > MAXINT / 3 / sizeof(*dregs)) overalloc();
 			dregs = mem_calloc(sizeof(*dregs)*3*cimg->width);
 		} else {
-			dregs = 0;
+			dregs = NULL;
 		}
 		buffer_to_bitmap_incremental(cimg, cimg->buffer, cimg->height,
 			0, dregs, 0);
@@ -680,6 +695,7 @@ buffer_to_bitmap");
 		else
 			(*round_fn)(tmp,&(cimg->bmp));
 		mem_free(tmp);
+		bitmap_failed:
 		drv->register_bitmap(&(cimg->bmp));
 	}
 	cimg->bmp.user=(void *)&end_callback_hit;

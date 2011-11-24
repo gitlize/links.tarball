@@ -150,7 +150,8 @@ static void flip_buffer(void *buf,int width,int height)
 		int i,l;
 		
 		for (l=0,p=buffer,q=buffer+width*(height-1);l<(height>>1);l++,q-=(width<<1))
-			for (i=0;i<width;a=*p,b=*q,*p++=b,*q++=a,i++);
+			for (i=0;i<width;a=*p,b=*q,*p++=b,*q++=a,i++)
+				;
 #else
 		unsigned char* buffer=(unsigned char*)buf;
 		unsigned char *p,*q;

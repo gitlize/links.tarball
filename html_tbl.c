@@ -387,9 +387,7 @@ struct s_e {
 	unsigned char *s, *e;
 };
 
-struct table *parse_table(unsigned char *, unsigned char *, unsigned char **, struct rgb *, int, struct s_e **, int *);  /* prototype */
-
-struct table *parse_table(unsigned char *html, unsigned char *eof, unsigned char **end, struct rgb *bgcolor, int sh, struct s_e **bad_html, int *bhp)
+static struct table *parse_table(unsigned char *html, unsigned char *eof, unsigned char **end, struct rgb *bgcolor, int sh, struct s_e **bad_html, int *bhp)
 {
 	int qqq;
 	struct table *t;
@@ -1314,7 +1312,7 @@ static void display_table_frames(struct table *t, int x, int y)
 }
 
 #ifdef G
-void process_g_table(struct g_part *gp, struct table *t);
+static void process_g_table(struct g_part *gp, struct table *t);
 #endif
 
 void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, unsigned char **end, void *f)
@@ -1357,7 +1355,9 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	do_not_optimize_here(&cellsp);
 	if (!F && border > 2) border = 2;
 	if (!F && cellsp > 2) cellsp = 2;
+#ifdef G
 	if (F && !cellsp && border) cellsp = 1;
+#endif
 	align = par_format.align;
 	if (align == AL_NO || align == AL_BLOCK) align = AL_LEFT;
 	if ((al = get_attr_val(attr, "align"))) {
@@ -1655,7 +1655,7 @@ void table_bg(struct text_attrib *ta, unsigned char bgstr[8])
 	} else sprintf(bgstr, "#%02x%02x%02x", G_HTML_TABLE_FRAME_COLOR, G_HTML_TABLE_FRAME_COLOR, G_HTML_TABLE_FRAME_COLOR);
 }
 
-void process_g_table(struct g_part *gp, struct table *t)
+static void process_g_table(struct g_part *gp, struct table *t)
 {
 	int i, j;
 	int x, y;
@@ -1747,7 +1747,8 @@ void process_g_table(struct g_part *gp, struct table *t)
 				r.x1 = r.x2;
 				r.x2 = x + xpad + t->w_c[i] + b;
 				l = H_LINE_X(i,j);
-				if (l == -2) ;
+				if (l == -2)
+					;
 				else if (l > 0) add_to_rect_sets(&t->r_frame, &t->nr_frame, &r);
 				else add_to_rect_sets(&t->r_bg, &t->nr_bg, &r);
 			}
@@ -1759,7 +1760,8 @@ void process_g_table(struct g_part *gp, struct table *t)
 				r.y1 = r.y2;
 				r.y2 = y + ypad + t->r_heights[j] + b;
 				l = V_LINE_X(i,j);
-				if (l == -2) ;
+				if (l == -2)
+					;
 				else if (l > 0) add_to_rect_sets(&t->r_frame, &t->nr_frame, &r);
 				else add_to_rect_sets(&t->r_bg, &t->nr_bg, &r);
 			}

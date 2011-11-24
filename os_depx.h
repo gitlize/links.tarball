@@ -27,14 +27,6 @@
 #define SA_RESTART	0
 #endif
 
-/*#ifdef sparc
-#define htons(x) (x)
-#endif*/
-
-#ifndef HAVE_CFMAKERAW
-void cfmakeraw(struct termios *t);
-#endif
-
 #ifdef __EMX__
 #define strcasecmp stricmp
 #define strncasecmp strnicmp
@@ -64,17 +56,11 @@ void cfmakeraw(struct termios *t);
 #ifndef SO_ERROR
 #define SO_ERROR	10001
 #endif
-#ifdef errno
-#undef errno
-#endif
-#define errno 1
 #endif
 
 #if defined(O_SIZE) && defined(__EMX__)
 #define HAVE_OPEN_PREALLOC
 #endif
-
-
 
 #if defined(GRDRV_SVGALIB)
 #define loop_select vga_select
@@ -85,5 +71,26 @@ int vga_select(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 int ath_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);
 #else
 #define loop_select select
+#endif
+
+#if defined(__WATCOMC__) && defined(_WCRTLINK)
+#define LIBC_CALLBACK	_WCRTLINK
+#else
+#define LIBC_CALLBACK
+#endif
+
+#if defined(__WATCOMC__) && defined(__LINUX__)
+#define SIGNAL_HANDLER	__declspec(__cdecl)
+#else
+#define SIGNAL_HANDLER
+#endif
+
+#if defined(HAVE_HERROR) && defined(__GNUC__) && defined(__hpux)
+#undef HAVE_HERROR
+#endif
+
+#ifdef HAVE_MAXINT_CONVERSION_BUG
+#undef MAXINT
+#define MAXINT 0x7FFFF000
 #endif
 

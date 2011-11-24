@@ -54,8 +54,8 @@
  * pomoci malloc.
  */
 
-/* Pozor: po kazdem XSync se musi dat
- * register_bottom_half(x_process_events, NULL);
+/* Pozor: po kazdem XSync nebo XFlush se musi dat
+ * X_SCHEDULE_PROCESS_EVENTS
  * jinak to bude cekat na filedescriptoru, i kdyz to ma eventy uz ve fronte.
  *	-- mikulas
  */
@@ -72,10 +72,6 @@
 	#define MESSAGE(a) fprintf(stderr,"%s",a);
 #endif
 
-#ifdef TEXT
-#undef TEXT
-#endif
-
 #include "links.h"
 
 /* Mikulas je PRASE: definuje makro "format" a navrch to jeste nechce vopravit */
@@ -89,8 +85,10 @@
 #include <X11/Xlib.h>
 #include <X11/X.h>
 #include <X11/Xutil.h>
-#include <X11/Xlocale.h>
 #include <X11/Xatom.h>
+#ifdef HAVE_X11_XLOCALE_H
+#include <X11/Xlocale.h>
+#endif
 
 
 #ifndef XK_MISCELLANY
@@ -177,10 +175,6 @@ static unsigned char * x_my_clipboard=NULL;
  * provede. Takze jakmile se vrati rizeni do select smycky, tak se provede flush.
  */
 
-static int flush_in_progress=0;
-
-
-
 static void x_wait_for_event(void)
 {
 	fd_set rfds;
@@ -190,17 +184,30 @@ static void x_wait_for_event(void)
 	select(x_fd+1, &rfds, NULL, NULL, NULL);
 }
 
+static void x_process_events(void *data);
+
+static unsigned char flush_in_progress=0;
+static unsigned char process_events_in_progress=0;
+
+static inline void X_SCHEDULE_PROCESS_EVENTS(void)
+{
+	if (!process_events_in_progress)
+	{
+		register_bottom_half(x_process_events,NULL);
+		process_events_in_progress = 1;
+	}
+}
+
 static void x_do_flush(void *ignore)
 {
 	/* kdyz budu mit zaregistrovanej bottom-half na tuhle funkci a nekdo mi
 	 * tipne Xy, tak se nic nedeje, maximalne se zavola XFlush na blbej
 	 * display, ale Xy se nepodelaj */
 
-	ignore=ignore;
-	XFlush(x_display);
 	flush_in_progress=0;
+	XFlush(x_display);
+	X_SCHEDULE_PROCESS_EVENTS();
 }
-
 
 static inline void X_FLUSH(void)
 {
@@ -210,8 +217,6 @@ static inline void X_FLUSH(void)
 		flush_in_progress=1;
 	}
 }
-
-static void x_process_events(void *data);
 
 static int (*old_error_handler)(Display *, XErrorEvent *) = NULL;
 static int failure_happened;
@@ -232,8 +237,8 @@ static void x_prepare_for_failure(void)
 
 static int x_test_for_failure(void)
 {
-	XSync(x_display, 0);
-	register_bottom_half(x_process_events, NULL);
+	XSync(x_display,False);
+	X_SCHEDULE_PROCESS_EVENTS();
 	XSetErrorHandler(old_error_handler);
 	old_error_handler = NULL;
 	return failure_happened;
@@ -365,36 +370,72 @@ static int x_translate_key(XKeyEvent *e,int *key,int *flag)
 		case NoSymbol:		return 0;
 		case XK_Return:		*key=KBD_ENTER;break;
 		case XK_BackSpace:	*key=KBD_BS;break;
+#ifdef XK_KP_Tab
 		case XK_KP_Tab:
+#endif
 		case XK_Tab:		*key=KBD_TAB;break;
 		case XK_Escape:		*key=KBD_ESC;break;
+#ifdef XK_KP_Left
 		case XK_KP_Left:
+#endif
 		case XK_Left:		*key=KBD_LEFT;break;
+#ifdef XK_KP_Right
 		case XK_KP_Right:
+#endif
 		case XK_Right:		*key=KBD_RIGHT;break;
+#ifdef XK_KP_Up
 		case XK_KP_Up:
+#endif
 		case XK_Up:		*key=KBD_UP;break;
+#ifdef XK_KP_Down
 		case XK_KP_Down:
+#endif
 		case XK_Down:		*key=KBD_DOWN;break;
+#ifdef XK_KP_Insert
 		case XK_KP_Insert:
+#endif
 		case XK_Insert:		*key=KBD_INS;break;
+#ifdef XK_KP_Delete
 		case XK_KP_Delete:
+#endif
 		case XK_Delete:		*key=KBD_DEL;break;
+#ifdef XK_KP_Home
 		case XK_KP_Home:
+#endif
 		case XK_Home:		*key=KBD_HOME;break;
+#ifdef XK_KP_End
 		case XK_KP_End:
+#endif
 		case XK_End:		*key=KBD_END;break;
+#ifdef XK_KP_Page_Up
 		case XK_KP_Page_Up:
-		case XK_Page_Up:	*key=KBD_PAGE_UP;break;
+#endif
+#ifdef XK_Page_Up
+		case XK_Page_Up:
+#endif
+					*key=KBD_PAGE_UP;break;
+#ifdef XK_KP_Page_Down
 		case XK_KP_Page_Down:
-		case XK_Page_Down:	*key=KBD_PAGE_DOWN;break;
+#endif
+#ifdef XK_Page_Down
+		case XK_Page_Down:
+#endif
+					*key=KBD_PAGE_DOWN;break;
+#ifdef XK_KP_F1
 		case XK_KP_F1:
+#endif
 		case XK_F1:		*key=KBD_F1;break;
+#ifdef XK_KP_F2
 		case XK_KP_F2:
+#endif
 		case XK_F2:		*key=KBD_F2;break;
+#ifdef XK_KP_F3
 		case XK_KP_F3:
+#endif
 		case XK_F3:		*key=KBD_F3;break;
+#ifdef XK_KP_F4
 		case XK_KP_F4:
+#endif
 		case XK_F4:		*key=KBD_F4;break;
 		case XK_F5:		*key=KBD_F5;break;
 		case XK_F6:		*key=KBD_F6;break;
@@ -546,6 +587,8 @@ static void x_process_events(void *data)
 	struct graphics_device *gd;
 	int last_was_mouse;
 	int replay_event = 0;
+
+	process_events_in_progress = 0;
 
 #ifdef SC_DEBUG
 	MESSAGE("x_process_event\n");
@@ -1195,7 +1238,7 @@ visual_found:;
 
 
 	XSync(x_display,False);
-	register_bottom_half(x_process_events, NULL);
+	X_SCHEDULE_PROCESS_EVENTS();
 	return NULL;
 }
 
@@ -1206,6 +1249,8 @@ static void x_shutdown_driver(void)
 #ifdef X_DEBUG
 	MESSAGE("x_shutdown_driver\n");
 #endif
+	unregister_bottom_half(x_process_events,NULL);
+	unregister_bottom_half(x_do_flush,NULL);
 	XDestroyWindow(x_display,fake_window);
 	XFreeGC(x_display,x_normal_gc);
 	XFreeGC(x_display,x_copy_gc);
@@ -1300,7 +1345,6 @@ nic_nebude_bobankove:;
 	gd->clip.y1=gd->size.y1;
 	gd->clip.x2=gd->size.x2;
 	gd->clip.y2=gd->size.y2;
-	gd->drv=&x_driver;
 	gd->driver_data=win;
 	gd->user_data=0;
 
@@ -1322,7 +1366,7 @@ nic_nebude_bobankove:;
 	);
 
 	XSync(x_display,False);
-	register_bottom_half(x_process_events, NULL);
+	X_SCHEDULE_PROCESS_EVENTS();
 	n_wins++;
 	return gd;
 }
@@ -1339,13 +1383,14 @@ static void x_shutdown_device(struct graphics_device *gd)
 	n_wins--;
 	XDestroyWindow(x_display,*(Window*)(gd->driver_data));
 	XSync(x_display,False);
-	register_bottom_half(x_process_events, NULL);
+	X_SCHEDULE_PROCESS_EVENTS();
 	
 	x_remove_from_table((Window*)(gd->driver_data));
 	mem_free(gd->driver_data);
 	mem_free(gd);
 }
 
+#if 0
 /* n is in bytes. dest must begin on pixel boundary. If n is not a whole number
  * of pixels, rounding is performed downwards.
  */
@@ -1405,7 +1450,6 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 	
 }
 
-/*
 static int x_get_filled_bitmap(struct bitmap *bmp, long color)
 {
 	struct x_pixmapa *p;
@@ -1435,10 +1479,18 @@ static int x_get_filled_bitmap(struct bitmap *bmp, long color)
 
 		mem_free(pixmap);
 		p->type=X_TYPE_IMAGE;
+		retry:
 		bmp->data=malloc(bmp->skip*bmp->y);
-		if (!bmp->data)malloc_oom();
+		if (!bmp->data) {
+			out_of_memory("x bitmap malloc", bmp->skip*bmp->y);
+			goto retry;
+		}
+		retry2:
 		image=XCreateImage(x_display,x_default_visual,x_depth,ZPixmap,0,0,bmp->x,bmp->y,x_bitmap_scanline_pad<<3,bmp->skip);
-		if (!image)internal("Cannot create image.\n");
+		if (!image) {
+			out_of_memory("XCreateImage", bmp->y * bmp->skip);
+			goto retry2;
+		}
 		image->data=bmp->data;
 		for (a=0,ptr=image->data;a<bmp->y;a++,ptr+=bmp->skip)
 			pixel_set(ptr,PerM_si_odalokoval_vlastni_pytlik,(void*)color);
@@ -1462,7 +1514,7 @@ static int x_get_filled_bitmap(struct bitmap *bmp, long color)
 		return 2;
 	}
 }
-*/
+#endif
 
 static int x_get_empty_bitmap(struct bitmap *bmp)
 {
@@ -1473,10 +1525,88 @@ static int x_get_empty_bitmap(struct bitmap *bmp)
 	pad=x_bitmap_scanline_pad-((bmp->x*x_bitmap_bpp)%x_bitmap_scanline_pad);
 	if (pad==x_bitmap_scanline_pad)pad=0;
 	bmp->skip=bmp->x*x_bitmap_bpp+pad;
-	if (!(bmp->data=malloc(bmp->skip*bmp->y))) malloc_oom();
+	bmp->flags=NULL;
+	retry:
+	if (!(bmp->data=malloc(bmp->skip*bmp->y))) {
+		if (out_of_memory(NULL, 0))
+			goto retry;
+		return -1;
+	}
 	/* on error bmp->data should point to NULL */
-	bmp->flags=0;
 	return 0;
+}
+
+static void x_register_bitmap(struct bitmap *bmp)
+{
+	struct x_pixmapa *p;
+	XImage *image;
+	Pixmap *pixmap;
+	int can_create_pixmap;
+	
+#ifdef X_DEBUG
+	MESSAGE("x_register_bitmap\n");
+#endif
+	
+	X_FLUSH();
+	if (!bmp->data||!bmp->x||!bmp->y) goto cant_create;
+
+	/* alloc struct x_bitmapa */
+	p=mem_alloc(sizeof(struct x_pixmapa));
+
+	/* alloc XImage in client's memory */
+	retry:
+	image=XCreateImage(x_display,x_default_visual,x_depth,ZPixmap,0,0,bmp->x,bmp->y,x_bitmap_scanline_pad<<3,bmp->skip);
+	if (!image){
+		if (out_of_memory(NULL, 0))
+			goto retry;
+		mem_free(p);
+		goto cant_create;
+	}
+	image->data=bmp->data;
+	
+
+	/* try to alloc XPixmap in server's memory */
+	can_create_pixmap=1;
+	x_prepare_for_failure();
+	pixmap=mem_alloc(sizeof(Pixmap));
+	(*pixmap)=XCreatePixmap(x_display,fake_window,bmp->x,bmp->y,x_depth);
+	if (x_test_for_failure()) {
+		if (*pixmap) {
+			x_prepare_for_failure();
+			XFreePixmap(x_display,*pixmap);
+			x_test_for_failure();
+			*pixmap=0;
+		}
+	}
+	if (!(*pixmap)){mem_free(pixmap);can_create_pixmap=0;}
+
+
+	if (can_create_pixmap)
+	{
+#ifdef X_DEBUG
+		MESSAGE("x_register_bitmap: creating pixmap\n");
+#endif
+		XPutImage(x_display,*pixmap,x_copy_gc,image,0,0,0,0,bmp->x,bmp->y);
+		XDestroyImage(image);
+		p->type=X_TYPE_PIXMAP;
+		p->data.pixmap=pixmap;
+	}
+	else
+	{
+#ifdef X_DEBUG
+		MESSAGE("x_register_bitmap: creating image\n");
+#endif
+		p->type=X_TYPE_IMAGE;
+		p->data.image=image;
+	}
+	bmp->flags=p;
+	bmp->data=NULL;
+	return;
+
+cant_create:
+	if (bmp->data) free(bmp->data), bmp->data = NULL;
+	bmp->flags=NULL;
+	return;
 }
 
 
@@ -1485,8 +1615,7 @@ static void x_unregister_bitmap(struct bitmap *bmp)
 #ifdef X_DEBUG
 	MESSAGE("x_unregister_bitmap\n");
 #endif
-	if (!bmp)return;
-	if (!bmp->flags){free(bmp->data);return;}
+	if (!bmp->flags) return;
 
 	switch(XPIXMAPP(bmp->flags)->type)
 	{
@@ -1503,7 +1632,7 @@ static void x_unregister_bitmap(struct bitmap *bmp)
 }
 
 /* prekonvertuje long z host do xserver byte order */
-static inline long _host_to_server(long num)
+static inline long byte_order_host_to_server(long num)
 {
 	/* endianity test */
 	int big=(htonl(0x12345678L)==0x12345678L);
@@ -1544,7 +1673,7 @@ static long x_get_color(int rgb)
 #endif
 	block=x_get_color_function(rgb);
 	if (x_bitmap_bpp==1)return block;
-	return _host_to_server(block);
+	return byte_order_host_to_server(block);
 }
 
 
@@ -1659,7 +1788,9 @@ static void x_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x
 #ifdef X_DEBUG
 	MESSAGE("x_draw_bitmap\n");
 #endif
-	if (!bmp||!(bmp->flags)||!bmp->x||!bmp->y) return;
+	if (!(bmp->flags)||!bmp->x||!bmp->y) {
+		return;
+	}
 	if ((x>=dev->clip.x2)||(y>=dev->clip.y2)) return;
 	if ((x+(bmp->x)<=dev->clip.x1)||(y+(bmp->y)<=dev->clip.y1)) return;
 	bmp_off_x = 0;
@@ -1697,6 +1828,7 @@ static void x_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x
 }
 
 
+#if 0
 static void x_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmps, int n, int x, int y)
 {
 	int a;
@@ -1711,72 +1843,8 @@ static void x_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmps, in
 		x+=(bmps[a])->x;
 	}
 }
-
-
-static void x_register_bitmap(struct bitmap *bmp)
-{
-	struct x_pixmapa *p;
-	XImage *image;
-	Pixmap *pixmap;
-	int can_create_pixmap;
-	
-#ifdef X_DEBUG
-	MESSAGE("x_register_bitmap\n");
 #endif
-	
-	X_FLUSH();
-	if (!bmp||!bmp->data||!bmp->x||!bmp->y)return;
 
-	/* alloc struct x_bitmapa */
-	p=mem_alloc(sizeof(struct x_pixmapa));
-
-	/* alloc XImage in client's memory */
-	image=XCreateImage(x_display,x_default_visual,x_depth,ZPixmap,0,0,bmp->x,bmp->y,x_bitmap_scanline_pad<<3,bmp->skip);
-	if (!image){mem_free(p);goto cant_create;}
-	image->data=bmp->data;
-	
-
-	/* try to alloc XPixmap in server's memory */
-	can_create_pixmap=1;
-	x_prepare_for_failure();
-	pixmap=mem_alloc(sizeof(Pixmap));
-	(*pixmap)=XCreatePixmap(x_display,fake_window,bmp->x,bmp->y,x_depth);
-	if (x_test_for_failure()) {
-		if (*pixmap) {
-			x_prepare_for_failure();
-			XFreePixmap(x_display,*pixmap);
-			x_test_for_failure();
-			*pixmap=0;
-		}
-	}
-	if (!(*pixmap)){mem_free(pixmap);can_create_pixmap=0;}
-
-
-	if (can_create_pixmap)
-	{
-#ifdef X_DEBUG
-		MESSAGE("x_register_bitmap: creating pixmap\n");
-#endif
-		XPutImage(x_display,*pixmap,x_copy_gc,image,0,0,0,0,bmp->x,bmp->y);
-		XDestroyImage(image);
-		p->type=X_TYPE_PIXMAP;
-		p->data.pixmap=pixmap;
-	}
-	else
-	{
-#ifdef X_DEBUG
-		MESSAGE("x_register_bitmap: creating image\n");
-#endif
-		p->type=X_TYPE_IMAGE;
-		p->data.image=image;
-	}
-	bmp->flags=p;
-	return;
-
-cant_create:
-	return;
-
-}
 
 
 static int x_hscroll(struct graphics_device *dev, struct rect_set **set, int sc)
@@ -1850,7 +1918,7 @@ static int x_hscroll(struct graphics_device *dev, struct rect_set **set, int sc)
 		add_to_rect_set(set,&r);
 	}
 
-	register_bottom_half(x_process_events, NULL);
+	X_SCHEDULE_PROCESS_EVENTS();
 
 #ifdef SC_DEBUG
 	MESSAGE("hscroll\n");
@@ -1931,7 +1999,7 @@ static int x_vscroll(struct graphics_device *dev, struct rect_set **set, int sc)
 		add_to_rect_set(set,&r);
 	}
 
-	register_bottom_half(x_process_events, NULL);
+	X_SCHEDULE_PROCESS_EVENTS();
 
 #ifdef SC_DEBUG
 	MESSAGE("vscroll\n");
@@ -1945,6 +2013,9 @@ static void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
 	struct x_pixmapa *p=(struct x_pixmapa *)bmp->flags;
 	XImage *image;
+	void *x_data;
+
+	if (!p) return NULL;
 
 #ifdef DEBUG
 	if (lines <= 0) internal("x_prepare_strip: %d lines",lines);
@@ -1953,14 +2024,30 @@ static void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 #ifdef X_DEBUG
 	MESSAGE("x_prepare_strip\n");
 #endif
+
+	bmp->data = NULL;
 	
 	switch (p->type)
 	{
 		case X_TYPE_PIXMAP:
+
+		retry:
+		x_data=malloc(bmp->skip*lines);
+		if (!x_data) {
+			if (out_of_memory(NULL, 0))
+				goto retry;
+			return NULL;
+		}
+
+		retry2:
 		image=XCreateImage(x_display,x_default_visual,x_depth,ZPixmap,0,0,bmp->x,lines,x_bitmap_scanline_pad<<3,bmp->skip);
-		if (!image)internal("x_prepare_strip: Cannot alloc image.\n");
-		image->data=malloc(bmp->skip*lines);
-		if (!(image->data))malloc_oom();
+		if (!image) {
+			if (out_of_memory(NULL, 0))
+				goto retry2;
+			free(x_data);
+			return NULL;
+		}
+		image->data = x_data;
 		bmp->data=image;
 		return image->data;
 
@@ -1977,6 +2064,8 @@ static void x_commit_strip(struct bitmap *bmp, int top, int lines)
 {
 	struct x_pixmapa *p=(struct x_pixmapa *)bmp->flags;
 
+	if (!p) return;
+
 #ifdef X_DEBUG
 	MESSAGE("x_commit_strip\n");
 #endif
@@ -1984,6 +2073,7 @@ static void x_commit_strip(struct bitmap *bmp, int top, int lines)
 	{
 		/* send image to pixmap in xserver */
 		case X_TYPE_PIXMAP:
+		if (!bmp->data) return;
 		XPutImage(x_display,*(XPIXMAPP(bmp->flags)->data.pixmap),x_copy_gc,(XImage*)bmp->data,0,0,0,top,bmp->x,lines);
 		XDestroyImage((XImage *)bmp->data);
 		return;
@@ -2010,12 +2100,12 @@ static void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 	XSetWMName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSetWMIconName(x_display, *(Window*)(gd->driver_data), &windowName);
 	XSync(x_display,False);
-	register_bottom_half(x_process_events, NULL);
+	X_SCHEDULE_PROCESS_EVENTS();
 	mem_free(t);
 }
 
 /* gets string in UTF8 */
-void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text)
+static void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text)
 {
 	x_clear_clipboard();
 	if(text && strlen(text))
@@ -2027,10 +2117,11 @@ void x_set_clipboard_text(struct graphics_device *gd, unsigned char * text)
 
 		XSetSelectionOwner (x_display, XA_PRIMARY, *(Window*)(gd->driver_data), CurrentTime);
 		XFlush (x_display);
+		X_SCHEDULE_PROCESS_EVENTS();
 	}
 }
 
-void selection_request(XEvent *event)
+static void selection_request(XEvent *event)
 {
 	XSelectionRequestEvent *req;
 	XSelectionEvent sel;
@@ -2089,9 +2180,10 @@ void selection_request(XEvent *event)
 	}
 	XSendEvent (x_display, sel.requestor,0,0,(XEvent*)&sel);
 	XFlush (x_display);                    
+	X_SCHEDULE_PROCESS_EVENTS();
 }
 
-unsigned char *x_get_clipboard_text(void)
+static unsigned char *x_get_clipboard_text(void)
 {
 	struct conv_table *ct;
 	XEvent event;
@@ -2159,7 +2251,7 @@ unsigned char *x_get_clipboard_text(void)
 	}
 
 no_new_sel:
-	register_bottom_half(x_process_events, NULL);
+	X_SCHEDULE_PROCESS_EVENTS();
 	if (!x_my_clipboard) return NULL;
 	
 	ct=get_translation_table(x_input_encoding < 0 ? drv->codepage : x_input_encoding,utf8_table);
@@ -2194,7 +2286,7 @@ struct graphics_driver x_driver={
 	x_commit_strip,
 	x_unregister_bitmap,
 	x_draw_bitmap,
-	x_draw_bitmaps,
+	/*x_draw_bitmaps,*/
 	x_get_color,
 	x_fill_area,
 	x_draw_hline,
@@ -2206,6 +2298,8 @@ struct graphics_driver x_driver={
 	dummy_unblock,
 	x_set_window_title,
 	x_exec,
+	x_set_clipboard_text,
+	x_get_clipboard_text,
 	0,				/* depth (filled in x_init_driver function) */
 	0, 0,				/* size (in X is empty) */
 	0,				/* flags */

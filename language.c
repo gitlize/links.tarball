@@ -44,6 +44,13 @@ void shutdown_trans(void)
 		}
 }
 
+static inline int is_direct_text(unsigned char *text)
+{
+/* Do not compare to dummyarray directly - thwart some misoptimizations */
+	unsigned char * volatile dm = dummyarray;
+	return !(text >= dm && text < dm + T__N_TEXTS);
+}
+
 unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 {
 	unsigned char **current_tra;
@@ -57,7 +64,7 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 		if (utf8_charset == -1) utf8_charset = get_cp_index("UTF-8");
 		charset = utf8_charset;
 	}
-	if (text < dummyarray || text > dummyarray + T__N_TEXTS) return text;
+	if (is_direct_text(text)) return text;
 	if ((current_tra = translation_array[current_language][charset])) {
 		unsigned char *tt;
 		if ((trn = current_tra[text - dummyarray])) return trn;
@@ -88,7 +95,7 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 
 unsigned char *get_english_translation(unsigned char *text)
 {
-	if (text < dummyarray || text > dummyarray + T__N_TEXTS) return text;
+	if (is_direct_text(text)) return text;
 	return translation_english[text - dummyarray].name;
 }
 
@@ -100,14 +107,6 @@ int n_languages(void)
 unsigned char *language_name(int l)
 {
 	return translations[l].t[T__LANGUAGE].name;
-}
-
-int language_index(unsigned char *name)
-{
-	int a;
-	for (a=0;a<N_LANGUAGES;a++)
-		if (!strcmp(name, translations[a].t[T__LANGUAGE].name))return a;
-	return 0;
 }
 
 void set_language(int l)

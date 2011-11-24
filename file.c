@@ -40,7 +40,7 @@ static void stat_mode(unsigned char **p, int *l, struct stat *stp)
 {
 	unsigned char c = '?';
 	if (stp) {
-		if (0) ;
+		if (0) {}
 #ifdef S_ISBLK
 		else if (S_ISBLK(stp->st_mode)) c = 'b';
 #endif
@@ -86,17 +86,19 @@ static void stat_links(unsigned char **p, int *l, struct stat *stp)
 	unsigned char lnk[64];
 	if (!stp) add_to_str(p, l, "    ");
 	else {
-		sprintf(lnk, "%3d ", (int)stp->st_nlink);
+		sprintf(lnk, "%3ld ", (unsigned long)stp->st_nlink);
 		add_to_str(p, l, lnk);
 	}
 #endif
 }
 
-int last_uid = -1;
-char last_user[64];
+#ifdef FS_UNIX_USERS
+static int last_uid = -1;
+static unsigned char last_user[64];
 
-int last_gid = -1;
-char last_group[64];
+static int last_gid = -1;
+static unsigned char last_group[64];
+#endif
 
 static void stat_user(unsigned char **p, int *l, struct stat *stp, int g)
 {
@@ -132,14 +134,18 @@ static void stat_user(unsigned char **p, int *l, struct stat *stp, int g)
 
 static void stat_size(unsigned char **p, int *l, struct stat *stp)
 {
-	unsigned char size[64];
-	if (!stp) z: add_to_str(p, l, "         ");
-	else {
-		if ((long)(unsigned long)stp->st_size == stp->st_size) {
-			sprintf(size, "%8lu ", (unsigned long)stp->st_size);
-			add_to_str(p, l, size);
-		} else goto z;
+	unsigned char num[64];
+	const int digits = 8;
+	int i;
+	if (!stp) {
+		num[0] = 0;
+	} else {
+		snprint(num, sizeof num, stp->st_size);
 	}
+	for (i = strlen(num); i < digits; i++)
+		add_chr_to_str(p, l, ' ');
+	add_to_str(p, l, num);
+	add_chr_to_str(p, l, ' ');
 }
 
 static void stat_date(unsigned char **p, int *l, struct stat *stp)
@@ -177,7 +183,8 @@ static unsigned char *get_filename(unsigned char *url)
 #ifdef DOS_FS
 	if (url[7] == '/' && strchr(url + 8, ':')) url++;
 #endif
-	for (p = url + 7; *p && *p != POST_CHAR; p++) ;
+	for (p = url + 7; *p && *p != POST_CHAR; p++)
+		;
 	m = init_str(), ml = 0;
 	add_conv_str(&m, &ml, url + 7, p - url - 7, -2);
 	return m;
@@ -188,9 +195,7 @@ struct dirs {
 	unsigned char *f;
 };
 
-int comp_de(struct dirs *, struct dirs *); /* prototype */
-
-int comp_de(struct dirs *d1, struct dirs *d2)
+LIBC_CALLBACK static int comp_de(struct dirs *d1, struct dirs *d2)
 {
 	if (d1->f[0] == '.' && d1->f[1] == '.' && !d1->f[2]) return -1;
 	if (d2->f[0] == '.' && d2->f[1] == '.' && !d2->f[2]) return 1;
@@ -202,7 +207,7 @@ int comp_de(struct dirs *d1, struct dirs *d2)
 void file_func(struct connection *c)
 {
 	struct cache_entry *e;
-	unsigned char *file, *name, *head;
+	unsigned char *file, *name, *head = NULL; /* against warning */
 	int fl;
 	DIR *d;
 	int h, r;
@@ -217,7 +222,7 @@ void file_func(struct connection *c)
 	}
 	if (stat(name, &stt)) {
 		mem_free(name);
-		setcstate(c, -errno); abort_connection(c); return;
+		setcstate(c, get_error_from_errno(errno)); abort_connection(c); return;
 	}
 	if (!S_ISDIR(stt.st_mode) && !S_ISREG(stt.st_mode)) {
 		mem_free(name);
@@ -227,7 +232,9 @@ void file_func(struct connection *c)
 		int er = errno;
 		if ((d = opendir(name))) goto dir;
 		mem_free(name);
-		setcstate(c, -er); abort_connection(c); return;
+		setcstate(c, get_error_from_errno(er));
+		abort_connection(c);
+		return;
 	}
 	set_bin(h);
 	if (S_ISDIR(stt.st_mode)) {
@@ -239,7 +246,7 @@ void file_func(struct connection *c)
 		close(h);
 		if (!d) {
 			mem_free(name);
-			setcstate(c, -errno); abort_connection(c); return;
+			setcstate(c, get_error_from_errno(errno)); abort_connection(c); return;
 		}
 		dir:
 		dir = DUMMY, dirl = 0;
@@ -250,6 +257,7 @@ void file_func(struct connection *c)
 				setcstate(c, S_OUT_OF_MEM); abort_connection(c); return;
 			}
 			c->cache = e;
+			e->refcount--;
 			if (e->redirect) mem_free(e->redirect);
 			e->redirect = stracpy(c->url);
 			e->redirect_get = 1;
@@ -258,8 +266,10 @@ void file_func(struct connection *c)
 			closedir(d);
 			goto end;
 		}
+#ifdef FS_UNIX_USERS
 		last_uid = -1;
 		last_gid = -1;
+#endif
 		file = init_str();
 		fl = 0;
 		add_to_str(&file, &fl, "<html><head><title>");
@@ -267,7 +277,7 @@ void file_func(struct connection *c)
 		add_to_str(&file, &fl, "</title></head><body><h2>Directory ");
 		add_conv_str(&file, &fl, name, strlen(name), -1);
 		add_to_str(&file, &fl, "</h2><pre>");
-		while ((de = readdir(d))) {
+		while ((de = (void *)readdir(d))) {
 			struct stat stt, *stp;
 			unsigned char **p;
 			int l;
@@ -354,17 +364,17 @@ void file_func(struct connection *c)
 		head = stracpy("\r\nContent-Type: text/html\r\n");
 	} else {
 		mem_free(name);
-		/* + !stt.st_size is there because of bug in Linux. Read returns
-		   -EACCES when reading 0 bytes to invalid address */
 		if (stt.st_size > MAXINT) {
 			close(h);
 			setcstate(c, S_LARGE_FILE); abort_connection(c);
 			return;
 		}
+		/* + !stt.st_size is there because of bug in Linux. Read returns
+		   -EACCES when reading 0 bytes to invalid address */
 		file = mem_alloc(stt.st_size + !stt.st_size);
 		if ((r = read(h, file, stt.st_size)) != stt.st_size) {
 			mem_free(file); close(h);
-			setcstate(c, r == -1 ? -errno : S_FILE_ERROR);
+			setcstate(c, r == -1 ? get_error_from_errno(errno) : S_FILE_ERROR);
 			abort_connection(c); return;
 		}
 		close(h);
@@ -375,9 +385,10 @@ void file_func(struct connection *c)
 		mem_free(file);
 		setcstate(c, S_OUT_OF_MEM); abort_connection(c); return;
 	}
+	c->cache = e;
+	e->refcount--;
 	if (e->head) mem_free(e->head);
 	e->head = head;
-	c->cache = e;
 	add_fragment(e, 0, file, fl);
 	truncate_entry(e, fl, 1);
 	mem_free(file);

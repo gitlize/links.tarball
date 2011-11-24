@@ -93,7 +93,7 @@ struct bottom_half {
 	void *data;
 };
 
-struct list_head bottom_halves = { &bottom_halves, &bottom_halves };
+static struct list_head bottom_halves = { &bottom_halves, &bottom_halves };
 
 int register_bottom_half(void (*fn)(void *), void *data)
 {
@@ -146,17 +146,10 @@ static ttime last_time;
 static void check_timers(void)
 {
 	ttime interval = get_time() - last_time;
-	struct timer *t;
+	struct timer * volatile t;	/* volatile because of setjmp */
 	foreach(t, timers) t->interval -= interval;
 	/*ch:*/
 	foreach(t, timers) if (t->interval <= 0) {
-		/*struct timer *tt = t;
-		del_from_list(tt);
-		tt->func(tt->data);
-		mem_free(tt);
-		CHK_BH;
-		goto ch;*/
-
 		struct timer *tt;
 #ifdef DEBUG_CALLS
 		fprintf(stderr, "call: timer %p\n", t->func);
@@ -211,8 +204,12 @@ void kill_timer(int id)
 
 void *get_handler(int fd, int tp)
 {
-	if (fd < 0 || fd >= (int)FD_SETSIZE) {
-		internal("get_handler: handle %d >= FD_SETSIZE %d", fd, FD_SETSIZE);
+	if (fd < 0)
+		internal("get_handler: handle %d", fd);
+	if (fd >= (int)FD_SETSIZE) {
+		error("too big handle %d");
+		fatal_tty_exit();
+		exit(RET_FATAL);
 		return NULL;
 	}
 	switch (tp) {
@@ -227,8 +224,12 @@ void *get_handler(int fd, int tp)
 
 void set_handlers(int fd, void (*read_func)(void *), void (*write_func)(void *), void (*error_func)(void *), void *data)
 {
-	if (fd < 0 || fd >= (int)FD_SETSIZE) {
-		internal("set_handlers: handle %d >= FD_SETSIZE %d", fd, FD_SETSIZE);
+	if (fd < 0)
+		internal("set_handlers: handle %d", fd);
+	if (fd >= (int)FD_SETSIZE) {
+		error("too big handle %d");
+		fatal_tty_exit();
+		exit(RET_FATAL);
 		return;
 	}
 	threads[fd].read_func = read_func;
@@ -280,11 +281,9 @@ static void signal_break(void *data)
 	while (can_read(signal_pipe[0])) read(signal_pipe[0], &c, 1);
 }
 
-static void got_signal(int sig)
+SIGNAL_HANDLER static void got_signal(int sig)
 {
-#ifndef BEOS
 	int sv_errno = errno;
-#endif
 		/*fprintf(stderr, "ERROR: signal number: %d\n", sig);*/
 	if (sig >= NUM_SIGNALS || sig < 0) {
 		/*error("ERROR: bad signal number: %d", sig);*/
@@ -298,9 +297,7 @@ static void got_signal(int sig)
 	signal_mask[sig] = 1;
 	ret:
 	if (can_write(signal_pipe[1])) write(signal_pipe[1], "x", 1);
-#ifndef BEOS
 	errno = sv_errno;
-#endif
 }
 
 static struct sigaction sa_zero;
@@ -313,8 +310,12 @@ void install_signal_handler(int sig, void (*fn)(void *), void *data, int critica
 		return;
 	}
 	if (!fn) sa.sa_handler = SIG_IGN;
-	else sa.sa_handler = got_signal;
+	else sa.sa_handler = (void *)got_signal;
+#ifdef HAVE_SIGFILLSET
 	sigfillset(&sa.sa_mask);
+#else
+	memset(&sa.sa_mask, -1, sizeof sa.sa_mask);
+#endif
 	sa.sa_flags = SA_RESTART;
 	if (!fn) sigaction(sig, &sa, NULL);
 	signal_handlers[sig].fn = fn;
@@ -331,8 +332,12 @@ void interruptible_signal(int sig, int in)
 		return;
 	}
 	if (!signal_handlers[sig].fn) return;
-	sa.sa_handler = got_signal;
+	sa.sa_handler = (void *)got_signal;
+#ifdef HAVE_SIGFILLSET
 	sigfillset(&sa.sa_mask);
+#else
+	memset(&sa.sa_mask, -1, sizeof sa.sa_mask);
+#endif
 	if (!in) sa.sa_flags = SA_RESTART;
 	sigaction(sig, &sa, NULL);
 }
@@ -363,7 +368,8 @@ static void sigchld(void *p)
 #ifndef WNOHANG
 	wait(NULL);
 #else
-	while (waitpid(-1, NULL, WNOHANG) > 0) ;
+	while (waitpid(-1, NULL, WNOHANG) > 0)
+		;
 #endif
 }
 
@@ -398,7 +404,8 @@ void select_loop(void (*init)(void))
 	init();
 	CHK_BH;
 	while (!terminate_loop) {
-		int n, i;
+		volatile int n;	/* volatile because of setjmp */
+		int i;
 		struct timeval tv;
 		struct timeval *tm = NULL;
 		check_signals();
@@ -455,7 +462,11 @@ void select_loop(void (*init)(void))
 #ifdef DEBUG_CALLS
 			fprintf(stderr, "select intr\n");
 #endif
-			if (errno != EINTR) error("ERROR: select failed: %d", errno);
+			if (errno != EINTR) {
+				error("ERROR: select failed: %s", strerror(errno));
+				fatal_tty_exit();
+				exit(RET_FATAL);
+			}
 			continue;
 		}
 #ifdef DEBUG_CALLS

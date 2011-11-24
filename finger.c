@@ -51,22 +51,21 @@ static void finger_sent_request(struct connection *c)
 
 static void finger_get_response(struct connection *c, struct read_buffer *rb)
 {
-	struct cache_entry *e;
 	int l;
 	set_timeout(c);
-	if (get_cache_entry(c->url, &e)) {
+	if (get_cache_entry(c->url, &c->cache)) {
 		setcstate(c, S_OUT_OF_MEM);
 		abort_connection(c);
 		return;
 	}
-	c->cache = e;
+	c->cache->refcount--;
 	if (rb->close == 2) {
 		setcstate(c, S_OK);
 		finger_end_request(c);
 		return;
 	}
 	l = rb->len;
-	if (c->from + l < 0) {
+	if ((off_t)(0UL + c->from + l) < 0) {
 		setcstate(c, S_LARGE_FILE);
 		abort_connection(c);
 		return;

@@ -16,6 +16,12 @@
 
 #define XBM_BUFFER_LEN 1024
 
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
 #define min(a,b) (a<b?a:b)
 #define max(a,b) (a>b?a:b)
 
@@ -105,13 +111,15 @@ static inline int __read_num(unsigned char **p,int *l,int *partnum,int *digits, 
 
 static inline void __skip_space_tab(unsigned char **p, int *l)
 {
-	for (;*l&&(**p==' '||**p==9);(*l)--,(*p)++);
+	for (;*l&&(**p==' '||**p==9);(*l)--,(*p)++)
+		;
 }
 
 
 static inline void __skip_whitespace(unsigned char **p, int *l)
 {
-	for (;*l&&((**p)>'9'||(**p)<'0');(*l)--,(*p)++);
+	for (;*l&&((**p)>'9'||(**p)<'0');(*l)--,(*p)++)
+		;
 }
 
 

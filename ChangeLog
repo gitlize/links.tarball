@@ -1,3 +1,68 @@
+=== RELEASE 2.4 ===
+
+Sat Nov 19 01:21:25 MET 2011 mikulas:
+
+	Do not translate '\' to '/' in HTTP requests
+
+Sat Nov 19 01:19:12 MET 2011 mikulas:
+
+	Do not test for existing strings when loading links history file
+	=> avoid quadratic-complexity on startup
+
+Sat Nov 19 01:18:59 MET 2011 mikulas:
+
+	Fixed a possible memory leak on Windows
+
+Wed Nov 16 17:59:49 MET 2011 mikulas:
+
+	Fixed a crash on systems that don't have strerror
+
+Fri Nov 11 23:22:25 CEST 2011 mikulas:
+
+	Fixed a crash in Windows console code
+
+Wed Oct 12 22:08:39 MET 2011 mikulas:
+
+	Fixed a possible crash if the user changes socks dns append string
+	while socks connection is in progress
+
+Sun Sep 25 18:40:57 MET 2011 mikulas:
+
+	Do not send '#' in the url when downloading
+
+Sun Sep 18 16:57:38 CEST 2011 mikulas:
+
+	Fixed crashes with libpng-1.5
+
+Fri Sep 16 20:16:01 CEST 2011 mikulas:
+
+	Fixed bugs in the directfb driver
+
+Fri Sep 16 18:40:41 CEST 2011 mikulas:
+
+	Workaround for icc optimization bug on framebuffer
+	Don't clear the whole framebuffer, clear just an used area
+		(fixes problems with Nvidia framebuffer)
+
+Tue Sep 13 23:13:52 CEST 2011 mikulas:
+
+	Make it compile with OpenWatcom for Linux
+	Note: because of unimplemented "gethostbyname" function,
+	it requires installed "host" command to do name lookups
+
+Tue Sep 13 03:53:06 cet 2011 mikulas:
+
+	Try to free internal caches when out of memory happens
+
+Mon Sep 12 19:57:13 CEST 2011 mikulas:
+
+	Fixed a crash when cache is flushed while auth dialog is displayed
+
+Sun Sep 11 02:02:09 MET 2011 mikulas:
+
+	Reduced memory consumption
+	Don't reformat plain text if window size changes
+
 === RELEASE 2.3 ===
 
 Wed Aug 10 20:10:45 CEST 2011 mikulas:

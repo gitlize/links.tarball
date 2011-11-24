@@ -30,27 +30,43 @@ struct strerror_val {
 	unsigned char msg[1];
 };
 
-struct list_head strerror_buf = { &strerror_buf, &strerror_buf };
+static struct list_head strerror_buf = { &strerror_buf, &strerror_buf };
 
 void free_strerror_buf(void)
 {
 	free_list(strerror_buf);
 }
 
+int get_error_from_errno(int errn)
+{
+	if (errn > 0 && (errn < -S_OK || errn > -S_MAX))
+		return -errn;
+#ifdef BEOS
+	if (-errn > 0 && (-errn < -S_OK || -errn > -S_MAX))
+		return errn;
+#endif
+	return S_UNKNOWN_ERROR;
+}
+
 unsigned char *get_err_msg(int state)
 {
 	unsigned char *e;
 	struct strerror_val *s;
-	if (state <= S_OK || state >= S_WAIT) {
+	if ((state >= S_MAX && state <= S_OK) || state >= S_WAIT) {
 		int i;
 		for (i = 0; msg_dsc[i].msg; i++)
 			if (msg_dsc[i].n == state) return msg_dsc[i].msg;
 		unk:
-		return TEXT(T_UNKNOWN_ERROR);
+		return TEXT_(T_UNKNOWN_ERROR);
 	}
-	if (!(e = strerror(-state)) || !*e) goto unk;
+#ifdef BEOS
+	if ((e = strerror(state)) && *e && !strstr(e, "No Error")) goto have_error;
+#endif
+	if ((e = strerror(-state)) && *e) goto have_error;
+	goto unk;
+have_error:
 	foreach(s, strerror_buf) if (!strcmp(s->msg, e)) return s->msg;
-	s = mem_alloc(sizeof(struct strerror_val) + strlen(e) + 1);
+	s = mem_alloc(sizeof(struct strerror_val) + strlen(e));
 	strcpy(s->msg, e);
 	add_to_list(strerror_buf, s);
 	return s->msg;
@@ -86,18 +102,18 @@ static unsigned char *get_stat_msg(struct status *stat, struct terminal *term)
 	if (stat->state == S_TRANS && stat->prg->elapsed / 100) {
 		unsigned char *m = init_str();
 		int l = 0;
-		add_to_str(&m, &l, _(TEXT(T_RECEIVED), term));
+		add_to_str(&m, &l, _(TEXT_(T_RECEIVED), term));
 		add_to_str(&m, &l, " ");
 		add_xnum_to_str(&m, &l, stat->prg->pos);
 		if (stat->prg->size >= 0)
-			add_to_str(&m, &l, " "), add_to_str(&m, &l, _(TEXT(T_OF), term)), add_to_str(&m, &l, " "), add_xnum_to_str(&m, &l, stat->prg->size);
+			add_to_str(&m, &l, " "), add_to_str(&m, &l, _(TEXT_(T_OF), term)), add_to_str(&m, &l, " "), add_xnum_to_str(&m, &l, stat->prg->size);
 		add_to_str(&m, &l, ", ");
 		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
-			add_to_str(&m, &l, _(TEXT(T_AVG), term)), add_to_str(&m, &l, " ");
+			add_to_str(&m, &l, _(TEXT_(T_AVG), term)), add_to_str(&m, &l, " ");
 		add_xnum_to_str(&m, &l, stat->prg->loaded * 10 / (stat->prg->elapsed / 100));
 		add_to_str(&m, &l, "/s");
 		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
-			add_to_str(&m, &l, ", "), add_to_str(&m, &l, _(TEXT(T_CUR), term)), add_to_str(&m, &l, " "),
+			add_to_str(&m, &l, ", "), add_to_str(&m, &l, _(TEXT_(T_CUR), term)), add_to_str(&m, &l, " "),
 			add_xnum_to_str(&m, &l, stat->prg->cur_loaded / (CURRENT_SPD_SEC * SPD_DISP_TIME / 1000)),
 			add_to_str(&m, &l, "/s");
 		return m;
@@ -116,7 +132,14 @@ void change_screen_status(struct session *ses)
 		if (stat && stat->state == S_OK && fd->af) {
 			struct additional_file *af;
 			foreach(af, fd->af->af) {
-				if (af->rq && af->rq->stat.state >= 0) stat = &af->rq->stat;
+				if (af->rq && af->rq->stat.state >= 0) {
+					if (af->rq->stat.state > stat->state ||
+					    (af->rq->stat.state == S_TRANS &&
+					     stat->state == S_TRANS &&
+					     af->rq->stat.prg->pos >
+					     stat->prg->pos))
+						stat = &af->rq->stat;
+				}
 			}
 		}
 	}
@@ -195,7 +218,7 @@ void print_error_dialog(struct session *ses, struct status *stat, unsigned char 
 	unsigned char *u = stracpy(title);
 	if (strchr(u, POST_CHAR)) *strchr(u, POST_CHAR) = 0;
 	if (!t) return;
-	msg_box(ses->term, getml(u, NULL), TEXT(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_ERROR_LOADING), " ", u, ":\n\n", t, NULL, ses, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC/*, _("Retry"), NULL, 0 !!! FIXME: retry */);
+	msg_box(ses->term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), " ", u, ":\n\n", t, NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC/*, _("Retry"), NULL, 0 !!! FIXME: retry */);
 }
 
 static inline unsigned char hx(int a)
@@ -362,29 +385,29 @@ void download_window_function(struct dialog_data *dlg)
 		int l = 0;
 		m = init_str();
 		t = 1;
-		add_to_str(&m, &l, _(TEXT(T_RECEIVED), term));
+		add_to_str(&m, &l, _(TEXT_(T_RECEIVED), term));
 		add_to_str(&m, &l, " ");
 		add_xnum_to_str(&m, &l, stat->prg->pos);
 		if (stat->prg->size >= 0)
-			add_to_str(&m, &l, " "), add_to_str(&m, &l, _(TEXT(T_OF),term)), add_to_str(&m, &l, " "), add_xnum_to_str(&m, &l, stat->prg->size), add_to_str(&m, &l, " ");
+			add_to_str(&m, &l, " "), add_to_str(&m, &l, _(TEXT_(T_OF),term)), add_to_str(&m, &l, " "), add_xnum_to_str(&m, &l, stat->prg->size), add_to_str(&m, &l, " ");
 		add_to_str(&m, &l, "\n");
 		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
-			add_to_str(&m, &l, _(TEXT(T_AVERAGE_SPEED), term));
-		else add_to_str(&m, &l, _(TEXT(T_SPEED), term));
+			add_to_str(&m, &l, _(TEXT_(T_AVERAGE_SPEED), term));
+		else add_to_str(&m, &l, _(TEXT_(T_SPEED), term));
 		add_to_str(&m, &l, " ");
 		add_xnum_to_str(&m, &l, (longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100));
 		add_to_str(&m, &l, "/s");
 		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
-			add_to_str(&m, &l, ", "), add_to_str(&m, &l, _(TEXT(T_CURRENT_SPEED), term)), add_to_str(&m, &l, " "),
+			add_to_str(&m, &l, ", "), add_to_str(&m, &l, _(TEXT_(T_CURRENT_SPEED), term)), add_to_str(&m, &l, " "),
 			add_xnum_to_str(&m, &l, stat->prg->cur_loaded / (CURRENT_SPD_SEC * SPD_DISP_TIME / 1000)),
 			add_to_str(&m, &l, "/s");
 		add_to_str(&m, &l, "\n");
-		add_to_str(&m, &l, _(TEXT(T_ELAPSED_TIME), term));
+		add_to_str(&m, &l, _(TEXT_(T_ELAPSED_TIME), term));
 		add_to_str(&m, &l, " ");
 		add_time_to_str(&m, &l, stat->prg->elapsed / 1000);
 		if (stat->prg->size >= 0 && stat->prg->loaded > 0) {
 			add_to_str(&m, &l, ", ");
-			add_to_str(&m, &l, _(TEXT(T_ESTIMATED_TIME), term));
+			add_to_str(&m, &l, _(TEXT_(T_ESTIMATED_TIME), term));
 			add_to_str(&m, &l, " ");
 			/*add_time_to_str(&m, &l, stat->prg->elapsed / 1000 * stat->prg->size / stat->prg->loaded * 1000 - stat->prg->elapsed);*/
 			add_time_to_str(&m, &l, (stat->prg->size - stat->prg->pos) / ((longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100)));
@@ -471,7 +494,7 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	dlg = mem_calloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item));
 	undisplay_download(down);
 	down->ses = ses;
-	dlg->title = TEXT(T_DOWNLOAD);
+	dlg->title = TEXT_(T_DOWNLOAD);
 	dlg->fn = download_window_function;
 	dlg->abort = download_abort_function;
 	dlg->udata = down;
@@ -479,16 +502,16 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 	dlg->items[0].type = D_BUTTON;
 	dlg->items[0].gid = B_ENTER | B_ESC;
 	dlg->items[0].fn = dlg_undisplay_download;
-	dlg->items[0].text = TEXT(T_BACKGROUND);
+	dlg->items[0].text = TEXT_(T_BACKGROUND);
 	dlg->items[1].type = D_BUTTON;
 	dlg->items[1].gid = 0;
 	dlg->items[1].fn = dlg_abort_download;
-	dlg->items[1].text = TEXT(T_ABORT);
+	dlg->items[1].text = TEXT_(T_ABORT);
 	if (!down->prog) {
 		dlg->items[2].type = D_BUTTON;
 		dlg->items[2].gid = 0;
 		dlg->items[2].fn = dlg_abort_and_delete_download;
-		dlg->items[2].text = TEXT(T_ABORT_AND_DELETE_FILE);
+		dlg->items[2].text = TEXT_(T_ABORT_AND_DELETE_FILE);
 		dlg->items[3].type = D_END;
 	} else {
 		dlg->items[2].type = D_END;
@@ -627,7 +650,7 @@ static int download_write(struct download *down, void *ptr, off_t to_write)
 		if (get_download_ses(down)) {
 			unsigned char *emsg = stracpy(err ? strerror(err) : "Zero returned");
 			unsigned char *msg = stracpy(down->file);
-			msg_box(get_download_ses(down)->term, getml(msg, emsg, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_WRITE_TO_FILE), " ", msg, ": ", emsg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+			msg_box(get_download_ses(down)->term, getml(msg, emsg, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_COULD_NOT_WRITE_TO_FILE), " ", msg, ": ", emsg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		}
 		return -1;
 	}
@@ -717,7 +740,7 @@ static void download_data(struct status *stat, struct download *down)
 			if (t) {
 				unsigned char *tt = stracpy(down->url);
 				if (strchr(tt, POST_CHAR)) *strchr(tt, POST_CHAR) = 0;
-				msg_box(get_download_ses(down)->term, getml(tt, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_ERROR_DOWNLOADING), " ", tt, ":\n\n", t, NULL, get_download_ses(down), 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC/*, TEXT(T_RETRY), NULL, 0 !!! FIXME: retry */);
+				msg_box(get_download_ses(down)->term, getml(tt, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DOWNLOADING), " ", tt, ":\n\n", t, NULL, get_download_ses(down), 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC/*, TEXT_(T_RETRY), NULL, 0 !!! FIXME: retry */);
 			}
 		} else {
 			if (down->prog) {
@@ -787,14 +810,15 @@ int create_download_file(struct session *ses, unsigned char *cwd, unsigned char 
 	}
 	if (h == -1) {
 		unsigned char *msg, *msge;
-		if (errno == EEXIST && safe) {
+		int errn = errno;
+		if (errn == EEXIST && safe) {
 			h = -2;
 			goto x;
 		}
 		if (!ses) goto x;
 		msg = stracpy(file);
-		msge = stracpy(strerror(errno));
-		msg_box(ses->term, getml(msg, msge, NULL), TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_CREATE_FILE), " ", msg, ": ", msge, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msge = stracpy(strerror(errn));
+		msg_box(ses->term, getml(msg, msge, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_COULD_NOT_CREATE_FILE), " ", msg, ": ", msge, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		goto x;
 	}
 	set_bin(h);
@@ -867,30 +891,30 @@ static unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
 
 unsigned char *subst_file(unsigned char *prog, unsigned char *file, int cyg_subst)
 {
+	unsigned char *orig_prog = prog;
+	unsigned char *nn;
 	unsigned char *n = init_str();
 	int l = 0;
 	while (*prog) {
 		int p;
-		for (p = 0; prog[p] && prog[p] != '%'; p++) ;
+		for (p = 0; prog[p] && prog[p] != '%'; p++)
+			;
 		add_bytes_to_str(&n, &l, prog, p);
 		prog += p;
 		if (*prog == '%') {
-#if defined(HAVE_CYGWIN_CONV_TO_FULL_WIN32_PATH)
 			if (cyg_subst) {
-#ifdef MAX_PATH
-				unsigned char new_path[MAX_PATH];
-#else
-				unsigned char new_path[1024];
-#endif
-				cygwin_conv_to_full_win32_path(file, new_path);
-				add_to_str(&n, &l, new_path);
-			} else
-#endif
-			add_to_str(&n, &l, file);
+				unsigned char *conv = os_conv_to_external_path(file, orig_prog);
+				add_to_str(&n, &l, conv);
+				mem_free(conv);
+			} else {
+				add_to_str(&n, &l, file);
+			}
 			prog++;
 		}
 	}
-	return n;
+	nn = os_fixup_external_program(n);
+	mem_free(n);
+	return nn;
 }
 
 void start_download(struct session *ses, unsigned char *file)
@@ -898,7 +922,9 @@ void start_download(struct session *ses, unsigned char *file)
 	struct download *down;
 	int h;
 	unsigned char *url = ses->dn_url;
+	unsigned char *pos;
 	if (!url) return;
+	if ((pos = extract_position(url))) mem_free(pos);
 	test_abort_downloads_to_file(file, ses->term->cwd, 1);
 	if ((h = create_download_file(ses, ses->term->cwd, file, 0, 0)) < 0) return;
 	down = mem_calloc(sizeof(struct download));
@@ -1030,7 +1056,7 @@ static void f_data_attach(struct f_data_c *fd, struct f_data *f)
 	fd->af = f->af;
 	if (f->af) {
 		f->af->refcount++;
-		foreach(af, f->af->af) {
+		foreachback(af, f->af->af) {
 			if (af->rq) {
 				af->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
 				af->rq->data = fd;
@@ -1097,8 +1123,9 @@ static int shrink_format_cache(int u)
 			r |= ST_SOMETHING_FREED;
 		} else c++;
 	}
-	if (u == SH_FREE_SOMETHING) c = max_format_cache_entries + 1;
-	if (c > max_format_cache_entries) {
+	if (c > max_format_cache_entries || (c && u == SH_FREE_SOMETHING)) {
+		int sc_cycle = 0;
+		unsigned char freed_in_cycle = 0;
 		a:
 		scc = sc++;
 		foreach (ses, sessions) if (!scc--) {
@@ -1108,21 +1135,52 @@ static int shrink_format_cache(int u)
 				del_from_list(ff);
 				destroy_formatted(ff);
 				r |= ST_SOMETHING_FREED;
-				if (--c <= max_format_cache_entries) goto ret;
+				if (--c <= max_format_cache_entries ||
+				    u == SH_FREE_SOMETHING) goto ret;
+				freed_in_cycle = 1;
+				goto a;
 			}
-			goto q;
+			goto a;
 		}
 		sc = 0;
+		sc_cycle++;
+		if (sc_cycle >= 2 && !freed_in_cycle)
+			goto ret;
+		freed_in_cycle = 0;
 		goto a;
-		q:;
 	}
 	ret:
-	return r | (!c) * ST_CACHE_EMPTY;
+	return r | (!c ? ST_CACHE_EMPTY : 0);
 }
 
 void init_fcache(void)
 {
 	register_cache_upcall(shrink_format_cache, "format");
+}
+
+static void calculate_scrollbars(struct f_data_c *fd, struct f_data *f)
+{
+	fd->hsb = 0, fd->vsb = 0;
+	fd->hsbsize = 0, fd->vsbsize = 0;
+	if (!f)
+		return;
+	if (f->opt.scrolling == SCROLLING_YES) {
+		fd->hsb = 1, fd->vsb = 1;
+	} else if (f->opt.scrolling == SCROLLING_AUTO) {
+		x:
+		if (!fd->hsb && f->x > fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH) {
+			fd->hsb = 1;
+			goto x;
+		}
+		if (!fd->vsb && f->y > fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH) {
+			fd->vsb = 1;
+			goto x;
+		}
+	}
+	if (fd->hsb) fd->hsbsize = fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH;
+	if (fd->vsb) fd->vsbsize = fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
+	if (fd->hsbsize < 0) fd->hsb = 0;
+	if (fd->vsbsize < 0) fd->vsb = 0;
 }
 
 struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq, unsigned char *url, struct document_options *opt, int *cch)
@@ -1137,8 +1195,9 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 	pr(
 	if (!jsint_get_source(fd, NULL, NULL) && fd->ses) {
 		if (fd->f_data && !strcmp(fd->f_data->rq->url, url) && !compare_opt(&fd->f_data->opt, opt) && is_format_cache_entry_uptodate(fd->f_data)) {
+			f = fd->f_data;
 			xpr();
-			return fd->f_data;
+			goto ret_f;
 		}
 		foreach(f, fd->ses->format_cache) {
 			if (!strcmp(f->rq->url, url) && !compare_opt(&f->opt, opt)) {
@@ -1155,7 +1214,7 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 				if (cch) *cch = 1;
 				f_data_attach(fd, f);
 				xpr();
-				return f;
+				goto ret_f;
 			}
 		}
 	}) {};
@@ -1163,6 +1222,8 @@ struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq
 	f = format_html(fd, rq, url, opt, cch);
 	if (f) f->fd = fd;
 	shrink_memory(SH_CHECK_QUOTA);
+ret_f:
+	calculate_scrollbars(fd, f);
 	return f;
 }
 
@@ -1238,7 +1299,7 @@ static void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, str
 	}
 }
 
-void html_interpret(struct f_data_c *fd)
+static void html_interpret(struct f_data_c *fd)
 {
 	int i;
 	int oxw; int oyw; int oxp; int oyp;
@@ -1276,10 +1337,17 @@ void html_interpret(struct f_data_c *fd)
 	o.bfu_aspect=0;
 #endif
 	o.plain = fd->vs->plain;
-	o.xp = fd->xp;
-	o.yp = fd->yp;
-	o.xw = fd->xw;
-	o.yw = fd->yw;
+	if (o.plain == 1) {
+		o.xp = 0;
+		o.yp = 0;
+		o.xw = MAXINT;
+		o.yw = MAXINT;
+	} else {
+		o.xp = fd->xp;
+		o.yp = fd->yp;
+		o.xw = fd->xw;
+		o.yw = fd->yw;
+	}
 	o.scrolling = fd->scrolling;
 	if (fd->ses->term->spec) {
 		o.col = fd->ses->term->spec->col;
@@ -1376,7 +1444,7 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 		}
 		f->af->refcount++;
 	}
-	foreach (af, f->af->af) if (!strcmp(af->url, url)) {
+	foreach(af, f->af->af) if (!strcmp(af->url, url)) {
 		mem_free(url);
 		return af;
 	}
@@ -1462,7 +1530,7 @@ void reinit_f_data_c(struct f_data_c *fd)
 		af->rq->upcall = NULL;
 		if (af->rq->state != O_OK) release_object(&af->rq);
 	}
-	if (fd->af) foreach(af, fd->af->af) if(af->rq) af->rq->upcall = NULL;
+	if (fd->af) foreach(af, fd->af->af) if (af->rq) af->rq->upcall = NULL;
 	detach_f_data(&fd->f_data);
 	if (fd->link_bg) mem_free(fd->link_bg), fd->link_bg = NULL;
 	fd->link_bg_n = 0;
@@ -1541,13 +1609,13 @@ static void decompress_error(struct terminal *term, struct cache_entry *ce, unsi
 	if (errp) *errp = 1;
 	else foreach(win, term->windows) if (win->handler == dialog_func) {
 		struct dialog_data *d = win->data;
-		if (d->dlg->title == TEXT(T_DECOMPRESSION_ERROR)) {
+		if (d->dlg->title == TEXT_(T_DECOMPRESSION_ERROR)) {
 			return;
 		}
 	}
 	u = stracpy(ce->url);
 	if ((uu = strchr(u, POST_CHAR))) *uu = 0;
-	msg_box(term, getml(u, NULL), TEXT(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_ERROR_DECOMPRESSING_), u, TEXT(T__wITH_), lib, ": ", msg, NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	msg_box(term, getml(u, NULL), TEXT_(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DECOMPRESSING_), u, TEXT_(T__wITH_), lib, ": ", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 #endif
 
@@ -1555,16 +1623,22 @@ static void decompress_error(struct terminal *term, struct cache_entry *ce, unsi
 #include <zlib.h>
 static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int defl, int *errp)
 {
-	char err;
-	char skip_gzip_header;
-	char old_zlib;
+	unsigned char err;
+	unsigned char memory_error;
+	unsigned char skip_gzip_header;
+	unsigned char old_zlib;
 	z_stream z;
 	off_t offset;
-	size_t header = 0;
+	size_t header;
 	int r;
 	unsigned char *p;
 	struct fragment *f;
-	size_t size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
+	size_t size;
+
+	retry_after_memory_error:
+	memory_error = 0;
+	header = 0;
+	size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
 	p = mem_alloc(size);
 	init_again:
 	err = 0;
@@ -1582,7 +1656,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 	init_failed:
 	switch (r) {
 		case Z_OK:		break;
-		case Z_MEM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_OUT_OF_MEMORY), errp);
+		case Z_MEM_ERROR:	memory_error = 1;
 					err = 1;
 					goto after_inflateend;
 		case Z_STREAM_ERROR:	
@@ -1626,12 +1700,12 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 			unsigned headlen = 10;
 			if (z.avail_in <= 11) goto finish;
 			if (head[0] != 0x1f || head[1] != 0x8b) {
-				decompress_error(term, ce, "zlib", TEXT(T_COMPRESSED_ERROR), errp);
+				decompress_error(term, ce, "zlib", TEXT_(T_COMPRESSED_ERROR), errp);
 				err = 1;
 				goto finish;
 			}
 			if (head[2] != 8 || head[3] & 0xe0) {
-				decompress_error(term, ce, "zlib", TEXT(T_UNKNOWN_COMPRESSION_METHOD), errp);
+				decompress_error(term, ce, "zlib", TEXT_(T_UNKNOWN_COMPRESSION_METHOD), errp);
 				err = 1;
 				goto finish;
 			}
@@ -1681,13 +1755,13 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 							if (r != Z_OK) goto end_failed;
 							goto init_again;
 						}
-						decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_COMPRESSED_ERROR), errp);
+						decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT_(T_COMPRESSED_ERROR), errp);
 						err = 1;
 						goto finish;
 			case Z_STREAM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflate", errp);
 						err = 1;
 						goto finish;
-			case Z_MEM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT(T_OUT_OF_MEMORY), errp);
+			case Z_MEM_ERROR:	memory_error = 1;
 						err = 1;
 						goto finish;
 			default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflate", errp);
@@ -1720,11 +1794,21 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 		case Z_STREAM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflateEnd", errp);
 					err = 1;
 					break;
+		case Z_MEM_ERROR:	memory_error = 1;
+					err = 1;
+					break;
 		default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateEnd", errp);
 					err = 1;
 					break;
 	}
 	after_inflateend:
+	if (memory_error) {
+		mem_free(p);
+		if (out_of_memory(NULL, 0))
+			goto retry_after_memory_error;
+		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT_(T_OUT_OF_MEMORY), errp);
+		return 1;
+	}
 	if (err && (unsigned char *)z.next_out == p) {
 		mem_free(p);
 		return 1;
@@ -1739,13 +1823,19 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 #include <bzlib.h>
 static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int *errp)
 {
-	int err = 0;
+	unsigned char err;
+	unsigned char memory_error;
 	bz_stream z;
 	off_t offset;
 	int r;
 	unsigned char *p;
 	struct fragment *f;
-	size_t size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
+	size_t size;
+
+	retry_after_memory_error:
+	err = 0;
+	memory_error = 0;
+	size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
 	p = mem_alloc(size);
 	memset(&z, 0, sizeof z);
 	z.next_in = NULL;
@@ -1759,7 +1849,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 	init_failed:
 	switch (r) {
 		case BZ_OK:		break;
-		case BZ_MEM_ERROR:	decompress_error(term, ce, "bzip2", TEXT(T_OUT_OF_MEMORY), errp);
+		case BZ_MEM_ERROR:	memory_error = 1;
 					err = 1;
 					goto after_inflateend;
 		case BZ_PARAM_ERROR:	
@@ -1789,13 +1879,13 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 						if (r != BZ_OK) goto init_failed;
 						break;
 			case BZ_DATA_ERROR_MAGIC:
-			case BZ_DATA_ERROR:	decompress_error(term, ce, "bzip2", TEXT(T_COMPRESSED_ERROR), errp);
+			case BZ_DATA_ERROR:	decompress_error(term, ce, "bzip2", TEXT_(T_COMPRESSED_ERROR), errp);
 						err = 1;
 						goto finish;
 			case BZ_PARAM_ERROR:	decompress_error(term, ce, "bzip2", "Internal error on BZ2_bzDecompress", errp);
 						err = 1;
 						goto finish;
-			case BZ_MEM_ERROR:	decompress_error(term, ce, "bzip2", TEXT(T_OUT_OF_MEMORY), errp);
+			case BZ_MEM_ERROR:	memory_error = 1;
 						err = 1;
 						goto finish;
 			default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompress", errp);
@@ -1819,11 +1909,21 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 		case BZ_PARAM_ERROR:	decompress_error(term, ce, "bzip2", "Internal error on BZ2_bzDecompressEnd", errp);
 					err = 1;
 					break;
+		case BZ_MEM_ERROR:	memory_error = 1;
+					err = 1;
+					break;
 		default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompressEnd", errp);
 					err = 1;
 					break;
 	}
 	after_inflateend:
+	if (memory_error) {
+		mem_free(p);
+		if (out_of_memory(NULL, 0))
+			goto retry_after_memory_error;
+		decompress_error(term, ce, "bzip2", TEXT_(T_OUT_OF_MEMORY), errp);
+		return 1;
+	}
 	if (err && (unsigned char *)z.next_out == p) {
 		mem_free(p);
 		return 1;
@@ -2088,7 +2188,8 @@ struct f_data_c *find_frame(struct session *ses, unsigned char *target, struct f
 		return ses->screen;
 	if (!strcasecmp(target, "_self")) return base;
 	if (!strcasecmp(target, "_parent")) {
-		for (ff = base->parent; ff && !ff->rq; ff = ff->parent) ;
+		for (ff = base->parent; ff && !ff->rq; ff = ff->parent)
+			;
 		return ff ? ff : ses->screen;
 	}
 	f = ses->screen;
@@ -2198,7 +2299,7 @@ static void continue_download(struct session *ses, unsigned char *file)
 				mem_free(file);
 				goto new_name;
 			}
-			msg_box(ses->term, NULL, TEXT(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_CREATE_TEMPORARY_FILE), NULL, NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+			msg_box(ses->term, NULL, TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_COULD_NOT_CREATE_TEMPORARY_FILE), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		}
 		if (ses->tq_prog) mem_free(file);
 		tp_cancel(ses);
@@ -2243,7 +2344,7 @@ static void continue_download(struct session *ses, unsigned char *file)
 static void tp_save(struct session *ses)
 {
 	if (ses->tq_prog) mem_free(ses->tq_prog), ses->tq_prog = NULL;
-	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, continue_download, tp_cancel);
+	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, &continue_download, tp_cancel);
 }
 
 static void tp_open(struct session *ses)
@@ -2289,7 +2390,7 @@ static int prog_sel_save(struct dialog_data *dlg, struct dialog_item_data* idata
 	struct session *ses=(struct session *)(dlg->dlg->udata2);
 
 	if (ses->tq_prog) mem_free(ses->tq_prog), ses->tq_prog = NULL;
-	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, continue_download, tp_cancel);
+	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, &continue_download, tp_cancel);
 
 	cancel_dialog(dlg,idata);
 	return 0;
@@ -2345,16 +2446,16 @@ static void vysad_dvere(struct dialog_data *dlg)
 	/* brainovi to tady pada !!!
 	add_to_str(&txt,&l,ses->tq->url);
 	add_to_str(&txt,&l," ");
-	add_to_str(&txt,&l,_(TEXT(T_HAS_TYPE),term));
+	add_to_str(&txt,&l,_(TEXT_(T_HAS_TYPE),term));
 	*/
-	add_to_str(&txt,&l,_(TEXT(T_CONTEN_TYPE_IS),term));
+	add_to_str(&txt,&l,_(TEXT_(T_CONTEN_TYPE_IS),term));
 	add_to_str(&txt,&l," ");
 	add_to_str(&txt,&l,ct);
 	add_to_str(&txt,&l,".\n");
 	if (!anonymous)
-		add_to_str(&txt,&l,_(TEXT(T_DO_YOU_WANT_TO_OPEN_SAVE_OR_DISPLAY_THIS_FILE),term));
+		add_to_str(&txt,&l,_(TEXT_(T_DO_YOU_WANT_TO_OPEN_SAVE_OR_DISPLAY_THIS_FILE),term));
 	else
-		add_to_str(&txt,&l,_(TEXT(T_DO_YOU_WANT_TO_OPEN_OR_DISPLAY_THIS_FILE),term));
+		add_to_str(&txt,&l,_(TEXT_(T_DO_YOU_WANT_TO_OPEN_OR_DISPLAY_THIS_FILE),term));
 
 	max_text_width(term, txt, &max, AL_CENTER);
 	min_text_width(term, txt, &min, AL_CENTER);
@@ -2390,7 +2491,7 @@ static void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, 
 
 	if ((unsigned)n > (MAXINT - sizeof(struct dialog)) / sizeof(struct dialog_item) - 4) overalloc();
 	d = mem_calloc(sizeof(struct dialog) + (n+3+(!anonymous)) * sizeof(struct dialog_item));
-	d->title = TEXT(T_WHAT_TO_DO);
+	d->title = TEXT_(T_WHAT_TO_DO);
 	d->fn = vysad_dvere;
 	d->udata = ct;
 	d->udata2=ses;
@@ -2398,7 +2499,7 @@ static void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, 
 
 	for (i=0;i<n;i++)
 	{
-		unsigned char *bla=stracpy(_(TEXT(T_OPEN_WITH),ses->term));
+		unsigned char *bla=stracpy(_(TEXT_(T_OPEN_WITH),ses->term));
 		add_to_strn(&bla," ");
 		add_to_strn(&bla,_(a[i].label,ses->term));
 		
@@ -2412,17 +2513,17 @@ static void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, 
 	{
 		d->items[i].type = D_BUTTON;
 		d->items[i].fn = prog_sel_save;
-		d->items[i].text = TEXT(T_SAVE);
+		d->items[i].text = TEXT_(T_SAVE);
 		i++;
 	}
 	d->items[i].type = D_BUTTON;
 	d->items[i].fn = prog_sel_display;
-	d->items[i].text = TEXT(T_DISPLAY);
+	d->items[i].text = TEXT_(T_DISPLAY);
 	i++;
 	d->items[i].type = D_BUTTON;
 	d->items[i].fn = prog_sel_cancel;
 	d->items[i].gid = B_ESC;
-	d->items[i].text = TEXT(T_CANCEL);
+	d->items[i].text = TEXT_(T_CANCEL);
 	d->items[i+1].type = D_END;
 	do_dialog(ses->term, d, ml);
 }
@@ -2447,12 +2548,12 @@ static void type_query(struct session *ses, unsigned char *ct, struct assoc *a, 
 	}
 	m1 = stracpy(ct);
 	if (!a) {
-		if (!anonymous) msg_box(ses->term, getml(m1, NULL), TEXT(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 3, TEXT(T_SAVE), tp_save, B_ENTER, TEXT(T_DISPLAY), tp_display, 0, TEXT(T_CANCEL), tp_cancel, B_ESC);
-		else msg_box(ses->term, getml(m1, NULL), TEXT(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 2, TEXT(T_DISPLAY), tp_display, B_ENTER, TEXT(T_CANCEL), tp_cancel, B_ESC);
+		if (!anonymous) msg_box(ses->term, getml(m1, NULL), TEXT_(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 3, TEXT_(T_SAVE), tp_save, B_ENTER, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
+		else msg_box(ses->term, getml(m1, NULL), TEXT_(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 2, TEXT_(T_DISPLAY), tp_display, B_ENTER, TEXT_(T_CANCEL), tp_cancel, B_ESC);
 	} else {
 		m2 = stracpy(a[0].label ? a[0].label : (unsigned char *)"");
-		if (!anonymous) msg_box(ses->term, getml(m1, m2, NULL), TEXT(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 4, TEXT(T_OPEN), tp_open, B_ENTER, TEXT(T_SAVE), tp_save, 0, TEXT(T_DISPLAY), tp_display, 0, TEXT(T_CANCEL), tp_cancel, B_ESC);
-		else msg_box(ses->term, getml(m1, m2, NULL), TEXT(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 3, TEXT(T_OPEN), tp_open, B_ENTER, TEXT(T_DISPLAY), tp_display, 0, TEXT(T_CANCEL), tp_cancel, B_ESC);
+		if (!anonymous) msg_box(ses->term, getml(m1, m2, NULL), TEXT_(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT_(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 4, TEXT_(T_OPEN), tp_open, B_ENTER, TEXT_(T_SAVE), tp_save, 0, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
+		else msg_box(ses->term, getml(m1, m2, NULL), TEXT_(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT_(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 3, TEXT_(T_OPEN), tp_open, B_ENTER, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
 	}
 	if (n)mem_free(a);
 	if (ct)mem_free(ct);
@@ -2548,7 +2649,7 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	ses_destroy_defered_jump(ses);
 	if ((fn = get_external_protocol_function(url))) {
 		if (proxies.only_proxies && url_bypasses_socks(url)) {
-			msg_box(ses->term, NULL, TEXT(T_ERROR), AL_CENTER, TEXT(T_NO_PROXY), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+			msg_box(ses->term, NULL, TEXT_(T_ERROR), AL_CENTER, TEXT_(T_NO_PROXY), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 			return;
 		}
 		fn(ses, url);
@@ -2720,7 +2821,7 @@ static struct session *create_session(struct window *win)
 	add_to_list(sessions, ses);
 	if (first_use) {
 		first_use = 0;
-		msg_box(term, NULL, TEXT(T_WELCOME), AL_CENTER | AL_EXTD_TEXT, TEXT(T_WELCOME_TO_LINKS), "\n\n", TEXT(T_BASIC_HELP), NULL, NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+		msg_box(term, NULL, TEXT_(T_WELCOME), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_WELCOME_TO_LINKS), "\n\n", TEXT_(T_BASIC_HELP), NULL, NULL, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
 	}
 	return ses;
 }
@@ -2892,7 +2993,7 @@ unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t s
 	here = cur_loc(ses)->url;
 
 	/* Find the length of the url */
-    if ((end_of_url = strchr(here, POST_CHAR))) {
+	if ((end_of_url = strchr(here, POST_CHAR))) {
 		url_len = (size_t)(end_of_url - (unsigned char *)here);
 	} else {
 		url_len = strlen(here);
@@ -2902,11 +3003,8 @@ unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t s
 	if (url_len >= str_size)
 			url_len = str_size - 1;
 
-	strncpy(str, here, url_len);
+	safe_strncpy(str, here, url_len + 1);
 
-	/* Ensure null termination */
-	str[url_len] = '\0';
-	
 	return str;
 }
 
@@ -2926,6 +3024,7 @@ unsigned char *get_current_title(struct session *ses, unsigned char *str, size_t
 	return safe_strncpy(str, fd->f_data->title, str_size);
 }
 
+#if 0
 /*
   Gets the url of the link currently selected. Writes it into str.
   A maximum of str_size bytes (including null) will be written.
@@ -2950,3 +3049,4 @@ unsigned char *get_current_link_url(struct session *ses, unsigned char *str, siz
 	
 	return safe_strncpy(str, l->where, str_size);
 }
+#endif

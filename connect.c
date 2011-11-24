@@ -15,7 +15,7 @@ static void log_data(unsigned char *data, int len)
 	static int hlaseno = 0;
 	int fd;
 	if (!hlaseno) {
-		printf("\n\e[1mWARNING -- LOGGING NETWORK TRANSFERS !!!\e[0m%c\n", 7);
+		printf("\n\033[1mWARNING -- LOGGING NETWORK TRANSFERS !!!\033[0m%c\n", 7);
 		fflush(stdout);
 		sleep(1);
 		hlaseno = 1;
@@ -31,7 +31,11 @@ static void log_data(unsigned char *data, int len)
 #define log_data(x, y)
 #endif
 
-void exception(struct connection *c)
+static void connected(struct connection *);
+static void dns_found(struct connection *, int);
+static void handle_socks_reply(struct connection *);
+
+static void exception(struct connection *c)
 {
 	setcstate(c, S_EXCEPT);
 	retry_connection(c);
@@ -45,8 +49,6 @@ void close_socket(int *s)
 	*s = -1;
 }
 
-void connected(struct connection *);
-
 struct conn_info {
 	void (*func)(struct connection *);
 	struct sockaddr_in sa;
@@ -56,16 +58,14 @@ struct conn_info {
 	int real_port;
 	int socks_byte_count;
 	unsigned char socks_reply[8];
+	unsigned char dns_append[1];
 };
-
-void dns_found(struct connection *, int);
-void handle_socks(struct connection *);
-void handle_socks_reply(struct connection *);
 
 void make_connection(struct connection *c, int port, int *sock, void (*func)(struct connection *))
 {
 	int real_port = -1;
 	int as;
+	unsigned char *dns_append = "";
 	unsigned char *host;
 	struct conn_info *b;
 	if (*c->socks_proxy) {
@@ -87,6 +87,7 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 				return;
 			}
 		}
+		dns_append = proxies.dns_append;
 	} else if (!(host = get_host_name(c->url))) {
 		setcstate(c, S_INTERNAL);
 		abort_connection(c);
@@ -94,12 +95,13 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 	}
 	if (c->newconn)
 		internal("already making a connection");
-	b = mem_alloc(sizeof(struct conn_info));
+	b = mem_alloc(sizeof(struct conn_info) + strlen(dns_append));
 	b->func = func;
 	b->sock = sock;
 	b->port = port;
 	b->real_port = real_port;
 	b->socks_byte_count = 0;
+	strcpy(b->dns_append, dns_append);
 	c->newconn = b;
 	log_data("\nCONNECTION: ", 13);
 	log_data(host, strlen(host));
@@ -120,7 +122,7 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 	memset(&sb, 0, sizeof sb);
 	if (getsockname(cc, (struct sockaddr *)(void *)&sa, &len)) {
 		e:
-		setcstate(c, -errno);
+		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
 		return -1;
 	}
@@ -169,7 +171,7 @@ static void ssl_want_read(struct connection *c)
 }
 #endif
 
-void handle_socks(struct connection *c)
+static void handle_socks(struct connection *c)
 {
 	struct conn_info *b = c->newconn;
 	unsigned char *command = init_str();
@@ -192,13 +194,19 @@ void handle_socks(struct connection *c)
 		return;
 	}
 	add_to_str(&command, &len, host);
-	add_to_str(&command, &len, proxies.dns_append);
+	add_to_str(&command, &len, b->dns_append);
 	add_chr_to_str(&command, &len, 0);
 	mem_free(host);
+	if (b->socks_byte_count >= len) {
+		mem_free(command);
+		setcstate(c, S_MODIFIED);
+		retry_connection(c);
+		return;
+	}
 	wr = write(*b->sock, command + b->socks_byte_count, len - b->socks_byte_count);
 	mem_free(command);
 	if (wr <= 0) {
-		setcstate(c, wr ? -errno : S_CANT_WRITE);
+		setcstate(c, wr ? get_error_from_errno(errno) : S_CANT_WRITE);
 		retry_connection(c);
 		return;
 	}
@@ -213,14 +221,14 @@ void handle_socks(struct connection *c)
 	}
 }
 
-void handle_socks_reply(struct connection *c)
+static void handle_socks_reply(struct connection *c)
 {
 	struct conn_info *b = c->newconn;
 	int rd;
 	set_timeout(c);
 	rd = read(*b->sock, b->socks_reply + b->socks_byte_count, sizeof b->socks_reply - b->socks_byte_count);
 	if (rd <= 0) {
-		setcstate(c, rd ? -errno : S_CANT_READ);
+		setcstate(c, rd ? get_error_from_errno(errno) : S_CANT_READ);
 		retry_connection(c);
 		return;
 	}
@@ -256,7 +264,7 @@ void handle_socks_reply(struct connection *c)
 	connected(c);
 }
 
-void dns_found(struct connection *c, int state)
+static void dns_found(struct connection *c, int state)
 {
 	int s;
 	struct conn_info *b = c->newconn;
@@ -266,7 +274,7 @@ void dns_found(struct connection *c, int state)
 		return;
 	}
 	if ((s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
-		setcstate(c, -errno);
+		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
 		return;
 	}
@@ -278,7 +286,10 @@ void dns_found(struct connection *c, int state)
 	b->sa.sin_port = htons(b->port);
 	if (connect(s, (struct sockaddr *)(void *)&b->sa, sizeof b->sa)) {
 		if (errno != EALREADY && errno != EINPROGRESS) {
-			setcstate(c, -errno);
+#ifdef BEOS
+			if (errno == EWOULDBLOCK) errno = ETIMEDOUT;
+#endif
+			setcstate(c, get_error_from_errno(errno));
 			retry_connection(c);
 			return;
 		}
@@ -289,7 +300,7 @@ void dns_found(struct connection *c, int state)
 	}
 }
 
-void connected(struct connection *c)
+static void connected(struct connection *c)
 {
 	struct conn_info *b = c->newconn;
 	int err = 0;
@@ -302,7 +313,7 @@ void connected(struct connection *c)
 	if (err >= 10000) err -= 10000;	/* Why does EMX return so large values? */
 	if (err > 0) {
 		bla:
-		setcstate(c, -err);
+		setcstate(c, get_error_from_errno(err));
 		retry_connection(c);
 		return;
 	}
@@ -374,7 +385,7 @@ static void write_select(struct connection *c)
 		if ((wr = SSL_write(c->ssl, wb->data + wb->pos, wb->len - wb->pos)) <= 0) {
 			int err;
 			if ((err = SSL_get_error(c->ssl, wr)) != SSL_ERROR_WANT_WRITE) {
-				setcstate(c, wr ? (err == SSL_ERROR_SYSCALL ? -errno : S_SSL_ERROR) : S_CANT_WRITE);
+				setcstate(c, wr ? (err == SSL_ERROR_SYSCALL ? get_error_from_errno(errno) : S_SSL_ERROR) : S_CANT_WRITE);
 				if (!wr || err == SSL_ERROR_SYSCALL) retry_connection(c);
 				else abort_connection(c);
 				return;
@@ -390,7 +401,7 @@ static void write_select(struct connection *c)
 				return;
 			}
 #endif
-			setcstate(c, wr ? -errno : S_CANT_WRITE);
+			setcstate(c, wr ? get_error_from_errno(errno) : S_CANT_WRITE);
 			retry_connection(c);
 			return;
 		}
@@ -418,7 +429,7 @@ void write_to_socket(struct connection *c, int s, unsigned char *data, int len, 
 	memcpy(wb->data, data, len);
 	if (c->buffer) mem_free(c->buffer);
 	c->buffer = wb;
-	set_handlers(s, NULL, (void (*)(void*))write_select, (void (*)(void*))exception, c);  /* code review */
+	set_handlers(s, NULL, (void (*)(void *))write_select, (void (*)(void *))exception, c);
 }
 
 #define READ_SIZE	64240
@@ -451,7 +462,7 @@ static void read_select(struct connection *c)
 				rb->done(c, rb);
 				return;
 			}
-			setcstate(c, rd ? (err == SSL_ERROR_SYSCALL ? -errno : S_SSL_ERROR) : S_CANT_READ);
+			setcstate(c, rd ? (err == SSL_ERROR_SYSCALL ? get_error_from_errno(errno) : S_SSL_ERROR) : S_CANT_READ);
 			/*mem_free(rb);*/
 			if (!rd || err == SSL_ERROR_SYSCALL) retry_connection(c);
 			else abort_connection(c);
@@ -481,7 +492,7 @@ static void read_select(struct connection *c)
 					mem_free(prot);
 				}
 			}
-			setcstate(c, rd ? -errno : S_CANT_READ);
+			setcstate(c, rd ? get_error_from_errno(errno) : S_CANT_READ);
 			/*mem_free(rb);*/
 			retry_connection(c);
 			return;
@@ -505,7 +516,7 @@ void read_from_socket(struct connection *c, int s, struct read_buffer *buf, void
 	buf->sock = s;
 	if (c->buffer && buf != c->buffer) mem_free(c->buffer);
 	c->buffer = buf;
-	set_handlers(s, (void (*)(void*))read_select, NULL, (void (*)(void*))exception, c); /* code review */
+	set_handlers(s, (void (*)(void *))read_select, NULL, (void (*)(void *))exception, c);
 }
 
 void kill_buffer_data(struct read_buffer *rb, int n)

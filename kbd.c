@@ -272,7 +272,7 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))mouse_queue_event, itrm);
 	itrm->orig_title = get_window_title();
 	set_window_title("Links");
-	send_init_sequence(std_out,itrm->flags);
+	send_init_sequence(std_out, itrm->flags);
 }
 
 static void unblock_itrm_x(void *h)
@@ -290,7 +290,7 @@ int unblock_itrm(int fd)
 	if (itrm->ctl_in >= 0 && setraw(itrm->ctl_in, NULL)) return -1;
 	if (itrm->blocked != fd + 1) return -2;
 	itrm->blocked = 0;
-	send_init_sequence(itrm->std_out,itrm->flags);
+	send_init_sequence(itrm->std_out, itrm->flags);
 	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm->free_trm, itrm);
 	handle_terminal_resize(itrm->ctl_in, resize_terminal);
 	unblock_stdin();
@@ -362,17 +362,15 @@ void dispatch_special(unsigned char *text)
 	}
 }
 
-unsigned char buf[OUT_BUF_SIZE];
+static unsigned char buf[OUT_BUF_SIZE];
 
-/*#define RD ({ char cc; if (p < c) cc = buf[p++]; else if ((dl = hard_read(itrm->sock_in, &cc, 1)) <= 0) {debug("%d %d", dl, errno);goto fr;} cc; })*/
-/*udefine RD ({ char cc; if (p < c) cc = buf[p++]; else if ((hard_read(itrm->sock_in, &cc, 1)) <= 0) goto fr; cc; })*/
 #define RD(xx) { unsigned char cc; if (p < c) cc = buf[p++]; else if ((hard_read(itrm->sock_in, &cc, 1)) <= 0) goto fr; xx = cc; }
 
 static void in_sock(struct itrm *itrm)
 {
 	unsigned char *path, *delete;
 	int pl, dl;
-	char ch;
+	unsigned char ch;
 	int fg;
 	int c, i, p;
 	if ((c = read(itrm->sock_in, buf, OUT_BUF_SIZE)) <= 0) {
@@ -449,14 +447,14 @@ static void in_sock(struct itrm *itrm)
 }
 
 static int process_queue(struct itrm *);
-static int get_esc_code(char *, int, char *, int *, int *);
+static int get_esc_code(unsigned char *, int, unsigned char *, int *, int *);
 
 static void kbd_timeout(struct itrm *itrm)
 {
 	struct event ev = { EV_KBD, KBD_ESC, 0, 0 };
-	char code;
+	unsigned char code;
 	int num;
-	int len;
+	int len = 0;	/* against warning */
 	itrm->tm = -1;
 	if (can_read(itrm->std_in)) {
 		in_kbd(itrm);
@@ -470,10 +468,11 @@ static void kbd_timeout(struct itrm *itrm)
 	if (get_esc_code(itrm->kqueue, itrm->qlen, &code, &num, &len)) len = 1;
 	itrm->qlen -= len;
 	memmove(itrm->kqueue, itrm->kqueue + len, itrm->qlen);
-	while (process_queue(itrm)) ;
+	while (process_queue(itrm))
+		;
 }
 
-static int get_esc_code(char *str, int len, char *code, int *num, int *el)
+static int get_esc_code(unsigned char *str, int len, unsigned char *code, int *num, int *el)
 {
 	int pos;
 	*num = 0;
@@ -780,17 +779,42 @@ struct os2_key os2xtd[256] = {
 /* 256 */
 };
 
-int xterm_button = -1;
+static int xterm_button = -1;
+
+static int is_interix(void)
+{
+#ifdef INTERIX
+	return 1;
+#else
+	unsigned char *term = getenv("TERM");
+	return term && !strncmp(term, "interix", 7);
+#endif
+}
+
+static int is_ibm(void)
+{
+	unsigned char *term = getenv("TERM");
+	return term && !strncmp(term, "ibm", 3);
+}
 
 static int process_queue(struct itrm *itrm)
 {
 	struct event ev = { EV_KBD, -1, 0, 0 };
 	int el = 0;
 	if (!itrm->qlen) goto end;
+	/*{
+		int i;
+		fprintf(stderr, "queue:");
+		for (i = 0; i < itrm->qlen; i++) {
+			fprintf(stderr, " %d", itrm->kqueue[i]);
+			if (itrm->kqueue[i] >= 32) fprintf(stderr, "[%c]", itrm->kqueue[i]);
+		}
+		fprintf(stderr, ".\n");
+	}*/
 	if (itrm->kqueue[0] == '\033') {
 		if (itrm->qlen < 2) goto ret;
 		if (itrm->kqueue[1] == '[' || itrm->kqueue[1] == 'O') {
-			char c;
+			unsigned char c = 0;
 			int v;
 			if (itrm->qlen >= 4 && itrm->kqueue[2] == '[') {
 				if (itrm->kqueue[3] < 'A' || itrm->kqueue[3] > 'L') goto ret;
@@ -798,6 +822,7 @@ static int process_queue(struct itrm *itrm)
 				el = 4;
 			} else if (get_esc_code(itrm->kqueue, itrm->qlen, &c, &v, &el)) goto ret;
 			else switch (c) {
+				case 'L':
 				case '@': ev.x = KBD_INS; break;
 				case 'A': ev.x = KBD_UP; break;
 				case 'B': ev.x = KBD_DOWN; break;
@@ -811,15 +836,51 @@ static int process_queue(struct itrm *itrm)
 				case 'V':
 				case 'I': ev.x = KBD_PAGE_UP; break;
 				case 'U':
+					if (is_interix()) {
+						ev.x = KBD_END;
+						break;
+					}
 				case 'G': ev.x = KBD_PAGE_DOWN; break;
-				case 'P': ev.x = KBD_F1; break;
+				case 'P':
+					if (is_ibm()) {
+						ev.x = KBD_DEL;
+						break;
+					}
+					ev.x = KBD_F1; break;
 				case 'Q': ev.x = KBD_F2; break;
-				case 'S': ev.x = KBD_F4; break;
-				case 'T': ev.x = KBD_F5; break;
+				case 'S':
+					if (is_interix()) {
+						ev.x = KBD_PAGE_UP;
+						break;
+					}
+					ev.x = KBD_F4; break;
+				case 'T':
+					if (is_interix()) {
+						ev.x = KBD_PAGE_DOWN;
+						break;
+					}
+					ev.x = KBD_F5; break;
 				case 'W': ev.x = KBD_F8; break;
 				case 'X': ev.x = KBD_F9; break;
 				case 'Y': ev.x = KBD_F11; break;
 
+				case 'q': switch (v) {
+					case 139: ev.x = KBD_INS; break;
+					case 146: ev.x = KBD_END; break;
+					case 150: ev.x = KBD_PAGE_UP; break;
+					case 154: ev.x = KBD_PAGE_DOWN; break;
+					default: if (v >= 1 && v <= 48) {
+							int fn = (v - 1) % 12;
+							int mod = (v - 1) / 12;
+							ev.x = KBD_F1 - fn;
+							if (mod == 1)
+								ev.y |= KBD_SHIFT;
+							if (mod == 2)
+								ev.y |= KBD_CTRL;
+							if (mod == 3)
+								ev.y |= KBD_ALT;
+						} break;
+					} break;
 				case 'z': switch (v) {
 					case 247: ev.x = KBD_INS; break;
 					case 214: ev.x = KBD_HOME; break;
@@ -892,7 +953,37 @@ static int process_queue(struct itrm *itrm)
 				ev.x = KBD_DEL;
 				ev.y = 0;
 				goto l2;
+			} else if (itrm->kqueue[1] == 'F' && is_interix()) {
+				int num;
+				if (itrm->qlen < 3) goto ret;
+				if (itrm->kqueue[2] >= '1' && itrm->kqueue[2] <= '9') {
+					num = itrm->kqueue[2] - '1';
+				} else if (itrm->kqueue[2] >= 'A' && itrm->kqueue[2] <= 'Z') {
+					num = itrm->kqueue[2] - 'A' + 9;
+				} else if (itrm->kqueue[2] >= 'a' && itrm->kqueue[2] <= 'k') {
+					num = itrm->kqueue[2] - 'a' + 35;
+				} else if (itrm->kqueue[2] >= 'm' && itrm->kqueue[2] <= 'z') {
+					num = itrm->kqueue[2] - 'a' + 34;
+				} else goto do_alt;
+				if (num < 12) {
+					ev.x = KBD_F1 - num;
+				} else if (num < 24) {
+					ev.x = KBD_F1 - (num - 12);
+					ev.y |= KBD_SHIFT;
+				} else if (num < 36) {
+					ev.x = KBD_F1 - (num - 24);
+					ev.y |= KBD_ALT;
+				} else if (num < 48) {
+					ev.x = KBD_F1 - (num - 36);
+					ev.y |= KBD_CTRL;
+				} else {
+					ev.x = KBD_F1 - (num - 48);
+					ev.y |= KBD_SHIFT | KBD_CTRL;
+				}
+				el = 3;
+				goto l1;
 			} else {
+do_alt:
 				ev.x = itrm->kqueue[1];
 				ev.y |= KBD_ALT;
 				goto l2;
@@ -919,7 +1010,10 @@ static int process_queue(struct itrm *itrm)
 	if (ev.x == 9) ev.x = KBD_TAB;
 	if (ev.x == 10) ev.x = KBD_ENTER/*, ev.y = KBD_CTRL*/;
 	if (ev.x == 13) ev.x = KBD_ENTER;
-	if (ev.x == 127) ev.x = KBD_BS;
+	if (ev.x == 127) {
+		if (is_interix()) ev.x = KBD_DEL;
+		else ev.x = KBD_BS;
+	}
 	if (ev.x >= 0 && ev.x < ' ') {
 		ev.x += 'A' - 1;
 		ev.y |= KBD_CTRL;
@@ -951,7 +1045,8 @@ static void in_kbd(struct itrm *itrm)
 	if (itrm->tm != -1) kill_timer(itrm->tm), itrm->tm = -1;
 	if (itrm->qlen >= IN_BUF_SIZE) {
 		set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm->free_trm, itrm);
-		while (process_queue(itrm));
+		while (process_queue(itrm))
+			;
 		return;
 	}
 	if ((r = read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen)) <= 0) {
@@ -964,7 +1059,8 @@ static void in_kbd(struct itrm *itrm)
 		error("ERROR: too many bytes read");
 		itrm->qlen = IN_BUF_SIZE;
 	}
-	while (process_queue(itrm));
+	while (process_queue(itrm))
+		;
 }
 
 #if defined(GRDRV_SVGALIB) || defined(GRDRV_FB)

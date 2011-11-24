@@ -7,12 +7,11 @@
 #include "links.h"
 
 #define ACCEPT_NONE	0
-#define ACCEPT_ASK	1
-#define ACCEPT_ALL	2
+#define ACCEPT_ALL	1
 
-int accept_cookies = ACCEPT_ALL;
+static int accept_cookies = ACCEPT_ALL;
 
-tcount cookie_id = 0;
+static tcount cookie_id = 0;
 
 struct list_head cookies = { &cookies, &cookies };
 
@@ -25,7 +24,7 @@ struct c_server {
 	unsigned char server[1];
 };
 
-struct list_head c_servers = { &c_servers, &c_servers };
+static struct list_head c_servers = { &c_servers, &c_servers };
 
 void free_cookie(struct cookie *c)
 {
@@ -85,7 +84,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	struct c_server *cs;
 	unsigned char *p, *q, *s, *server, *date;
 	if (accept_cookies == ACCEPT_NONE) return 0;
-	for (p = str; *p != ';' && *p; p++) /*if (WHITECHAR(*p)) return 0*/;
+	for (p = str; *p != ';' && *p; p++) {/*if (WHITECHAR(*p)) return 0*/}
 	for (q = str; *q != '='; q++) if (!*q || q >= p) {
 		noval = 1;
 		break;

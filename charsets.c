@@ -397,9 +397,9 @@ unsigned char *convert_string(struct conv_table *ct, unsigned char *c, int l, st
 	}
 	buffer = mem_alloc(ALLOC_GR);
 	while (pp < l) {
-		unsigned char *e;
+		unsigned char *e = NULL;	/* against warning */
 		if (c[pp] < 128 && c[pp] != '&') {
-			putc:
+			put_c:
 			buffer[bp++] = c[pp++];
 			if (!(bp & (ALLOC_GR - 1))) {
 				if ((unsigned)bp > MAXINT - ALLOC_GR) overalloc();
@@ -410,7 +410,7 @@ unsigned char *convert_string(struct conv_table *ct, unsigned char *c, int l, st
 		if (c[pp] != '&') {
 			struct conv_table *t;
 			int i;
-			if (!ct) goto putc;
+			if (!ct) goto put_c;
 			t = ct;
 			i = pp;
 			decode:
@@ -418,15 +418,15 @@ unsigned char *convert_string(struct conv_table *ct, unsigned char *c, int l, st
 				e = t[c[i]].u.str;
 			} else {
 				t = t[c[i++]].u.tbl;
-				if (i >= l) goto putc;
+				if (i >= l) goto put_c;
 				goto decode;
 			}
 			pp = i + 1;
 		} else {
 			int i = pp + 1;
-			if (!dopt || dopt->plain) goto putc;
+			if (!dopt || dopt->plain) goto put_c;
 			while (i < l && c[i] != ';' && c[i] != '&' && c[i] > ' ') i++;
-			if (!(e = get_entity_string(&c[pp + 1], i - pp - 1, dopt->cp))) goto putc;
+			if (!(e = get_entity_string(&c[pp + 1], i - pp - 1, dopt->cp))) goto put_c;
 			pp = i + (i < l && c[i] == ';');
 		}
 		if (!e[0]) continue;

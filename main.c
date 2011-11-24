@@ -36,16 +36,18 @@ static void sig_ctrl_c(struct terminal *t)
 	if (!is_blocked()) kbd_ctrl_c();
 }
 
-void sig_ign(void *x)
+#ifdef SIGTTOU
+static void sig_ign(void *x)
 {
 }
+#endif
 
 static int fg_poll_timer = -1;
 
 void sig_tstp(struct terminal *t)
 {
-#ifdef SIGSTOP
-#if defined (SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
+#if defined(SIGSTOP) && !defined(NO_CTRL_Z)
+#if defined(SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
 	pid_t pid = getpid();
 	pid_t newpid;
 #endif
@@ -57,7 +59,7 @@ void sig_tstp(struct terminal *t)
 		drv->block(NULL);
 	}
 #endif
-#if defined (SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
+#if defined(SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
 	if (!(newpid = fork())) {
 		while (1) {
 			sleep(1);
@@ -66,7 +68,7 @@ void sig_tstp(struct terminal *t)
 	}
 #endif
 	raise(SIGSTOP);
-#if defined (SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
+#if defined(SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
 	if (newpid != -1) kill(newpid, SIGKILL);
 #endif
 #endif
@@ -196,8 +198,8 @@ int attach_g_terminal(void *info, int len)
 
 #endif
 
-struct object_request *dump_obj;
-off_t dump_pos;
+static struct object_request *dump_obj;
+static off_t dump_pos;
 
 static void end_dump(struct object_request *r, void *p)
 {
@@ -267,10 +269,10 @@ unsigned char **g_argv;
 
 unsigned char *path_to_exe;
 
-int init_b = 0;
+static unsigned char init_b = 0;
 
-void initialize_all_subsystems(void);
-void initialize_all_subsystems_2(void);
+static void initialize_all_subsystems(void);
+static void initialize_all_subsystems_2(void);
 
 static void init(void)
 {
@@ -294,6 +296,9 @@ static void init(void)
 	}
 	if (ggr_drv[0] || ggr_mode[0]) ggr = 1;
 	if (dmp) ggr = 0;
+	if (!dmp && !ggr) {
+		init_os_terminal();
+	}
 	if (!ggr && !no_connect && (uh = bind_to_af_unix()) != -1) {
 		close(terminal_pipe[0]);
 		close(terminal_pipe[1]);
@@ -365,7 +370,7 @@ static void init(void)
 }
 
 /* Is called before gaphics driver init */
-void initialize_all_subsystems(void)
+static void initialize_all_subsystems(void)
 {
 	init_trans();
 	set_sigcld();
@@ -377,7 +382,7 @@ void initialize_all_subsystems(void)
 }
 
 /* Is called sometimes after and sometimes before graphics driver init */
-void initialize_all_subsystems_2(void)
+static void initialize_all_subsystems_2(void)
 {
 	GF(init_dip());
 	init_bfu();
@@ -421,20 +426,20 @@ static void terminate_all_subsystems(void)
 	GF(shutdown_graphics());
 	terminate_osdep();
 	if (clipboard) mem_free(clipboard);
+	if (fg_poll_timer != -1) kill_timer(fg_poll_timer), fg_poll_timer = -1;
 }
 
 int main(int argc, char *argv[])
 {
-	path_to_exe = argv[0];
 	g_argc = argc;
 	g_argv = (unsigned char **)argv;
+
+	init_os();
 
 	get_path_to_exe();
 
 	select_loop(init);
 	terminate_all_subsystems();
-
-	if (fg_poll_timer != -1) kill_timer(fg_poll_timer), fg_poll_timer = -1;
 
 	check_memory_leaks();
 	return retval;

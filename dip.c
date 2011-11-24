@@ -61,7 +61,7 @@ unsigned long aspect_native=65536; /* Like aspect, but not influenced by
  * If you change them, don't wonder if the letters start to look strange.
  * The numers in the comments denote which height the line applies for.
  */
-float fancy_constants[64]={
+static float fancy_constants[64]={
 	0,3,		/*  1 */
 	.1,3,   	/*  2 */
 	.2,3,   	/*  3 */
@@ -1274,11 +1274,13 @@ void apply_gamma_exponent_24_to_48_table(unsigned short *dest, unsigned char *sr
 	}
 }
 
+#if 0
 /* Input is 0-255 (8-bit). Output is 0-255 (8-bit)*/
 unsigned char apply_gamma_single_8_to_8(unsigned char input, float gamma)
 {
 	return 255*pow(((float) input)/255,gamma)+0.5;
 }
+#endif
 
 /* Input is 0-255 (8-bit). Output is 0-65535 (16-bit)*/
 /* We assume unsigned short holds at least 16 bits. */
@@ -1448,7 +1450,7 @@ unsigned char *png_data, int png_length, struct style *style)
 		if (color_type==PNG_COLOR_TYPE_PALETTE){
 			png_set_expand(png_ptr);
 #ifdef HAVE_PNG_SET_RGB_TO_GRAY
-			png_set_rgb_to_gray(png_ptr,1,54.0*256,183.0*256);
+			png_set_rgb_to_gray(png_ptr, 1, -1, -1);
 #else
 			goto end;
 #endif
@@ -1459,7 +1461,7 @@ unsigned char *png_data, int png_length, struct style *style)
 		if (color_type==PNG_COLOR_TYPE_RGB ||
 			color_type==PNG_COLOR_TYPE_RGB_ALPHA){
 #ifdef HAVE_PNG_SET_RGB_TO_GRAY
-			png_set_rgb_to_gray(png_ptr, 1, 54.0*256, 183.0*256);
+			png_set_rgb_to_gray(png_ptr, 1, -1, -1);
 #else
 			goto end;
 #endif
@@ -1614,11 +1616,13 @@ static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 		decimate_3(&primary_data,new->bitmap.x,new->bitmap.y);
 	}
 	/* We have a buffer with photons */
-	gd->get_empty_bitmap(&(new->bitmap));
+	if (gd->get_empty_bitmap(&(new->bitmap)))
+		goto skip_dither;
 	if (dither_letters)
 		dither(primary_data, &(new->bitmap));
 	else
 		(*round_fn)(primary_data,&(new->bitmap));
+	skip_dither:
 	mem_free(primary_data);
 	gd->register_bitmap(&(new->bitmap));
 	if (do_free){
@@ -2132,8 +2136,10 @@ void get_links_icon(unsigned char **data, int *width, int* height, int depth)
 	*width=b.x;
 	*height=b.y;
 	b.skip=b.x*(depth&7);
+	retry:
 	if (!(b.data=*data=malloc(b.skip*b.y))) {
-		malloc_oom();
+		out_of_memory("icon malloc", b.skip*b.y);
+		goto retry;
 	}
 	tmp1=mem_alloc(6*b.y*b.x);
         apply_gamma_exponent_24_to_48(tmp1,links_icon,b.x*b.y,g,g,g);

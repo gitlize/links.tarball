@@ -41,7 +41,7 @@ extern struct graphics_driver sdl_driver;
  *	would work in X too and it's undesirable).
  */
 
-struct graphics_driver *graphics_drivers[] = {
+static struct graphics_driver *graphics_drivers[] = {
 #ifdef GRDRV_PMSHELL
 	&pmshell_driver,
 #endif
@@ -53,11 +53,12 @@ struct graphics_driver *graphics_drivers[] = {
 	&x_driver,
 #endif
 #endif
+#ifdef GRDRV_FB
+	/* use FB before DirectFB because DirectFB has bugs */
+	&fb_driver,
+#endif
 #ifdef GRDRV_DIRECTFB
 	&directfb_driver,
-#endif
-#ifdef GRDRV_FB
-	&fb_driver,
 #endif
 #ifdef GRDRV_SVGALIB
 	&svga_driver,
@@ -110,8 +111,7 @@ static unsigned char *init_graphics_driver(struct graphics_driver *gd, unsigned 
 	if (!param || !*param) p = dp->param;
 	gd->codepage=dp->codepage;
 	gd->shell=mem_calloc(MAX_STR_LEN);
-	if (dp->shell) strncpy(gd->shell,dp->shell,MAX_STR_LEN);
-	gd->shell[MAX_STR_LEN-1]=0;
+	if (dp->shell) safe_strncpy(gd->shell,dp->shell,MAX_STR_LEN);
 	r = gd->init_driver(p,display);
 	if (r) mem_free(gd->shell), gd->shell = NULL;
 	return r;
@@ -124,7 +124,7 @@ unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsign
 	struct graphics_driver **gd;
 #if defined(GRDRV_PMSHELL) && defined(GRDRV_X)
 	if (is_xterm()) {
-		static int swapped = 0;
+		static unsigned char swapped = 0;
 		if (!swapped) {
 			for (gd = graphics_drivers; *gd; gd++) {
 				if (*gd == &pmshell_driver) *gd = &x_driver;
@@ -192,12 +192,12 @@ void update_driver_param(void)
 
 #if defined(GRDRV_SVGALIB)|defined(GRDRV_FB)
 
-struct graphics_driver *virtual_device_driver;
+static struct graphics_driver *virtual_device_driver;
 struct graphics_device **virtual_devices;
 int n_virtual_devices = 0;
 struct graphics_device *current_virtual_device;
 
-int virtual_device_timer;
+static int virtual_device_timer;
 
 int init_virtual_devices(struct graphics_driver *drv, int n)
 {
@@ -214,13 +214,12 @@ int init_virtual_devices(struct graphics_driver *drv, int n)
 	return 0;
 }
 
-struct graphics_device *init_virtual_device()
+struct graphics_device *init_virtual_device(void)
 {
 	int i;
 	for (i = 0; i < n_virtual_devices; i++) if (!virtual_devices[i]) {
 		struct graphics_device *dev;
 		dev = mem_calloc(sizeof(struct graphics_device));
-		dev->drv = virtual_device_driver;
 		dev->size.x2 = virtual_device_driver->x;
 		dev->size.y2 = virtual_device_driver->y;
 		current_virtual_device = virtual_devices[i] = dev;

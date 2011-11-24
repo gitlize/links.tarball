@@ -26,22 +26,21 @@
 #define RED_ZONE_INC	0
 #endif
 
-void er(int, unsigned char *, va_list); /* prototype */
-
 volatile char dummy_val;
 volatile char * volatile dummy_ptr = &dummy_val;
+volatile char * volatile x_ptr;
 
 void *do_not_optimize_here(void *p)
 {
-	*dummy_ptr = 0;
 	/* break ANSI aliasing */
+	x_ptr = p;
+	*dummy_ptr = 0;
 	return p;
 }
 
 #ifdef LEAK_DEBUG
 
 long mem_amount = 0;
-long last_mem_amount = -1;
 #define ALLOC_MAGIC		0xa110c
 #define ALLOC_FREE_MAGIC	0xf4ee
 #define ALLOC_REALLOC_MAGIC	0x4ea110c
@@ -49,19 +48,19 @@ long last_mem_amount = -1;
 #ifndef LEAK_DEBUG_LIST
 struct alloc_header {
 	int magic;
-	int size;
+	size_t size;
 };
 #else
 struct alloc_header {
 	struct alloc_header *next;
 	struct alloc_header *prev;
+	size_t size;
 	int magic;
-	int size;
 	int line;
 	unsigned char *file;
 	unsigned char *comment;
 };
-struct list_head memory_list = { &memory_list, &memory_list };
+static struct list_head memory_list = { &memory_list, &memory_list };
 #endif
 
 #define L_D_S ((sizeof(struct alloc_header) + 15) & ~15)
@@ -91,7 +90,7 @@ void check_memory_leaks(void)
 			int r = 0;
 			struct alloc_header *ah;
 			foreach (ah, memory_list) {
-				fprintf(stderr, "%s%p:%d @ %s:%d", r ? ", ": "", (char *)ah + L_D_S, ah->size, ah->file, ah->line), r = 1;
+				fprintf(stderr, "%s%p:%lu @ %s:%d", r ? ", ": "", (unsigned char *)ah + L_D_S, (unsigned long)ah->size, ah->file, ah->line), r = 1;
 				if (ah->comment) fprintf(stderr, ":\"%s\"", ah->comment);
 			}
 			fprintf(stderr, "\n");
@@ -103,9 +102,9 @@ void check_memory_leaks(void)
 #endif
 }
 
-void er(int b, unsigned char *m, va_list l)
+static void er(int b, unsigned char *m, va_list l)
 {
-	if (b) fprintf(stderr, "%c", (char)7);
+	if (b) fprintf(stderr, "%c", (unsigned char)7);
 #ifdef HAVE_VPRINTF
 	vfprintf(stderr, m, l);
 #else
@@ -126,7 +125,7 @@ void error(unsigned char *m, ...)
 int errline;
 unsigned char *errfile;
 
-unsigned char errbuf[4096];
+static unsigned char errbuf[4096];
 
 void int_error(unsigned char *m, ...)
 {
@@ -161,24 +160,24 @@ void *debug_mem_alloc(unsigned char *file, int line, size_t size)
 #ifdef LEAK_DEBUG
 	struct alloc_header *ah;
 #endif
+	debug_test_free(file, line);
 	if (!size) return DUMMY;
 	if (size > MAXINT) overalloc();
 #ifdef LEAK_DEBUG
 	mem_amount += size;
 	size += L_D_S;
 #endif
+	retry:
 	if (!(p = malloc(size + RED_ZONE_INC))) {
-		error("ERROR: out of memory (malloc returned NULL)");
-		fatal_tty_exit();
-		exit(RET_FATAL);
-		return NULL;
+		out_of_memory("malloc", size + RED_ZONE_INC);
+		goto retry;
 	}
 #ifdef RED_ZONE
-	*((char *)p + size + RED_ZONE_INC - 1) = RED_ZONE;
+	*((unsigned char *)p + size + RED_ZONE_INC - 1) = RED_ZONE;
 #endif
 #ifdef LEAK_DEBUG
 	ah = p;
-	p = (char *)p + L_D_S;
+	p = (unsigned char *)p + L_D_S;
 	ah->size = size - L_D_S;
 	ah->magic = ALLOC_MAGIC;
 #ifdef LEAK_DEBUG_LIST
@@ -200,24 +199,24 @@ void *debug_mem_calloc(unsigned char *file, int line, size_t size)
 #ifdef LEAK_DEBUG
 	struct alloc_header *ah;
 #endif
+	debug_test_free(file, line);
 	if (!size) return DUMMY;
 	if (size > MAXINT) overalloc();
 #ifdef LEAK_DEBUG
 	mem_amount += size;
 	size += L_D_S;
 #endif
+	retry:
 	if (!(p = x_calloc(size + RED_ZONE_INC))) {
-		error("ERROR: out of memory (calloc returned NULL)");
-		fatal_tty_exit();
-		exit(RET_FATAL);
-		return NULL;
+		out_of_memory("calloc", size + RED_ZONE_INC);
+		goto retry;
 	}
 #ifdef RED_ZONE
-	*((char *)p + size + RED_ZONE_INC - 1) = RED_ZONE;
+	*((unsigned char *)p + size + RED_ZONE_INC - 1) = RED_ZONE;
 #endif
 #ifdef LEAK_DEBUG
 	ah = p;
-	p = (char *)p + L_D_S;
+	p = (unsigned char *)p + L_D_S;
 	ah->size = size - L_D_S;
 	ah->magic = ALLOC_MAGIC;
 #ifdef LEAK_DEBUG_LIST
@@ -241,14 +240,14 @@ void debug_mem_free(unsigned char *file, int line, void *p)
 		return;
 	}
 #ifdef LEAK_DEBUG
-	p = (char *)p - L_D_S;
+	p = (unsigned char *)p - L_D_S;
 	ah = p;
 	if (ah->magic != ALLOC_MAGIC) {
 		errfile = file, errline = line, int_error("mem_free: magic doesn't match: %08x", ah->magic);
 		return;
 	}
 #ifdef FREE_FILL
-	memset((char *)p + L_D_S, FREE_FILL, ah->size);
+	memset((unsigned char *)p + L_D_S, FREE_FILL, ah->size);
 #endif
 	ah->magic = ALLOC_FREE_MAGIC;
 #ifdef LEAK_DEBUG_LIST
@@ -258,7 +257,7 @@ void debug_mem_free(unsigned char *file, int line, void *p)
 	mem_amount -= ah->size;
 #endif
 #ifdef RED_ZONE
-	if (*((char *)p + L_D_S + ah->size + RED_ZONE_INC - 1) != RED_ZONE) {
+	if (*((unsigned char *)p + L_D_S + ah->size + RED_ZONE_INC - 1) != RED_ZONE) {
 		errfile = file, errline = line, int_error("mem_free: red zone damaged: %02x (block allocated at %s:%d:%s)", *((unsigned char *)p + L_D_S + ah->size + RED_ZONE_INC - 1),
 #ifdef LEAK_DEBUG_LIST
 		ah->file, ah->line, ah->comment);
@@ -276,7 +275,9 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size)
 #ifdef LEAK_DEBUG
 	struct alloc_header *ah;
 #endif
+	void *np;
 	if (p == DUMMY) return debug_mem_alloc(file, line, size);
+	debug_test_free(file, line);
 	if (!p) {
 		errfile = file, errline = line, int_error("mem_realloc(NULL, %d)", size);
 		return NULL;
@@ -287,7 +288,7 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size)
 	}
 	if (size > MAXINT) overalloc();
 #ifdef LEAK_DEBUG
-	p = (char *)p - L_D_S;
+	p = (unsigned char *)p - L_D_S;
 	ah = p;
 	if (ah->magic != ALLOC_MAGIC) {
 		errfile = file, errline = line, int_error("mem_realloc: magic doesn't match: %08x", ah->magic);
@@ -295,28 +296,28 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size)
 	}
 	ah->magic = ALLOC_REALLOC_MAGIC;
 #ifdef REALLOC_FILL
-	if (size < (size_t)ah->size) memset((char *)p + L_D_S + size, REALLOC_FILL, ah->size - size);
+	if (size < (size_t)ah->size) memset((unsigned char *)p + L_D_S + size, REALLOC_FILL, ah->size - size);
 #endif
 #endif
 #ifdef RED_ZONE
-	if (*((char *)p + L_D_S + ah->size + RED_ZONE_INC - 1) != RED_ZONE) {
+	if (*((unsigned char *)p + L_D_S + ah->size + RED_ZONE_INC - 1) != RED_ZONE) {
 		errfile = file, errline = line, int_error("mem_realloc: red zone damaged: %02x (block allocated at %s:%d:%s)", *((unsigned char *)p + L_D_S + ah->size + RED_ZONE_INC - 1),
 #ifdef LEAK_DEBUG_LIST
 		ah->file, ah->line, ah->comment);
 #else
 		"-", 0, "-");
 #endif
-		return (char *)p + L_D_S;
+		return (unsigned char *)p + L_D_S;
 	}
 #endif
-	if (!(p = realloc(p, size + L_D_S + RED_ZONE_INC))) {
-		error("ERROR: out of memory (realloc returned NULL)");
-		fatal_tty_exit();
-		exit(RET_FATAL);
-		return NULL;
+	retry:
+	if (!(np = realloc(p, size + L_D_S + RED_ZONE_INC))) {
+		out_of_memory("realloc", size + L_D_S + RED_ZONE_INC);
+		goto retry;
 	}
+	p = np;
 #ifdef RED_ZONE
-	*((char *)p + size + L_D_S + RED_ZONE_INC - 1) = RED_ZONE;
+	*((unsigned char *)p + size + L_D_S + RED_ZONE_INC - 1) = RED_ZONE;
 #endif
 #ifdef LEAK_DEBUG
 	ah = p;
@@ -328,39 +329,44 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size)
 	ah->next->prev = ah;
 #endif
 #endif
-	return (char *)p + L_D_S;
+	return (unsigned char *)p + L_D_S;
 }
 
 void set_mem_comment(void *p, unsigned char *c, int l)
 {
 #ifdef LEAK_DEBUG_LIST
-	struct alloc_header *ah = (struct alloc_header *)((char *)p - L_D_S);
+	struct alloc_header *ah = (struct alloc_header *)((unsigned char *)p - L_D_S);
 	if (ah->comment) free(ah->comment);
 	if ((ah->comment = malloc(l + 1))) memcpy(ah->comment, c, l), ah->comment[l] = 0;
 #endif
 }
 
+#ifdef JS
 unsigned char *get_mem_comment(void *p)
 {
 #ifdef LEAK_DEBUG_LIST
-	/* perm je prase: return ((struct alloc_header*)((char*)((void*)((char*)p-sizeof(int))) - L_D_S))->comment;*/
-	struct alloc_header *ah = (struct alloc_header *)((char *)p - L_D_S);
+	/* perm je prase: return ((struct alloc_header*)((unsigned char*)((void*)((unsigned char*)p-sizeof(int))) - L_D_S))->comment;*/
+	struct alloc_header *ah = (struct alloc_header *)((unsigned char *)p - L_D_S);
 	if (!ah->comment) return "";
 	else return ah->comment;
 #else
 	return "";
 #endif
 }
+#endif
 
 #else
 
 void *mem_alloc(size_t size)
 {
 	void *p;
+	debug_test_free(NULL, 0);
 	if (!size) return DUMMY;
 	if (size > MAXINT) overalloc();
+	retry:
 	if (!(p = malloc(size))) {
-		malloc_oom();
+		out_of_memory("malloc", size);
+		goto retry;
 	}
 	return p;
 }
@@ -368,12 +374,13 @@ void *mem_alloc(size_t size)
 void *mem_calloc(size_t size)
 {
 	void *p;
+	debug_test_free(NULL, 0);
 	if (!size) return DUMMY;
 	if (size > MAXINT) overalloc();
+	retry:
 	if (!(p = x_calloc(size))) {
-		error((unsigned char *)"ERROR: out of memory (calloc returned NULL)\n");
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		out_of_memory("calloc", size);
+		goto retry;
 	}
 	return p;
 }
@@ -390,7 +397,9 @@ void mem_free(void *p)
 
 void *mem_realloc(void *p, size_t size)
 {
+	void *np;
 	if (p == DUMMY) return mem_alloc(size);
+	debug_test_free(NULL, 0);
 	if (!p) {
 		internal((unsigned char *)"mem_realloc(NULL, %d)", size);
 		return NULL;
@@ -400,22 +409,15 @@ void *mem_realloc(void *p, size_t size)
 		return DUMMY;
 	}
 	if (size > MAXINT) overalloc();
-	if (!(p = realloc(p, size))) {
-		error((unsigned char *)"ERROR: out of memory (realloc returned NULL)\n");
-		fatal_tty_exit();
-		exit(RET_FATAL);
+	retry:
+	if (!(np = realloc(p, size))) {
+		out_of_memory("realloc", size);
+		goto retry;
 	}
-	return p;
+	return np;
 }
 
 #endif
-
-void malloc_oom(void)
-{
-	error((unsigned char *)"ERROR: out of memory (malloc returned NULL)\n");
-	fatal_tty_exit();
-	exit(RET_FATAL);
-}
 
 #ifdef OOPS
 
@@ -425,11 +427,9 @@ struct prot {
 	sigjmp_buf buf;
 };
 
-struct list_head prot = {&prot, &prot };
+static struct list_head prot = {&prot, &prot };
 
-int handled = 0;
-
-void fault(void *dummy)
+static void fault(void *dummy)
 {
 	struct prot *p;
 	/*fprintf(stderr, "FAULT: %d !\n", (int)(unsigned long)dummy);*/
@@ -444,6 +444,7 @@ void fault(void *dummy)
 
 sigjmp_buf *new_stack_frame(void)
 {
+	static int handled = 0;
 	struct prot *new;
 	if (!handled) {
 		install_signal_handler(SIGSEGV, fault, (void *)SIGSEGV, 1);
@@ -458,7 +459,7 @@ sigjmp_buf *new_stack_frame(void)
 	return &new->buf;
 }
 
-void xpr()
+void xpr(void)
 {
 	if (!list_empty(prot)) {
 		struct prot *next = prot.next;
@@ -467,7 +468,7 @@ void xpr()
 	}
 }
 
-void nopr()
+void nopr(void)
 {
 	free_list(prot);
 }
@@ -476,7 +477,7 @@ void nopr()
 
 #if !(defined(LEAK_DEBUG) && defined(LEAK_DEBUG_LIST))
 
-unsigned char *memacpy(const unsigned char *src, int len)
+unsigned char *memacpy(const unsigned char *src, size_t len)
 {
 	unsigned char *m;
 	m = (unsigned char *)mem_alloc(len + 1);
@@ -487,7 +488,7 @@ unsigned char *memacpy(const unsigned char *src, int len)
 
 unsigned char *stracpy(const unsigned char *src)
 {
-	return src ? memacpy(src, src != DUMMY ? strlen((char *)src) : 0) : NULL;
+	return src ? memacpy(src, src != DUMMY ? strlen(src) : 0) : NULL;
 }
 
 #else
@@ -503,7 +504,7 @@ unsigned char *debug_memacpy(unsigned char *f, int l, unsigned char *src, size_t
 
 unsigned char *debug_stracpy(unsigned char *f, int l, unsigned char *src)
 {
-	return src ? (unsigned char *)debug_memacpy(f, l, src, src != DUMMY ? strlen((char *)src) : 0L) : NULL;
+	return src ? (unsigned char *)debug_memacpy(f, l, src, src != DUMMY ? strlen(src) : 0L) : NULL;
 }
 
 #endif
@@ -526,16 +527,16 @@ int snzprint(unsigned char *s, int n, off_t num)
 void add_to_strn(unsigned char **s, unsigned char *a)
 {
 	unsigned char *p;
-	size_t l1 = strlen((char *)*s), l2 = strlen((char *)a);
+	size_t l1 = strlen(*s), l2 = strlen(a);
 	if (((l1 | l2) | (l1 + l2 + 1)) > MAXINT) overalloc();
 	p = (unsigned char *)mem_realloc(*s, l1 + l2 + 1);
-	strcat((char *)p, (char *)a);
+	strcat(p, a);
 	*s = p;
 }
 
 void extend_str(unsigned char **s, int n)
 {
-	size_t l = strlen((char *)*s);
+	size_t l = strlen(*s);
 	if (((l | n) | (l + n + 1)) > MAXINT) overalloc();
 	*s = (unsigned char *)mem_realloc(*s, l + n + 1);
 }
@@ -548,7 +549,7 @@ void add_to_str(unsigned char **s, int *l, unsigned char *a)
 	unsigned x;
 
 	old_length=*l;
-	new_length=strlen((char *)a);
+	new_length=strlen(a);
 	if (new_length + old_length >= MAXINT / 2 || new_length + old_length < new_length) overalloc();
 	new_length+=old_length;
 	*l=new_length;
@@ -563,7 +564,7 @@ void add_to_str(unsigned char **s, int *l, unsigned char *a)
 		p=(unsigned char *)mem_realloc(p,new_length+1L);
 	}
 	*s=p;
-	strcpy((char *)(p+old_length),(char *)a);
+	strcpy((p+old_length),a);
 }
 
 void add_bytes_to_str(unsigned char **s, int *l, unsigned char *a, size_t ll)
@@ -623,8 +624,8 @@ void add_num_to_str(unsigned char **s, int *l, off_t n)
 void add_knum_to_str(unsigned char **s, int *l, off_t n)
 {
 	unsigned char a[13];
-	if (n && n / (1024 * 1024) * (1024 * 1024) == n) snzprint(a, 12, n / (1024 * 1024)), a[strlen((char *)a) + 1] = 0, a[strlen((char *)a)] = 'M';
-	else if (n && n / 1024 * 1024 == n) snzprint(a, 12, n / 1024), a[strlen((char *)a) + 1] = 0, a[strlen((char *)a)] = 'k';
+	if (n && n / (1024 * 1024) * (1024 * 1024) == n) snzprint(a, 12, n / (1024 * 1024)), a[strlen(a) + 1] = 0, a[strlen(a)] = 'M';
+	else if (n && n / 1024 * 1024 == n) snzprint(a, 12, n / 1024), a[strlen(a) + 1] = 0, a[strlen(a)] = 'k';
 	else snzprint(a, 13, n);
 	add_to_str(s, l, a);
 }
@@ -632,8 +633,8 @@ void add_knum_to_str(unsigned char **s, int *l, off_t n)
 long strtolx(unsigned char *c, unsigned char **end)
 {
 	long l;
-	if (c[0] == '0' && upcase(c[1]) == 'X' && c[2]) l = strtol((char *)c + 2, (char **)end, 16);
-	else l = strtol((char *)c, (char **)end, 10);
+	if (c[0] == '0' && upcase(c[1]) == 'X' && c[2]) l = strtol(c + 2, (char **)end, 16);
+	else l = strtol(c, (char **)end, 10);
 	if (!*end) return l;
 	if (upcase(**end) == 'K') {
 		(*end)++;
@@ -653,11 +654,16 @@ long strtolx(unsigned char *c, unsigned char **end)
 /* Copies at most dst_size chars into dst. Ensures null termination of dst. */
 unsigned char *safe_strncpy(unsigned char *dst, const unsigned char *src, size_t dst_size)
 {
-	strncpy((char *)dst, (char *)src, dst_size);
-	if (strlen((char *)src) >= dst_size) dst[dst_size - 1] = 0;
+	size_t to_copy;
+	if (!dst_size) return dst;
+	to_copy = strlen(src);
+	if (to_copy >= dst_size) to_copy = dst_size - 1;
+	memcpy(dst, src, to_copy);
+	memset(dst + to_copy, 0, dst_size - to_copy);
 	return dst;
 }
 
+#ifdef JS
 /* deletes all nonprintable characters from string */
 void skip_nonprintable(unsigned char *txt)
 {
@@ -710,6 +716,7 @@ void skip_nonprintable(unsigned char *txt)
 		}
 	*txt1=0;
 }
+#endif
 
 /* case insensitive compare of 2 strings */
 /* comparison ends after len (or less) characters */

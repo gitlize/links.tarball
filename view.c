@@ -17,6 +17,8 @@ static void set_pos_y(struct f_data_c *, struct link *);
 static void find_link(struct f_data_c *, int, int);
 static void update_braille_link(struct f_data_c *f);
 
+static int is_active_frame(struct session *ses, struct f_data_c *f);
+
 
 struct view_state *create_vs(void)
 {
@@ -187,10 +189,6 @@ unsigned char *print_js_event_spec(struct js_event_spec *j)
 
 #else
 
-void create_js_event_spec(struct js_event_spec **j)
-{
-}
-
 void free_js_event_spec(struct js_event_spec *j)
 {
 }
@@ -283,7 +281,7 @@ static int find_tag(struct f_data *f, unsigned char *name)
 	return -1;
 }
 
-static int comp_links(struct link *l1, struct link *l2)
+LIBC_CALLBACK static int comp_links(struct link *l1, struct link *l2)
 {
 	return l1->num - l2->num;
 }
@@ -950,7 +948,7 @@ static void draw_forms(struct terminal *t, struct f_data_c *f)
 
 /* 0 -> 1 <- 2 v 3 ^ */
 
-unsigned char fr_trans[2][4] = {{0xb3, 0xc3, 0xb4, 0xc5}, {0xc4, 0xc2, 0xc1, 0xc5}};
+static unsigned char fr_trans[2][4] = {{0xb3, 0xc3, 0xb4, 0xc5}, {0xc4, 0xc2, 0xc1, 0xc5}};
 
 static void set_xchar(struct terminal *t, int x, int y, unsigned dir)
 {
@@ -1146,8 +1144,6 @@ void draw_formatted(struct session *ses)
 	print_screen_status(ses);
 }
 
-int is_active_frame(struct session *ses, struct f_data_c *f);
-
 void draw_fd(struct f_data_c *f)
 {
 	if (f->f_data) f->f_data->time_to_draw = -get_time();
@@ -1167,8 +1163,6 @@ static void draw_fd_nrd(struct f_data_c *f)
 }
 
 #define D_BUF	65536
-
-extern unsigned char frame_dumb[];
 
 int dump_to_file(struct f_data *fd, int h)
 {
@@ -1327,7 +1321,7 @@ static void set_pos_y(struct f_data_c *f, struct link *l)
 		if (l->pos[i].y >= ym) ym = l->pos[i].y + 1;
 		if (l->pos[i].y < yl) yl = l->pos[i].y;
 	}
-	if ((f->vs->view_pos = (ym + yl) / 2 - f->f_data->opt.yw / 2) > f->f_data->y - f->f_data->opt.yw) f->vs->view_pos = f->f_data->y - f->f_data->opt.yw;
+	if ((f->vs->view_pos = (ym + yl) / 2 - f->yw / 2) > f->f_data->y - f->yw) f->vs->view_pos = f->f_data->y - f->yw;
 	if (f->vs->view_pos < 0) f->vs->view_pos = 0;
 	f->vs->orig_view_pos = f->vs->view_pos;
 }
@@ -1389,7 +1383,7 @@ static void find_link(struct f_data_c *f, int p, int s)
 	do {
 		if (line[y] && (!link || (p > 0 ? line[y] < link : line[y] > link))) link = line[y];
 		y += p;
-	} while (!(y < 0 || y < f->vs->view_pos || y >= f->vs->view_pos + f->f_data->opt.yw || y >= f->f_data->y));
+	} while (!(y < 0 || y < f->vs->view_pos || y >= f->vs->view_pos + f->yw || y >= f->f_data->y));
 	if (!link) goto nolink;
 	l = link - f->f_data->links;
 	if (s == 0) {
@@ -1407,8 +1401,8 @@ static void find_link(struct f_data_c *f, int p, int s)
 
 static void page_down(struct session *ses, struct f_data_c *f, int a)
 {
-	if (f->vs->view_pos + f->f_data->opt.yw < f->f_data->y) {
-		f->vs->view_pos += f->f_data->opt.yw;
+	if (f->vs->view_pos + f->yw < f->f_data->y) {
+		f->vs->view_pos += f->yw;
 		f->vs->orig_view_pos = f->vs->view_pos;
 		if (!ses->term->spec->braille) find_link(f, 1, a);
 	} else {
@@ -1481,9 +1475,9 @@ static void up(struct session *ses, struct f_data_c *f, int a)
 
 static void scroll(struct session *ses, struct f_data_c *f, int a)
 {
-	if (f->vs->view_pos + f->f_data->opt.yw >= f->f_data->y && a > 0) return;
+	if (f->vs->view_pos + f->yw >= f->f_data->y && a > 0) return;
 	f->vs->view_pos += a;
-	if (f->vs->view_pos > f->f_data->y - f->f_data->opt.yw && a > 0) f->vs->view_pos = f->f_data->y - f->f_data->opt.yw;
+	if (f->vs->view_pos > f->f_data->y - f->yw && a > 0) f->vs->view_pos = f->f_data->y - f->yw;
 	if (f->vs->view_pos < 0) f->vs->view_pos = 0;
 	f->vs->orig_view_pos = f->vs->view_pos;
 	if (ses->term->spec->braille) {
@@ -1724,7 +1718,7 @@ static void home(struct session *ses, struct f_data_c *f, int a)
 static void x_end(struct session *ses, struct f_data_c *f, int a)
 {
 	f->vs->view_posx = 0;
-	if (f->vs->view_pos < f->f_data->y - f->f_data->opt.yw) f->vs->view_pos = f->f_data->y - f->f_data->opt.yw;
+	if (f->vs->view_pos < f->f_data->y - f->yw) f->vs->view_pos = f->f_data->y - f->yw;
 	if (f->vs->view_pos < 0) f->vs->view_pos = 0;
 	f->vs->orig_view_pos = f->vs->view_pos;
 	f->vs->orig_view_posx = f->vs->view_posx;
@@ -1786,8 +1780,7 @@ static unsigned char *encode_textarea(unsigned char *t)
 	return o;
 }
 
-int compare_submitted(struct submitted_value *sub1, struct submitted_value *sub2);
-int compare_submitted(struct submitted_value *sub1, struct submitted_value *sub2)
+static int compare_submitted(struct submitted_value *sub1, struct submitted_value *sub2)
 {
 	/*int c = (sub1->type == FC_IMAGE) - (sub2->type == FC_IMAGE);
 	if (c) return c;*/
@@ -1933,6 +1926,7 @@ static void encode_controls(struct list_head *l, unsigned char **data, int *len,
 static void encode_multipart(struct session *ses, struct list_head *l, unsigned char **data, int *len,
 		      unsigned char *bound, int cp_from, int cp_to)
 {
+	int errn;
 	int *bound_ptrs = DUMMY;
 	int nbound_ptrs = 0;
 	unsigned char *m1, *m2;
@@ -1989,6 +1983,7 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 #define F_BUFLEN 1024
 			unsigned char buffer[F_BUFLEN];
 			/*if (!check_file_name(sv->value)) {
+				errn = errno;
 				err = "File access forbidden";
 				goto error;
 			}*/
@@ -1996,10 +1991,14 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 				if (anonymous) {
 					goto not_allowed;
 				}
-				if ((fh = open(sv->value, O_RDONLY)) == -1) goto error;
+				if ((fh = open(sv->value, O_RDONLY)) == -1) {
+					errn = errno;
+					goto error;
+				}
 				set_bin(fh);
 				do {
 					if ((rd = read(fh, buffer, F_BUFLEN)) == -1) {
+						errn = errno;
 						close(fh);
 						goto error;
 					}
@@ -2036,15 +2035,15 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 	mem_free(*data);
 	*data = NULL;
 	m1 = stracpy(sv->value);
-	m2 = stracpy(strerror(errno));
-	msg_box(ses->term, getml(m1, m2, NULL), TEXT(T_ERROR_WHILE_POSTING_FORM), AL_CENTER | AL_EXTD_TEXT, TEXT(T_COULD_NOT_GET_FILE), " ", m1, ": ", m2, NULL, ses, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	m2 = stracpy(strerror(errn));
+	msg_box(ses->term, getml(m1, m2, NULL), TEXT_(T_ERROR_WHILE_POSTING_FORM), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_COULD_NOT_GET_FILE), " ", m1, ": ", m2, NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 	return;
 
 	not_allowed:
 	mem_free(bound_ptrs);
 	mem_free(*data);
 	*data = NULL;
-	msg_box(ses->term, NULL, TEXT(T_ERROR_WHILE_POSTING_FORM), AL_CENTER | AL_EXTD_TEXT, TEXT(T_READING_FILES_IS_NOT_ALLOWED), NULL, ses, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	msg_box(ses->term, NULL, TEXT_(T_ERROR_WHILE_POSTING_FORM), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_READING_FILES_IS_NOT_ALLOWED), NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
 void reset_form(struct f_data_c *f, int form_num)
@@ -2067,7 +2066,9 @@ unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form
 	if (!form) return NULL;
 	if (form->type == FC_RESET) {
 		reset_form(f, form->form_num);
+#ifdef G
 		if (F) draw_fd(f);
+#endif
 		return NULL;
 	}
 	if (onsubmit)*onsubmit=0;
@@ -2101,7 +2102,8 @@ unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form
 		pos = extract_position(go);
 		if (!(da = get_url_data(go))) da = go;
 		q = strlen(da);
-		if (q && (da[q - 1] == '&' || da[q - 1] == '?')) ;
+		if (q && (da[q - 1] == '&' || da[q - 1] == '?'))
+			;
 		else if (strchr(da, '?')) strcat(go, "&");
 		else strcat(go, "?");
 		strcat(go, data);
@@ -2251,18 +2253,22 @@ int enter(struct session *ses, struct f_data_c *f, int a)
 		if (link->form->type == FC_CHECKBOX) fs->state = !fs->state;
 		else {
 			struct form_control *fc;
+#ifdef G
 			int re = 0;
+#endif
 			foreach(fc, f->f_data->forms)
 				if (fc->form_num == link->form->form_num && fc->type == FC_RADIO && !xstrcmp(fc->name, link->form->name)) {
 					struct form_state *ffs = find_form_state(f, fc);
 					if (ffs) ffs->state = 0;
+#ifdef G
 					re = 1;
+#endif
 				}
 			fs = find_form_state(f, link->form);
 			fs->state = 1;
-			if (F && re) {
-				draw_fd(f);
-			}
+#ifdef G
+			if (F && re) draw_fd(f);
+#endif
 		}
 		return 1;
 	}
@@ -2752,7 +2758,8 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct eve
 		}
 	} else x = 0;
 	if (!F && x) {
-		if (((ev->x != KBD_UP && ev->x != KBD_DOWN) || (ses->term->spec->braille)) && form->type == FC_TEXTAREA && textarea_adjust_viewport(f, l));
+		if (((ev->x != KBD_UP && ev->x != KBD_DOWN) || (ses->term->spec->braille)) && form->type == FC_TEXTAREA && textarea_adjust_viewport(f, l))
+			;
 		else x_draw_form_entry(ses, f, l);
 	}
 	if (!x && ses->term->spec->braille) {
@@ -2885,7 +2892,7 @@ void find_next(struct session *ses, struct f_data_c *f, int a)
 	if (!ses->search_word) {
 		if (!ses->last_search_word) {
 			no:
-			msg_box(ses->term, NULL, TEXT(T_SEARCH), AL_CENTER, TEXT(T_NO_PREVIOUS_SEARCH), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+			msg_box(ses->term, NULL, TEXT_(T_SEARCH), AL_CENTER, TEXT_(T_NO_PREVIOUS_SEARCH), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 			return;
 		}
 		ses->search_word = stracpy(ses->last_search_word);
@@ -2917,7 +2924,7 @@ void find_next(struct session *ses, struct f_data_c *f, int a)
 			p -= f->yw;
 		}
 	} while ((c += f->yw ? f->yw : 1) < f->f_data->y + f->yw);
-	msg_box(ses->term, NULL, TEXT(T_SEARCH), AL_CENTER, TEXT(T_SEARCH_STRING_NOT_FOUND), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	msg_box(ses->term, NULL, TEXT_(T_SEARCH), AL_CENTER, TEXT_(T_SEARCH_STRING_NOT_FOUND), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
 void find_next_back(struct session *ses, struct f_data_c *f, int a)
@@ -3079,7 +3086,7 @@ static int frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			d[1] = 0;
 			nl = f_data->nlinks, lnl = 1;
 			while (nl) nl /= 10, lnl++;
-			if (lnl > 1) input_field(ses->term, NULL, TEXT(T_GO_TO_LINK), TEXT(T_ENTER_LINK_NUMBER), ses, NULL, lnl, d, 1, f_data->nlinks, check_number, TEXT(T_OK), (void (*)(void *, unsigned char *)) goto_link_number, TEXT(T_CANCEL), NULL, NULL);
+			if (lnl > 1) input_field(ses->term, NULL, TEXT_(T_GO_TO_LINK), TEXT_(T_ENTER_LINK_NUMBER), ses, NULL, lnl, d, 1, f_data->nlinks, check_number, TEXT_(T_OK), (void (*)(void *, unsigned char *)) goto_link_number, TEXT_(T_CANCEL), NULL, NULL);
 		}
 		else x = 0;
 	} else if (ev->ev == EV_MOUSE) {
@@ -3121,7 +3128,7 @@ struct f_data_c *current_frame(struct session *ses)
 	return fd;
 }
 
-int is_active_frame(struct session *ses, struct f_data_c *f)
+static int is_active_frame(struct session *ses, struct f_data_c *f)
 {
 	struct f_data_c *fd, *fdd;
 	fd = ses->screen;
@@ -3431,10 +3438,12 @@ void send_event(struct session *ses, struct event *ev)
 			print_screen_status(ses);
 			goto x;
 		}
+#ifdef G
 		if (F && (ev->x == KBD_BS)) {
 			back(ses, NULL, 0);
 			goto x;
 		}
+#endif
 		if (upcase(ev->x) == 'R' && ev->y & KBD_CTRL) {
 			reload(ses, -1);
 			goto x;
@@ -3648,7 +3657,6 @@ static void send_reset(struct terminal *term, void *xxx, struct session *ses)
 	draw_fd(fd);
 }
 
-#ifdef G
 static void copy_link_location(struct terminal *term, void *xxx, struct session *ses)
 {
 	unsigned char *current_link = print_current_link(ses);
@@ -3659,7 +3667,6 @@ static void copy_link_location(struct terminal *term, void *xxx, struct session 
 	}
 
 }
-#endif
 
 void copy_url_location(struct terminal *term, void *xxx, struct session *ses)
 {
@@ -3773,7 +3780,7 @@ void save_url(struct session *ses, unsigned char *url)
 	unsigned char *u;
 	if (!(u = translate_url(url, ses->term->cwd))) {
 		struct status stat = { NULL, NULL, NULL, NULL, S_BAD_URL, PRI_CANCEL, 0, NULL, NULL, NULL };
-		print_error_dialog(ses, &stat, TEXT(T_ERROR));
+		print_error_dialog(ses, &stat, TEXT_(T_ERROR));
 		return;
 	}
 	if (ses->dn_url) mem_free(ses->dn_url);
@@ -3805,7 +3812,7 @@ static void save_formatted(struct session *ses, unsigned char *file)
 	struct f_data_c *f;
 	if (!(f = current_frame(ses)) || !f->f_data) return;
 	if ((h = create_download_file(ses, ses->term->cwd, file, 0, 0)) < 0) return;
-	if (dump_to_file(f->f_data, h)) msg_box(ses->term, NULL, TEXT(T_SAVE_ERROR), AL_CENTER, TEXT(T_ERROR_WRITING_TO_FILE), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	if (dump_to_file(f->f_data, h)) msg_box(ses->term, NULL, TEXT_(T_SAVE_ERROR), AL_CENTER, TEXT_(T_ERROR_WRITING_TO_FILE), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 	close(h);
 }
 
@@ -3828,47 +3835,48 @@ void link_menu(struct terminal *term, void *xxx, struct session *ses)
 	if (link->type == L_LINK && link->where) {
 		if (strlen(link->where) >= 4 && !casecmp(link->where, "MAP@", 4)) {
 			if (!F) {
-				add_to_menu(&mi, TEXT(T_DISPLAY_USEMAP), ">", TEXT(T_HK_DISPLAY_USEMAP), MENU_FUNC send_enter, NULL, 1, -1);
+				add_to_menu(&mi, TEXT_(T_DISPLAY_USEMAP), ">", TEXT_(T_HK_DISPLAY_USEMAP), MENU_FUNC send_enter, NULL, 1, -1);
 			}
 		}
 		else {
 			int c = can_open_in_new(term);
-			if (!F) add_to_menu(&mi, TEXT(T_FOLLOW_LINK), "", TEXT(T_HK_FOLLOW_LINK), MENU_FUNC send_enter, NULL, 0, -1);
-			if (c) add_to_menu(&mi, TEXT(T_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT(T_HK_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1, -1);
-			if (!anonymous) add_to_menu(&mi, TEXT(T_DOWNLOAD_LINK), "d", TEXT(T_HK_DOWNLOAD_LINK), MENU_FUNC send_download, NULL, 0, -1);
-#ifdef G
-			if(F && term && term->dev && term->dev->drv && !strcmp(term->dev->drv->name,"x")) 
-				add_to_menu(&mi, TEXT(T_COPY_LINK_LOCATION), "c", TEXT(T_HK_COPY_LINK_LOCATION), MENU_FUNC copy_link_location, NULL, 0, -1);
-#endif
-			/*add_to_menu(&mi, TEXT(T_ADD_BOOKMARK), "A", TEXT(T_HK_ADD_BOOKMARK), MENU_FUNC menu_bookmark_manager, NULL, 0);*/
+			if (!F) add_to_menu(&mi, TEXT_(T_FOLLOW_LINK), "", TEXT_(T_HK_FOLLOW_LINK), MENU_FUNC send_enter, NULL, 0, -1);
+			if (c) add_to_menu(&mi, TEXT_(T_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT_(T_HK_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1, -1);
+			if (!anonymous) add_to_menu(&mi, TEXT_(T_DOWNLOAD_LINK), "d", TEXT_(T_HK_DOWNLOAD_LINK), MENU_FUNC send_download, NULL, 0, -1);
+			if (clipboard_support(term))
+				add_to_menu(&mi, TEXT_(T_COPY_LINK_LOCATION), "", TEXT_(T_HK_COPY_LINK_LOCATION), MENU_FUNC copy_link_location, NULL, 0, -1);
+			/*add_to_menu(&mi, TEXT_(T_ADD_BOOKMARK), "A", TEXT_(T_HK_ADD_BOOKMARK), MENU_FUNC menu_bookmark_manager, NULL, 0);*/
 
 		}
 	}
 	if ((link->type == L_CHECKBOX || link->type == L_SELECT || link->type == L_FIELD || link->type == L_AREA) && link->form){
 		int c = can_open_in_new(term);
-		add_to_menu(&mi, TEXT(T_SUBMIT_FORM), "", TEXT(T_HK_SUBMIT_FORM), MENU_FUNC send_submit, NULL, 0, -1);
-		if (c && link->form->method == FM_GET) add_to_menu(&mi, TEXT(T_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT(T_HK_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1, -1);
-		/*if (!anonymous) add_to_menu(&mi, TEXT(T_SUBMIT_FORM_AND_DOWNLOAD), "d", TEXT(T_HK_SUBMIT_FORM_AND_DOWNLOAD), MENU_FUNC send_download, NULL, 0, -1);*/
-		add_to_menu(&mi, TEXT(T_RESET_FORM), "", TEXT(T_HK_RESET_FORM), MENU_FUNC send_reset, NULL, 0, -1);
+		add_to_menu(&mi, TEXT_(T_SUBMIT_FORM), "", TEXT_(T_HK_SUBMIT_FORM), MENU_FUNC send_submit, NULL, 0, -1);
+		if (c && link->form->method == FM_GET) add_to_menu(&mi, TEXT_(T_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT_(T_HK_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1, -1);
+		/*if (!anonymous) add_to_menu(&mi, TEXT_(T_SUBMIT_FORM_AND_DOWNLOAD), "d", TEXT_(T_HK_SUBMIT_FORM_AND_DOWNLOAD), MENU_FUNC send_download, NULL, 0, -1);*/
+		add_to_menu(&mi, TEXT_(T_RESET_FORM), "", TEXT_(T_HK_RESET_FORM), MENU_FUNC send_reset, NULL, 0, -1);
 	}
 	if (link->type == L_BUTTON && link->form) {
-		if (link->form->type == FC_RESET) add_to_menu(&mi, TEXT(T_RESET_FORM), "", TEXT(T_HK_RESET_FORM), MENU_FUNC send_enter, NULL, 0, -1);
-		else if (link->form->type==FC_BUTTON);
+		if (link->form->type == FC_RESET) add_to_menu(&mi, TEXT_(T_RESET_FORM), "", TEXT_(T_HK_RESET_FORM), MENU_FUNC send_enter, NULL, 0, -1);
+		else if (link->form->type==FC_BUTTON)
+			;
 		else if (link->form->type == FC_SUBMIT || link->form->type == FC_IMAGE) {
 			int c = can_open_in_new(term);
-			add_to_menu(&mi, TEXT(T_SUBMIT_FORM), "", TEXT(T_HK_SUBMIT_FORM), MENU_FUNC send_enter, NULL, 0, -1);
-			if (c && link->form->method == FM_GET) add_to_menu(&mi, TEXT(T_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT(T_HK_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1, -1);
-			if (!anonymous) add_to_menu(&mi, TEXT(T_SUBMIT_FORM_AND_DOWNLOAD), "d", TEXT(T_HK_SUBMIT_FORM_AND_DOWNLOAD), MENU_FUNC send_download, NULL, 0, -1);
+			add_to_menu(&mi, TEXT_(T_SUBMIT_FORM), "", TEXT_(T_HK_SUBMIT_FORM), MENU_FUNC send_enter, NULL, 0, -1);
+			if (c && link->form->method == FM_GET) add_to_menu(&mi, TEXT_(T_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), c - 1 ? ">" : "", TEXT_(T_HK_SUBMIT_FORM_AND_OPEN_IN_NEW_WINDOW), MENU_FUNC open_in_new_window, send_open_in_new_xterm, c - 1, -1);
+			if (!anonymous) add_to_menu(&mi, TEXT_(T_SUBMIT_FORM_AND_DOWNLOAD), "d", TEXT_(T_HK_SUBMIT_FORM_AND_DOWNLOAD), MENU_FUNC send_download, NULL, 0, -1);
 		}
 	}
 	if (link->where_img) {
-		if (!F || f->f_data->opt.plain != 2) add_to_menu(&mi, TEXT(T_VIEW_IMAGE), "i", TEXT(T_HK_VIEW_IMAGE), MENU_FUNC send_image, NULL, 0, -1);
-		if (!anonymous) add_to_menu(&mi, TEXT(T_DOWNLOAD_IMAGE), "I", TEXT(T_HK_DOWNLOAD_IMAGE), MENU_FUNC send_download_image, NULL, 0, -1);
-		if (F && !anonymous) add_to_menu(&mi, TEXT(T_BLOCK_URL), "", TEXT(T_HK_BLOCK_URL), MENU_FUNC block_add_URL, NULL, 0, -1);
+		if (!F || f->f_data->opt.plain != 2) add_to_menu(&mi, TEXT_(T_VIEW_IMAGE), "i", TEXT_(T_HK_VIEW_IMAGE), MENU_FUNC send_image, NULL, 0, -1);
+		if (!anonymous) add_to_menu(&mi, TEXT_(T_DOWNLOAD_IMAGE), "I", TEXT_(T_HK_DOWNLOAD_IMAGE), MENU_FUNC send_download_image, NULL, 0, -1);
+#ifdef G
+		if (F && !anonymous) add_to_menu(&mi, TEXT_(T_BLOCK_URL), "", TEXT_(T_HK_BLOCK_URL), MENU_FUNC block_add_URL, NULL, 0, -1);
+#endif
 	}
 	x:
 	no_l:
-	if (!mi->text) add_to_menu(&mi, TEXT(T_NO_LINK_SELECTED), "", M_BAR, NULL, NULL, 0, -1);
+	if (!mi->text) add_to_menu(&mi, TEXT_(T_NO_LINK_SELECTED), "", M_BAR, NULL, NULL, 0, -1);
 	do_menu(term, mi, ses);
 }
 
@@ -3889,11 +3897,11 @@ static unsigned char *print_current_titlex(struct f_data_c *fd, int w)
 		if (pp > pe) pp = pe;
 		if (fd->vs->view_pos + fd->yw >= fd->f_data->y) pp = pe;
 		if (fd->f_data->title && !fd->ses->term->spec->braille) add_chr_to_str(&p, &pl, ' ');
-		add_to_str(&p, &pl, _(TEXT(T_PAGE_P), fd->ses->term));
+		add_to_str(&p, &pl, _(TEXT_(T_PAGE_P), fd->ses->term));
 		add_num_to_str(&p, &pl, pp);
-		add_to_str(&p, &pl, _(TEXT(T_PAGE_OF), fd->ses->term));
+		add_to_str(&p, &pl, _(TEXT_(T_PAGE_OF), fd->ses->term));
 		add_num_to_str(&p, &pl, pe);
-		add_to_str(&p, &pl, _(TEXT(T_PAGE_CL), fd->ses->term));
+		add_to_str(&p, &pl, _(TEXT_(T_PAGE_CL), fd->ses->term));
 		if (fd->f_data->title && fd->ses->term->spec->braille) add_chr_to_str(&p, &pl, ' ');
 	}
 	if (!fd->f_data->title) return p;
@@ -3908,7 +3916,8 @@ static unsigned char *print_current_titlex(struct f_data_c *fd, int w)
 	if (mul + pul > w) {
 		unsigned char *mm;
 		if ((mul = w - pul) < 0) mul = 0;
-		for (mm = m; mul--; GET_TERM_CHAR(fd->ses->term, &mm)) ;
+		for (mm = m; mul--; GET_TERM_CHAR(fd->ses->term, &mm))
+			;
 		ml = mm - m;
 	}
 	add_to_str(&m, &ml, p);
@@ -3940,7 +3949,7 @@ static unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *
 			}
 			else
 			{
-				add_to_str(&m, &ll, _(TEXT(T_IMAGE), term));
+				add_to_str(&m, &ll, _(TEXT_(T_IMAGE), term));
 				add_to_str(&m, &ll, " ");
 				add_to_str(&m, &ll, l->where_img);
 			}
@@ -3949,7 +3958,7 @@ static unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *
 		if (l->where && strlen(l->where) >= 4 && !casecmp(l->where, "MAP@", 4)) {
 			m = init_str();
 			ll = 0;
-			add_to_str(&m, &ll, _(TEXT(T_USEMAP), term));
+			add_to_str(&m, &ll, _(TEXT_(T_USEMAP), term));
 			add_to_str(&m, &ll, " ");
 			add_to_str(&m, &ll, l->where + 4);
 			goto p;
@@ -3968,7 +3977,7 @@ static unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *
 			unsigned char *txt;
 			m = init_str();
 			ll = 0;
-			add_to_str(&m, &ll, _(TEXT(T_BUTTON), term));
+			add_to_str(&m, &ll, _(TEXT_(T_BUTTON), term));
 			if (!l->js_event) goto p;
 			add_to_str(&m, &ll, " ");
 			n=print_js_event_spec(l->js_event);
@@ -3987,14 +3996,14 @@ static unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *
 			goto p;
 		}
 		if (l->form->type == FC_RESET) {
-			m = stracpy(_(TEXT(T_RESET_FORM), term));
+			m = stracpy(_(TEXT_(T_RESET_FORM), term));
 			goto p;
 		}
 		if (!l->form->action) return NULL;
 		m = init_str();
 		ll = 0;
-		if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT(T_SUBMIT_FORM_TO), term));
-		else add_to_str(&m, &ll, _(TEXT(T_POST_FORM_TO), term));
+		if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT_(T_SUBMIT_FORM_TO), term));
+		else add_to_str(&m, &ll, _(TEXT_(T_POST_FORM_TO), term));
 		add_to_str(&m, &ll, " ");
 		add_to_str(&m, &ll, l->form->action);
 		goto p;
@@ -4002,26 +4011,26 @@ static unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *
 	if (l->type == L_CHECKBOX || l->type == L_SELECT || l->type == L_FIELD || l->type == L_AREA) {
 		m = init_str();
 		ll = 0;
-		if (l->form->type == FC_RADIO) add_to_str(&m, &ll, _(TEXT(T_RADIO_BUTTON), term));
-		else if (l->form->type == FC_CHECKBOX) add_to_str(&m, &ll, _(TEXT(T_CHECKBOX), term));
-		else if (l->form->type == FC_SELECT) add_to_str(&m, &ll, _(TEXT(T_SELECT_FIELD), term));
-		else if (l->form->type == FC_TEXT) add_to_str(&m, &ll, _(TEXT(T_TEXT_FIELD), term));
-		else if (l->form->type == FC_TEXTAREA) add_to_str(&m, &ll, _(TEXT(T_TEXT_AREA), term));
-		else if (l->form->type == FC_FILE) add_to_str(&m, &ll, _(TEXT(T_FILE_UPLOAD), term));
-		else if (l->form->type == FC_PASSWORD) add_to_str(&m, &ll, _(TEXT(T_PASSWORD_FIELD), term));
+		if (l->form->type == FC_RADIO) add_to_str(&m, &ll, _(TEXT_(T_RADIO_BUTTON), term));
+		else if (l->form->type == FC_CHECKBOX) add_to_str(&m, &ll, _(TEXT_(T_CHECKBOX), term));
+		else if (l->form->type == FC_SELECT) add_to_str(&m, &ll, _(TEXT_(T_SELECT_FIELD), term));
+		else if (l->form->type == FC_TEXT) add_to_str(&m, &ll, _(TEXT_(T_TEXT_FIELD), term));
+		else if (l->form->type == FC_TEXTAREA) add_to_str(&m, &ll, _(TEXT_(T_TEXT_AREA), term));
+		else if (l->form->type == FC_FILE) add_to_str(&m, &ll, _(TEXT_(T_FILE_UPLOAD), term));
+		else if (l->form->type == FC_PASSWORD) add_to_str(&m, &ll, _(TEXT_(T_PASSWORD_FIELD), term));
 		else {
 			mem_free(m);
 			return NULL;
 		}
-		if (l->form->name && l->form->name[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT(T_NAME), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->name);
-		if ((l->form->type == FC_CHECKBOX || l->form->type == FC_RADIO) && l->form->default_value && l->form->default_value[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT(T_VALUE), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->default_value);
+		if (l->form->name && l->form->name[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT_(T_NAME), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->name);
+		if ((l->form->type == FC_CHECKBOX || l->form->type == FC_RADIO) && l->form->default_value && l->form->default_value[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT_(T_VALUE), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->default_value);
 		                       /* pri enteru se bude posilat vzdycky   -- Brain */
 		if (l->type == L_FIELD && !has_form_submit(fd->f_data, l->form)  && l->form->action) {
 			add_to_str(&m, &ll, ", ");
-			add_to_str(&m, &ll, _(TEXT(T_HIT_ENTER_TO), term));
+			add_to_str(&m, &ll, _(TEXT_(T_HIT_ENTER_TO), term));
 			add_to_str(&m, &ll, " ");
-			if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT(T_SUBMIT_TO), term));
-			else add_to_str(&m, &ll, _(TEXT(T_POST_TO), term));
+			if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT_(T_SUBMIT_TO), term));
+			else add_to_str(&m, &ll, _(TEXT_(T_POST_TO), term));
 			add_to_str(&m, &ll, " ");
 			add_to_str(&m, &ll, l->form->action);
 		}
@@ -4050,7 +4059,7 @@ static unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct termi
 		m = init_str();
 		ll = 0;
 		if (l->where && strlen(l->where) >= 4 && !casecmp(l->where, "MAP@", 4)) {
-			add_to_str(&m, &ll, _(TEXT(T_USEMAP), term));
+			add_to_str(&m, &ll, _(TEXT_(T_USEMAP), term));
 			add_to_str(&m, &ll, " ");
 			add_to_str(&m, &ll, l->where + 4);
 		}
@@ -4061,14 +4070,14 @@ static unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct termi
 		if (spc&&*spc)
 		{
 			add_to_str(&m, &ll, "\n");
-			add_to_str(&m, &ll, _(TEXT(T_JAVASCRIPT), term));
+			add_to_str(&m, &ll, _(TEXT_(T_JAVASCRIPT), term));
 			add_to_str(&m, &ll, ": ");
 			add_to_str(&m, &ll, spc);
 		}
 		if (spc) mem_free(spc);
 		if (l->where_img) {
 			add_to_str(&m, &ll, "\n");
-			add_to_str(&m, &ll, _(TEXT(T_IMAGE), term));
+			add_to_str(&m, &ll, _(TEXT_(T_IMAGE), term));
 			add_to_str(&m, &ll, ": src='");
 			add_to_str(&m, &ll, l->where_img);
 			add_to_str(&m, &ll, "'");
@@ -4106,7 +4115,7 @@ static unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct termi
 			unsigned char *txt;
 			m = init_str();
 			ll = 0;
-			add_to_str(&m, &ll, _(TEXT(T_BUTTON), term));
+			add_to_str(&m, &ll, _(TEXT_(T_BUTTON), term));
 			if (!l->js_event) goto p;
 			add_to_str(&m, &ll, " ");
 			n=print_js_event_spec(l->js_event);
@@ -4125,14 +4134,14 @@ static unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct termi
 			goto p;
 		}
 		if (l->form->type == FC_RESET) {
-			m = stracpy(_(TEXT(T_RESET_FORM), term));
+			m = stracpy(_(TEXT_(T_RESET_FORM), term));
 			goto p;
 		}
 		if (!l->form->action) return NULL;
 		m = init_str();
 		ll = 0;
-		if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT(T_SUBMIT_FORM_TO), term));
-		else add_to_str(&m, &ll, _(TEXT(T_POST_FORM_TO), term));
+		if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT_(T_SUBMIT_FORM_TO), term));
+		else add_to_str(&m, &ll, _(TEXT_(T_POST_FORM_TO), term));
 		add_to_str(&m, &ll, " ");
 		add_to_str(&m, &ll, l->form->action);
 		goto p;
@@ -4140,26 +4149,26 @@ static unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct termi
 	if (l->type == L_CHECKBOX || l->type == L_SELECT || l->type == L_FIELD || l->type == L_AREA) {
 		m = init_str();
 		ll = 0;
-		if (l->form->type == FC_RADIO) add_to_str(&m, &ll, _(TEXT(T_RADIO_BUTTON), term));
-		else if (l->form->type == FC_CHECKBOX) add_to_str(&m, &ll, _(TEXT(T_CHECKBOX), term));
-		else if (l->form->type == FC_SELECT) add_to_str(&m, &ll, _(TEXT(T_SELECT_FIELD), term));
-		else if (l->form->type == FC_TEXT) add_to_str(&m, &ll, _(TEXT(T_TEXT_FIELD), term));
-		else if (l->form->type == FC_TEXTAREA) add_to_str(&m, &ll, _(TEXT(T_TEXT_AREA), term));
-		else if (l->form->type == FC_FILE) add_to_str(&m, &ll, _(TEXT(T_FILE_UPLOAD), term));
-		else if (l->form->type == FC_PASSWORD) add_to_str(&m, &ll, _(TEXT(T_PASSWORD_FIELD), term));
+		if (l->form->type == FC_RADIO) add_to_str(&m, &ll, _(TEXT_(T_RADIO_BUTTON), term));
+		else if (l->form->type == FC_CHECKBOX) add_to_str(&m, &ll, _(TEXT_(T_CHECKBOX), term));
+		else if (l->form->type == FC_SELECT) add_to_str(&m, &ll, _(TEXT_(T_SELECT_FIELD), term));
+		else if (l->form->type == FC_TEXT) add_to_str(&m, &ll, _(TEXT_(T_TEXT_FIELD), term));
+		else if (l->form->type == FC_TEXTAREA) add_to_str(&m, &ll, _(TEXT_(T_TEXT_AREA), term));
+		else if (l->form->type == FC_FILE) add_to_str(&m, &ll, _(TEXT_(T_FILE_UPLOAD), term));
+		else if (l->form->type == FC_PASSWORD) add_to_str(&m, &ll, _(TEXT_(T_PASSWORD_FIELD), term));
 		else {
 			mem_free(m);
 			return NULL;
 		}
-		if (l->form->name && l->form->name[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT(T_NAME), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->name);
-		if ((l->form->type == FC_CHECKBOX || l->form->type == FC_RADIO) && l->form->default_value && l->form->default_value[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT(T_VALUE), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->default_value);
+		if (l->form->name && l->form->name[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT_(T_NAME), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->name);
+		if ((l->form->type == FC_CHECKBOX || l->form->type == FC_RADIO) && l->form->default_value && l->form->default_value[0]) add_to_str(&m, &ll, ", "), add_to_str(&m, &ll, _(TEXT_(T_VALUE), term)), add_to_str(&m, &ll, " "), add_to_str(&m, &ll, l->form->default_value);
 		                       /* pri enteru se bude posilat vzdycky   -- Brain */
 		if (l->type == L_FIELD && !has_form_submit(fd->f_data, l->form)  && l->form->action) {
 			add_to_str(&m, &ll, ", ");
-			add_to_str(&m, &ll, _(TEXT(T_HIT_ENTER_TO), term));
+			add_to_str(&m, &ll, _(TEXT_(T_HIT_ENTER_TO), term));
 			add_to_str(&m, &ll, " ");
-			if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT(T_SUBMIT_TO), term));
-			else add_to_str(&m, &ll, _(TEXT(T_POST_TO), term));
+			if (l->form->method == FM_GET) add_to_str(&m, &ll, _(TEXT_(T_SUBMIT_TO), term));
+			else add_to_str(&m, &ll, _(TEXT_(T_POST_TO), term));
 			add_to_str(&m, &ll, " ");
 			add_to_str(&m, &ll, l->form->action);
 		}
@@ -4186,54 +4195,54 @@ void loc_msg(struct terminal *term, struct location *lo, struct f_data_c *frame)
 	int l = 0;
 	unsigned char *a;
 	if (!lo || !frame || !frame->vs || !frame->f_data) {
-		msg_box(term, NULL, TEXT(T_INFO), AL_LEFT, TEXT(T_YOU_ARE_NOWHERE), NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+		msg_box(term, NULL, TEXT_(T_INFO), AL_LEFT, TEXT_(T_YOU_ARE_NOWHERE), NULL, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
 		return;
 	}
 	s = init_str();
-	add_to_str(&s, &l, _(TEXT(T_URL), term));
+	add_to_str(&s, &l, _(TEXT_(T_URL), term));
 	add_to_str(&s, &l, ": ");
 	if (strchr(lo->url, POST_CHAR)) add_bytes_to_str(&s, &l, lo->url, (unsigned char *)strchr(lo->url, POST_CHAR) - (unsigned char *)lo->url);
 	else add_to_str(&s, &l, lo->url);
-	if (!get_cache_entry(lo->url, &ce)) {
+	if (!find_in_cache(lo->url, &ce)) {
 		add_to_str(&s, &l, "\n");
-		add_to_str(&s, &l, _(TEXT(T_SIZE), term));
+		add_to_str(&s, &l, _(TEXT_(T_SIZE), term));
 		add_to_str(&s, &l, ": ");
 		add_num_to_str(&s, &l, ce->length);
 		if (ce->incomplete) {
 			add_to_str(&s, &l, " (");
-			add_to_str(&s, &l, _(TEXT(T_INCOMPLETE), term));
+			add_to_str(&s, &l, _(TEXT_(T_INCOMPLETE), term));
 			add_to_str(&s, &l, ")");
 		}
 		add_to_str(&s, &l, "\n");
-		add_to_str(&s, &l, _(TEXT(T_CODEPAGE), term));
+		add_to_str(&s, &l, _(TEXT_(T_CODEPAGE), term));
 		add_to_str(&s, &l, ": ");
 		add_to_str(&s, &l, get_cp_name(frame->f_data->cp));
-		if (frame->f_data->ass == 1) add_to_str(&s, &l, " ("), add_to_str(&s, &l, _(TEXT(T_ASSUMED), term)), add_to_str(&s, &l, ")");
-		if (frame->f_data->ass == 2) add_to_str(&s, &l, " ("), add_to_str(&s, &l, _(TEXT(T_IGNORING_SERVER_SETTING), term)), add_to_str(&s, &l, ")");
+		if (frame->f_data->ass == 1) add_to_str(&s, &l, " ("), add_to_str(&s, &l, _(TEXT_(T_ASSUMED), term)), add_to_str(&s, &l, ")");
+		if (frame->f_data->ass == 2) add_to_str(&s, &l, " ("), add_to_str(&s, &l, _(TEXT_(T_IGNORING_SERVER_SETTING), term)), add_to_str(&s, &l, ")");
 		if ((a = parse_http_header(ce->head, "Content-Type", NULL))) {
 			add_to_str(&s, &l, "\n");
-			add_to_str(&s, &l, _(TEXT(T_CONTENT_TYPE), term));
+			add_to_str(&s, &l, _(TEXT_(T_CONTENT_TYPE), term));
 			add_to_str(&s, &l, ": ");
 			add_to_str(&s, &l, a);
 			mem_free(a);
 		}
 		if ((a = parse_http_header(ce->head, "Server", NULL))) {
 			add_to_str(&s, &l, "\n");
-			add_to_str(&s, &l, _(TEXT(T_SERVER), term));
+			add_to_str(&s, &l, _(TEXT_(T_SERVER), term));
 			add_to_str(&s, &l, ": ");
 			add_to_str(&s, &l, a);
 			mem_free(a);
 		}
 		if ((a = parse_http_header(ce->head, "Date", NULL))) {
 			add_to_str(&s, &l, "\n");
-			add_to_str(&s, &l, _(TEXT(T_DATE), term));
+			add_to_str(&s, &l, _(TEXT_(T_DATE), term));
 			add_to_str(&s, &l, ": ");
 			add_to_str(&s, &l, a);
 			mem_free(a);
 		}
 		if (ce->last_modified) {
 			add_to_str(&s, &l, "\n");
-			add_to_str(&s, &l, _(TEXT(T_LAST_MODIFIED), term));
+			add_to_str(&s, &l, _(TEXT_(T_LAST_MODIFIED), term));
 			add_to_str(&s, &l, ": ");
 			add_to_str(&s, &l, ce->last_modified);
 		}
@@ -4244,15 +4253,16 @@ void loc_msg(struct terminal *term, struct location *lo, struct f_data_c *frame)
 			add_to_str(&s, &l, ce->ssl_info);
 		}
 #endif
+		ce->refcount--;
 	}
 	if ((a = print_current_linkx_plus(frame, term))) {
 		add_to_str(&s, &l, "\n\n");
-		add_to_str(&s, &l, _(TEXT(T_LINK), term));
+		add_to_str(&s, &l, _(TEXT_(T_LINK), term));
 		add_to_str(&s, &l, ": ");
 		add_to_str(&s, &l, a);
 		mem_free(a);
 	}
-	msg_box(term, getml(s, NULL), TEXT(T_INFO), AL_LEFT, s, NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+	msg_box(term, getml(s, NULL), TEXT_(T_INFO), AL_LEFT, s, NULL, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
 }
 
 void state_msg(struct session *ses)
@@ -4267,7 +4277,7 @@ void head_msg(struct session *ses)
 	unsigned char *s, *ss;
 	int len;
 	if (list_empty(ses->history)) {
-		msg_box(ses->term, NULL, TEXT(T_HEADER_INFO), AL_LEFT, TEXT(T_YOU_ARE_NOWHERE), NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+		msg_box(ses->term, NULL, TEXT_(T_HEADER_INFO), AL_LEFT, TEXT_(T_YOU_ARE_NOWHERE), NULL, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
 		return;
 	}
 	if (!find_in_cache(cur_loc(ses)->url, &ce)) {
@@ -4278,6 +4288,7 @@ void head_msg(struct session *ses)
 			while ((ss = strstr(s, "\r\n"))) memmove(ss, ss + 1, strlen(ss));
 			while (*s && s[strlen(s) - 1] == '\n') s[strlen(s) - 1] = 0;
 		}
-		msg_box(ses->term, getml(s, NULL), TEXT(T_HEADER_INFO), AL_LEFT, s, NULL, 1, TEXT(T_OK), NULL, B_ENTER | B_ESC);
+		msg_box(ses->term, getml(s, NULL), TEXT_(T_HEADER_INFO), AL_LEFT, s, NULL, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
+		ce->refcount--;
 	}
 }

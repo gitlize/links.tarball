@@ -1,6 +1,6 @@
 #include "links.h"
 
-struct list_head auth = {&auth, &auth};
+static struct list_head auth = {&auth, &auth};
 
 struct http_auth {
 	struct http_auth *next;
@@ -16,8 +16,6 @@ struct http_auth {
 };
 
 static unsigned char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-/* prototypes */
 
 static unsigned char *base64_encode(unsigned char *in)
 {

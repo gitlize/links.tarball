@@ -24,14 +24,8 @@ static struct list_head h_conns = {&h_conns, &h_conns};
 struct list_head keepalive_connections = {&keepalive_connections, &keepalive_connections};
 
 /* prototypes */
-struct k_conn *is_host_on_keepalive_list(struct connection *);
+static void send_connection_info(struct connection *c);
 static void check_keepalive_connections(void);
-
-
-void no_owner(void)
-{
-	internal("connection has no owner");
-}
 
 long connect_info(int type)
 {
@@ -137,7 +131,7 @@ void setcstate(struct connection *c, int state)
 	if (state >= 0) send_connection_info(c);
 }
 
-struct k_conn *is_host_on_keepalive_list(struct connection *c)
+static struct k_conn *is_host_on_keepalive_list(struct connection *c)
 {
 	unsigned char *ho;
 	int po;
@@ -221,7 +215,7 @@ static void free_connection_data(struct connection *c)
 	}
 }
 
-void send_connection_info(struct connection *c)
+static void send_connection_info(struct connection *c)
 {
 	int st = c->state;
 	tcount count = c->count;
@@ -236,15 +230,17 @@ void send_connection_info(struct connection *c)
 
 static void del_connection(struct connection *c)
 {
+	if (c->cache) c->cache->refcount++;
 	del_from_list(c);
 	send_connection_info(c);
+	if (c->cache) c->cache->refcount--;
 	mem_free(c->url);
 	if (c->prev_url) mem_free(c->prev_url);
 	mem_free(c);
 }
 
 #ifdef DEBUG
-void check_queue_bugs(void);
+static void check_queue_bugs(void);
 #endif
 
 void add_keepalive_socket(struct connection *c, ttime timeout)
@@ -296,7 +292,7 @@ static void keepalive_timer(void *x)
 	check_keepalive_connections();
 }
 
-void check_keepalive_connections(void)
+static void check_keepalive_connections(void)
 {
 	struct k_conn *kc;
 	ttime ct = get_time();
@@ -380,7 +376,7 @@ static int try_to_suspend_connection(struct connection *c, unsigned char *ho)
 	return -1;
 }
 
-void run_connection(struct connection *c)
+static void run_connection(struct connection *c)
 {
 	struct h_conn *hc;
 	void (*func)(struct connection *);
@@ -443,7 +439,6 @@ void retry_connection(struct connection *c)
 {
 	interrupt_connection(c);
 	if (!is_connection_restartable(c)) {
-		/*send_connection_info(c);*/
 		del_connection(c);
 #ifdef DEBUG
 		check_queue_bugs();
@@ -459,7 +454,6 @@ void retry_connection(struct connection *c)
 void abort_connection(struct connection *c)
 {
 	if (c->running) interrupt_connection(c);
-	/*send_connection_info(c);*/
 	del_connection(c);
 #ifdef DEBUG
 	check_queue_bugs();
@@ -485,7 +479,7 @@ static int try_connection(struct connection *c)
 }
 
 #ifdef DEBUG
-void check_queue_bugs(void)
+static void check_queue_bugs(void)
 {
 	struct connection *d;
 	int p = 0, ps = 0;
@@ -597,10 +591,15 @@ void load_url(unsigned char *url, unsigned char * prev_url, struct status *stat,
 	}
 #endif
 	if (stat) stat->state = S_OUT_OF_MEM, stat->prev_error = 0;
-	if (no_cache <= NC_CACHE && !find_in_cache(url, &e) && !e->incomplete) {
+	if (no_cache <= NC_CACHE && !find_in_cache(url, &e)) {
+		if (e->incomplete) {
+			e->refcount--;
+			goto skip_cache;
+		}
 		if (!aggressive_cache && no_cache > NC_ALWAYS_CACHE) {
 			if (e->expire_time && e->expire_time < time(NULL)) {
 				if (no_cache < NC_IF_MOD) no_cache = NC_IF_MOD;
+				e->refcount--;
 				goto skip_cache;
 			}
 		}
@@ -609,6 +608,7 @@ void load_url(unsigned char *url, unsigned char * prev_url, struct status *stat,
 			stat->state = S_OK;
 			if (stat->end) stat->end(stat, stat->data);
 		}
+		e->refcount--;
 		return;
 	}
 	skip_cache:
@@ -687,10 +687,13 @@ void change_connection(struct status *oldstat, struct status *newstat, int newpr
 	oldpri = oldstat->pri;
 	if (oldstat->state < 0) {
 		if (newstat) {
+			struct cache_entry *ce = oldstat->ce;
+			if (ce) ce->refcount++;
 			newstat->ce = oldstat->ce;
 			newstat->state = oldstat->state;
 			newstat->prev_error = oldstat->prev_error;
 			if (newstat->end) newstat->end(newstat, newstat->data);
+			if (ce) ce->refcount--;
 		}
 		return;
 	}
@@ -748,7 +751,7 @@ void detach_connection(struct status *stat, off_t pos)
 	free_entry_to(c->cache, pos);
 }
 
-void connection_timeout(struct connection *c)
+static void connection_timeout(struct connection *c)
 {
 	c->timer = -1;
 	setcstate(c, S_TIMEOUT);
@@ -813,7 +816,7 @@ struct blacklist_entry {
 	unsigned char host[1];
 };
 
-struct list_head blacklist = { &blacklist, &blacklist };
+static struct list_head blacklist = { &blacklist, &blacklist };
 
 void add_blacklist_entry(unsigned char *host, int flags)
 {
@@ -854,58 +857,59 @@ void free_blacklist(void)
 }
 
 struct s_msg_dsc msg_dsc[] = {
-	{S_WAIT,		TEXT(T_WAITING_IN_QUEUE)},
-	{S_DNS,			TEXT(T_LOOKING_UP_HOST)},
-	{S_CONN,		TEXT(T_MAKING_CONNECTION)},
-	{S_SOCKS_NEG,		TEXT(T_SOCKS_NEGOTIATION)},
-	{S_SSL_NEG,		TEXT(T_SSL_NEGOTIATION)},
-	{S_SENT,		TEXT(T_REQUEST_SENT)},
-	{S_LOGIN,		TEXT(T_LOGGING_IN)},
-	{S_GETH,		TEXT(T_GETTING_HEADERS)},
-	{S_PROC,		TEXT(T_SERVER_IS_PROCESSING_REQUEST)},
-	{S_TRANS,		TEXT(T_TRANSFERRING)},
+	{S_WAIT,		TEXT_(T_WAITING_IN_QUEUE)},
+	{S_DNS,			TEXT_(T_LOOKING_UP_HOST)},
+	{S_CONN,		TEXT_(T_MAKING_CONNECTION)},
+	{S_SOCKS_NEG,		TEXT_(T_SOCKS_NEGOTIATION)},
+	{S_SSL_NEG,		TEXT_(T_SSL_NEGOTIATION)},
+	{S_SENT,		TEXT_(T_REQUEST_SENT)},
+	{S_LOGIN,		TEXT_(T_LOGGING_IN)},
+	{S_GETH,		TEXT_(T_GETTING_HEADERS)},
+	{S_PROC,		TEXT_(T_SERVER_IS_PROCESSING_REQUEST)},
+	{S_TRANS,		TEXT_(T_TRANSFERRING)},
 
-	{S_WAIT_REDIR,		TEXT(T_WAITING_FOR_REDIRECT_CONFIRMATION)},
-	{S_OK,			TEXT(T_OK)},
-	{S_INTERRUPTED,		TEXT(T_INTERRUPTED)},
-	{S_EXCEPT,		TEXT(T_SOCKET_EXCEPTION)},
-	{S_INTERNAL,		TEXT(T_INTERNAL_ERROR)},
-	{S_OUT_OF_MEM,		TEXT(T_OUT_OF_MEMORY)},
-	{S_NO_DNS,		TEXT(T_HOST_NOT_FOUND)},
-	{S_CANT_WRITE,		TEXT(T_ERROR_WRITING_TO_SOCKET)},
-	{S_CANT_READ,		TEXT(T_ERROR_READING_FROM_SOCKET)},
-	{S_MODIFIED,		TEXT(T_DATA_MODIFIED)},
-	{S_BAD_URL,		TEXT(T_BAD_URL_SYNTAX)},
-	{S_TIMEOUT,		TEXT(T_RECEIVE_TIMEOUT)},
-	{S_RESTART,		TEXT(T_REQUEST_MUST_BE_RESTARTED)},
-	{S_STATE,		TEXT(T_CANT_GET_SOCKET_STATE)},
-	{S_CYCLIC_REDIRECT,	TEXT(T_CYCLIC_REDIRECT)},
-	{S_LARGE_FILE,		TEXT(T_TOO_LARGE_FILE)},
+	{S_OK,			TEXT_(T_OK)},
+	{S_INTERRUPTED,		TEXT_(T_INTERRUPTED)},
+	{S_EXCEPT,		TEXT_(T_SOCKET_EXCEPTION)},
+	{S_INTERNAL,		TEXT_(T_INTERNAL_ERROR)},
+	{S_OUT_OF_MEM,		TEXT_(T_OUT_OF_MEMORY)},
+	{S_NO_DNS,		TEXT_(T_HOST_NOT_FOUND)},
+	{S_CANT_WRITE,		TEXT_(T_ERROR_WRITING_TO_SOCKET)},
+	{S_CANT_READ,		TEXT_(T_ERROR_READING_FROM_SOCKET)},
+	{S_MODIFIED,		TEXT_(T_DATA_MODIFIED)},
+	{S_BAD_URL,		TEXT_(T_BAD_URL_SYNTAX)},
+	{S_TIMEOUT,		TEXT_(T_RECEIVE_TIMEOUT)},
+	{S_RESTART,		TEXT_(T_REQUEST_MUST_BE_RESTARTED)},
+	{S_STATE,		TEXT_(T_CANT_GET_SOCKET_STATE)},
+	{S_CYCLIC_REDIRECT,	TEXT_(T_CYCLIC_REDIRECT)},
+	{S_LARGE_FILE,		TEXT_(T_TOO_LARGE_FILE)},
 
-	{S_HTTP_ERROR,		TEXT(T_BAD_HTTP_RESPONSE)},
-	{S_HTTP_100,		TEXT(T_HTTP_100)},
-	{S_HTTP_204,		TEXT(T_NO_CONTENT)},
+	{S_HTTP_ERROR,		TEXT_(T_BAD_HTTP_RESPONSE)},
+	{S_HTTP_100,		TEXT_(T_HTTP_100)},
+	{S_HTTP_204,		TEXT_(T_NO_CONTENT)},
 
-	{S_FILE_TYPE,		TEXT(T_UNKNOWN_FILE_TYPE)},
-	{S_FILE_ERROR,		TEXT(T_ERROR_OPENING_FILE)},
+	{S_FILE_TYPE,		TEXT_(T_UNKNOWN_FILE_TYPE)},
+	{S_FILE_ERROR,		TEXT_(T_ERROR_OPENING_FILE)},
 
-	{S_FTP_ERROR,		TEXT(T_BAD_FTP_RESPONSE)},
-	{S_FTP_UNAVAIL,		TEXT(T_FTP_SERVICE_UNAVAILABLE)},
-	{S_FTP_LOGIN,		TEXT(T_BAD_FTP_LOGIN)},
-	{S_FTP_PORT,		TEXT(T_FTP_PORT_COMMAND_FAILED)},
-	{S_FTP_NO_FILE,		TEXT(T_FILE_NOT_FOUND)},
-	{S_FTP_FILE_ERROR,	TEXT(T_FTP_FILE_ERROR)},
+	{S_FTP_ERROR,		TEXT_(T_BAD_FTP_RESPONSE)},
+	{S_FTP_UNAVAIL,		TEXT_(T_FTP_SERVICE_UNAVAILABLE)},
+	{S_FTP_LOGIN,		TEXT_(T_BAD_FTP_LOGIN)},
+	{S_FTP_PORT,		TEXT_(T_FTP_PORT_COMMAND_FAILED)},
+	{S_FTP_NO_FILE,		TEXT_(T_FILE_NOT_FOUND)},
+	{S_FTP_FILE_ERROR,	TEXT_(T_FTP_FILE_ERROR)},
 
-	{S_SSL_ERROR,		TEXT(T_SSL_ERROR)},
-	{S_NO_SSL,		TEXT(T_NO_SSL)},
-	{S_BAD_SOCKS_VERSION,	TEXT(T_BAD_SOCKS_VERSION)},
-	{S_SOCKS_REJECTED,	TEXT(T_SOCKS_REJECTED_OR_FAILED)},
-	{S_SOCKS_NO_IDENTD,	TEXT(T_SOCKS_NO_IDENTD)},
-	{S_SOCKS_BAD_USERID,	TEXT(T_SOCKS_BAD_USERID)},
-	{S_SOCKS_UNKNOWN_ERROR,	TEXT(T_SOCKS_UNKNOWN_ERROR)},
+	{S_SSL_ERROR,		TEXT_(T_SSL_ERROR)},
+	{S_NO_SSL,		TEXT_(T_NO_SSL)},
+	{S_BAD_SOCKS_VERSION,	TEXT_(T_BAD_SOCKS_VERSION)},
+	{S_SOCKS_REJECTED,	TEXT_(T_SOCKS_REJECTED_OR_FAILED)},
+	{S_SOCKS_NO_IDENTD,	TEXT_(T_SOCKS_NO_IDENTD)},
+	{S_SOCKS_BAD_USERID,	TEXT_(T_SOCKS_BAD_USERID)},
+	{S_SOCKS_UNKNOWN_ERROR,	TEXT_(T_SOCKS_UNKNOWN_ERROR)},
 
-	{S_BLOCKED_URL,		TEXT(T_BLOCKED_URL)},
-	{S_NO_PROXY,		TEXT(T_NO_PROXY)},
-	{S_NO_SMB_CLIENT,	TEXT(T_NO_SMB_CLIENT)},
+	{S_BLOCKED_URL,		TEXT_(T_BLOCKED_URL)},
+	{S_NO_PROXY,		TEXT_(T_NO_PROXY)},
+	{S_NO_SMB_CLIENT,	TEXT_(T_NO_SMB_CLIENT)},
+
+	{S_WAIT_REDIR,		TEXT_(T_WAITING_FOR_REDIRECT_CONFIRMATION)},
 	{0,			NULL}
 };

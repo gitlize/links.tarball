@@ -31,7 +31,7 @@ struct assoc_ok_struct{
 };
 
 
-struct list_description assoc_ld={
+static struct list_description assoc_ld={
 	0,  /* 0= flat; 1=tree */
 	&assoc,  /* list */
 	assoc_new_item,
@@ -61,8 +61,6 @@ struct list_description assoc_ld={
 
 void *assoc_default_value(struct session* ses, unsigned char type)
 {
-	type=type;
-	ses=ses;
 	return NULL;
 }
 
@@ -70,7 +68,6 @@ static void *assoc_new_item(void *ignore)
 {
 	struct assoc *new;
 
-	ignore=ignore;
 	new = mem_calloc(sizeof(struct assoc));
 	new->label = stracpy("");
 	new->ct = stracpy("");
@@ -128,7 +125,7 @@ static unsigned char *assoc_type_item(struct terminal *term, void *data, int x)
 	struct conv_table *table;
 	struct assoc* item=(struct assoc*)data;
 
-	if ((struct list*)item==(&assoc))return stracpy(_(TEXT(T_ASSOCIATIONS),term));
+	if ((struct list*)item==(&assoc))return stracpy(_(TEXT_(T_ASSOCIATIONS),term));
 	txt=stracpy("");
 	if (item->system != SYSTEM_ID) add_to_strn(&txt, "XX ");
 	add_to_strn(&txt, item->label);
@@ -150,20 +147,20 @@ void menu_assoc_manager(struct terminal *term,void *fcp,struct session *ses)
 	create_list_window(&assoc_ld,&assoc,term,ses);
 }
 
-unsigned char *ct_msg[] = {
-	TEXT(T_LABEL),
-	TEXT(T_CONTENT_TYPES),
-	TEXT(T_PROGRAM__IS_REPLACED_WITH_FILE_NAME),
+static unsigned char *ct_msg[] = {
+	TEXT_(T_LABEL),
+	TEXT_(T_CONTENT_TYPES),
+	TEXT_(T_PROGRAM__IS_REPLACED_WITH_FILE_NAME),
 #ifdef ASSOC_BLOCK
-	TEXT(T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING),
+	TEXT_(T_BLOCK_TERMINAL_WHILE_PROGRAM_RUNNING),
 #endif
 #ifdef ASSOC_CONS_XWIN
-	TEXT(T_RUN_ON_TERMINAL),
-	TEXT(T_RUN_IN_XWINDOW),
+	TEXT_(T_RUN_ON_TERMINAL),
+	TEXT_(T_RUN_IN_XWINDOW),
 #endif
-	TEXT(T_ASK_BEFORE_OPENING),
-	TEXT(T_ACCEPT_HTTP),
-	TEXT(T_ACCEPT_FTP),
+	TEXT_(T_ASK_BEFORE_OPENING),
+	TEXT_(T_ACCEPT_HTTP),
+	TEXT_(T_ACCEPT_FTP),
 };
 
 static void assoc_edit_item_fn(struct dialog_data *dlg)
@@ -276,9 +273,9 @@ static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	ct=label+MAX_STR_LEN;
 	prog=ct+MAX_STR_LEN;
 
-	if (new->label)strncpy(label,new->label,MAX_STR_LEN);
-	if (new->ct)strncpy(ct,new->ct,MAX_STR_LEN);
-	if (new->prog)strncpy(prog,new->prog,MAX_STR_LEN);
+	if (new->label)safe_strncpy(label,new->label,MAX_STR_LEN);
+	if (new->ct)safe_strncpy(ct,new->ct,MAX_STR_LEN);
+	if (new->prog)safe_strncpy(prog,new->prog,MAX_STR_LEN);
 	
 	/* Create the dialog */
 	s=mem_alloc(sizeof(struct assoc_ok_struct));
@@ -289,11 +286,11 @@ static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	switch (dlg_title)
 	{
 		case TITLE_EDIT:
-		d->title=TEXT(T_EDIT_ASSOCIATION);
+		d->title=TEXT_(T_EDIT_ASSOCIATION);
 		break;
 
 		case TITLE_ADD:
-		d->title=TEXT(T_ADD_ASSOCIATION);
+		d->title=TEXT_(T_ADD_ASSOCIATION);
 		break;
 
 		default:
@@ -344,10 +341,10 @@ static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	d->items[p].type = D_BUTTON;
 	d->items[p].gid = B_ENTER;
 	d->items[p].fn = ok_dialog;
-	d->items[p++].text = TEXT(T_OK);
+	d->items[p++].text = TEXT_(T_OK);
 	d->items[p].type = D_BUTTON;
 	d->items[p].gid = B_ESC;
-	d->items[p].text = TEXT(T_CANCEL);
+	d->items[p].text = TEXT_(T_CANCEL);
 	d->items[p++].fn = cancel_dialog;
 	d->items[p++].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
@@ -419,20 +416,19 @@ void update_assoc(struct assoc *new)
 /*------------------------ EXTENSIONS -----------------------*/
 
 /* DECLARATIONS */
-void ext_edit_item(struct dialog_data *,void *,void (*)(struct dialog_data *,void *,void *,struct list_description *),void *, unsigned char);
-void ext_copy_item(void *, void *);
-void *ext_default_value(struct session*, unsigned char);
-void *ext_new_item(void *);
-void ext_delete_item(void *);
-void *ext_find_item(void *start, unsigned char *str, int direction);
-unsigned char *ext_type_item(struct terminal *, void *, int);
+static void ext_edit_item(struct dialog_data *,void *,void (*)(struct dialog_data *,void *,void *,struct list_description *),void *, unsigned char);
+static void ext_copy_item(void *, void *);
+static void *ext_new_item(void *);
+static void ext_delete_item(void *);
+static void *ext_find_item(void *start, unsigned char *str, int direction);
+static unsigned char *ext_type_item(struct terminal *, void *, int);
 
 struct list extensions = { &extensions, &extensions, 0, -1, NULL };
 
-struct history ext_search_history = { 0, { &ext_search_history.items, &ext_search_history.items } };
+static struct history ext_search_history = { 0, { &ext_search_history.items, &ext_search_history.items } };
 
 
-struct list_description ext_ld={
+static struct list_description ext_ld={
 	0,  /* 0= flat; 1=tree */
 	&extensions,  /* list */
 	ext_new_item,
@@ -464,11 +460,10 @@ struct list_description ext_ld={
 
 
 
-void *ext_new_item(void *ignore)
+static void *ext_new_item(void *ignore)
 {
 	struct extension *new;
 
-	ignore=ignore;
 	new = mem_calloc(sizeof(struct extension));
 	new->ext = stracpy("");
 	new->ct = stracpy("");
@@ -477,7 +472,7 @@ void *ext_new_item(void *ignore)
 }
 
 
-void ext_delete_item(void *data)
+static void ext_delete_item(void *data)
 {
 	struct extension *del=(struct extension *)data;
 	struct extension *next=del->next;
@@ -491,7 +486,7 @@ void ext_delete_item(void *data)
 }
 
 
-void ext_copy_item(void *in, void *out)
+static void ext_copy_item(void *in, void *out)
 {
 	struct extension *item_in=(struct extension *)in;
 	struct extension *item_out=(struct extension *)out;
@@ -506,13 +501,13 @@ void ext_copy_item(void *in, void *out)
 
 /* allocate string and print extension into it */
 /* x: 0=type all, 1=type title only */
-unsigned char *ext_type_item(struct terminal *term, void *data, int x)
+static unsigned char *ext_type_item(struct terminal *term, void *data, int x)
 {
 	unsigned char *txt, *txt1;
 	struct conv_table *table;
 	struct extension* item=(struct extension*)data;
 
-	if ((struct list*)item==(&extensions)) return stracpy(_(TEXT(T_FILE_EXTENSIONS),term));
+	if ((struct list*)item==(&extensions)) return stracpy(_(TEXT_(T_FILE_EXTENSIONS),term));
 	txt=stracpy(item->ext);
 	if (item->ct){add_to_strn(&txt,": ");add_to_strn(&txt,item->ct);}
 	table=get_translation_table(assoc_ld.codepage,term->spec->charset);
@@ -528,9 +523,9 @@ void menu_ext_manager(struct terminal *term,void *fcp,struct session *ses)
 	create_list_window(&ext_ld,&extensions,term,ses);
 }
 
-unsigned char *ext_msg[] = {
-	TEXT(T_EXTENSION_S),
-	TEXT(T_CONTENT_TYPE),
+static unsigned char *ext_msg[] = {
+	TEXT_(T_EXTENSION_S),
+	TEXT_(T_CONTENT_TYPE),
 };
 
 static void ext_edit_item_fn(struct dialog_data *dlg)
@@ -608,7 +603,7 @@ static void ext_edit_abort(struct dialog_data *data)
 }
 
 
-void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title)
+static void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title)
 {
 	struct extension *new=(struct extension*)data;
 	struct terminal *term=dlg->win->term;
@@ -621,8 +616,8 @@ void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dia
 
 	ext=(unsigned char *)&d->items[5];
 	ct = ext + MAX_STR_LEN;
-	if (new->ext)strncpy(ext, new->ext, MAX_STR_LEN);
-	if (new->ct)strncpy(ct, new->ct, MAX_STR_LEN);
+	if (new->ext)safe_strncpy(ext, new->ext, MAX_STR_LEN);
+	if (new->ct)safe_strncpy(ct, new->ct, MAX_STR_LEN);
 
 	/* Create the dialog */
 	s=mem_alloc(sizeof(struct assoc_ok_struct));
@@ -633,11 +628,11 @@ void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dia
 	switch (dlg_title)
 	{
 		case TITLE_EDIT:
-		d->title=TEXT(T_EDIT_EXTENSION);
+		d->title=TEXT_(T_EDIT_EXTENSION);
 		break;
 
 		case TITLE_ADD:
-		d->title=TEXT(T_ADD_EXTENSION);
+		d->title=TEXT_(T_ADD_EXTENSION);
 		break;
 
 		default:
@@ -649,7 +644,7 @@ void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dia
 	d->abort=ext_edit_abort;
 	d->refresh=ext_edit_done;
 	d->refresh_data = d;
-	d->title = TEXT(T_EXTENSION);
+	d->title = TEXT_(T_EXTENSION);
 	d->fn = ext_edit_item_fn;
 	d->items[0].type = D_FIELD;
 	d->items[0].dlen = MAX_STR_LEN;
@@ -662,17 +657,17 @@ void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dia
 	d->items[2].type = D_BUTTON;
 	d->items[2].gid = B_ENTER;
 	d->items[2].fn = ok_dialog;
-	d->items[2].text = TEXT(T_OK);
+	d->items[2].text = TEXT_(T_OK);
 	d->items[3].type = D_BUTTON;
 	d->items[3].gid = B_ESC;
-	d->items[3].text = TEXT(T_CANCEL);
+	d->items[3].text = TEXT_(T_CANCEL);
 	d->items[3].fn = cancel_dialog;
 	d->items[4].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
 }
 
 
-void *ext_find_item(void *start, unsigned char *str, int direction)
+static void *ext_find_item(void *start, unsigned char *str, int direction)
 {
 	struct extension *e,*s=(struct extension *)start;
 	
@@ -785,8 +780,10 @@ static int is_in_list(unsigned char *list, unsigned char *str, int l)
 	rep:
 	while (*list && *list <= ' ') list++;
 	if (!*list) return 0;
-	for (l2 = list; *l2 && *l2 != ','; l2++) ;
-	for (l3 = l2 - 1; l3 >= list && *l3 <= ' '; l3--) ;
+	for (l2 = list; *l2 && *l2 != ','; l2++)
+		;
+	for (l3 = l2 - 1; l3 >= list && *l3 <= ' '; l3--)
+		;
 	l3++;
 	if (l3 - list == l && !casecmp(str, list, l)) return 1;
 	list = l2;
@@ -848,6 +845,20 @@ static unsigned char *get_content_type_by_extension(unsigned char *url)
 	return NULL;
 }
 
+static unsigned char *get_content_type_by_header_and_extension(unsigned char *head, unsigned char *url)
+{
+	unsigned char *ct, *file;
+	ct = get_content_type_by_extension(url);
+	if (ct) return ct;
+	file = get_filename_from_header(head);
+	if (file) {
+		ct = get_content_type_by_extension(file);
+		mem_free(file);
+		if (ct) return ct;
+	}
+	return NULL;
+}
+
 static unsigned char *get_extension_by_content_type(unsigned char *ct)
 {
 	struct extension *e;
@@ -903,17 +914,25 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 			memmove(ct, ct + 1, strlen(ct));
 			ct[strlen(ct) - 1] = 0;
 		}
-		if (!strcasecmp(ct, "text/plain") || !strcasecmp(ct, "application/octet-stream") || !strcasecmp(ct, "application/octetstream") || !strcasecmp(ct, "application/octet_stream")) {
-			unsigned char *ctt = get_content_type_by_extension(url);
+		if (!strcasecmp(ct, "text/plain") ||
+		    !strcasecmp(ct, "application/octet-stream") ||
+		    !strcasecmp(ct, "application/octetstream") ||
+		    !strcasecmp(ct, "application/octet_stream")) {
+			unsigned char *ctt;
+			int code;
+			if (!get_http_code(head, &code, NULL) && code >= 300)
+				goto no_code_by_extension;
+			ctt = get_content_type_by_header_and_extension(head, url);
 			if (ctt) {
 				mem_free(ct);
 				return ctt;
 			}
 		}
+no_code_by_extension:
 		if (!*ct) mem_free(ct);
 		else return ct;
 	}
-	ct = get_content_type_by_extension(url);
+	ct = get_content_type_by_header_and_extension(head, url);
 	if (ct) return ct;
 	return !force_html ? stracpy("text/plain") : stracpy("text/html");
 }
@@ -930,7 +949,8 @@ unsigned char *get_content_encoding(unsigned char *head, unsigned char *url)
 		if ((s = strchr(ct, ';'))) *s = 0;
 		ce = NULL;
 		if (!strcasecmp(ct, "application/x-gzip")) ce = "gzip";
-		if (!strcasecmp(ct, "application/x-bzip2")) ce = "bzip2";
+		if (!strcasecmp(ct, "application/x-bzip2") ||
+		    !strcasecmp(ct, "application/x-bzip")) ce = "bzip2";
 		mem_free(ct);
 		if (ce) return stracpy(ce);
 	}
@@ -1025,8 +1045,7 @@ void update_prog(struct list_head *l, unsigned char *p, int s)
 	repl->system = s;
 	ss:
 	repl->prog = mem_alloc(MAX_STR_LEN);
-	strncpy(repl->prog, p, MAX_STR_LEN);
-	repl->prog[MAX_STR_LEN - 1] = 0;
+	safe_strncpy(repl->prog, p, MAX_STR_LEN);
 }
 
 unsigned char *get_prog(struct list_head *l)

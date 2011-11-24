@@ -66,6 +66,22 @@ static unsigned char arrow_data[] =
   "\0\0\0\0\0\0\0\0\0\0\0\0\1\0\0\0\2\0\0\0\3\0\0\0\3\0\0\0\1\0\0\0\1\0"
   "\0\0\0\0\0\0\0\0\0\0\0";
 
+static DFBSurfaceDescription *directfb_get_arrow_desc(void)
+{
+	static DFBSurfaceDescription arrow_desc;
+ 
+  arrow_desc.flags        = DSDESC_WIDTH | DSDESC_HEIGHT | DSDESC_PIXELFORMAT |
+                            DSDESC_PREALLOCATED,
+  arrow_desc.width        = 18,
+  arrow_desc.height       = 25,
+  arrow_desc.pixelformat  = DSPF_ARGB,
+  arrow_desc.preallocated[0].data = (void *) arrow_data,
+  arrow_desc.preallocated[0].pitch = 72;
+
+	return &arrow_desc;
+}
+
+#if 0	/* this is GNU extension, not C */
 static DFBSurfaceDescription arrow_desc = {
   flags                   : DSDESC_WIDTH | DSDESC_HEIGHT | DSDESC_PIXELFORMAT |
                             DSDESC_PREALLOCATED,
@@ -75,6 +91,7 @@ static DFBSurfaceDescription arrow_desc = {
   preallocated : {{  data : (void *) arrow_data,
                     pitch : 72  }}
 };
+#endif
 
 #define arrow_hot_x 1
 #define arrow_hot_y 1

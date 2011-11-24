@@ -4,9 +4,9 @@
  * This file is a part of the Links program, released under GPL.
  */
 
-#include <cfg.h>
+#include "cfg.h"
 #ifdef G
-#include <links.h>
+#include "links.h"
 
 unsigned char *links_icon=
   "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"

@@ -11,7 +11,6 @@
 #ifdef HAVE_CONFIG2_H
 #include "config2.h"
 #endif
-#endif
 
 /* no one will probably ever port svgalib on atheos or beos or port atheos
    interface to beos, but anyway: make sure they don't clash */
@@ -29,4 +28,8 @@
 #ifdef GRDRV_SVGALIB
 #undef GRDRV_SVGALIB
 #endif
+#endif
+
+typedef int cfg_h_no_empty_unit;
+
 #endif

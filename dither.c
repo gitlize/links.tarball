@@ -93,7 +93,7 @@ static unsigned short round_blue_table[256];
 
 void (*round_fn)(unsigned short *in, struct bitmap *out);
 /* When you finish the stuff with dither_start, dither_restart, just do "if (dregs) mem_free(dregs);" */
-void (*dither_fn_internal)(unsigned short *in, struct bitmap *out, int * dregs);
+static void (*dither_fn_internal)(unsigned short *in, struct bitmap *out, int * dregs);
 
 
      /* prototypes */
@@ -289,7 +289,7 @@ int slow_fpu = -1;
 	*outp++=(o>>16);
 		
 DITHER_TEMPLATE(dither_1byte)
-ROUND_TEMPLATE(round_1byte);
+ROUND_TEMPLATE(round_1byte)
 
 #undef SKIP_CODE
 #undef SAVE_CODE

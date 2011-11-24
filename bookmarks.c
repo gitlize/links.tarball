@@ -15,7 +15,7 @@
 #endif
 
 int bookmarks_codepage=0;
-int can_write_bookmarks=0;	/* global flag if we can write bookmarks */
+static int can_write_bookmarks=0;	/* global flag if we can write bookmarks */
 
 unsigned char bookmarks_file[MAX_STR_LEN]="";
 
@@ -30,7 +30,7 @@ static void *bookmark_find_item(void *start, unsigned char *str, int direction);
 
 struct list bookmarks={&bookmarks,&bookmarks,0,-1,NULL};
 
-struct history bookmark_search_history = { 0, { &bookmark_search_history.items, &bookmark_search_history.items } };
+static struct history bookmark_search_history = { 0, { &bookmark_search_history.items, &bookmark_search_history.items } };
 
 /* when you change anything, don't forget to change it in reinit_bookmarks too !*/
 
@@ -55,7 +55,7 @@ struct bookmark_list{
 };
 
 
-struct list_description bookmark_ld=
+static struct list_description bookmark_ld=
 {
 	1,  /* 0= flat; 1=tree */
 	&bookmarks,  /* list */
@@ -182,9 +182,9 @@ static void bookmark_copy_item(void *in, void *out)
 }
 
 
-unsigned char *bm_add_msg[] = {
-	TEXT(T_NNAME),
-	TEXT(T_URL),
+static unsigned char *bm_add_msg[] = {
+	TEXT_(T_NNAME),
+	TEXT_(T_URL),
 };
 
 
@@ -335,13 +335,13 @@ static void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(
 	switch (dlg_title)
 	{
 		case TITLE_EDIT:
-		if ((item->type)&1)d->title=TEXT(T_EDIT_FOLDER);
-		else d->title=TEXT(T_EDIT_BOOKMARK);
+		if ((item->type)&1)d->title=TEXT_(T_EDIT_FOLDER);
+		else d->title=TEXT_(T_EDIT_BOOKMARK);
 		break;
 
 		case TITLE_ADD:
-		if ((item->type)&1)d->title=TEXT(T_ADD_FOLDER);
-		else d->title=TEXT(T_ADD_BOOKMARK);
+		if ((item->type)&1)d->title=TEXT_(T_ADD_FOLDER);
+		else d->title=TEXT_(T_ADD_BOOKMARK);
 		break;
 
 		default:
@@ -372,11 +372,11 @@ static void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(
 	d->items[a+1].type = D_BUTTON;
 	d->items[a+1].gid = B_ENTER;
 	d->items[a+1].fn = ok_dialog;
-	d->items[a+1].text = TEXT(T_OK);
+	d->items[a+1].text = TEXT_(T_OK);
 	
 	d->items[a+2].type = D_BUTTON;
 	d->items[a+2].gid = B_ESC;
-	d->items[a+2].text = TEXT(T_CANCEL);
+	d->items[a+2].text = TEXT_(T_CANCEL);
 	d->items[a+2].fn = cancel_dialog;
 	
 	d->items[a+3].type = D_END;
@@ -428,7 +428,7 @@ static unsigned char *bookmark_type_item(struct terminal *term, void *data, int 
 	struct conv_table *table;
 
 	if (item==(struct bookmark_list*)(void *)&bookmarks)   /* head */
-		return stracpy(_(TEXT(T_BOOKMARKS),term));
+		return stracpy(_(TEXT_(T_BOOKMARKS),term));
 
 	txt=stracpy(item->title);
 #ifdef SHOW_URL
@@ -526,7 +526,8 @@ static struct bookmark_list *previous_on_this_level(struct bookmark_list *item)
 {
 	struct bookmark_list *p;
 
-	for (p=item->prev;p->depth>item->depth;p=p->fotr);
+	for (p=item->prev;p->depth>item->depth;p=p->fotr)
+		;
 	return p;
 }
 
@@ -597,10 +598,10 @@ static void create_initial_bookmarks(void)
 	add_bookmark("Calibration Procedure","http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/calibration.html",2);
 	add_bookmark("Links Homepage","http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/",2);
 	add_bookmark("Links Manual","http://links.twibright.com/user_en.html",2);
-	add_bookmark("Èesky",NULL,1);
-	add_bookmark("Kalibraèní procedura","http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/kalibrace.html",2);
-	add_bookmark("Links: domácí stránka","http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/index_cz.html",2);
-	add_bookmark("Manuál k Linksu","http://links.twibright.com/user.html",2);
+	add_bookmark("Cesky",NULL,1);
+	add_bookmark("Kalibracni procedura","http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/kalibrace.html",2);
+	add_bookmark("Links: domaci stranka","http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/index_cz.html",2);
+	add_bookmark("Manual k Linksu","http://links.twibright.com/user.html",2);
 }
 
 static void load_bookmarks(void)
@@ -739,7 +740,8 @@ static unsigned char *convert_to_entity_string(unsigned char *str)
 	unsigned char *dst, *p, *q;
 	int size;
 	
-	for (size=1,p=str;*p;size+=*p=='&'?5:*p=='<'||*p=='>'||*p=='='?4:*p=='"'?6:1,p++);
+	for (size=1,p=str;*p;size+=*p=='&'?5:*p=='<'||*p=='>'||*p=='='?4:*p=='"'?6:1,p++)
+		;
 
 	dst=mem_alloc(size);
 	

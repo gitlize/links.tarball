@@ -25,12 +25,12 @@
  *		to make sure that you didn't break anything:
  *			g++ -DHAVE_CONFIG_H -x c++ links.h
  */
-#ifndef _LINKS_H
-#define _LINKS_H
+#ifndef LINKS_H
+#define LINKS_H
 
 #define LINKS_COPYRIGHT "(C) 1999 - 2011 Mikulas Patocka\n(C) 2000 - 2011 Petr Kulhavy, Karel Kulhavy, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2011 Mikulás Patocka\n(C) 2000 - 2011 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
-#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2011 Mikulá¹ Patoèka\n(C) 2000 - 2011 Petr Kulhavý, Karel Kulhavý, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_1 "(C) 1999 - 2011 Mikul\341s Patocka\n(C) 2000 - 2011 Petr Kulhav\375, Karel Kulhav\375, Martin Pergel"
+#define LINKS_COPYRIGHT_8859_2 "(C) 1999 - 2011 Mikul\341\271 Pato\350ka\n(C) 2000 - 2011 Petr Kulhav\375, Karel Kulhav\375, Martin Pergel"
 
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
@@ -40,11 +40,16 @@
 #define _LARGEFILE_SOURCE	1
 #endif
 
+#ifndef _ALL_SOURCE
+#define _ALL_SOURCE		1
+#endif
+
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS	64
 #endif
 
 #include "cfg.h"
+
 #include "os_dep.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,13 +70,13 @@
 #endif
 #ifndef _XOPEN_SOURCE
 #define X_S
-#define _XOPEN_SOURCE   5       /* The 5 is a kludge to get a strptime() prototype in NetBSD */
+#define _XOPEN_SOURCE	5	/* The 5 is a kludge to get a strptime() prototype in NetBSD */
 #endif
-#ifdef HAVE_TIME_H
 #ifdef TIME_WITH_SYS_TIME
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
+#ifdef HAVE_TIME_H
 #include <time.h>
 #endif
 #else
@@ -111,11 +116,23 @@ x #endif*/
 #ifdef HAVE_SYS_CYGWIN_H
 #include <sys/cygwin.h>
 #endif
+#ifdef HAVE_INTERIX_INTERIX_H
+#include <interix/interix.h>
+#endif
 #ifdef HAVE_IO_H
 #include <io.h>
 #endif
 #ifdef HAVE_SYS_UTSNAME_H
 #include <sys/utsname.h>
+#endif
+#ifdef HAVE_PWD_H
+#include <pwd.h>
+#endif
+#ifdef HAVE_GRP_H
+#include <grp.h>
+#endif
+#ifdef HAVE_MALLOC_H
+#include <malloc.h>
 #endif
 #ifdef HAVE_SETJMP_H
 #ifndef DONT_INCLUDE_SETJMP
@@ -137,6 +154,9 @@ x #endif*/
 #include <netinet/in.h>
 #ifdef HAVE_NETINET_IP_H
 #include <netinet/ip.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
 #endif
 #ifdef HAVE_NETINET_DHCP_H
 #include <netinet/dhcp.h>
@@ -174,6 +194,18 @@ x #endif*/
 #define longlong double
 #endif
 
+#if defined(__INTERIX) && defined(HAVE_STRTOQ)
+extern quad_t
+#if defined(__cdecl) || defined(_MSC_VER)
+__cdecl
+#endif
+strtoq(const char *, char **, int);
+#endif
+
+#if defined(__hpux) && defined(__LP64__)
+#undef HAVE_SOCKLEN_T
+#endif
+
 #ifndef HAVE_SOCKLEN_T
 #define socklen_t int
 #endif
@@ -191,7 +223,11 @@ x #endif*/
 
 #include "setup.h"
 
+#ifdef HAVE_POINTER_COMPARISON_BUG
+#define DUMMY ((void *)1L)
+#else
 #define DUMMY ((void *)-1L)
+#endif
 
 #define RET_OK		0
 #define RET_ERROR	1
@@ -225,6 +261,24 @@ struct timezone {
 	int tz_dsttime;
 };
 int gettimeofday(struct timeval *tv, struct timezone *tz);
+#endif
+#ifndef HAVE_STRLEN
+size_t strlen(const char *s);
+#endif
+#ifndef HAVE_STRCPY
+char *strcpy(char *dst, const char *src);
+#endif
+#ifndef HAVE_STRCHR
+char *strchr(const char *s, int c);
+#endif
+#ifndef HAVE_STRRCHR
+char *strrchr(const char *s, int c);
+#endif
+#ifndef HAVE_STRCMP
+int strcmp(const char *s1, const char *s2);
+#endif
+#ifndef HAVE_STRNCMP
+int strncmp(const char *s1, const char *s2, size_t n);
 #endif
 #ifndef HAVE_STRCSPN
 size_t strcspn(const char *s, const char *reject);
@@ -273,7 +327,8 @@ extern int F;
 #define BIN_SEARCH(entries, eq, ab, key, result)			\
 {									\
 	int _s = 0, _e = (entries) - 1;					\
-	while (_s <= _e || !((result) = -1)) {				\
+	(result) = -1;							\
+	while (_s <= _e) {						\
 		int _m = (_s + _e) / 2;					\
 		if (eq((_m), (key))) {					\
 			(result) = _m;					\
@@ -317,18 +372,15 @@ do {									\
 	error((unsigned char *)"ERROR: attempting to allocate too large block at %s:%d", __FILE__, __LINE__);\
 	fatal_tty_exit();						\
 	exit(RET_FATAL);						\
-} while (1)	/* while (1) is not a type --- it's here to allow the
+} while (1)	/* while (1) is not a typo --- it's here to allow the
 	compiler that doesn't know that exit doesn't return to do better
 	optimizations */
 
 #ifdef LEAK_DEBUG
 
 extern long mem_amount;
-extern long last_mem_amount;
 
 #endif
-
-void malloc_oom(void);
 
 #ifdef LEAK_DEBUG
 
@@ -361,7 +413,7 @@ static inline unsigned char *get_mem_comment(void *p){return (unsigned char *)""
 
 static inline unsigned upcase(unsigned a)
 {
-	if (a>='a' && a<='z') a -= 0x20;
+	if (a >= 'a' && a <= 'z') a -= 0x20;
 	return a;
 }
 
@@ -381,7 +433,7 @@ static inline int cmpbeg(unsigned char *str, unsigned char *b)
 
 #if !(defined(LEAK_DEBUG) && defined(LEAK_DEBUG_LIST))
 
-unsigned char *memacpy(const unsigned char *src, int len);
+unsigned char *memacpy(const unsigned char *src, size_t len);
 unsigned char *stracpy(const unsigned char *src);
 
 #else
@@ -520,7 +572,6 @@ void done_draw(void);
 void terminate_osdep(void);
 void *handle_mouse(int, void (*)(void *, unsigned char *, int), void *);
 void unhandle_mouse(void *);
-int check_file_name(unsigned char *);
 int start_thread(void (*)(void *, int), void *, int);
 unsigned char *get_clipboard_text(struct terminal *);
 void set_clipboard_text(struct terminal *, unsigned char *);
@@ -535,15 +586,19 @@ int check_shell_url(unsigned char *);
 void ignore_signals(void);
 void block_stdin(void);
 void unblock_stdin(void);
+void init_os(void);
+void init_os_terminal(void);
 void get_path_to_exe(void);
-int exe(char *, int);
+unsigned char *os_conv_to_external_path(unsigned char *, unsigned char *);
+unsigned char *os_fixup_external_program(unsigned char *);
+int exe(unsigned char *, int);
 int resize_window(int, int);
 int can_resize_window(int);
 int can_open_os_shell(int);
 struct open_in_new *get_open_in_new(int);
 void set_highpri(void);
 #ifdef HAVE_OPEN_PREALLOC
-int open_prealloc(char *, int, int, off_t);
+int open_prealloc(unsigned char *, int, int, off_t);
 void prealloc_truncate(int, off_t);
 #else
 static inline void prealloc_truncate(int x, off_t y) {}
@@ -559,11 +614,18 @@ extern unsigned char *clipboard;
 #define SH_FREE_ALL		2
 
 #define ST_SOMETHING_FREED	1
-#define ST_CACHE_EMPTY	2
+#define ST_CACHE_EMPTY		2
 
 int shrink_memory(int);
 void register_cache_upcall(int (*)(int), unsigned char *);
 void free_all_caches(void);
+int out_of_memory(unsigned char *msg, size_t size);
+
+#ifndef DEBUG_TEST_FREE
+#define debug_test_free(file, line)
+#else
+void debug_test_free(unsigned char *file, int line);
+#endif
 
 /* select.c */
 
@@ -656,8 +718,6 @@ void defrag_entry(struct cache_entry *);
 void truncate_entry(struct cache_entry *, off_t, int);
 void free_entry_to(struct cache_entry *, off_t);
 void delete_entry_content(struct cache_entry *);
-void delete_cache_entry(struct cache_entry *);
-void garbage_collection(int);
 
 /* sched.c */
 
@@ -732,13 +792,11 @@ struct k_conn {
 
 extern struct list_head keepalive_connections;
 
-void no_owner(void);
-
 static inline int getpri(struct connection *c)
 {
 	int i;
 	for (i = 0; i < N_PRI; i++) if (c->pri[i]) return i;
-	no_owner();
+	internal((unsigned char *)"connection has no owner");
 	return N_PRI;
 }
 
@@ -759,49 +817,54 @@ static inline int getpri(struct connection *c)
 #define S_PROC		8
 #define S_TRANS		9
 
-#define S_WAIT_REDIR		-999
-#define S_OK			-1000
-#define S_INTERRUPTED		-1001
-#define S_EXCEPT		-1002
-#define S_INTERNAL		-1003
-#define S_OUT_OF_MEM		-1004
-#define S_NO_DNS		-1005
-#define S_CANT_WRITE		-1006
-#define S_CANT_READ		-1007
-#define S_MODIFIED		-1008
-#define S_BAD_URL		-1009
-#define S_TIMEOUT		-1010
-#define S_RESTART		-1011
-#define S_STATE			-1012
-#define S_CYCLIC_REDIRECT	-1013
-#define S_LARGE_FILE		-1014
-#define S_BLOCKED_URL		-1015
-#define S_NO_PROXY		-1016
+#define S_OK			(-2000000000)
+#define S_INTERRUPTED		(-2000000001)
+#define S_EXCEPT		(-2000000002)
+#define S_INTERNAL		(-2000000003)
+#define S_OUT_OF_MEM		(-2000000004)
+#define S_NO_DNS		(-2000000005)
+#define S_CANT_WRITE		(-2000000006)
+#define S_CANT_READ		(-2000000007)
+#define S_MODIFIED		(-2000000008)
+#define S_BAD_URL		(-2000000009)
+#define S_TIMEOUT		(-2000000010)
+#define S_RESTART		(-2000000011)
+#define S_STATE			(-2000000012)
+#define S_CYCLIC_REDIRECT	(-2000000013)
+#define S_LARGE_FILE		(-2000000014)
+#define S_BLOCKED_URL		(-2000000015)
+#define S_NO_PROXY		(-2000000016)
 
-#define S_HTTP_ERROR		-1100
-#define S_HTTP_100		-1101
-#define S_HTTP_204		-1102
+#define S_HTTP_ERROR		(-2000000100)
+#define S_HTTP_100		(-2000000101)
+#define S_HTTP_204		(-2000000102)
 
-#define S_FILE_TYPE		-1200
-#define S_FILE_ERROR		-1201
+#define S_FILE_TYPE		(-2000000200)
+#define S_FILE_ERROR		(-2000000201)
 
-#define S_FTP_ERROR		-1300
-#define S_FTP_UNAVAIL		-1301
-#define S_FTP_LOGIN		-1302
-#define S_FTP_PORT		-1303
-#define S_FTP_NO_FILE		-1304
-#define S_FTP_FILE_ERROR	-1305
+#define S_FTP_ERROR		(-2000000300)
+#define S_FTP_UNAVAIL		(-2000000301)
+#define S_FTP_LOGIN		(-2000000302)
+#define S_FTP_PORT		(-2000000303)
+#define S_FTP_NO_FILE		(-2000000304)
+#define S_FTP_FILE_ERROR	(-2000000305)
 
-#define S_SSL_ERROR		-1400
-#define S_NO_SSL		-1401
+#define S_SSL_ERROR		(-2000000400)
+#define S_NO_SSL		(-2000000401)
 
-#define S_BAD_SOCKS_VERSION	-1500
-#define S_SOCKS_REJECTED	-1501
-#define S_SOCKS_NO_IDENTD	-1502
-#define S_SOCKS_BAD_USERID	-1503
-#define S_SOCKS_UNKNOWN_ERROR	-1504
+#define S_BAD_SOCKS_VERSION	(-2000000500)
+#define S_SOCKS_REJECTED	(-2000000501)
+#define S_SOCKS_NO_IDENTD	(-2000000502)
+#define S_SOCKS_BAD_USERID	(-2000000503)
+#define S_SOCKS_UNKNOWN_ERROR	(-2000000504)
 
-#define S_NO_SMB_CLIENT		-1600
+#define S_NO_SMB_CLIENT		(-2000000600)
+
+#define S_WAIT_REDIR		(-2000000700)
+
+#define S_UNKNOWN_ERROR		(-2000000800)
+
+#define S_MAX			(-2000000900)
 
 
 extern struct s_msg_dsc {
@@ -825,16 +888,13 @@ struct status {
 unsigned char *get_proxy(unsigned char *url);
 void check_queue(void *dummy);
 long connect_info(int);
-void send_connection_info(struct connection *c);
 void setcstate(struct connection *c, int);
 int get_keepalive_socket(struct connection *c);
 void add_keepalive_socket(struct connection *c, ttime);
-void run_connection(struct connection *c);
 int is_connection_restartable(struct connection *c);
 int is_last_try(struct connection *c);
 void retry_connection(struct connection *c);
 void abort_connection(struct connection *c);
-void end_connection(struct connection *c);
 void load_url(unsigned char *, unsigned char *, struct status *, int, int);
 void change_connection(struct status *, struct status *, int);
 void detach_connection(struct status *, off_t);
@@ -842,7 +902,6 @@ void abort_all_connections(void);
 void abort_background_connections(void);
 void abort_all_keepalive_connections(void);
 int is_entry_used(struct cache_entry *);
-void connection_timeout(struct connection *);
 void set_timeout(struct connection *);
 void add_blacklist_entry(unsigned char *, int);
 void del_blacklist_entry(unsigned char *, int);
@@ -895,7 +954,6 @@ struct read_buffer {
 	unsigned char data[1];
 };
 
-void exception(struct connection *);
 void close_socket(int *);
 void make_connection(struct connection *, int, int *, void (*)(struct connection *));
 int get_pasv_socket(struct connection *, int, int *, unsigned char *);
@@ -1106,7 +1164,6 @@ void lru_insert(struct lru *cache, void *entry, struct lru_entry ** row
 	, unsigned bytes_consumed);
 void *lru_get_bottom(struct lru *cache);
 void lru_destroy_bottom(struct lru* cache);
-void lru_destroy (struct lru* cache);
 void lru_init (struct lru *cache, int
 	(*compare_function)(void *entry, void *templ), int max_bytes);
 void *lru_lookup(struct lru *cache, void *templ, struct lru_entry *row);
@@ -1139,7 +1196,7 @@ struct rect_set {
 	struct rect r[1];
 };
 
-struct graphics_device{
+struct graphics_device {
         /* Only graphics driver is allowed to write to this */
 
         struct rect size; /* Size of the window */
@@ -1147,7 +1204,6 @@ struct graphics_device{
 	struct rect clip;
                 /* right, bottom are coords of the first point that are outside the clipping area */
         
-        struct graphics_driver *drv;
         void *driver_data;
 
         /* Only user is allowed to write here, driver inits to zero's */
@@ -1158,7 +1214,7 @@ struct graphics_device{
         void (*mouse_handler)(struct graphics_device *dev, int x, int y, int buttons);
 };
 
-struct graphics_driver{
+struct graphics_driver {
 	unsigned char *name;
 	unsigned char *(*init_driver)(unsigned char *param, unsigned char *display);	/* param is get from get_driver_param and saved into configure file */
 	
@@ -1186,7 +1242,7 @@ struct graphics_driver{
 	/* Must not touch x and y. Suitable for re-registering. */
 	void (*unregister_bitmap)(struct bitmap *bmp);
 	void (*draw_bitmap)(struct graphics_device *dev, struct bitmap *hndl, int x, int y);
-	void (*draw_bitmaps)(struct graphics_device *dev, struct bitmap **hndls, int n, int x, int y);
+	/*void (*draw_bitmaps)(struct graphics_device *dev, struct bitmap **hndls, int n, int x, int y);*/
 
 	/* Input into get_color has gamma 1/display_gamma.
 	 * Input of 255 means exactly the largest sample the display is able to produce.
@@ -1222,6 +1278,9 @@ struct graphics_driver{
 		   -if flag is !0, run command in separate shell
 		    else run command directly
 		 */
+
+	void (*set_clipboard_text)(struct graphics_device *gd, unsigned char *text);
+	unsigned char *(*get_clipboard_text)(void);
 
 	int depth; /* Data layout 
 		    * depth
@@ -1271,6 +1330,7 @@ struct graphics_driver{
 #define GD_NEED_CODEPAGE	2
 #define GD_ONLY_1_WINDOW	4
 #define GD_NOAUTO		8
+#define GD_NO_OS_SHELL		16
 
 extern struct graphics_driver *drv;
 
@@ -1395,12 +1455,10 @@ void g_print_text(struct graphics_driver *, struct graphics_device *device, int 
 int g_text_width(struct style *style, unsigned char *text);
 int g_char_width(struct style *style, int ch);
 void destroy_font_cache(void);
-unsigned char apply_gamma_single_8_to_8(unsigned char input, float gamma);
+/*unsigned char apply_gamma_single_8_to_8(unsigned char input, float gamma);*/
 unsigned short apply_gamma_single_8_to_16(unsigned char input, float gamma);
 unsigned char apply_gamma_single_16_to_8(unsigned short input, float gamma);
 unsigned short apply_gamma_single_16_to_16(unsigned short input, float gamma);
-void mix_one_color(unsigned char *dest, int length,
-		   int r, int g, int b);
 void apply_gamma_exponent_24_to_48(unsigned short *dest, unsigned char *src, int
 			  lenght, float red_gamma, float green_gamma, float
 			  blue_gamma);
@@ -1464,24 +1522,11 @@ static inline long dip_get_color_sRGB(int rgb)
 	else return real_dip_get_color_sRGB(rgb);
 }
 
-extern void apply_gamma_exponent_8_to_8(unsigned char *dest, unsigned char *src, int lenght,
-					float red_gamma, float green_gamma,
-					float blue_gamma);
-extern void apply_gamma_exponent_8_to_16(unsigned short *dest, unsigned char *src, int lenght,
-					float red_gamma, float green_gamma,
-					float blue_gamma);
-
 
 void init_dip(void);
 void shutdown_dip(void);
 void get_links_icon(unsigned char **data, int *width, int* height, int depth);
 
-#endif
-
-/* x.c */
-#if defined(G) && defined (GRDRV_X)
-void x_set_clipboard_text(struct graphics_device *gd, unsigned char *text);
-unsigned char *x_get_clipboard_text(void);
 #endif
 
 /* links_icon.c */
@@ -1511,6 +1556,8 @@ void round_color_sRGB_to_48(unsigned short *red, unsigned short *green,
 
 /* terminal.c */
 
+extern unsigned char frame_dumb[];
+
 #ifndef ENABLE_UTF8
 typedef unsigned char char_t;
 #else
@@ -1520,7 +1567,11 @@ typedef unsigned char_t;
 typedef struct {
 	char_t ch;
 	unsigned char at;
-} chr;
+}
+#if defined(__GNUC__) && __GNUC__ >= 2 && defined(ENABLE_UTF8)
+__attribute__((__packed__))
+#endif
+chr;
 
 struct event {
 	long ev;
@@ -1565,6 +1616,7 @@ struct window {
 #define ENV_BE		8
 #define ENV_TWIN	16
 #define ENV_WIN32	32
+#define ENV_INTERIX	64
 #define ENV_G		32768
 
 struct terminal {
@@ -1599,6 +1651,9 @@ struct terminal {
 	unsigned char *title;
 #ifdef G
 	struct graphics_device *dev;
+	int last_mouse_x;
+	int last_mouse_y;
+	int last_mouse_b;
 #endif
 #if defined(G) || defined(ENABLE_UTF8)
 	unsigned char utf8_buffer[7];
@@ -1723,10 +1778,8 @@ unsigned char *get_english_translation(unsigned char *);
 void set_language(int);
 int n_languages(void);
 unsigned char *language_name(int);
-int language_index(unsigned char *);
 
 #define _(_x_, _y_) get_text_translation(_x_, _y_)
-#define TEXT(x) (dummyarray + x)
 #define TEXT_(x) (dummyarray + x) /* TEXT causes name clash on windows */
 
 /* af_unix.c */
@@ -1744,14 +1797,12 @@ extern int g_argc;
 
 void sig_tstp(struct terminal *t);
 void sig_cont(struct terminal *t);
-void sig_ign(void *x);
 
 void unhandle_terminal_signals(struct terminal *term);
 int attach_terminal(int, int, int, void *, int);
 #ifdef G
 int attach_g_terminal(void *, int);
 #endif
-void program_exit(void);
 
 /* types.c */
 
@@ -1851,6 +1902,7 @@ struct object_request {
 	tcount count;
 	tcount term;
 	struct status stat;
+	struct cache_entry *ce_internal;
 	struct cache_entry *ce;
 	unsigned char *orig_url;
 	unsigned char *url;
@@ -1897,7 +1949,6 @@ struct link_def {
 
 struct line {
 	int l;
-	int c;
 	chr *d;
 };
 
@@ -2240,20 +2291,15 @@ struct g_object_tag {
 };
 
 #define IM_PNG 0
-#define IM_MNG 1
+#define IM_GIF 1
+#define IM_XBM 2
 
 #ifdef HAVE_JPEG
-#define IM_JPG 2
+#define IM_JPG 3
 #endif /* #ifdef HAVE_JPEG */
 
-#define IM_PCX 3
-#define IM_BMP 4
-#define IM_TIF 5
-#define IM_GIF 6
-#define IM_XBM 7
-
 #ifdef HAVE_TIFF
-#define IM_TIFF 8
+#define IM_TIFF 4
 #endif /* #ifdef HAVE_TIFF */
 
 #define MEANING_DIMS      0
@@ -2486,10 +2532,6 @@ struct f_data {
 #ifdef G
 	struct g_object *root;
 	struct g_object *locked_on;
-	int hsb;
-	int vsb;
-	int hsbsize;
-	int vsbsize;
 
 	unsigned char *srch_string;
 	int srch_string_size;
@@ -2543,6 +2585,10 @@ struct f_data_c {
 	int xw, yw; /* size of window */
 	int xp, yp; /* pos of window on screen */
 	int xl, yl; /* last pos of view in window */
+
+	int hsb, vsb;
+	int hsbsize, vsbsize;
+
 	struct link_bg *link_bg;
 	int link_bg_n;
 	int depth;
@@ -2678,12 +2724,13 @@ struct session {
 #endif
 };
 
+struct dialog_data;
+
 int get_file(struct object_request *o, unsigned char **start, unsigned char **end);
 
 int f_is_finished(struct f_data *f);
 long formatted_info(int);
 void init_fcache(void);
-void html_interpret(struct f_data_c *);
 void html_interpret_recursive(struct f_data_c *);
 void fd_loaded(struct object_request *, struct f_data_c *);
 
@@ -2696,6 +2743,7 @@ unsigned char *subst_file(unsigned char *, unsigned char *, int);
 int are_there_downloads(void);
 unsigned char *translate_download_file(unsigned char *);
 void free_strerror_buf(void);
+int get_error_from_errno(int errn);
 unsigned char *get_err_msg(int);
 void print_screen_status(struct session *);
 void change_screen_status(struct session *);
@@ -2703,6 +2751,7 @@ void print_error_dialog(struct session *, struct status *, unsigned char *);
 void start_download(struct session *, unsigned char *);
 int test_abort_downloads_to_file(unsigned char *, unsigned char *, int);
 void abort_all_downloads(void);
+void download_window_function(struct dialog_data *dlg);
 void display_download(struct terminal *, struct download *, struct session *);
 struct f_data *cached_format_html(struct f_data_c *fd, struct object_request *rq, unsigned char *url, struct document_options *opt, int *cch);
 struct f_data_c *create_f_data_c(struct session *, struct f_data_c *);
@@ -2728,7 +2777,7 @@ struct f_data_c *find_frame(struct session *ses, unsigned char *target, struct f
 unsigned char *get_current_url(struct session *, unsigned char *, size_t);
 unsigned char *get_current_title(struct session *, unsigned char *, size_t);
 
-unsigned char *get_current_link_url(struct session *, unsigned char *, size_t);
+/*unsigned char *get_current_link_url(struct session *, unsigned char *, size_t);*/
 unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form_control *form, int *onsubmit);
 
 /* js.c */
@@ -3021,7 +3070,6 @@ struct history {
 #define B_ESC		2
 
 struct dialog_item_data;
-struct dialog_data;
 
 struct dialog_item {
 	int type;
@@ -3100,7 +3148,7 @@ void dlg_format_field(struct dialog_data *, struct terminal *, struct dialog_ite
 void max_group_width(struct terminal *, unsigned char **, struct dialog_item_data *, int, int *);
 void min_group_width(struct terminal *, unsigned char **, struct dialog_item_data *, int, int *);
 void dlg_format_group(struct dialog_data *, struct terminal *, unsigned char **, struct dialog_item_data *, int, int, int *, int, int *);
-void dlg_format_box(struct terminal *, struct terminal *, struct dialog_item_data *, int, int *, int, int *, int);
+/*void dlg_format_box(struct terminal *, struct terminal *, struct dialog_item_data *, int, int *, int, int *, int);*/
 void checkbox_list_fn(struct dialog_data *);
 void group_fn(struct dialog_data *);
 void center_dlg(struct dialog_data *);
@@ -3148,19 +3196,9 @@ void input_field(struct terminal *, struct memory_list *, unsigned char *, unsig
  *	void (*fn)(void *data, unsigned char *text), only the last one has type
  *	void (*fn)(void *data). Check it carefully because the compiler wont!
  */
-void add_to_history(struct history *, unsigned char *);
+void add_to_history(struct history *, unsigned char *, int);
 
-void box_sel_move(struct dialog_item_data *, int ); 
-void show_dlg_item_box(struct dialog_data *, struct dialog_item_data *);
-void box_sel_set_visible(struct dialog_item_data *, int ); 
-
-/* internal functions: do not call */
-void menu_func(struct window *, struct event *, int);
-void mainmenu_func(struct window *, struct event *, int);
 void dialog_func(struct window *, struct event *, int);
-
-void msg_box_fn(struct dialog_data *dlg);
-void download_window_function(struct dialog_data *dlg);
 
 /* menu.c */
 
@@ -3439,7 +3477,6 @@ struct decoded_image;
 extern int dither_images;
 #ifdef G
 extern int end_callback_hit;
-extern struct g_object_image *global_goi;
 extern struct cached_image *global_cimg;
 
 /* Below are internal functions shared with imgcache.c, gif.c, and xbm.c */
@@ -3487,7 +3524,7 @@ int known_image_type(unsigned char *type);
 #ifdef G
 
 void init_imgcache(void);
-int imgcache_info(int type);
+long imgcache_info(int type);
 struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
 		yw, int xyw_meaning, int scale, int aspect);
 void add_image_to_cache(struct cached_image *ci);
@@ -3681,12 +3718,9 @@ extern unsigned char *eofff;
 #define html_top (*(struct html_element *)html_stack.next)
 
 extern void *ff;
-extern int (*put_chars_f)(void *, unsigned char *, int);
+extern void (*put_chars_f)(void *, unsigned char *, int);
 extern void (*line_break_f)(void *);
 extern void *(*special_f)(void *, int, ...);
-
-void ln_break(int, void (*)(void *), void *);
-void put_chrs(unsigned char *, int, int (*)(void *, unsigned char *, int), void *);
 
 extern int table_level;
 extern int empty_format;
@@ -3714,7 +3748,7 @@ int get_bgcolor(unsigned char *, struct rgb *);
 void html_stack_dup(void);
 void kill_html_stack_item(struct html_element *);
 unsigned char *skip_comment(unsigned char *, unsigned char *);
-void parse_html(unsigned char *, unsigned char *, int (*)(void *, unsigned char *, int), void (*)(void *), void *(*)(void *, int, ...), void *, unsigned char *);
+void parse_html(unsigned char *, unsigned char *, void (*)(void *, unsigned char *, int), void (*)(void *), void *(*)(void *, int, ...), void *, unsigned char *);
 int get_image_map(unsigned char *, unsigned char *, unsigned char *, unsigned char *a, struct menu_item **, struct memory_list **, unsigned char *, unsigned char *, int, int, int, int gfx);
 void scan_http_equiv(unsigned char *, unsigned char *, unsigned char **, int *, unsigned char **, unsigned char **, unsigned char **, struct js_event_spec **);
 
@@ -3738,6 +3772,10 @@ struct frameset_param {
 	int x, y;
 	int *xw, *yw;
 };
+
+#define SCROLLING_NO	0
+#define SCROLLING_YES	1
+#define SCROLLING_AUTO	2
 
 struct frame_param {
 	struct frameset_desc *parent;
@@ -3825,14 +3863,12 @@ void destroy_formatted(struct f_data *);
  */
 extern struct document_options dd_opt;	
 extern struct document_options *d_opt;	
-extern int last_link_to_move;
 extern int margin;
 
 void xxpand_line(struct part *, int, int);
 void xxpand_lines(struct part *, int);
 void xset_hchar(struct part *, int, int, unsigned, unsigned);
 void xset_hchars(struct part *, int, int, int, unsigned, unsigned);
-void align_line(struct part *, int);
 void html_tag(struct f_data *, unsigned char *, int, int);
 void process_script(struct f_data *, unsigned char *);
 void set_base(struct f_data *, unsigned char *);
@@ -3845,10 +3881,6 @@ void copy_opt(struct document_options *, struct document_options *);
 
 struct link *new_link(struct f_data *);
 struct conv_table *get_convert_table(unsigned char *, int, int, int *, int *, int);
-extern int format_cache_entries;
-void count_format_cache(void);
-void delete_unused_format_cache_entries(void);
-void format_cache_reactivate(struct f_data *);
 struct part *format_html_part(unsigned char *, unsigned char *, int, int, int, struct f_data *, int, int, unsigned char *, int);
 void really_format_html(struct cache_entry *, unsigned char *, unsigned char *, struct f_data *, int frame);
 void get_search_data(struct f_data *);
@@ -3924,8 +3956,6 @@ extern unsigned char system_name[];
 
 extern unsigned char *links_home;
 extern int first_use;
-
-extern int created_home;
 
 extern int no_connect;
 extern int base_session;
@@ -4081,7 +4111,7 @@ struct list_description{
 struct list *next_in_tree(struct list_description *ld, struct list *item);
 int create_list_window(struct list_description *,struct list *,struct terminal *,struct session *);
 /* following 2 functions should be called after calling create_list_window fn */
-void redraw_list_window(struct list_description *ld);	/* redraws list window */
+/*void redraw_list_window(struct list_description *ld);*/	/* redraws list window */
 void reinit_list_window(struct list_description *ld);	/* reinitializes list window */
 
 /* bookmarks.c */
@@ -4099,8 +4129,4 @@ void save_bookmarks(void);
 /* Launches bookmark manager */
 void menu_bookmark_manager(struct terminal *, void *, struct session *);
 
-#define SCROLLING_NO	0
-#define SCROLLING_YES	1
-#define SCROLLING_AUTO	2
-
-#endif /* #ifndef _LINKS_H */
+#endif /* #ifndef LINKS_H */

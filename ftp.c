@@ -381,19 +381,8 @@ static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 								if (j != 1) goto no_pasv;
 								pc[4] = pc[0];
 								pc[5] = pc[1];
-								{
-									unsigned a;
-									struct sockaddr_in sa;
-									socklen_t nl = sizeof(sa);
-									if (getpeername(c->sock1, (struct sockaddr *)(void *)&sa, &nl)) goto no_pasv;
-									if (nl != sizeof(sa)) goto no_pasv;
-									a = ntohl(sa.sin_addr.s_addr);
-									pc[0] = a >> 24;
-									pc[1] = a >> 16;
-									pc[2] = a >> 8;
-									pc[3] = a;
-									goto pasv_ok;
-								}
+								pc[0] = pc[1] = pc[2] = pc[3] = 0;
+								goto pasv_ok;
 							}
 						}
 					}
@@ -415,41 +404,12 @@ static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 			case 2:		/* PORT */
 				if (g >= 400) { setcstate(c, S_FTP_PORT); abort_connection(c); return; }
 				if (inf->pasv) {
-#if 0
-					struct sockaddr_in sa;
-					if (!pc[0] && !pc[1] && !pc[2] && !pc[3] && !pc[4] && !pc[5]) {
+					if (!pc[4] && !pc[5]) {
 						setcstate(c, S_FTP_ERROR);
 						retry_connection(c);
 						return;
 					}
-					sa.sin_family = AF_INET;
-					sa.sin_port = htons((pc[4] << 8) + pc[5]);
-					sa.sin_addr.s_addr = htonl((pc[0] << 24) + (pc[1] << 16) + (pc[2] << 8) + pc[3]);
-					/*debug("%d.%d.%d.%d", pc[0], pc[1], pc[2], pc[3]);*/
-					if ((c->sock2 = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
-						setcstate(c, -errno);
-						retry_connection(c);
-						return;
-					}
-					fcntl(c->sock2, F_SETFL, O_NONBLOCK);
-#ifdef HAVE_IPTOS
-					if (ftp_options.set_tos) {
-						int on = IPTOS_THROUGHPUT;
-						setsockopt(c->sock2, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int));
-					}
-#endif
-					if (connect(c->sock2, (struct sockaddr *)&sa, sizeof sa)) {
-						if (errno != EINPROGRESS && errno != EALREADY) {
-							setcstate(c, -errno);
-							retry_connection(c);
-							return;
-						}
-					}
-					inf->d = 1;
-					set_handlers(c->sock2, (void (*)(void *))got_something_from_data_connection, NULL, NULL, c);
-#else
 					make_connection(c, (pc[4] << 8) + pc[5], &c->sock2, created_data_connection);
-#endif
 				}
 				goto rep;
 			case 3:		/* REST / CWD */
@@ -504,10 +464,13 @@ static void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 	if (!g) { read_from_socket(c, c->sock1, rb, ftp_got_final_response); if (c->state != S_TRANS) setcstate(c, S_GETH); return; }
 	if (g == 425 || g == 450 || g == 500 || g == 501 || g == 550) {
 		if (c->url[strlen(c->url) - 1] == '/') goto skip_redir;
-		if (!c->cache && get_cache_entry(c->url, &c->cache)) {
-			setcstate(c, S_OUT_OF_MEM);
-			abort_connection(c);
-			return;
+		if (!c->cache) {
+			if (get_cache_entry(c->url, &c->cache)) {
+				setcstate(c, S_OUT_OF_MEM);
+				abort_connection(c);
+				return;
+			}
+			c->cache->refcount--;
 		}
 		if (c->cache->redirect) mem_free(c->cache->redirect);
 		c->cache->redirect = stracpy(c->url);
@@ -702,10 +665,13 @@ static void got_something_from_data_connection(struct connection *c)
 		set_handlers(ns, (void (*)(void *))got_something_from_data_connection, NULL, NULL, c);
 		return;
 	}
-	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
+	if (!c->cache) {
+		if (get_cache_entry(c->url, &c->cache)) {
+			setcstate(c, S_OUT_OF_MEM);
+			abort_connection(c);
+			return;
+		}
+		c->cache->refcount--;
 	}
 	if (inf->dir && !c->from) {
 		unsigned char *ud;
@@ -739,13 +705,13 @@ static void got_something_from_data_connection(struct connection *c)
 			inf->conn_st = 2;
 			return;
 		}
-		setcstate(c, -errno);
+		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
 		return;
 	}
 	if (l > 0) {
 		if (!inf->dir) {
-			if (c->from + l < 0) {
+			if ((off_t)(0UL + c->from + l) < 0) {
 				setcstate(c, S_LARGE_FILE);
 				abort_connection(c);
 				return;

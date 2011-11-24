@@ -25,6 +25,8 @@
 int closesocket(int);
 #endif
 
+#include "beos.h"
+
 int be_read(int s, void *ptr, int len)
 {
 	if (s >= SHS) return recv(s - SHS, ptr, len, 0);
@@ -189,15 +191,13 @@ int be_getsockopt(int s, int level, int optname, void *optval, int *optlen)
 	return -1;
 }
 
-int start_thr(void (*)(void *), void *, unsigned char *);
+static int ihpipe[2];
 
-int ihpipe[2];
-
-int inth;
+static int inth;
 
 #include <errno.h>
 
-void input_handle_th(void *p)
+static void input_handle_th(void *p)
 {
 	char c;
 	int b = 0;
@@ -205,7 +205,7 @@ void input_handle_th(void *p)
 	while (1) if (read(0, &c, 1) == 1) be_write(ihpipe[1], &c, 1);
 }
 
-int get_input_handle()
+int get_input_handle(void)
 {
 	static int h = -1;
 	if (h >= 0) return h;
@@ -213,17 +213,19 @@ int get_input_handle()
 	if ((inth = start_thr(input_handle_th, NULL, "input_thread")) < 0) {
 		closesocket(ihpipe[0]);
 		closesocket(ihpipe[1]);
-		return -1;
+		error("Can't spawn input thread");
+		fatal_tty_exit();
+		exit(4);
 	}
 	return h = ihpipe[0];
 }
 
-void block_stdin()
+void block_stdin(void)
 {
 	suspend_thread(inth);
 }
 
-void unblock_stdin()
+void unblock_stdin(void)
 {
 	resume_thread(inth);
 }
@@ -232,7 +234,7 @@ void unblock_stdin()
 
 #define O_BUF	16384
 
-void output_handle_th(void *p)
+static void output_handle_th(void *p)
 {
 	char *c = malloc(O_BUF);
 	int r, b = 0;
@@ -242,7 +244,7 @@ void output_handle_th(void *p)
 	free(c);
 }
 
-int get_output_handle()
+int get_output_handle(void)
 {
 	static int h = -1;
 	if (h >= 0) return h;
@@ -250,9 +252,15 @@ int get_output_handle()
 	if (start_thr(output_handle_th, NULL, "output_thread") < 0) {
 		closesocket(ohpipe[0]);
 		closesocket(ohpipe[1]);
-		return -1;
+		error("Can't spawn output thread");
+		fatal_tty_exit();
+		exit(4);
 	}
 	return h = ohpipe[1];
 }*/
+
+#else
+
+typedef int beos_c_no_empty_unit;
 
 #endif

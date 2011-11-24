@@ -17,11 +17,21 @@ extern "C" {
 #include "links.h"
 }
 
+#define WINDOW_TITLE_SIZE	16
+#define TOP_PANEL_SIZE		32
+#define NEW_WINDOW_X_ADD	16
+#define NEW_WINDOW_Y_ADD	16
+#define NEW_WINDOW_X_MIN	8
+#define NEW_WINDOW_Y_MIN	8
+
 #ifdef debug
 #undef debug
 #endif
+#ifdef debug2
+#undef debug2
+#endif
 #define debug(x)
-#define fprintf(x, y)
+#define debug2(x)
 
 extern struct graphics_driver atheos_driver;
 
@@ -84,13 +94,14 @@ thread_id ath_app_thread_id;
 color_space ath_cs_desktop, ath_cs_bmp;
 
 int ath_x_size, ath_y_size;
+int ath_y_panel;
 
 int ath_win_x_size, ath_win_y_size;
 int ath_win_x_pos, ath_win_y_pos;
 
 LinksWindow::LinksWindow(Rect r):Window(r, "links_wnd", "Links")
 {
-	fprintf(stderr, "LINKSWINDOW\n");
+	debug2("LINKSWINDOW\n");
 	resized = 0;
 	view = NULL;
 }
@@ -98,7 +109,7 @@ LinksWindow::LinksWindow(Rect r):Window(r, "links_wnd", "Links")
 LinksWindow::~LinksWindow()
 {
 	view = NULL;
-	fprintf(stderr, "~LINKSWINDOW\n");
+	debug2("~LINKSWINDOW\n");
 }
 
 void LinksWindow::FrameSized(const Point &d)
@@ -114,7 +125,7 @@ bool LinksWindow::OkToQuit()
 	Unlock();
 	ath_lock->Unlock();
 	write(wpipe, " ", 1);
-	/*fprintf(stderr, "key: :%s: :%s: %d %d\n", s, rs, q, c);*/
+	/*debug2("key: :%s: :%s: %d %d\n", s, rs, q, c);*/
 	return false;
 }
 
@@ -130,7 +141,7 @@ void do_flush(void *p_dev)
 
 LinksView::LinksView(LinksWindow *w):View(w->GetBounds(), "Links", CF_FOLLOW_ALL, WID_WILL_DRAW | WID_FULL_UPDATE_ON_RESIZE)
 {
-	fprintf(stderr, "LINKSVIEW\n");
+	debug2("LINKSVIEW\n");
 	(win = w)->AddChild(this);
 	w->SetFocusChild(this);
 	w->view = this;
@@ -141,7 +152,7 @@ LinksView::LinksView(LinksWindow *w):View(w->GetBounds(), "Links", CF_FOLLOW_ALL
 LinksView::~LinksView()
 {
 	win->view = NULL;
-	fprintf(stderr, "~LINKSVIEW\n");
+	debug2("~LINKSVIEW\n");
 }
 
 void LinksView::d_flush()
@@ -169,7 +180,7 @@ void ath_get_event(void *dummy)
 {
 	char dummy_buffer[256];
 	read(rpipe, dummy_buffer, 256);
-	fprintf(stderr, "GETE\n");
+	debug2("GETE\n");
 }
 
 void ath_get_size(struct graphics_device *dev)
@@ -190,7 +201,7 @@ void LinksView::Paint(const Rect &r)
 	rr.x2 = (int)r.right + 1;
 	rr.y1 = (int)r.top;
 	rr.y2 = (int)r.bottom + 1;
-	/*fprintf(stderr, "paint: %d %d %d %d\n", rr.x1, rr.x2, rr.y1, rr.y2);*/
+	/*debug2("paint: %d %d %d %d\n", rr.x1, rr.x2, rr.y1, rr.y2);*/
 	if (dev) {
 		if (!win->resized) dev->redraw_handler(dev, &rr);
 		else {
@@ -277,7 +288,7 @@ void LinksView::KeyDown(const char *s, const char *rs, uint32 q)
 	if (c) if (dev) dev->keyboard_handler(dev, c, (q & QUAL_SHIFT ? KBD_SHIFT : 0) | (q & QUAL_CTRL ? KBD_CTRL : 0) | (q & QUAL_ALT ? KBD_ALT : 0));
 	ath_lock->Unlock();
 	write(wpipe, " ", 1);
-	/*fprintf(stderr, "key: :%s: :%s: %d %d\n", s, rs, q, c);*/
+	/*debug2("key: :%s: :%s: %d %d\n", s, rs, q, c);*/
 }
 
 unsigned char *ath_get_driver_param(void)
@@ -324,13 +335,18 @@ unsigned char *ath_init_driver(unsigned char *param, unsigned char *display)
 		ath_x_size = 640;
 		ath_y_size = 480;
 	}
-	ath_win_y_size = ath_y_size * 9 / 10;
+	ath_y_panel = WINDOW_TITLE_SIZE;
+#ifdef __SYLLABLE__
+	ath_y_panel += TOP_PANEL_SIZE;
+#endif
+	if (ath_y_panel > ath_y_size) ath_y_panel = 0;
+	ath_win_y_size = (ath_y_size - ath_y_panel) * 9 / 10;
 	ath_win_x_size = ath_win_y_size;
 	/*
-	fprintf(stderr, "%d %d\n", ath_x_size, ath_y_size);
-	fprintf(stderr, "%d %d\n", ath_win_x_size, ath_win_y_size);
+	debug2("%d %d\n", ath_x_size, ath_y_size);
+	debug2("%d %d\n", ath_win_x_size, ath_win_y_size);
 	*/
-	ath_win_y_pos = (ath_y_size - ath_win_y_size) / 2;
+	ath_win_y_pos = (ath_y_size - ath_y_panel - ath_win_y_size) / 2 + ath_y_panel;
 	ath_win_x_pos = ath_x_size - ath_win_x_size - ath_win_y_pos;
 	if (/*ath_cs_desktop == CS_RGB32 ||*/ ath_cs_desktop == CS_RGB24 || ath_cs_desktop == CS_RGB16 || ath_cs_desktop == CS_RGB15) 
 		ath_cs_bmp = ath_cs_desktop;
@@ -372,17 +388,22 @@ struct graphics_device *ath_init_device()
 	LinksWindow *win;
 	struct graphics_device *dev = (struct graphics_device *)mem_calloc(sizeof(struct graphics_device));
 	if (!dev) return NULL;
-	dev->drv = &atheos_driver;
 	debug((unsigned char *)"1");
+	retry:
 	win = new LinksWindow(Rect(ath_win_x_pos, ath_win_y_pos, ath_win_x_pos + ath_win_x_size, ath_win_y_pos + ath_win_y_size));
 	debug((unsigned char *)"2");
 	if (!win) {
+		if (out_of_memory(NULL, 0))
+			goto retry;
 		mem_free(dev);
 		return NULL;
 	}
 	debug((unsigned char *)"3");
+	retry2:
 	view = new LinksView(win);
 	if (!view) {
+		if (out_of_memory(NULL, 0))
+			goto retry2;
 		delete win;
 		mem_free(dev);
 		return NULL;
@@ -395,6 +416,14 @@ struct graphics_device *ath_init_device()
 	win->Show();
 	win->MakeFocus();
 	debug((unsigned char *)"5");
+
+	ath_win_x_pos += NEW_WINDOW_X_ADD;
+	ath_win_y_pos += NEW_WINDOW_Y_ADD;
+	if (ath_win_x_pos + ath_win_x_size > ath_x_size - NEW_WINDOW_X_MIN)
+		ath_win_x_pos = NEW_WINDOW_X_MIN;
+	if (ath_win_y_pos + ath_win_y_size > ath_y_size - NEW_WINDOW_Y_MIN)
+		ath_win_y_pos = ath_y_panel + NEW_WINDOW_Y_MIN;
+
 	return dev;
 }
 
@@ -416,21 +445,18 @@ void ath_set_title(struct graphics_device *dev, unsigned char *title)
 	unlock_dev(dev);
 }
 
-/*
-int ath_get_filled_bitmap(struct bitmap *bmp, long color)
-{
-	internal((unsigned char *)"nedopsano");
-	return 0;
-}
-*/
-
 int ath_get_empty_bitmap(struct bitmap *bmp)
 {
-	fprintf(stderr, "bmp\n");
-	Bitmap *b = new Bitmap(bmp->x, bmp->y, ath_cs_bmp, Bitmap::SHARE_FRAMEBUFFER);
+	debug2("bmp\n");
+	Bitmap *b;
+	retry:
+	b = new Bitmap(bmp->x, bmp->y, ath_cs_bmp, Bitmap::SHARE_FRAMEBUFFER);
 	if (!b) {
+		if (out_of_memory(NULL, 0))
+			goto retry;
 		bmp->data = NULL;
-		return 0;
+		bmp->flags = NULL;
+		return -1;
 	}
 	bmp->data = b->LockRaster();
 	bmp->skip = b->GetBytesPerRow();
@@ -441,13 +467,15 @@ int ath_get_empty_bitmap(struct bitmap *bmp)
 void ath_register_bitmap(struct bitmap *bmp)
 {
 	Bitmap *b = (Bitmap *)bmp->flags;
+	if (!b) return;
 	b->UnlockRaster();
 }
 
 void *ath_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
-	fprintf(stderr, "preps\n");
+	debug2("preps\n");
 	Bitmap *b = (Bitmap *)bmp->flags;
+	if (!b) return NULL;
 	bmp->data = b->LockRaster();
 	bmp->skip = b->GetBytesPerRow();
 	return ((char *)bmp->data) + bmp->skip * top;
@@ -456,26 +484,30 @@ void *ath_prepare_strip(struct bitmap *bmp, int top, int lines)
 void ath_commit_strip(struct bitmap *bmp, int top, int lines)
 {
 	Bitmap *b = (Bitmap *)bmp->flags;
+	if (!b) return;
 	b->UnlockRaster();
 }
 
 void ath_unregister_bitmap(struct bitmap *bmp)
 {
-	fprintf(stderr, "unb\n");
+	debug2("unb\n");
 	Bitmap *b = (Bitmap *)bmp->flags;
+	if (!b) return;
 	delete b;
 }
 
 void ath_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x, int y)
 {
-	fprintf(stderr, "drawb\n");
+	debug2("drawb\n");
 	Bitmap *b = (Bitmap *)bmp->flags;
+	if (!b) return;
 	lock_dev(dev);
 	lv(dev)->DrawBitmap(b, b->GetBounds(), Rect(x, y, x + bmp->x - 1, y + bmp->y - 1));
 	lv(dev)->d_flush();
 	unlock_dev(dev);
 }
 
+#if 0
 void ath_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmp, int n, int x, int y)
 {
 	LinksView *lvv = lv(dev);
@@ -489,6 +521,7 @@ void ath_draw_bitmaps(struct graphics_device *dev, struct bitmap **bmp, int n, i
 	lv(dev)->d_flush();
 	unlock_dev(dev);
 }
+#endif
 
 long ath_get_color(int rgb)
 {
@@ -500,7 +533,7 @@ long ath_get_color(int rgb)
 
 void ath_fill_area(struct graphics_device *dev, int x1, int y1, int x2, int y2, long color)
 {
-	fprintf(stderr, "fill\n");
+	debug2("fill\n");
 	if (x1 >= x2 || y1 >= y2) return;
 	lock_dev(dev);
 	if (small_color)
@@ -513,7 +546,7 @@ void ath_fill_area(struct graphics_device *dev, int x1, int y1, int x2, int y2, 
 
 void ath_draw_hline(struct graphics_device *dev, int x1, int y, int x2, long color)
 {
-	fprintf(stderr, "hline\n");
+	debug2("hline\n");
 	if (x1 >= x2) return;
 	lock_dev(dev);
 	if (small_color)
@@ -527,7 +560,7 @@ void ath_draw_hline(struct graphics_device *dev, int x1, int y, int x2, long col
 
 void ath_draw_vline(struct graphics_device *dev, int x, int y1, int y2, long color)
 {
-	fprintf(stderr, "vline\n");
+	debug2("vline\n");
 	if (y1 >= y2) return;
 	lock_dev(dev);
 	if (small_color)
@@ -541,7 +574,7 @@ void ath_draw_vline(struct graphics_device *dev, int x, int y1, int y2, long col
 
 int ath_hscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 {
-	fprintf(stderr, "hscroll\n");
+	debug2("hscroll\n");
 	if (dev->clip.x1 >= dev->clip.x2 || dev->clip.y1 >= dev->clip.y2) return 0;
 	if (sc <= dev->clip.x1 - dev->clip.x2) return 1;
 	if (sc >= dev->clip.x2 - dev->clip.x1) return 1;
@@ -555,7 +588,7 @@ int ath_hscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 
 int ath_vscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 {
-	fprintf(stderr, "vscroll\n");
+	debug2("vscroll\n");
 	if (!sc || dev->clip.x1 >= dev->clip.x2 || dev->clip.y1 >= dev->clip.y2) return 0;
 	if (sc <= dev->clip.y1 - dev->clip.y2) return 1;
 	if (sc >= dev->clip.y2 - dev->clip.y1) return 1;
@@ -569,7 +602,7 @@ int ath_vscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 
 void ath_set_clip_area(struct graphics_device *dev, struct rect *r)
 {
-	fprintf(stderr, "setc\n");
+	debug2("setc\n");
 	memcpy(&dev->clip, r, sizeof(struct rect));
 	lock_dev(dev);
 	lv(dev)->SetDrawingRegion(Region(IRect(r->x1, r->y1, r->x2 - 1, r->y2 - 1)));
@@ -590,7 +623,7 @@ struct graphics_driver atheos_driver = {
 	ath_commit_strip,
 	ath_unregister_bitmap,
 	ath_draw_bitmap,
-	ath_draw_bitmaps,
+	/*ath_draw_bitmaps,*/
 	ath_get_color,
 	ath_fill_area,
 	ath_draw_hline,
@@ -602,9 +635,11 @@ struct graphics_driver atheos_driver = {
 	dummy_unblock,
 	ath_set_title,
 	NULL,				/* exec */
+	NULL,				/* set_clipboard_text */
+	NULL,				/* get_clipboard_text */
 	0,				/* depth */
 	0, 0,				/* size */
-	0,				/* flags */
+	GD_NO_OS_SHELL,			/* flags */
 	0,				/* codepage */
 	NULL,				/* shell */
 };

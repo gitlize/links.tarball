@@ -78,7 +78,7 @@ bin_PROGRAMS = links
 
 @ATHEOS_GR_TRUE@links_LDADD = atheos.o
 
-links_SOURCES = af_unix.c auth.c beos.c bfu.c block.c bookmarks.c cache.c charsets.c connect.c cookies.c default.c dip.c directfb.c directfb_cursors.h dither.c dns.c drivers.c error.c file.c finger.c font_include.c framebuffer.c ftp.c gif.c html.c html_gr.c html_r.c html_tbl.c http.c https.c img.c imgcache.c jpeg.c jsint.c kbd.c language.c links_icon.c listedit.c lru.c mailto.c main.c memory.c menu.c objreq.c os_dep.c pmshell.c png.c sched.c select.c session.c smb.c svgalib.c terminal.c tiff.c types.c url.c view.c view_gr.c x.c xbm.c links.h cfg.h os_dep.h os_depx.h setup.h codepage.h language.h codepage.inc entity.inc uni_7b.inc language.inc upcase.inc arrow.inc bits.h
+links_SOURCES = af_unix.c auth.c beos.c bfu.c block.c bookmarks.c cache.c charsets.c connect.c cookies.c default.c dip.c directfb.c directfb_cursors.h dither.c dns.c drivers.c error.c file.c finger.c font_include.c framebuffer.c ftp.c gif.c html.c html_gr.c html_r.c html_tbl.c http.c https.c img.c imgcache.c jpeg.c jsint.c kbd.c language.c links_icon.c listedit.c lru.c mailto.c main.c memory.c menu.c objreq.c os_dep.c pmshell.c png.c sched.c select.c session.c smb.c svgalib.c terminal.c tiff.c types.c url.c view.c view_gr.c x.c xbm.c beos.h bits.h cfg.h codepage.h language.h links.h os_dep.h os_depx.h setup.h arrow.inc codepage.inc entity.inc fbcommon.inc language.inc uni_7b.inc upcase.inc
 
 CXXFLAGS = @CXXFLAGS@
 
@@ -384,7 +384,7 @@ finger.o: finger.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 font_include.o: font_include.c cfg.h config.h links.h os_dep.h os_depx.h \
 	setup.h language.h codepage.h
 framebuffer.o: framebuffer.c cfg.h config.h links.h os_dep.h os_depx.h \
-	setup.h language.h codepage.h bits.h arrow.inc
+	setup.h language.h codepage.h bits.h arrow.inc fbcommon.inc
 ftp.o: ftp.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 gif.o: gif.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
@@ -443,7 +443,7 @@ session.o: session.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 smb.o: smb.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 svgalib.o: svgalib.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \
-	language.h codepage.h bits.h arrow.inc
+	language.h codepage.h bits.h arrow.inc fbcommon.inc
 terminal.o: terminal.c links.h cfg.h config.h os_dep.h os_depx.h setup.h \
 	language.h codepage.h
 tiff.o: tiff.c cfg.h config.h links.h os_dep.h os_depx.h setup.h \

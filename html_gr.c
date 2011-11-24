@@ -49,74 +49,7 @@ struct background *get_background(unsigned char *bg, unsigned char *bgcolor)
 	return b;
 }
 
-void g_put_chars(struct g_part *, unsigned char *, int);
-
-#define CH_BUF	256
-
-static int g_put_chars_conv(struct g_part *p, unsigned char *c, int l)
-{
-	static char buffer[CH_BUF];
-	int bp = 0;
-	int pp = 0;
-	int total = 0;
-	if (format.attr & AT_GRAPHICS) {
-		g_put_chars(p, c, l);
-		return l;
-	}
-	/*{
-		debug("\"%.*s\"", l, c);
-	}*/
-	if (!l) g_put_chars(p, NULL, 0);
-	while (pp < l) {
-		unsigned char *e;
-		if (c[pp] < 128 && c[pp] != '&') {
-			put_c:
-			if (!(buffer[bp++] = c[pp++])) buffer[bp - 1] = ' ';
-			if (bp < CH_BUF) continue;
-			goto flush;
-		}
-		if (c[pp] != '&') {
-			struct conv_table *t;
-			int i;
-			if (!convert_table) goto put_c;
-			t = convert_table;
-			i = pp;
-			decode:
-			if (!t[c[i]].t) {
-				e = t[c[i]].u.str;
-			} else {
-				t = t[c[i++]].u.tbl;
-				if (i >= l) goto put_c;
-				goto decode;
-			}
-			pp = i + 1;
-		} else {
-			int i = pp + 1;
-			if (d_opt->plain & 1) goto put_c;
-			while (i < l && c[i] != ';' && c[i] != '&' && c[i] > ' ') i++;
-			if (!(e = get_entity_string(&c[pp + 1], i - pp - 1, d_opt->cp))) goto put_c;
-			pp = i + (i < l && c[i] == ';');
-		}
-		if (!e[0]) continue;
-		if (!e[1]) {
-			buffer[bp++] = e[0];
-			if (bp < CH_BUF) continue;
-			flush:
-			e = "";
-			goto flush1;
-		}
-		while (*e) {
-			buffer[bp++] = *(e++);
-			if (bp < CH_BUF) continue;
-			flush1:
-			g_put_chars(p, buffer, bp);
-			while (bp) if ((buffer[--bp] & 0xc0) != 0x80) total++;
-		}
-	}
-	if (bp) g_put_chars(p, buffer, bp);
-	while (bp) if ((buffer[--bp] & 0xc0) != 0x80) total++;
-	return total;
-}
+static void g_put_chars(void *, unsigned char *, int);
 
 /* Returns 0 to 2550 */
 static int gray (int r, int g, int b)
@@ -318,8 +251,9 @@ void add_object_to_line(struct g_part *pp, struct g_object_line **lp, struct g_o
 
 void flush_pending_text_to_line(struct g_part *p)
 {
-	if (!p->text) return;
-	add_object_to_line(p, &p->line, (struct g_object *)p->text);
+	struct g_object_text *t = p->text;
+	if (!t) return;
+	add_object_to_line(p, &p->line, (struct g_object *)t);
 	p->text = NULL;
 }
 
@@ -336,7 +270,7 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		t2 = NULL;
 		goto nt2;
 	}
-	t2 = mem_calloc(sizeof(struct g_object_text) + strlen(ptr) + 1);
+	t2 = mem_calloc(sizeof(struct g_object_text) + strlen(ptr));
 	t2->mouse_event = g_text_mouse;
 	t2->draw = g_text_draw;
 	t2->destruct = g_text_destruct;
@@ -429,8 +363,9 @@ void add_object(struct g_part *p, struct g_object *o)
 	*/
 }
 
-static void g_line_break(struct g_part *p)
+static void g_line_break(void *p_)
 {
+	struct g_part *p = p_;
 	if (g_nobreak) {
 		g_nobreak = 0;
 		return;
@@ -480,7 +415,7 @@ static void g_html_form_control(struct g_part *p, struct form_control *fc)
 	add_to_list(p->data->forms, fc);
 }
 
-struct link **putchars_link_ptr = NULL;
+static struct link **putchars_link_ptr = NULL;
 
 /* Probably releases clickable map */
 void release_image_map(struct image_map *map)
@@ -664,8 +599,9 @@ static void g_hr(struct g_part *gp, struct hr_param *hr)
 }
 
 
-static void *g_html_special(struct g_part *p, int c, ...)
+static void *g_html_special(void *p_, int c, ...)
 {
+	struct g_part *p = p_;
 	va_list l;
 	unsigned char *t;
 	struct form_control *fc;
@@ -744,15 +680,17 @@ static void *g_html_special(struct g_part *p, int c, ...)
 	return NULL;
 }
 
-unsigned char to_je_ale_prasarna[] = "";
+static unsigned char to_je_ale_prasarna[] = "";
 
-unsigned char *cached_font_face = to_je_ale_prasarna;
-struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0, 0 };
+static unsigned char *cached_font_face = to_je_ale_prasarna;
+static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0, 0 };
 
-void g_put_chars(struct g_part *p, unsigned char *s, int l)
+static void g_put_chars(void *p_, unsigned char *s, int l)
 {
+	struct g_part *p = p_;
 	struct g_object_text *t = NULL;
 	struct link *link;
+	int ptl;
 	if (putchars_link_ptr) {
 		link = NULL;
 		goto check_link;
@@ -818,13 +756,17 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 	}
 	if (p->pending_text_len == -1) {
 		p->pending_text_len = strlen(p->text->text);
+		ptl = p->pending_text_len;
+		if (!ptl) ptl = 1;
 		goto a1;
 	}
-	if ((p->pending_text_len & ~(ALLOC_GR - 1)) != ((p->pending_text_len + l) & ~(ALLOC_GR - 1))) a1:{
+	ptl = p->pending_text_len;
+	if (!ptl) ptl = 1;
+	if (((ptl + ALLOC_GR - 1) & ~(ALLOC_GR - 1)) != ((ptl + l + ALLOC_GR - 1) & ~(ALLOC_GR - 1))) a1: {
 		struct g_object_text *t;
 		if ((unsigned)l > MAXINT) overalloc();
-		if ((unsigned)p->pending_text_len + (unsigned)l > MAXINT - ALLOC_GR) overalloc();
-		t = mem_realloc(p->text, sizeof(struct g_object_text) + ((p->pending_text_len + l + ALLOC_GR) & ~(ALLOC_GR - 1)));
+		if ((unsigned)ptl + (unsigned)l > MAXINT - ALLOC_GR) overalloc();
+		t = mem_realloc(p->text, sizeof(struct g_object_text) + ((ptl + l + ALLOC_GR - 1) & ~(ALLOC_GR - 1)));
 		if (p->w.last_wrap >= p->text->text && p->w.last_wrap < p->text->text + p->pending_text_len) p->w.last_wrap += (unsigned char *)t - (unsigned char *)p->text;
 		if (p->w.last_wrap_obj == p->text) p->w.last_wrap_obj = t;
 		p->text = t;
@@ -915,7 +857,7 @@ void g_put_chars(struct g_part *p, unsigned char *s, int l)
 static void g_do_format(char *start, char *end, struct g_part *part, unsigned char *head)
 {
 	pr(
-	parse_html(start, end, (int (*)(void *, unsigned char *, int)) g_put_chars_conv, (void (*)(void *)) g_line_break, (void *(*)(void *, int, ...)) g_html_special, part, head);
+	parse_html(start, end, g_put_chars, g_line_break, g_html_special, part, head);
 	/*if ((part->y -= line_breax) < 0) part->y = 0;*/
 	flush_pending_text_to_line(part);
 	flush_pending_line_to_obj(part, 0);
@@ -934,7 +876,7 @@ struct g_table_cache_entry {
 	struct g_part p;
 };
 
-struct list_head g_table_cache = { &g_table_cache, &g_table_cache };
+static struct list_head g_table_cache = { &g_table_cache, &g_table_cache };
 
 void g_free_table_cache(void)
 {

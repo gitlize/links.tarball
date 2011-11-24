@@ -1267,14 +1267,14 @@ void js_upcall_confirm(void *data)
 	msg_box(
 		term,   /* terminal */
 		getml(txt,jsid,NULL),   /* memory blocks to free */
-		TEXT(T_QUESTION),   /* title */
+		TEXT_(T_QUESTION),   /* title */
 		AL_CENTER,   /* alignment */
 		txt,   /* message */
 		jsid,   /* data for button functions */
 		3,   /* # of buttons */
-		TEXT(T_OK),js_upcall_confirm_ok_pressed,B_ENTER,  /* first button */
-		TEXT(T_CANCEL),js_upcall_confirm_cancel_pressed,B_ESC,  /* second button */
-		TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL
+		TEXT_(T_OK),js_upcall_confirm_ok_pressed,B_ENTER,  /* first button */
+		TEXT_(T_CANCEL),js_upcall_confirm_cancel_pressed,B_ESC,  /* second button */
+		TEXT_(T_KILL_SCRIPT), js_kill_script_pressed,NULL
 	);
 
 	js_mem_free(s);
@@ -1337,13 +1337,13 @@ void js_upcall_alert(void * data)
 	msg_box(
 		term,   /* terminal */
 		getml(txt,jsid,NULL),   /* memory blocks to free */
-		TEXT(T_ALERT),   /* title */
+		TEXT_(T_ALERT),   /* title */
 		AL_CENTER,   /* alignment */
 		txt,   /* message */
 		jsid,   /* data for button functions */
 		2,   /* # of buttons */
-		TEXT(T_OK),js_upcall_alert_ok_pressed,B_ENTER|B_ESC,
-		TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL
+		TEXT_(T_OK),js_upcall_alert_ok_pressed,B_ENTER|B_ESC,
+		TEXT_(T_KILL_SCRIPT), js_kill_script_pressed,NULL
 	);
 
 	js_mem_free(s);
@@ -1398,13 +1398,13 @@ void js_upcall_close_window(void *data)
 		msg_box(
 			term,   /* terminal */
 			getml(jsid,NULL),   /* memory blocks to free */
-			TEXT(T_EXIT_LINKS),   /* title */
+			TEXT_(T_EXIT_LINKS),   /* title */
 			AL_CENTER,   /* alignment */
-			TEXT(T_SCRIPT_TRYING_TO_CLOSE_WINDOW),   /* message */
+			TEXT_(T_SCRIPT_TRYING_TO_CLOSE_WINDOW),   /* message */
 			jsid,   /* data for button functions */
 			2,   /* # of buttons */
-			TEXT(T_YES),js_upcall_close_window_yes_pressed,NULL,
-			TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL
+			TEXT_(T_YES),js_upcall_close_window_yes_pressed,NULL,
+			TEXT_(T_KILL_SCRIPT), js_kill_script_pressed,NULL
 		);
 		js_mem_free(s);
 	}
@@ -1486,7 +1486,7 @@ void js_upcall_get_string(void *data)
 	input_field(
 		term,   /* terminal */
 		getml(str1, str2,jsid,NULL),   /* mem to free */
-		TEXT(T_ENTER_STRING),  /* title */
+		TEXT_(T_ENTER_STRING),  /* title */
 		str1,   /* question */
 		jsid,   /* data for functions */
 		&js_get_string_history,   /* history */
@@ -1495,9 +1495,9 @@ void js_upcall_get_string(void *data)
 		0,  /* min value */
 		0,  /* max value */
 		NULL,  /* check fn */
-		TEXT(T_OK),   /* ok button */
+		TEXT_(T_OK),   /* ok button */
 		js_upcall_get_string_ok_pressed,
-		TEXT(T_KILL_SCRIPT),  /* cancel button */
+		TEXT_(T_KILL_SCRIPT),  /* cancel button */
 		js_kill_script_pressed,
 		NULL
 	);
@@ -2928,14 +2928,14 @@ void js_upcall_goto_url(void * data)
 		msg_box(
 			term,   /* terminal */
 			getml(jsid->string,jsid,NULL),   /* memory blocks to free */
-			TEXT(T_GOTO_URL),   /* title */
+			TEXT_(T_GOTO_URL),   /* title */
 			AL_CENTER|AL_EXTD_TEXT,   /* alignment */
-			jsid->n?TEXT(T_JS_IS_ATTEMPTING_TO_OPEN_NEW_WINDOW_WITH_URL):TEXT(T_JS_IS_ATTEMPTING_TO_GO_TO_URL), " \"",jsid->string,"\".",NULL,   /* message */
+			jsid->n?TEXT_(T_JS_IS_ATTEMPTING_TO_OPEN_NEW_WINDOW_WITH_URL):TEXT_(T_JS_IS_ATTEMPTING_TO_GO_TO_URL), " \"",jsid->string,"\".",NULL,   /* message */
 			jsid,   /* data for button functions */
 			3,   /* # of buttons */
-			TEXT(T_ALLOW),js_upcall_goto_url_ok_pressed,B_ENTER,
-			TEXT(T_REJECT),js_upcall_goto_url_cancel_pressed,B_ESC,
-			TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
+			TEXT_(T_ALLOW),js_upcall_goto_url_ok_pressed,B_ENTER,
+			TEXT_(T_REJECT),js_upcall_goto_url_cancel_pressed,B_ESC,
+			TEXT_(T_KILL_SCRIPT), js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
 		);
 		js_mem_free(s);
 	}
@@ -3084,14 +3084,14 @@ void js_upcall_goto_history(void * data)
 		msg_box(
 			term,   /* terminal */
 			getml(url,jsid,NULL),   /* memory blocks to free */
-			TEXT(T_GOTO_HISTORY),   /* title */
+			TEXT_(T_GOTO_HISTORY),   /* title */
 			AL_CENTER|AL_EXTD_TEXT,   /* alignment */
-			TEXT(T_JS_IS_ATTEMPTING_TO_GO_INTO_HISTORY), txt, TEXT(T_TO_URL), " \"",url,"\".",NULL,   /* message */
+			TEXT_(T_JS_IS_ATTEMPTING_TO_GO_INTO_HISTORY), txt, TEXT_(T_TO_URL), " \"",url,"\".",NULL,   /* message */
 			jsid,   /* data for button functions */
 			3,   /* # of buttons */
-			TEXT(T_ALLOW),js_upcall_goto_history_ok_pressed,B_ENTER,
-			TEXT(T_REJECT),js_upcall_goto_url_cancel_pressed,B_ESC,
-			TEXT(T_KILL_SCRIPT), js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
+			TEXT_(T_ALLOW),js_upcall_goto_history_ok_pressed,B_ENTER,
+			TEXT_(T_REJECT),js_upcall_goto_url_cancel_pressed,B_ESC,
+			TEXT_(T_KILL_SCRIPT), js_kill_script_pressed,NULL  /* dirty trick: gimme_js_id_string and gimme_js_id begins with the same long */
 		);
 		js_mem_free(s);
 	}
@@ -3938,7 +3938,7 @@ void js_downcall_game_over(void *context)
 {
 	struct f_data_c *fd=(struct f_data_c*)(((js_context*)(context))->ptr);
 	
-	/* js_error(_(TEXT(T_SCRIPT_KILLED_BY_USER),fd->ses->term),context);
+	/* js_error(_(TEXT_(T_SCRIPT_KILLED_BY_USER),fd->ses->term),context);
 	 * Tato hlaska me srala. Na to bych neprisel, ze jsem prave zabil
 	 * rucne javascript. */
 	if (fd->ses->default_status)mem_free(fd->ses->default_status),fd->ses->default_status=NULL; /* pekne uklidime bordylek, ktery nam BFU nacintalo do status lajny */

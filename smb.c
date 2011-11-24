@@ -62,15 +62,18 @@ void smb_func(struct connection *c)
 
 	if ((p = strchr(data, '/'))) share = memacpy(data, p - data), dir = p + 1;
 	else if (*data) {
-		if (!c->cache && get_cache_entry(c->url, &c->cache)) {
-			mem_free(host);
-			mem_free(port);
-			mem_free(user);
-			mem_free(pass);
-			mem_free(data);
-			setcstate(c, S_OUT_OF_MEM);
-			abort_connection(c);
-			return;
+		if (!c->cache) {
+			if (get_cache_entry(c->url, &c->cache)) {
+				mem_free(host);
+				mem_free(port);
+				mem_free(user);
+				mem_free(pass);
+				mem_free(data);
+				setcstate(c, S_OUT_OF_MEM);
+				abort_connection(c);
+				return;
+			}
+			c->cache->refcount--;
 		}
 		if (c->cache->redirect) mem_free(c->cache->redirect);
 		c->cache->redirect = stracpy(c->url);
@@ -89,17 +92,19 @@ void smb_func(struct connection *c)
 	if (!*share) si->list = 1;
 	else if (!*dir || dir[strlen(dir) - 1] == '/' || dir[strlen(dir) - 1] == '\\') si->list = 2;
 	if (c_pipe(po)) {
+		int err = errno;
 		mem_free(host);
 		mem_free(port);
 		mem_free(user);
 		mem_free(pass);
 		mem_free(share);
 		mem_free(data);
-		setcstate(c, -errno);
+		setcstate(c, get_error_from_errno(err));
 		abort_connection(c);
 		return;
 	}
 	if (c_pipe(pe)) {
+		int err = errno;
 		mem_free(host);
 		mem_free(port);
 		mem_free(user);
@@ -108,13 +113,14 @@ void smb_func(struct connection *c)
 		mem_free(data);
 		close(po[0]);
 		close(po[1]);
-		setcstate(c, -errno);
+		setcstate(c, get_error_from_errno(err));
 		abort_connection(c);
 		return;
 	}
 	c->from = 0;
 	r = fork();
 	if (r == -1) {
+		int err = errno;
 		mem_free(host);
 		mem_free(port);
 		mem_free(user);
@@ -125,7 +131,7 @@ void smb_func(struct connection *c)
 		close(po[1]);
 		close(pe[0]);
 		close(pe[1]);
-		setcstate(c, -errno);
+		setcstate(c, get_error_from_errno(err));
 		retry_connection(c);
 		return;
 	}
@@ -246,7 +252,7 @@ void smb_func(struct connection *c)
 			internal("unsuported smb client");
 		}
 		v[n++] = NULL;
-		execvp(v[0], (char **)(void *)v);
+		execvp(v[0], (void *)v);
 		fprintf(stderr, "client not found");
 		fflush(stderr);
 		_exit(1);
@@ -314,7 +320,7 @@ static void smb_read_text(struct connection *c, int sock)
 	c->info = si;
 	r = read(sock, si->text + si->ntext, page_size);
 	if (r == -1) {
-		setcstate(c, -errno);
+		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
 		return;
 	}
@@ -336,7 +342,7 @@ static void smb_read_text(struct connection *c, int sock)
 		for (i = 0; i + 7 < si->ntext; i++) {
 			nexti:
 			if ((si->text[i] == '\n' || si->text[i] == '\r') && (si->text[i + 1] == ' ' || (si->text[i + 1] >= '0' && si->text[i + 1] <= '9')) && ((si->text[i + 2] == ' ' && si->text[i + 1] == ' ') || (si->text[i + 2] >= '0' && si->text[i + 2] <= '9')) && (si->text[i + 3] >= '0' && si->text[i + 3] <= '9') && si->text[i + 4] == '%' && si->text[i + 5] == ' ' && si->text[i + 6] == '[') {
-				off_t position, total;
+				off_t position, total = 0; /* against warning */
 				i += 7;
 				while (si->text[i] != ']') {
 					if (!si->text[i] || si->text[i] == '\n' || si->text[i] == '\r') {
@@ -377,7 +383,7 @@ static void smb_got_data(struct connection *c)
 	}
 	r = read(c->sock1, buffer, page_size);
 	if (r == -1) {
-		setcstate(c, -errno);
+		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
 		mem_free(buffer);
 		return;
@@ -393,13 +399,16 @@ static void smb_got_data(struct connection *c)
 		return;
 	}
 	setcstate(c, S_TRANS);
-	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		mem_free(buffer);
-		return;
+	if (!c->cache) {
+		if (get_cache_entry(c->url, &c->cache)) {
+			setcstate(c, S_OUT_OF_MEM);
+			abort_connection(c);
+			mem_free(buffer);
+			return;
+		}
+		c->cache->refcount--;
 	}
-	if (c->from + r < 0) {
+	if ((off_t)(0UL + c->from + r) < 0) {
 		setcstate(c, S_LARGE_FILE);
 		abort_connection(c);
 		mem_free(buffer);
@@ -419,10 +428,13 @@ static void smb_got_text(struct connection *c)
 static void end_smb_connection(struct connection *c)
 {
 	struct smb_connection_info *si = c->info;
-	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
+	if (!c->cache) {
+		if (get_cache_entry(c->url, &c->cache)) {
+			setcstate(c, S_OUT_OF_MEM);
+			abort_connection(c);
+			return;
+		}
+		c->cache->refcount--;
 	}
 	if (!c->from) {
 		int sdir;

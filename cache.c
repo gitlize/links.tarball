@@ -5,11 +5,11 @@
 
 #include "links.h"
 
-struct list_head cache = {&cache, &cache};
+static struct list_head cache = {&cache, &cache};
 
-long cache_size;
+static long cache_size;
 
-tcount cache_count = 1;
+static tcount cache_count = 1;
 
 long cache_info(int type)
 {
@@ -48,6 +48,7 @@ int find_in_cache(unsigned char *url, struct cache_entry **f)
 	struct cache_entry *e;
 	url = extract_proxy(url);
 	foreach(e, cache) if (!strcmp(e->url, url)) {
+		e->refcount++;
 		del_from_list(e);
 		add_to_list(cache, e);
 		*f = e;
@@ -72,7 +73,7 @@ int get_cache_entry(unsigned char *url, struct cache_entry **f)
 	init_list(e->frag);
 	e->count = cache_count++;
 	e->count2 = cache_count++;
-	e->refcount = 0;
+	e->refcount = 1;
 	e->decompressed = NULL;
 	e->decompressed_len = 0;
 	add_to_list(cache, e);
@@ -92,7 +93,7 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 	struct fragment *nf;
 	int a = 0;
 	int trunc = 0;
-	off_t ca;
+	volatile off_t ca;
 	if (!length) return 0;
 	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 	e->incomplete = 1;
@@ -132,7 +133,7 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 	/*if (C_ALIGN(length) > MAXINT - sizeof(struct fragment) || C_ALIGN(length) < 0) overalloc();*/
 	ca = C_ALIGN(length);
 	if (ca > MAXINT - (int)sizeof(struct fragment) || ca < 0) overalloc();
-	nf = mem_alloc(sizeof(struct fragment) + C_ALIGN(length));
+	nf = mem_alloc(sizeof(struct fragment) + ca);
 	a = 1;
 	sf(length);
 	nf->offset = offset;
@@ -286,7 +287,7 @@ void delete_entry_content(struct cache_entry *e)
 	if (e->decompressed) mem_free(e->decompressed), e->decompressed = NULL, e->decompressed_len = 0;
 }
 
-void delete_cache_entry(struct cache_entry *e)
+static void delete_cache_entry(struct cache_entry *e)
 {
 	if (e->refcount) internal("deleteing locked cache entry");
 #ifdef DEBUG
@@ -311,10 +312,8 @@ static int shrink_file_cache(int u)
 	long ncs = cache_size;
 	long ccs = 0;
 
-	if (u == SH_FREE_SOMETHING) goto ret;	/* !!! FIXME: remove after locking check */
-
 	if (u == SH_CHECK_QUOTA && cache_size <= memory_cache_size) goto ret;
-	foreach(e, cache) {
+	foreachback(e, cache) {
 		if (e->refcount || is_entry_used(e)) {
 			if ((ncs -= e->data_size) < 0) {
 				internal("cache_size underflow: %ld", ncs);
@@ -329,7 +328,7 @@ static int shrink_file_cache(int u)
 	}
 	if (ccs != cache_size) internal("cache size badly computed: %ld != %ld", cache_size, ccs), cache_size = ccs;
 	if (u == SH_CHECK_QUOTA && ncs <= memory_cache_size) goto ret;
-	for (e = cache.prev; (void *)e != &cache; e = e->prev) {
+	foreachback(e, cache) {
 		if (u == SH_CHECK_QUOTA && ncs <= (longlong)memory_cache_size * MEMORY_CACHE_GC_PERCENT) goto g;
 		if (e->refcount || is_entry_used(e)) {
 			e->tgc = 0;
@@ -358,13 +357,14 @@ static int shrink_file_cache(int u)
 		}
 	}
 	ret:
-	return r | list_empty(cache) * ST_CACHE_EMPTY;
+	return r | (list_empty(cache) ? ST_CACHE_EMPTY : 0);
 }
 
 void init_cache(void)
 {
 #ifdef HAVE_GETPAGESIZE
-	if (getpagesize() && getpagesize() < 0x10000 && !(getpagesize() & (getpagesize() - 1))) page_size = getpagesize();
+	int getpg = getpagesize();
+	if (getpg > 0 && getpg < 0x10000 && !(getpg & (getpg - 1))) page_size = getpg;
 #endif
 	register_cache_upcall(shrink_file_cache, "file");
 }

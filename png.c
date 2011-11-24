@@ -208,7 +208,7 @@ error:
 		return;
 	}
 	png_set_progressive_read_fn(png_ptr, NULL,
-				    png_info_callback, png_row_callback,
+				    png_info_callback, &png_row_callback,
 				    png_end_callback);
    	if (setjmp(png_jmpbuf(png_ptr))) goto error;
 	decoder=mem_alloc(sizeof(*decoder));

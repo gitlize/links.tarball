@@ -10,7 +10,7 @@
 
 #include "links.h"
 
-struct list_head image_cache = { &image_cache, &image_cache };
+static struct list_head image_cache = { &image_cache, &image_cache };
 
 /* xyw_meaning either MEANING_DIMS or MEANING_AUTOSCALE. */
 struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
@@ -94,8 +94,7 @@ static int shrink_image_cache(int u)
 	longlong si = 0;
 	int r = 0;
 	foreach(i, image_cache) if (!i->refcount) si += image_size(i);
-	if (u == SH_FREE_SOMETHING) si = (longlong)image_cache_size + si * 1 / 4;
-	while ((si >= image_cache_size || u == SH_FREE_ALL) && !list_empty(image_cache)) {
+	while ((si >= image_cache_size || u == SH_FREE_ALL || u == SH_FREE_SOMETHING) && !list_empty(image_cache)) {
 		i = image_cache.prev;
 		while (i->refcount) {
 			i = i->prev;
@@ -105,15 +104,16 @@ static int shrink_image_cache(int u)
 		si -= image_size(i);
 		del_from_list(i);
 		img_destruct_cached_image(i);
+		if (u == SH_FREE_SOMETHING) break;
 	}
 	no:
 	return r | (list_empty(image_cache) ? ST_CACHE_EMPTY : 0);
 }
 
-int imgcache_info(int type)
+long imgcache_info(int type)
 {
 	struct cached_image *i;
-	int n = 0;
+	long n = 0;
 	foreach(i, image_cache) {
 		switch (type) {
 			case CI_BYTES:
@@ -136,10 +136,5 @@ void init_imgcache(void)
 {
 	register_cache_upcall(shrink_image_cache, "imgcache");
 }
-
-/*
-del_from_list ...
-void img_destruct_cached_image(sturct cached_image *img);
-*/
 
 #endif

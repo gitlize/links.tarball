@@ -41,10 +41,10 @@ static void auth_fn(struct dialog_data *dlg)
 	int y = 0;
 	max_text_width(term, a->msg, &max, AL_LEFT);
 	min_text_width(term, a->msg, &min, AL_LEFT);
-	max_text_width(term, TEXT(T_USERID), &max, AL_LEFT);
-	min_text_width(term, TEXT(T_USERID), &min, AL_LEFT);
-	max_text_width(term, TEXT(T_PASSWORD), &max, AL_LEFT);
-	min_text_width(term, TEXT(T_PASSWORD), &min, AL_LEFT);
+	max_text_width(term, TEXT_(T_USERID), &max, AL_LEFT);
+	min_text_width(term, TEXT_(T_USERID), &min, AL_LEFT);
+	max_text_width(term, TEXT_(T_PASSWORD), &max, AL_LEFT);
+	min_text_width(term, TEXT_(T_PASSWORD), &min, AL_LEFT);
 	max_buttons_width(term, dlg->items + 2, 2, &max);
 	min_buttons_width(term, dlg->items + 2, 2, &min);
 	w = term->x * 9 / 10 - 2 * DIALOG_LB;
@@ -53,9 +53,9 @@ static void auth_fn(struct dialog_data *dlg)
 	rw = w;
 	dlg_format_text(dlg, NULL, a->msg, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_text_and_field(dlg, NULL, TEXT(T_USERID), dlg->items, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, TEXT_(T_USERID), dlg->items, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_text_and_field(dlg, NULL, TEXT(T_PASSWORD), dlg->items + 1, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, TEXT_(T_PASSWORD), dlg->items + 1, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
 	dlg_format_buttons(dlg, NULL, dlg->items + 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -67,9 +67,9 @@ static void auth_fn(struct dialog_data *dlg)
 	y += LL;
 	dlg_format_text(dlg, term, a->msg, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_text_and_field(dlg, term, TEXT(T_USERID), dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, TEXT_(T_USERID), dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
-	dlg_format_text_and_field(dlg, term, TEXT(T_PASSWORD), dlg->items + 1, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, TEXT_(T_PASSWORD), dlg->items + 1, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
 	dlg_format_buttons(dlg, term, dlg->items + 2, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
@@ -81,7 +81,7 @@ static int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 		rq->state = O_OK;
 		if (rq->timer != -1) kill_timer(rq->timer);
 		rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
-		(rq->ce = rq->stat.ce)->refcount++;
+		if (!rq->ce) (rq->ce = rq->ce_internal)->refcount++;
 	}
 	cancel_dialog(dlg, item);
 	return 0;
@@ -98,7 +98,7 @@ static int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 		unsigned char *uid, *passwd;
 		get_dialog_data(dlg);
 		ses = ((struct window *)dlg->win->term->windows.prev)->data;
-		ct = get_convert_table(rq->stat.ce->head, dlg->win->term->spec->charset, ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
+		ct = get_convert_table(rq->ce_internal->head, dlg->win->term->spec->charset, ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
 		ct = get_translation_table(dlg->win->term->spec->charset, net_cp);
 		uid = convert_string(ct, a->uid, strlen(a->uid), NULL);
 		passwd = convert_string(ct, a->passwd, strlen(a->passwd), NULL);
@@ -125,8 +125,8 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 	return -1;
 	ok:
 	ses = ((struct window *)term->windows.prev)->data;
-	ct = get_convert_table(rq->stat.ce->head, term->spec->charset, ses->ds.assume_cp, NULL, NULL, ses->ds.hard_assume);
-	if (rq->stat.ce->http_code == 407) host = stracpy(proxies.http_proxy);
+	ct = get_convert_table(rq->ce_internal->head, term->spec->charset, ses->ds.assume_cp, NULL, NULL, ses->ds.hard_assume);
+	if (rq->ce_internal->http_code == 407) host = stracpy(proxies.http_proxy);
 	else {
 		host = get_host_name(rq->url);
 		if (!host) return -1;
@@ -137,22 +137,22 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 		}
 	}
 	urealm = convert_string(ct, realm, strlen(realm), NULL);
-	d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog) + strlen(_(TEXT(T_ENTER_USERNAME), term)) + strlen(urealm) + 1 + strlen(_(TEXT(T_AT), term)) + strlen(host) + + 1);
+	d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog) + strlen(_(TEXT_(T_ENTER_USERNAME), term)) + strlen(urealm) + 1 + strlen(_(TEXT_(T_AT), term)) + strlen(host) + + 1);
 	memset(d, 0, sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog));
 	a = (struct auth_dialog *)((unsigned char *)d + sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
-	strcpy(a->msg, _(TEXT(T_ENTER_USERNAME), term));
+	strcpy(a->msg, _(TEXT_(T_ENTER_USERNAME), term));
 	strcat(a->msg, urealm);
 	strcat(a->msg, "\n");
-	strcat(a->msg, _(TEXT(T_AT), term));
+	strcat(a->msg, _(TEXT_(T_AT), term));
 	strcat(a->msg, host);
 	mem_free(host);
 	mem_free(urealm);
-	a->proxy = rq->stat.ce->http_code == 407;
+	a->proxy = rq->ce_internal->http_code == 407;
 	a->realm = stracpy(realm);
 	d->udata = a;
 	d->udata2 = (void *)(my_intptr_t)rq->count;
-	if (rq->stat.ce->http_code == 401) d->title = TEXT(T_AUTHORIZATION_REQUIRED);
-	else d->title = TEXT(T_PROXY_AUTHORIZATION_REQUIRED);
+	if (rq->ce_internal->http_code == 401) d->title = TEXT_(T_AUTHORIZATION_REQUIRED);
+	else d->title = TEXT_(T_PROXY_AUTHORIZATION_REQUIRED);
 	d->fn = auth_fn;
 	d->items[0].type = D_FIELD;
 	d->items[0].dlen = MAX_UID_LEN;
@@ -165,12 +165,12 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 	d->items[2].type = D_BUTTON;
 	d->items[2].gid = B_ENTER;
 	d->items[2].fn = auth_ok;
-	d->items[2].text = TEXT(T_OK);
+	d->items[2].text = TEXT_(T_OK);
 
 	d->items[3].type = D_BUTTON;
 	d->items[3].gid = B_ESC;
 	d->items[3].fn = auth_cancel;
-	d->items[3].text = TEXT(T_CANCEL);
+	d->items[3].text = TEXT_(T_CANCEL);
 
 	do_dialog(term, d, getml(d, a->realm, NULL));
 	return 0;
@@ -197,16 +197,33 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 	rq->z = get_time() - STAT_UPDATE_MAX;
 	rq->last_update = rq->z;
 	rq->last_bytes = 0;
-	if (rq->prev_url)mem_free(rq->prev_url);
-	rq->prev_url=stracpy(prev_url);
+	if (rq->prev_url) mem_free(rq->prev_url);
+	rq->prev_url = stracpy(prev_url);
 	if (rqp) *rqp = rq;
 	rq->count = obj_req_count++;
 	add_to_list(requests, rq);
 	load_url(url, prev_url, &rq->stat, pri, cache);
 }
 
+static void set_ce_internal(struct object_request *rq)
+{
+	if (rq->stat.ce != rq->ce_internal) {
+		if (!rq->stat.ce) {
+			rq->ce_internal->refcount--;
+			rq->ce_internal = NULL;
+		} else {
+			if (rq->ce_internal)
+				rq->ce_internal->refcount--;
+			rq->ce_internal = rq->stat.ce;
+			rq->ce_internal->refcount++;
+		}
+	}
+}
+
 static void objreq_end(struct status *stat, struct object_request *rq)
 {
+	set_ce_internal(rq);
+
 	if (stat->state < 0) {
 		if (stat->ce && rq->state == O_WAITING && stat->ce->redirect) {
 			if (rq->redirect_cnt++ < MAX_REDIRECTS) {
@@ -272,13 +289,16 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 
 static void object_timer(struct object_request *rq)
 {
-	int last = rq->last_bytes;
+	int last;
+
+	set_ce_internal(rq);
+
+	last = rq->last_bytes;
 	if (rq->ce) rq->last_bytes = rq->ce->length;
 	rq->timer = -1;
-	if (rq->stat.state < 0 && (!rq->stat.ce || (!rq->stat.ce->redirect && rq->stat.ce->http_code != 401 && rq->stat.ce->http_code != 407) || rq->stat.state == S_CYCLIC_REDIRECT)) {
-		if (rq->stat.ce && rq->stat.state != S_CYCLIC_REDIRECT) {
+	if (rq->stat.state < 0 && (!rq->ce_internal || (!rq->ce_internal->redirect && rq->ce_internal->http_code != 401 && rq->ce_internal->http_code != 407) || rq->stat.state == S_CYCLIC_REDIRECT)) {
+		if (rq->ce_internal && rq->stat.state != S_CYCLIC_REDIRECT) {
 			rq->state = rq->stat.state != S_OK ? O_INCOMPLETE : O_OK;
-			/*(rq->ce = rq->stat.ce)->refcount++;*/
 		} else rq->state = O_FAILED;
 	}
 	if (rq->stat.state != S_TRANS) {
@@ -305,6 +325,7 @@ void release_object_get_stat(struct object_request **rqq, struct status *news, i
 	if (--rq->refcount) return;
 	change_connection(&rq->stat, news, pri);
 	if (rq->timer != -1) kill_timer(rq->timer);
+	if (rq->ce_internal) rq->ce_internal->refcount--;
 	if (rq->ce) rq->ce->refcount--;
 	mem_free(rq->orig_url);
 	mem_free(rq->url);

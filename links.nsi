@@ -74,6 +74,7 @@ File README
 File links.exe
 File c:\cygwin\bin\cygbz2-1.dll
 File c:\cygwin\bin\cygcrypto-0.9.8.dll
+File c:\cygwin\bin\cyggcc_s-1.dll
 File c:\cygwin\bin\cygssl-0.9.8.dll
 File c:\cygwin\bin\cygwin1.dll
 File c:\cygwin\bin\cygz.dll

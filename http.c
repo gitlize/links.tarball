@@ -17,6 +17,21 @@ struct http_connection_info {
 
 /* prototypes */
 static void http_send_header(struct connection *);
+static void http_get_header(struct connection *);
+static void add_user_agent(unsigned char **hdr, int *l);
+static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url);
+static void add_accept(unsigned char **hdr, int *l);
+static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct http_connection_info *info);
+static void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info *info);
+static void add_accept_language(unsigned char **hdr, int *l, struct http_connection_info *info);
+static void add_connection(unsigned char **hdr, int *l, int http10, int proxy, int post);
+static void add_if_modified(unsigned char **hdr, int *l, struct connection *c);
+static void add_range(unsigned char **hdr, int *l, struct connection *c);
+static void add_pragma_no_cache(unsigned char **hdr, int *l, int no_cache);
+static void add_auth_string(unsigned char **hdr, int *l, unsigned char *url);
+static void add_post_header(unsigned char **hdr, int *l, unsigned char **post);
+static void add_extra_options(unsigned char **hdr, int *l);
+
 
 /* Returns a string pointer with value of the item.
  * The string must be destroyed after usage with mem_free.
@@ -33,7 +48,8 @@ unsigned char *parse_http_header(unsigned char *head, unsigned char *item, unsig
 		if (!*f) break;
 		if (f[0] == ':') {
 			while (f[1] == ' ') f++;
-			for (g = ++f; *g >= ' '; g++) ;
+			for (g = ++f; *g >= ' '; g++)
+				;
 			while (g > f && g[-1] == ' ') g--;
 			h = mem_alloc(g - f + 1);
 			memcpy(h, f, g - f);
@@ -84,7 +100,8 @@ int get_http_code(unsigned char *head, int *code, int *version)
 	 && head[6] == '.' && head[7] >= '0' && head[7] <= '9' && head[8] <= ' ') {
 		if (version) *version = (head[5] - '0') * 10 + head[7] - '0';
 	} else if (version) *version = 0;
-	for (head += 4; *head > ' '; head++) ;
+	for (head += 4; *head > ' '; head++)
+		;
 	if (*head++ != ' ') return -1;
 	if (head[0] < '1' || head [0] > '9' || head[1] < '0' || head[1] > '9' ||
 	    head[2] < '0' || head [2] > '9') {
@@ -95,7 +112,7 @@ int get_http_code(unsigned char *head, int *code, int *version)
 	return 0;
 }
 
-struct {
+static struct {
 	unsigned char *name;
 	int bugs;
 } buggy_servers[] = {
@@ -168,32 +185,14 @@ static void add_url_to_str(unsigned char **str, int *l, unsigned char *url)
 	unsigned char *sp;
 	for (sp = url; *sp && *sp != POST_CHAR; sp++) {
 		if (*sp <= ' ') {
-			char esc[4];
+			unsigned char esc[4];
 			sprintf(esc, "%%%02X", (int)*sp);
 			add_to_str(str, l, esc);
-		} else if (*sp == '\\') {
-			add_chr_to_str(str, l, '/');
 		} else {
 			add_chr_to_str(str, l, *sp);
 		}
 	}
 }
-
-static void http_get_header(struct connection *);
-
-void add_user_agent(unsigned char **hdr, int *l);
-void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url);
-void add_accept(unsigned char **hdr, int *l);
-void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct http_connection_info *info);
-void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info *info);
-void add_accept_language(unsigned char **hdr, int *l, struct http_connection_info *info);
-void add_connection(unsigned char **hdr, int *l, int http10, int proxy, int post);
-void add_if_modified(unsigned char **hdr, int *l, struct connection *c);
-void add_range(unsigned char **hdr, int *l, struct connection *c);
-void add_pragma_no_cache(unsigned char **hdr, int *l, int no_cache);
-void add_auth_string(unsigned char **hdr, int *l, unsigned char *url);
-void add_post_header(unsigned char **hdr, int *l, unsigned char **post);
-void add_extra_options(unsigned char **hdr, int *l);
 
 static void http_send_header(struct connection *c)
 {
@@ -201,11 +200,13 @@ static void http_send_header(struct connection *c)
 	int http10 = http_options.http10;
 	unsigned char *hdr;
 	unsigned char *h, *u;
+	unsigned char *u2;
 	int l = 0;
 	unsigned char *post;
 	unsigned char *host;
 
-	find_in_cache(c->url, &c->cache);
+	if (!find_in_cache(c->url, &c->cache))
+		c->cache->refcount--;
 
 	host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
 	set_timeout(c);
@@ -227,18 +228,28 @@ static void http_send_header(struct connection *c)
 	}
 	if (upcase(c->url[0]) != 'P') add_to_str(&hdr, &l, "/");
 	if (!(u = get_url_data(c->url))) {
+		http_bad_url:
 		mem_free(hdr);
 		setcstate(c, S_BAD_URL);
 		http_end_request(c, 0);
 		return;
 	}
 	if (post && post < u) {
-		mem_free(hdr);
-		setcstate(c, S_BAD_URL);
-		http_end_request(c, 0);
-		return;
+		goto http_bad_url;
 	}
-	add_url_to_str(&hdr, &l, u);
+	u2 = u;
+	if (upcase(c->url[0]) == 'P' && !*c->socks_proxy && *proxies.dns_append) {
+		unsigned char *u_host;
+		int u_host_len;
+		int u2_len = 0;
+		if (parse_url(u, NULL, NULL, NULL, NULL, NULL, &u_host, &u_host_len, NULL, NULL, NULL, NULL, NULL)) goto http_bad_url;
+		u2 = init_str();
+		add_bytes_to_str(&u2, &u2_len, u, u_host + u_host_len - u);
+		add_to_str(&u2, &u2_len, proxies.dns_append);
+		add_to_str(&u2, &u2_len, u_host + u_host_len);
+	}
+	add_url_to_str(&hdr, &l, u2);
+	if (u2 != u) mem_free(u2);
 	if (!http10) add_to_str(&hdr, &l, " HTTP/1.1\r\n");
 	else add_to_str(&hdr, &l, " HTTP/1.0\r\n");
 	if ((h = get_host_name(host))) {
@@ -283,23 +294,23 @@ static void http_send_header(struct connection *c)
 	setcstate(c, S_SENT);
 }
 
-void add_user_agent(unsigned char **hdr, int *l)
+static void add_user_agent(unsigned char **hdr, int *l)
 {
 	add_to_str(hdr, l, "User-Agent: ");
 	if (!(*http_options.header.fake_useragent)) {
 		add_to_str(hdr, l, "Links (" VERSION_STRING "; ");
 		add_to_str(hdr, l, system_name);
+		add_to_str(hdr, l, "; ");
 		if (!F && !list_empty(terminals)) {
-			add_to_str(hdr, l, "; text");
+			add_to_str(hdr, l, "text");
 		}
 #ifdef G
 		else if (F && drv) {
-			add_to_str(hdr, l, "; ");
 			add_to_str(hdr, l, drv->name);
 		}
 #endif
 		else {
-			add_to_str(hdr, l, "; dump");
+			add_to_str(hdr, l, "dump");
 		}
 		add_to_str(hdr, l, ")\r\n");
 	} else {
@@ -308,7 +319,7 @@ void add_user_agent(unsigned char **hdr, int *l)
 	}
 }
 
-void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url)
+static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url)
 {
 	switch (http_options.header.referer)
 	{
@@ -358,12 +369,12 @@ void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char 
 	}
 }
 
-void add_accept(unsigned char **hdr, int *l)
+static void add_accept(unsigned char **hdr, int *l)
 {
 	add_to_str(hdr, l, "Accept: */*\r\n");
 }
 
-void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct http_connection_info *info)
+static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct http_connection_info *info)
 {
 #if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
 	if (!http_options.no_compression && !(info->bl_flags & BL_NO_COMPRESSION)) {
@@ -392,7 +403,7 @@ void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct
 #endif
 }
 
-void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info *info)
+static void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info *info)
 {
 	static unsigned char *accept_charset = NULL;
 	if (!accept_charset) {
@@ -406,27 +417,33 @@ void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info
 			add_to_str(&ac, &aclen, cs);
 		}
 		if (aclen) add_to_str(&ac, &aclen, "\r\n");
-		if ((accept_charset = malloc(strlen(ac) + 1))) strcpy(accept_charset, ac);
-		else accept_charset = "";
+		retry:
+		if (!(accept_charset = malloc(strlen(ac) + 1))) {
+			if (out_of_memory(NULL, 0))
+				goto retry;
+			mem_free(ac);
+			return;
+		}
+		strcpy(accept_charset, ac);
 		mem_free(ac);
 	}
 	if (!(info->bl_flags & BL_NO_CHARSET) && !http_options.no_accept_charset) add_to_str(hdr, l, accept_charset);
 }
 
-void add_accept_language(unsigned char **hdr, int *l, struct http_connection_info *info)
+static void add_accept_language(unsigned char **hdr, int *l, struct http_connection_info *info)
 {
 	if (!(info->bl_flags & BL_NO_ACCEPT_LANGUAGE)) {
 		int la;
 		add_to_str(hdr, l, "Accept-Language: ");
 		la = *l;
-		add_to_str(hdr, l, _(TEXT(T__ACCEPT_LANGUAGE), NULL));
+		add_to_str(hdr, l, _(TEXT_(T__ACCEPT_LANGUAGE), NULL));
 		add_to_str(hdr, l, ",");
 		if (!strstr(*hdr + la, "en,") && !strstr(*hdr + la, "en;")) add_to_str(hdr, l, "en;q=0.2,");
 		add_to_str(hdr, l, "*;q=0.1\r\n");
 	}
 }
 
-void add_connection(unsigned char **hdr, int *l, int http10, int proxy, int post)
+static void add_connection(unsigned char **hdr, int *l, int http10, int proxy, int post)
 {
 	if (!http10) {
 		if (!proxy) add_to_str(hdr, l, "Connection: ");
@@ -436,17 +453,19 @@ void add_connection(unsigned char **hdr, int *l, int http10, int proxy, int post
 	}
 }
 
-void add_if_modified(unsigned char **hdr, int *l, struct connection *c)
+static void add_if_modified(unsigned char **hdr, int *l, struct connection *c)
 {
 	struct cache_entry *e;
 	if ((e = c->cache)) {
-		int code, vers;
+		int code = 0, vers;	/* against warning */
 		if (get_http_code(e->head, &code, &vers) || code >= 400) goto skip_ifmod;
 		if (!e->incomplete && e->head && c->no_cache <= NC_IF_MOD) {
 			unsigned char *m;
 			if (e->last_modified) m = stracpy(e->last_modified);
-			else if ((m = parse_http_header(e->head, "Date", NULL))) ;
-			else if ((m = parse_http_header(e->head, "Expires", NULL))) ;
+			else if ((m = parse_http_header(e->head, "Date", NULL)))
+				;
+			else if ((m = parse_http_header(e->head, "Expires", NULL)))
+				;
 			else goto skip_ifmod;
 			add_to_str(hdr, l, "If-Modified-Since: ");
 			add_to_str(hdr, l, m);
@@ -457,12 +476,12 @@ void add_if_modified(unsigned char **hdr, int *l, struct connection *c)
 	}
 }
 
-void add_range(unsigned char **hdr, int *l, struct connection *c)
+static void add_range(unsigned char **hdr, int *l, struct connection *c)
 {
 	struct cache_entry *e;
 	struct http_connection_info *info = c->info;
 	if ((e = c->cache)) {
-		int code, vers;
+		int code = 0, vers;	/* against warning */
 		if (get_http_code(e->head, &code, &vers) || code >= 400) goto skip_range;
 	}
 	if (c->from && (c->est_length == -1 || c->from < c->est_length) && c->no_cache < NC_IF_MOD && !(info->bl_flags & BL_NO_RANGE)) {
@@ -482,12 +501,12 @@ void add_range(unsigned char **hdr, int *l, struct connection *c)
 	}
 }
 
-void add_pragma_no_cache(unsigned char **hdr, int *l, int no_cache)
+static void add_pragma_no_cache(unsigned char **hdr, int *l, int no_cache)
 {
 	if (no_cache >= NC_PR_NO_CACHE) add_to_str(hdr, l, "Pragma: no-cache\r\nCache-Control: no-cache\r\n");
 }
 
-void add_auth_string(unsigned char **hdr, int *l, unsigned char *url)
+static void add_auth_string(unsigned char **hdr, int *l, unsigned char *url)
 {
 	unsigned char *h;
 	if ((h = get_auth_string(url))) {
@@ -496,7 +515,7 @@ void add_auth_string(unsigned char **hdr, int *l, unsigned char *url)
 	}
 }
 
-void add_post_header(unsigned char **hdr, int *l, unsigned char **post)
+static void add_post_header(unsigned char **hdr, int *l, unsigned char **post)
 {
 	if (*post) {
 		unsigned char *pd = strchr(*post, '\n');
@@ -512,7 +531,7 @@ void add_post_header(unsigned char **hdr, int *l, unsigned char **post)
 	}
 }
 
-void add_extra_options(unsigned char **hdr, int *l)
+static void add_extra_options(unsigned char **hdr, int *l)
 {
 	unsigned char *p = http_options.header.extra_header;
 	while (1) {
@@ -533,7 +552,8 @@ void add_extra_options(unsigned char **hdr, int *l)
 					new_hdr = init_str();
 					new_l = 0;
 					add_bytes_to_str(&new_hdr, &new_l, *hdr, v - *hdr);
-					while ((*++c == ' '));
+					while (*++c == ' ')
+						;
 					add_to_str(&new_hdr, &new_l, c);
 					add_to_str(&new_hdr, &new_l, v + strcspn(v, "\r\n"));
 					mem_free(*hdr);
@@ -576,7 +596,7 @@ static void read_http_data(struct connection *c, struct read_buffer *rb)
 	if (info->length != -2) {
 		int l = rb->len;
 		if (info->length >= 0 && info->length < l) l = info->length;
-		if (c->from + l < 0) {
+		if ((off_t)(0UL + c->from + l) < 0) {
 			setcstate(c, S_LARGE_FILE);
 			abort_connection(c);
 			return;
@@ -627,7 +647,7 @@ static void read_http_data(struct connection *c, struct read_buffer *rb)
 		} else {
 			int l = info->chunk_remaining;
 			if (l > rb->len) l = rb->len;
-			if (c->from + l < 0) {
+			if ((off_t)(0UL + c->from + l) < 0) {
 				setcstate(c, S_LARGE_FILE);
 				abort_connection(c);
 				return;
@@ -691,7 +711,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	int state = c->state != S_PROC ? S_GETH : S_PROC;
 	unsigned char *head;
 	unsigned char *cookie, *ch;
-	int a, h, version;
+	int a, h = 0, version = 0;	/* against warning */
 	unsigned char *d;
 	struct cache_entry *e;
 	struct http_connection_info *info;
@@ -787,11 +807,14 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		retry_connection(c);
 		return;
 	}
-	if (!c->cache && get_cache_entry(c->url, &c->cache)) {
-		mem_free(head);
-		setcstate(c, S_OUT_OF_MEM);
-		abort_connection(c);
-		return;
+	if (!c->cache) {
+		if (get_cache_entry(c->url, &c->cache)) {
+			mem_free(head);
+			setcstate(c, S_OUT_OF_MEM);
+			abort_connection(c);
+			return;
+		}
+		c->cache->refcount--;
 	}
 	e = c->cache;
 	e->http_code = h;
@@ -947,7 +970,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	read_http_data(c, rb);
 }
 
-void http_get_header(struct connection *c)
+static void http_get_header(struct connection *c)
 {
 	struct read_buffer *rb;
 	set_timeout(c);

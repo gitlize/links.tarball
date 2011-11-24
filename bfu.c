@@ -13,6 +13,10 @@ unsigned G_SCROLL_BAR_AREA_COLOR;
 unsigned G_SCROLL_BAR_BAR_COLOR;
 unsigned G_SCROLL_BAR_FRAME_COLOR;
 
+static void menu_func(struct window *, struct event *, int);
+static void mainmenu_func(struct window *, struct event *, int);
+static void msg_box_fn(struct dialog_data *dlg);
+
 struct memory_list *getml(void *p, ...)
 {
 	struct memory_list *ml;
@@ -90,14 +94,12 @@ static inline int ttxtlen(struct terminal *term, unsigned char *s)
 
 static inline int txtlen(struct terminal *term, unsigned char *s)
 {
-	if (!F) {
-		return ttxtlen(term, s);
-	}
 #ifdef G
-	else {
+	if (F)
 		return g_text_width(bfu_style_wb, s);
-	}
+	else
 #endif
+		return ttxtlen(term, s);
 }
 
 #ifdef G
@@ -123,7 +125,7 @@ struct style *bfu_style_wb_mono, *bfu_style_wb_mono_u;
 
 long bfu_fg_color, bfu_bg_color;
 
-int G_DIALOG_FIELD_WIDTH;
+static int G_DIALOG_FIELD_WIDTH;
 
 void init_bfu(void)
 {
@@ -225,7 +227,8 @@ static void select_menu(struct terminal *term, struct menu *menu)
 	if (menu->selected < 0 || menu->selected >= menu->ni || it->hotkey == M_BAR) return;
 	if (!it->in_m) {
 		struct window *win, *win1;
-		for (win = term->windows.next; (void *)win != &term->windows && (win->handler == menu_func || win->handler == mainmenu_func); win1 = win->next, delete_window(win), win = win1) ;
+		for (win = term->windows.next; (void *)win != &term->windows && (win->handler == menu_func || win->handler == mainmenu_func); win1 = win->next, delete_window(win), win = win1)
+			;
 	}
 	func(term, data1, data2);
 }
@@ -349,12 +352,12 @@ static void display_menu_txt(struct terminal *term, struct menu *menu)
 	}
 }
 
-int menu_oldview = -1;
-int menu_oldsel = -1;
+static int menu_oldview = -1;
+static int menu_oldsel = -1;
 
 #ifdef G
 
-int menu_ptr_set;
+static int menu_ptr_set;
 
 static void display_menu_item_gfx(struct terminal *term, struct menu *menu, int it)
 {
@@ -448,7 +451,7 @@ static void display_menu_gfx(struct terminal *term, struct menu *menu)
 
 #endif
 
-void menu_func(struct window *win, struct event *ev, int fwd)
+static void menu_func(struct window *win, struct event *ev, int fwd)
 {
 	int s = 0;
 	int xp, yp;
@@ -678,12 +681,13 @@ static void select_mainmenu(struct terminal *term, struct mainmenu *menu)
 	if (menu->selected < 0 || menu->selected >= menu->ni || it->hotkey == M_BAR) return;
 	if (!it->in_m) {
 		struct window *win, *win1;
-		for (win = term->windows.next; (void *)win != &term->windows && (win->handler == menu_func || win->handler == mainmenu_func); win1 = win->next, delete_window(win), win = win1) ;
+		for (win = term->windows.next; (void *)win != &term->windows && (win->handler == menu_func || win->handler == mainmenu_func); win1 = win->next, delete_window(win), win = win1)
+			;
 	}
 	it->func(term, it->data, menu->data);
 }
 
-void mainmenu_func(struct window *win, struct event *ev, int fwd)
+static void mainmenu_func(struct window *win, struct event *ev, int fwd)
 {
 	int s = 0;
 	struct mainmenu *menu = win->data;
@@ -1186,7 +1190,8 @@ void dialog_func(struct window *win, struct event *ev, int fwd)
 	switch ((int)ev->ev) {
 		case EV_INIT:
 			for (i = 0; i < dlg->n; i++) {
-				struct dialog_item_data *di = &dlg->items[i];
+				/* volatile because of a compiler bug */
+				struct dialog_item_data * volatile di = &dlg->items[i];
 				memset(di, 0, sizeof(struct dialog_item_data));
 				di->item = &dlg->dlg->items[i];
 				di->cdata = mem_alloc(di->item->dlen);
@@ -1447,11 +1452,11 @@ int check_float(struct dialog_data *dlg, struct dialog_item_data *di)
 	unsigned char *end;
 	double d = strtod(di->cdata, (char **)(void *)&end);
 	if (!*di->cdata || *end) {
-		msg_box(dlg->win->term, NULL, TEXT(T_BAD_NUMBER), AL_CENTER, TEXT(T_NUMBER_EXPECTED), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_NUMBER), AL_CENTER, TEXT_(T_NUMBER_EXPECTED), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return 1;
 	}
 	if (100*d < di->item->gid || 100*d > di->item->gnum) {
-		msg_box(dlg->win->term, NULL, TEXT(T_BAD_NUMBER), AL_CENTER, TEXT(T_NUMBER_OUT_OF_RANGE), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_NUMBER), AL_CENTER, TEXT_(T_NUMBER_OUT_OF_RANGE), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return 1;
 	}
 	return 0;
@@ -1462,11 +1467,11 @@ int check_number(struct dialog_data *dlg, struct dialog_item_data *di)
 	unsigned char *end;
 	long l = strtol(di->cdata, (char **)(void *)&end, 10);
 	if (!*di->cdata || *end) {
-		msg_box(dlg->win->term, NULL, TEXT(T_BAD_NUMBER), AL_CENTER, TEXT(T_NUMBER_EXPECTED), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_NUMBER), AL_CENTER, TEXT_(T_NUMBER_EXPECTED), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return 1;
 	}
 	if (l < di->item->gid || l > di->item->gnum) {
-		msg_box(dlg->win->term, NULL, TEXT(T_BAD_NUMBER), AL_CENTER, TEXT(T_NUMBER_OUT_OF_RANGE), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_NUMBER), AL_CENTER, TEXT_(T_NUMBER_OUT_OF_RANGE), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return 1;
 	}
 	return 0;
@@ -1477,11 +1482,11 @@ int check_hex_number(struct dialog_data *dlg, struct dialog_item_data *di)
 	unsigned char *end;
 	long l = strtol(di->cdata, (char **)(void *)&end, 16);
 	if (!*di->cdata || *end) {
-		msg_box(dlg->win->term, NULL, TEXT(T_BAD_NUMBER), AL_CENTER, TEXT(T_NUMBER_EXPECTED), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_NUMBER), AL_CENTER, TEXT_(T_NUMBER_EXPECTED), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return 1;
 	}
 	if (l < di->item->gid || l > di->item->gnum) {
-		msg_box(dlg->win->term, NULL, TEXT(T_BAD_NUMBER), AL_CENTER, TEXT(T_NUMBER_OUT_OF_RANGE), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_NUMBER), AL_CENTER, TEXT_(T_NUMBER_OUT_OF_RANGE), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return 1;
 	}
 	return 0;
@@ -1491,7 +1496,7 @@ int check_nonempty(struct dialog_data *dlg, struct dialog_item_data *di)
 {
 	unsigned char *p;
 	for (p = di->cdata; *p; p++) if (*p > ' ') return 0;
-	msg_box(dlg->win->term, NULL, TEXT(T_BAD_STRING), AL_CENTER, TEXT(T_EMPTY_STRING_NOT_ALLOWED), NULL, 1, TEXT(T_CANCEL), NULL, B_ENTER | B_ESC);
+	msg_box(dlg->win->term, NULL, TEXT_(T_BAD_STRING), AL_CENTER, TEXT_(T_EMPTY_STRING_NOT_ALLOWED), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 	return 1;
 }
 
@@ -1517,20 +1522,23 @@ int check_dialog(struct dialog_data *dlg)
 void get_dialog_data(struct dialog_data *dlg)
 {
 	int i;
-	for (i = 0; i < dlg->n; i++)
-		memcpy(dlg->dlg->items[i].data, dlg->items[i].cdata, dlg->dlg->items[i].dlen);
+	for (i = 0; i < dlg->n; i++) {
+		/* volatile because of a compiler bug */
+		void * volatile p1 = dlg->dlg->items[i].data;
+		void * volatile p2 = dlg->items[i].cdata;
+		volatile int l = dlg->dlg->items[i].dlen;
+		memcpy(p1, p2, l);
+	}
 }
 
 int ok_dialog(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	int i;
 	void (*fn)(void *) = dlg->dlg->refresh;
 	void *data = dlg->dlg->refresh_data;
 	if (check_dialog(dlg)) return 1;
 	get_dialog_data(dlg);
 	if (fn) fn(data);
-	i = cancel_dialog(dlg, di);
-	return i;
+	return cancel_dialog(dlg, di);
 }
 
 void center_dlg(struct dialog_data *dlg)
@@ -1910,6 +1918,7 @@ void dlg_format_text_and_field(struct dialog_data *dlg, struct terminal *term, u
 }
 
 
+#if 0
 /* Layout for generic boxes */
 void dlg_format_box(struct terminal *term, struct terminal *t2, struct dialog_item_data *item, int x, int *y, int w, int *rw, int align) {
 	item->x = x;
@@ -1918,6 +1927,7 @@ void dlg_format_box(struct terminal *term, struct terminal *t2, struct dialog_it
 	if (rw && item->l > *rw) if ((*rw = item->l) > w) *rw = w;
 	(*y) += item->item->gid;
 }
+#endif
 
 void max_group_width(struct terminal *term, unsigned char **texts, struct dialog_item_data *item, int n, int *w)
 {
@@ -2003,7 +2013,8 @@ void checkbox_list_fn(struct dialog_data *dlg)
 	int max = 0, min = 0;
 	int w, rw;
 	int y = 0;
-	for (n_checkboxes = 0; ((unsigned char **)dlg->dlg->udata)[n_checkboxes]; n_checkboxes++) ;
+	for (n_checkboxes = 0; ((unsigned char **)dlg->dlg->udata)[n_checkboxes]; n_checkboxes++)
+		;
 	checkboxes_width(term, dlg->dlg->udata, n_checkboxes, &max, max_text_width);
 	checkboxes_width(term, dlg->dlg->udata, n_checkboxes, &min, min_text_width);
 	max_buttons_width(term, dlg->items + n_checkboxes, dlg->n - n_checkboxes, &max);
@@ -2058,7 +2069,7 @@ void group_fn(struct dialog_data *dlg)
 	dlg_format_buttons(dlg, term, dlg->items + dlg->n - 2, 2, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
 }
 
-void msg_box_fn(struct dialog_data *dlg)
+static void msg_box_fn(struct dialog_data *dlg)
 {
 	struct terminal *term = dlg->win->term;
 	int max = 0, min = 0;
@@ -2162,16 +2173,16 @@ void msg_box(struct terminal *term, struct memory_list *ml, unsigned char *title
 	do_dialog(term, dlg, ml);
 }
 
-void add_to_history(struct history *h, unsigned char *t)
+void add_to_history(struct history *h, unsigned char *t, int check_duplicates)
 {
 	struct history_item *hi, *hs;
 	size_t l;
 	if (!h || !t || !*t) return;
-	l = strlen(t) + 1;
+	l = strlen(t);
 	if (l > MAXINT - sizeof(struct history_item)) overalloc();
 	hi = mem_alloc(sizeof(struct history_item) + l);
-	memcpy(hi->d, t, l);
-	foreach(hs, h->items) if (!strcmp(hs->d, t)) {
+	memcpy(hi->d, t, l + 1);
+	if (check_duplicates) foreach(hs, h->items) if (!strcmp(hs->d, t)) {
 		struct history_item *hd = hs;
 		hs = hs->prev;
 		del_from_list(hd);
@@ -2208,7 +2219,7 @@ static int input_field_ok(struct dialog_data *dlg, struct dialog_item_data *di)
 	void *data = dlg->dlg->udata2;
 	unsigned char *text = dlg->items->cdata;
 	if (check_dialog(dlg)) return 1;
-	add_to_history(dlg->dlg->items->history, text);
+	add_to_history(dlg->dlg->items->history, text, 1);
 	if (fn) fn(data, text);
 	ok_dialog(dlg, di);
 	return 0;
@@ -2256,7 +2267,8 @@ void input_field(struct terminal *term, struct memory_list *ml, unsigned char *t
 	va_start(va, check);
 	n = 0;
 	while (va_arg(va, unsigned char *)) {
-		void *q = va_arg(va, input_field_t);
+		/* volatile because of a compiler bug */
+		void * volatile q = va_arg(va, input_field_t);
 		q = q;	/* suppress warning */
 		n++;
 	}
