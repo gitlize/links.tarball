@@ -857,7 +857,7 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 static void g_do_format(char *start, char *end, struct g_part *part, unsigned char *head)
 {
 	pr(
-	parse_html(start, end, g_put_chars, g_line_break, g_html_special, part, head);
+	parse_html(start, end, (void (*)(void *, unsigned char *, int))g_put_chars, g_line_break, (void *(*)(void *, int, ...))g_html_special, part, head);
 	/*if ((part->y -= line_breax) < 0) part->y = 0;*/
 	flush_pending_text_to_line(part);
 	flush_pending_line_to_obj(part, 0);

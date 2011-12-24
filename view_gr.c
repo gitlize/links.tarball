@@ -103,13 +103,27 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 {
 	struct form_control *form;
 	struct form_state *fs;
-	struct link *link = t->link_num >= 0 ? fd->f_data->links + t->link_num : NULL;
+	struct link *link;
 	int l;
 	int ll;
 	int i, j;
 	int yy;
 	int cur;
 	struct line_info *ln, *lnx;
+	struct graphics_device *dev = fd->ses->term->dev;
+
+	if (x + t->xw <= fd->ses->term->dev->clip.x1)
+		return;
+	if (x >= fd->ses->term->dev->clip.x2)
+		return;
+	if (!print_all_textarea) {
+		if (y + t->yw <= fd->ses->term->dev->clip.y1)
+			return;
+		if (y >= fd->ses->term->dev->clip.y2)
+			return;
+	}
+
+	link = t->link_num >= 0 ? fd->f_data->links + t->link_num : NULL;
 	if (link && ((form = link->form)) && ((fs = find_form_state(fd, form)))) {
 		switch (form->type) {
 			struct style *inv;
@@ -117,13 +131,13 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 			case FC_RADIO:
 				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
 				else inv = t->style, in = 0;
-				g_print_text(drv, fd->ses->term->dev, x, y, inv, fs->state ? "[X]" : "[ ]", NULL);
+				g_print_text(drv, dev, x, y, inv, fs->state ? "[X]" : "[ ]", NULL);
 				if (in) g_free_style(inv);
 				return;
 			case FC_CHECKBOX:
 				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
 				else inv = t->style, in = 0;
-				g_print_text(drv, fd->ses->term->dev, x, y, inv, fs->state ? "[X]" : "[ ]", NULL);
+				g_print_text(drv, dev, x, y, inv, fs->state ? "[X]" : "[ ]", NULL);
 				if (in) g_free_style(inv);
 				return;
 			case FC_SELECT:
@@ -131,8 +145,8 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				else inv = t->style, in = 0;
 				fixup_select_state(form, fs);
 				l = 0;
-				if (fs->state < form->nvalues) g_print_text(drv, fd->ses->term->dev, x, y, inv, form->labels[fs->state], &l);
-				while (l < t->xw) g_print_text(drv, fd->ses->term->dev, x + l, y, inv, "_", &l);
+				if (fs->state < form->nvalues) g_print_text(drv, dev, x, y, inv, form->labels[fs->state], &l);
+				while (l < t->xw) g_print_text(drv, dev, x + l, y, inv, "_", &l);
 				if (in) g_free_style(inv);
 				return;
 			case FC_TEXT:
@@ -179,7 +193,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 						i += strlen(tx);
 						if (form->type == FC_PASSWORD) xy:tx[0] = '*';
 					}
-					g_print_text(drv, fd->ses->term->dev, x + l, y, st, tx, &l);
+					g_print_text(drv, dev, x + l, y, st, tx, &l);
 					if (sm) g_free_style(st);
 				}
 				return;
@@ -214,7 +228,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 							if (!cur) {
 								st = g_invert_style(t->style);
 							}
-							g_print_text(drv, fd->ses->term->dev, xx, yy + j * t->style->height, st, tx, &xx);
+							g_print_text(drv, dev, xx, yy + j * t->style->height, st, tx, &xx);
 							if (!cur) {
 								g_free_style(st);
 							}
@@ -228,9 +242,9 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 							if (ln->st && pp < ln->en) a = memacpy(pp, ln->en - pp);
 							else a = stracpy("");
 							for (aa = 0; aa < form->cols; aa += 4) add_to_strn(&a, "____");
-							restrict_clip_area(fd->ses->term->dev, &old, x, 0, x + t->xw, fd->ses->term->dev->size.y2);
-							g_print_text(drv, fd->ses->term->dev, x, yy + j * t->style->height, t->style, a, NULL);
-							drv->set_clip_area(fd->ses->term->dev, &old);
+							restrict_clip_area(dev, &old, x, 0, x + t->xw, dev->size.y2);
+							g_print_text(drv, dev, x, yy + j * t->style->height, t->style, a, NULL);
+							drv->set_clip_area(dev, &old);
 							mem_free(a);
 						}
 						cur -= form->cols;
@@ -244,11 +258,11 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 	if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) {
 		struct style *inv;
 		inv = g_invert_style(t->style);
-		g_print_text(drv, fd->ses->term->dev, x, y, inv, t->text, NULL);
+		g_print_text(drv, dev, x, y, inv, t->text, NULL);
 		g_free_style(inv);
 	} else if ( (!fd->f_data->hlt_len) && (!highlight_positions || !n_highlight_positions)) {
 		prn:
-		g_print_text(drv, fd->ses->term->dev, x, y, t->style, t->text, NULL);
+		g_print_text(drv, dev, x, y, t->style, t->text, NULL);
 	} else {
 		size_t tlen = strlen(t->text);
 		int found;
@@ -301,7 +315,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		pmask = -1;
 		for (ii = 0; ii < tlen; ii++) {
 			if (mask[ii] != pmask) {
-				g_print_text(drv, fd->ses->term->dev, x, y, pmask ? inv : t->style, tx, &x);
+				g_print_text(drv, dev, x, y, pmask ? inv : t->style, tx, &x);
 				mem_free(tx);
 				tx = init_str();
 				txl = 0;
@@ -309,7 +323,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 			add_chr_to_str(&tx, &txl, t->text[ii]);
 			pmask = mask[ii];
 		}
-		g_print_text(drv, fd->ses->term->dev, x, y, pmask ? inv : t->style, tx, &x);
+		g_print_text(drv, dev, x, y, pmask ? inv : t->style, tx, &x);
 		mem_free(tx);
 		g_free_style(inv);
 		mem_free(mask);
@@ -857,10 +871,13 @@ static void process_sb_event(struct f_data_c *fd, int off, int h)
 		fd->ses->scrolloff = off - spos - 1;
 		return;
 	}
-	if (off < spos) if (h) fd->vs->view_posx -= fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH;
-			else fd->vs->view_pos -= fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
-	else if (h) fd->vs->view_posx += fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH;
+	if (off < spos) {
+		if (h) fd->vs->view_posx -= fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH;
+		else fd->vs->view_pos -= fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
+	} else {
+		if (h) fd->vs->view_posx += fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH;
 		else fd->vs->view_pos += fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
+	}
 	fd->vs->orig_view_pos = fd->vs->view_pos;
 	fd->vs->orig_view_posx = fd->vs->view_posx;
 	draw_graphical_doc(fd->ses->term, fd, 1);

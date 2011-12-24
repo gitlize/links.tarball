@@ -38,8 +38,13 @@ void shutdown_trans(void)
 	int i, j, k;
 	for (i = 0; i < N_LANGUAGES; i++)
 		for (j = 0; j < N_CODEPAGES; j++) if (translation_array[i][j]) {
-			for (k = 0; k < T__N_TEXTS; k++) if (translation_array[i][j][k])
-				mem_free(translation_array[i][j][k]);
+			for (k = 0; k < T__N_TEXTS; k++) {
+				unsigned char *txt = translation_array[i][j][k];
+				if (txt &&
+				    txt != translations[i].t[k].name &&
+				    txt != translations[0].t[k].name)
+					mem_free(txt);
+			}
 			mem_free(translation_array[i][j]);
 		}
 }
@@ -70,7 +75,7 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 		if ((trn = current_tra[text - dummyarray])) return trn;
 		tr:
 		if (!(tt = translations[current_language].t[text - dummyarray].name)) {
-			trn = stracpy(translation_english[text - dummyarray].name);
+			trn = translation_english[text - dummyarray].name;
 		} else {
 			struct document_options l_opt;
 			memset(&l_opt, 0, sizeof(l_opt));
@@ -78,6 +83,10 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 			l_opt.cp = charset;
 			conv_table = get_translation_table(current_lang_charset, charset);
 			trn = convert_string(conv_table, tt, strlen(tt), &l_opt);
+			if (!strcmp(trn, tt)) {
+				mem_free(trn);
+				trn = tt;
+			}
 		}
 		current_tra[text - dummyarray] = trn;
 	} else {

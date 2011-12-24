@@ -27,11 +27,16 @@
 #define SA_RESTART	0
 #endif
 
+#ifdef OS2
+int bounced_read(int handle, void *buf, size_t size);
+int bounced_write(int handle, const void *buf, size_t size);
+#define read bounced_read
+#define write bounced_write
+#endif
+
 #ifdef __EMX__
 #define strcasecmp stricmp
 #define strncasecmp strnicmp
-#define read _read
-#define write _write
 #define getcwd _getcwd2
 #define chdir _chdir2
 #endif

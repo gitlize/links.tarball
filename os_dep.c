@@ -9,7 +9,7 @@
 #include <sys/ioctl.h>
 #endif
 
-#if defined(HAVE_LIBGPM) && defined(HAVE_GPM_H)
+#if defined(HAVE_GPM_H) && defined(HAVE_LIBGPM)
 #define USE_GPM
 #endif
 
@@ -104,6 +104,152 @@ unsigned char *clipboard = NULL;
 /* from xf86sup - XFree86 OS/2 support driver */
 #include <pty.h>
 #endif
+
+#endif
+
+
+#ifdef OS2
+
+#if defined(HAVE_UMALLOC_H) && defined(HAVE__UCREATE) && defined(HAVE__UOPEN) && defined(HAVE__UDEFAULT)
+#define OS2_ADVANCED_HEAP
+#endif
+
+/* The process crashes if we write to console from high address - so we must
+ * never do it.
+ * TCP/IP 4.0 returns EFAULT if we do I/O to/from high address - we test for
+ * EFAULT and retry with a bounce buffer.  */
+
+#define BOUNCE_BUFFER_SIZE	256
+
+int bounced_read(int fd, void *buf, size_t size)
+{
+	unsigned char *bounce_buffer;
+	size_t xsiz;
+	int r;
+	if (fd < 3 && (unsigned long)buf + size > 0x20000000) goto bounce;
+	r = _read(fd, buf, size);
+	if (r == -1 && errno == EFAULT) goto bounce;
+	return r;
+	bounce:
+	xsiz = size > BOUNCE_BUFFER_SIZE ? BOUNCE_BUFFER_SIZE : size;
+	bounce_buffer = alloca(xsiz);
+	r = _read(fd, bounce_buffer, xsiz);
+	if (r > 0) memcpy(buf, bounce_buffer, r);
+	return r;
+}
+
+int bounced_write(int fd, const void *buf, size_t size)
+{
+	unsigned char *bounce_buffer;
+	size_t xsiz;
+	int r;
+	if (fd < 3 && (unsigned long)buf + size > 0x20000000) goto bounce;
+	r = _write(fd, buf, size);
+	if (r == -1 && errno == EFAULT) goto bounce;
+	return r;
+	bounce:
+	xsiz = size > BOUNCE_BUFFER_SIZE ? BOUNCE_BUFFER_SIZE : size;
+	bounce_buffer = alloca(xsiz);
+	memcpy(bounce_buffer, buf, xsiz);
+	return _write(fd, bounce_buffer, xsiz);
+}
+
+#endif
+
+#ifdef OS2_ADVANCED_HEAP
+
+#include <umalloc.h>
+
+#ifndef OBJ_ANY
+#define OBJ_ANY		0x0400
+#endif
+
+static int dosallocmem_attrib = PAG_READ | PAG_WRITE | PAG_COMMIT;
+
+#define HEAP_ALIGN		0x10000
+#define HEAP_PAD		2
+#define HEAP_MAXPAD		0x1000000
+
+static void heap_release(Heap_t h, void *ptr, size_t len)
+{
+	int rc;
+	rc = DosFreeMem(ptr);
+	/*fprintf(stderr, "heap free %p -> %d\n", ptr, rc);*/
+	if (rc) {
+		error("DosFreeMem failed: %d", rc);
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
+}
+
+static void *heap_alloc(Heap_t h, size_t *size, int *pclean)
+{
+	void *result;
+	int rc;
+	/* If we rounded up to page size, EMX would join all allocations
+	 * to one segment and refuse to free memory. So round up to
+	 * page size - 1 */
+	size_t real_size = *size;
+	if (real_size < HEAP_MAXPAD / HEAP_PAD) {
+		real_size *= HEAP_PAD;
+		real_size = real_size | (HEAP_ALIGN - 1);
+	} else {
+		real_size |= 1;
+	}
+	rc = DosAllocMem(&result, real_size, dosallocmem_attrib);
+	/*fprintf(stderr, "heap alloc %d -> %p, %d\n", *size, result, rc);*/
+	if (!rc) {
+		/*
+		 * Hitting the shared arena has a negative impact on the whole
+		 * system. Therefore, we fake failure (so that Links frees
+		 * some caches) and try allocating near the shared arena only
+		 * as a last resort.
+		 */
+		if ((unsigned long)result >= 0x12000000 &&
+		    (unsigned long)result < 0x20000000) {
+			if (!malloc_try_hard) {
+				heap_release(NULL, result, real_size);
+				return NULL;
+			}
+		}
+		*size = real_size;
+		*pclean = _BLOCK_CLEAN;
+		return result;
+	} else {
+		return NULL;
+	}
+}
+
+static void init_os2_heap(void)
+{
+	Heap_t new_heap;
+	size_t init_size = _HEAP_MIN_SIZE;
+	void *init_mem;
+	int init_clean;
+	dosallocmem_attrib |= OBJ_ANY;
+	init_mem = heap_alloc(NULL, &init_size, &init_clean);
+	if (!init_mem) {
+		dosallocmem_attrib &= ~OBJ_ANY;
+		init_mem = heap_alloc(NULL, &init_size, &init_clean);
+		if (!init_mem) {
+			return;
+		}
+	}
+	new_heap = _ucreate(init_mem, init_size, init_clean, _HEAP_REGULAR, heap_alloc, heap_release);
+	if (!new_heap) {
+		heap_release(NULL, init_mem, init_size);
+		return;
+	}
+	if (_uopen(new_heap) == -1) {
+#if defined(HAVE__UDESTROY) && defined(_FORCE)
+		_udestroy(new_heap, _FORCE);
+#else
+		heap_release(NULL, init_mem, init_size);
+#endif
+		return;
+	}
+	_udefault(new_heap);
+}
 
 #endif
 
@@ -259,7 +405,6 @@ int get_terminal_size(int fd, int *x, int *y)
 	if (!x || !y) return -1;
 	if (is_xterm()) {
 #ifdef X2
-		/* int fd; */
 		int arc;
 		struct winsize win;
 
@@ -282,7 +427,9 @@ int get_terminal_size(int fd, int *x, int *y)
 		_scrsize(a);
 		*x = a[0];
 		*y = a[1];
+#ifdef X2
 		set_default:
+#endif
 		if (*x == 0) {
 			*x = get_e("COLUMNS");
 			if (*x == 0) *x = 80;
@@ -384,6 +531,9 @@ void close_fork_tty(void)
 
 void init_os(void)
 {
+#ifdef OS2_ADVANCED_HEAP
+	init_os2_heap();
+#endif
 #if defined(RLIMIT_OFILE) && !defined(RLIMIT_NOFILE)
 #define RLIMIT_NOFILE RLIMIT_OFILE
 #endif
@@ -436,10 +586,10 @@ void get_path_to_exe(void)
 	   the quotation marks will be present in g_argv[0] ... and will
 	   prevent executing it */
 	static unsigned char path[270];
+	PTIB tib = NULL;
 	PPIB pib = NULL;
 	path_to_exe = g_argv[0];
-	/*if (!strchr(path_to_exe, ' ') && !strchr(path_to_exe, '"')) return;*/
-	DosGetInfoBlocks(NULL, &pib);
+	DosGetInfoBlocks(&tib, &pib);
 	if (!pib) return;
 	if (DosQueryModuleName(pib->pib_hmte, sizeof path, path)) return;
 	path_to_exe = path;

@@ -167,10 +167,14 @@
 
 #define BOHNICE "+420-2-84016111"
 
-#define BFU_ELEMENT_PIPE 0
-#define BFU_ELEMENT_TEE 1
-#define BFU_ELEMENT_CLOSED 2
-#define BFU_ELEMENT_OPEN 3
+#define BFU_ELEMENT_EMPTY	0
+#define BFU_ELEMENT_PIPE	1
+#define BFU_ELEMENT_L		2
+#define BFU_ELEMENT_TEE		3
+#define BFU_ELEMENT_CLOSED	4
+#define BFU_ELEMENT_CLOSED_DOWN	5
+#define BFU_ELEMENT_OPEN	6
+#define BFU_ELEMENT_OPEN_DOWN	7
 
 /* for mouse scrolling */
 static long last_mouse_y;
@@ -202,15 +206,34 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 		unsigned char vertical=179;
 		unsigned char horizontal=196;
 		unsigned char tee=195;
+		unsigned char l=192;
 
 		switch (type)
 		{
+			case BFU_ELEMENT_EMPTY:
+			c|=ATTR_FRAME;
+			set_char(term,x,y,' ',c);
+			set_char(term,x+1,y,' ',c);
+			set_char(term,x+2,y,' ',c);
+			set_char(term,x+3,y,' ',c);
+			set_char(term,x+4,y,' ',c);
+			break;
+
 			case BFU_ELEMENT_PIPE:
 			c|=ATTR_FRAME;
 			set_char(term,x,y,' ',c);
 			set_char(term,x+1,y,vertical,c);
 			set_char(term,x+2,y,' ',c);
 			set_char(term,x+3,y,' ',c);
+			set_char(term,x+4,y,' ',c);
+			break;
+
+			case BFU_ELEMENT_L:
+			c|=ATTR_FRAME;
+			set_char(term,x,y,' ',c);
+			set_char(term,x+1,y,l,c);
+			set_char(term,x+2,y,horizontal,c);
+			set_char(term,x+3,y,horizontal,c);
 			set_char(term,x+4,y,' ',c);
 			break;
 
@@ -224,6 +247,7 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			break;
 
 			case BFU_ELEMENT_CLOSED:
+			case BFU_ELEMENT_CLOSED_DOWN:
 			set_char(term,x,y,'[',c);
 			set_char(term,x+1,y,'+',c);
 			set_char(term,x+2,y,']',c);
@@ -233,6 +257,7 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			break;
 
 			case BFU_ELEMENT_OPEN:
+			case BFU_ELEMENT_OPEN_DOWN:
 			set_char(term,x,y,'[',c);
 			set_char(term,x+1,y,'-',c);
 			set_char(term,x+2,y,']',c);
@@ -255,6 +280,10 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 
 		switch (type)
 		{
+			case BFU_ELEMENT_EMPTY:
+			drv->fill_area(dev,x,y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
+			break;
+
 			case BFU_ELEMENT_PIPE:
 			/* pipe */
 			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y,y+BFU_GRX_HEIGHT,f);
@@ -262,6 +291,19 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			/* clear the rest */
 			drv->fill_area(dev,x,y,x+1*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
 			drv->fill_area(dev,x+2+1*BFU_GRX_WIDTH,y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
+			break;
+
+			case BFU_ELEMENT_L:
+			/* l */
+			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y,y+.5*BFU_GRX_HEIGHT,f);
+			drv->draw_vline(dev,x+1+1*BFU_GRX_WIDTH,y,y+.5*BFU_GRX_HEIGHT,f);
+			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y+.5*BFU_GRX_HEIGHT,x+1+3.5*BFU_GRX_WIDTH,f);
+			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,x+1+3.5*BFU_GRX_WIDTH,f);
+			/* clear the rest */
+			drv->fill_area(dev,x,y,x+1*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+BFU_GRX_WIDTH,y+.5*BFU_GRX_HEIGHT+1,x+1+3.5*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y,x+1+3.5*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+1+3.5*BFU_GRX_WIDTH,y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
 			break;
 
 			case BFU_ELEMENT_TEE:
@@ -278,6 +320,7 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			break;
 
 			case BFU_ELEMENT_CLOSED:
+			case BFU_ELEMENT_CLOSED_DOWN:
 			/* vertical line of the + */
 			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,y-1+.75*BFU_GRX_HEIGHT,f);
 			drv->draw_vline(dev,x+1+1*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,y-1+.75*BFU_GRX_HEIGHT,f);
@@ -293,6 +336,7 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
 
 			case BFU_ELEMENT_OPEN:
+			case BFU_ELEMENT_OPEN_DOWN:
 			/* box */
 			drv->draw_vline(dev,x+2,y+1,y-1+BFU_GRX_HEIGHT,f);
 			drv->draw_vline(dev,x+3,y+1,y-1+BFU_GRX_HEIGHT,f);
@@ -313,7 +357,7 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 
 			/* top and bottom short vertical line */
 			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y,x+2+1*BFU_GRX_WIDTH,f);
-			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y-1+BFU_GRX_HEIGHT,x+2+1*BFU_GRX_WIDTH,f);
+			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y-1+BFU_GRX_HEIGHT,x+2+1*BFU_GRX_WIDTH,type == BFU_ELEMENT_OPEN || type == BFU_ELEMENT_CLOSED ? b : f);
 
 			/* clear the rest */
 			drv->draw_vline(dev,x,y,y+BFU_GRX_HEIGHT,b);
@@ -328,7 +372,7 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			drv->fill_area(dev,x+1.5*BFU_GRX_WIDTH,y+3,x-2+2*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
 			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+3,x+1.5*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,b);
 			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y-1+.75*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
-			if (type==BFU_ELEMENT_OPEN)
+			if (type==BFU_ELEMENT_OPEN || type == BFU_ELEMENT_OPEN_DOWN)
 			{
 				drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+3,x+1.5*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,b);
 				drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
@@ -939,6 +983,119 @@ static int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *use
 	return 0;
 }
 
+static void redraw_list_element(struct terminal *term, struct dialog_data *dlg, int y, int w, struct list_description *ld, struct list *l)
+{
+	struct list *lx;
+	unsigned char *xp;
+	int xd;
+	unsigned char *txt;
+	int x=0;
+	unsigned color = 0;
+	long bgcolor = 0, fgcolor = 0;
+	int b, element;
+
+	if (!F) {
+		color=(l==ld->current_pos)?COLOR_MENU_SELECTED:COLOR_MENU;
+#ifdef G
+	} else {
+		bgcolor=(l==ld->current_pos)?G_BFU_FG_COLOR:G_BFU_BG_COLOR;
+		fgcolor=(l==ld->current_pos)?G_BFU_BG_COLOR:G_BFU_FG_COLOR;
+
+		bgcolor=dip_get_color_sRGB(bgcolor);
+		fgcolor=dip_get_color_sRGB(fgcolor);
+#endif
+	}
+	
+	txt=ld->type_item(term, l,1);
+	if (!txt)
+	{
+		txt=mem_alloc(sizeof(unsigned char));
+		*txt=0;
+	}
+
+	/* everything except head */
+
+	if (l != ld->list) {
+		switch (ld->type) {
+		case 0:
+			element = BFU_ELEMENT_TEE;
+			if (l->next == ld->list)
+				element = BFU_ELEMENT_L;
+			x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,color,bgcolor,fgcolor,element,(l->type)&4);
+			break;
+		case 1:
+			xp = mem_alloc(l->depth + 1);
+			memset(xp, 0, l->depth + 1);
+			xd = l->depth + 1;
+			for (lx = l->next; lx != ld->list; lx = lx->next) {
+				if (lx->depth < xd) {
+					xd = lx->depth;
+					xp[xd] = 1;
+					if (!xd) break;
+				}
+			}
+			for (b=0;b<l->depth;b++)
+				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,color,bgcolor,fgcolor,xp[b] ? BFU_ELEMENT_PIPE : BFU_ELEMENT_EMPTY,0);
+			if (l->depth>=0)  /* everything except head */
+			{
+				int o = xp[l->depth];
+				switch((l->type)&1)
+				{
+					case 0:  /* item */
+					element=o ? BFU_ELEMENT_TEE : BFU_ELEMENT_L;
+					break;
+	
+					case 1:  /* directory */
+					if (l->type & 2) {
+						element = o ? BFU_ELEMENT_OPEN_DOWN : BFU_ELEMENT_OPEN;
+					} else {
+						element = o ? BFU_ELEMENT_CLOSED_DOWN : BFU_ELEMENT_CLOSED;
+					}
+					break;
+	
+					default:  /* this should never happen */
+					internal("=8-Q  lunacy level too high! Call "BOHNICE".\n");
+					element=BFU_ELEMENT_EMPTY;
+
+				}
+				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,color,bgcolor,fgcolor,element,(l->type)&4);
+			}
+			mem_free(xp);
+			break;
+		default:
+			internal(
+				"Invalid list description type.\n"
+				"Somebody's probably shooting into memory.\n"
+				"_______________\n"
+				"`--|_____|--|___ `\\\n"
+				"             \"  \\___\\\n");
+		}
+	}
+
+	if (!F)
+	{
+		print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,color);
+		x+=strlen(txt);
+		fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
+		set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,color);
+	}
+#ifdef G
+	else
+	{
+		struct rect old_area;
+		struct style* stl=(l==ld->current_pos)?bfu_style_wb:bfu_style_bw;
+
+		restrict_clip_area(term->dev,&old_area,dlg->x+x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE);
+		g_print_text(drv,term->dev,dlg->x+x+DIALOG_LB,y,stl,txt,0);
+		x+=g_text_width(stl,txt);
+		drv->fill_area(term->dev,dlg->x+DIALOG_LB+x,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE,bgcolor);
+		drv->set_clip_area(term->dev,&old_area);
+		if (dlg->s)exclude_from_set(&(dlg->s),dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE);
+	}
+#endif
+	mem_free(txt);
+}
+
 /* redraws list */
 static void redraw_list(struct terminal *term, void *bla)
 {
@@ -966,164 +1123,20 @@ static void redraw_list(struct terminal *term, void *bla)
 	}
 #endif
 
-	switch (ld->type)
-	{
-		case 0:  /* flat */
-		for (a=0,l=ld->win_offset;a<ld->n_items;)
-		{
-			unsigned char *txt;
-			int x=0;
-			
-			txt=ld->type_item(term, l,1);
-			if (!txt)
-			{
-				txt=mem_alloc(sizeof(unsigned char));
-				*txt=0;
-			}
-
-			/* everything except head */
-
-			if (!F)
-			{
-				unsigned color=(l==ld->current_pos)?COLOR_MENU_SELECTED:COLOR_MENU;
-				
-				if (l!=ld->list)x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,color,0,0,BFU_ELEMENT_TEE,(l->type)&4);
-				print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,color);
-				x+=strlen(txt);
-				fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
-				set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,color);
-			}
-#ifdef G
-			else
-			{
-				struct rect old_area;
-				long bgcolor=(l==ld->current_pos)?G_BFU_FG_COLOR:G_BFU_BG_COLOR;
-				long fgcolor=(l==ld->current_pos)?G_BFU_BG_COLOR:G_BFU_FG_COLOR;
-				struct style* stl=(l==ld->current_pos)?bfu_style_wb:bfu_style_bw;
-
-				bgcolor=dip_get_color_sRGB(bgcolor);
-				fgcolor=dip_get_color_sRGB(fgcolor);
-
-				if (l!=ld->list)x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,0,bgcolor,fgcolor,BFU_ELEMENT_TEE,(l->type)&4);
-				restrict_clip_area(term->dev,&old_area,dlg->x+x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE);
-				g_print_text(drv,term->dev,dlg->x+x+DIALOG_LB,y,stl,txt,0);
-				x+=g_text_width(stl,txt);
-				drv->fill_area(term->dev,dlg->x+DIALOG_LB+x,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE,bgcolor);
-				drv->set_clip_area(term->dev,&old_area);
-				if (dlg->s)exclude_from_set(&(dlg->s),dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE);
-			}
-#endif
-			mem_free(txt);
-			l=l->next;
-			a++;
-			y+=gf_val(1,G_BFU_FONT_SIZE);
-			if (l==ld->list) break;
-		}
-		if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' ',COLOR_MENU);
-#ifdef G
-		else
-		{
-			drv->fill_area(term->dev,dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,dlg->y+DIALOG_TB+(ld->n_items)*G_BFU_FONT_SIZE,dip_get_color_sRGB(G_BFU_BG_COLOR));
-		}
-#endif
-		break;
-		
-		case 1:   /* tree */
-		for (a=0,l=ld->win_offset;a<ld->n_items;)
-		{
-			unsigned char *txt;
-			int b;
-			int x=0;
-			unsigned color=0;
-			long fgcolor=0;
-			long bgcolor=0;
-			int element=0;
-
-			if (!F){
-				color=(l==ld->current_pos)?COLOR_MENU_SELECTED:COLOR_MENU;
-#ifdef G
-			}else{
-				bgcolor=(l==ld->current_pos)?G_BFU_FG_COLOR:G_BFU_BG_COLOR;
-				fgcolor=(l==ld->current_pos)?G_BFU_BG_COLOR:G_BFU_FG_COLOR;
-
-				bgcolor=dip_get_color_sRGB(bgcolor);
-				fgcolor=dip_get_color_sRGB(fgcolor);
-#endif
-			};
-			
-			txt=ld->type_item(term,l,1);
-			if (!txt)
-			{
-				txt=mem_alloc(sizeof(unsigned char));
-				*txt=0;
-			}
-
-			for (b=0;b<l->depth;b++)
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,color,bgcolor,fgcolor,BFU_ELEMENT_PIPE,0);
-			if (l->depth>=0)  /* everything except head */
-			{
-				switch((l->type)&1)
-				{
-					case 0:  /* item */
-					element=BFU_ELEMENT_TEE;
-					break;
-	
-					case 1:  /* directory */
-					element=((l->type)&2)?BFU_ELEMENT_OPEN:BFU_ELEMENT_CLOSED;
-					break;
-	
-					default:  /* this should never happen */
-					internal("=8-Q  lunacy level too high! Call "BOHNICE".\n");
-
-				}
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,color,bgcolor,fgcolor,element,(l->type)&4);
-			}
-			if (!F)
-			{
-				print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,color);
-				x+=strlen(txt);
-				fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ',0);
-				set_line_color(term,dlg->x+x+DIALOG_LB,y,w-x,color);
-			}
-#ifdef G
-			else
-			{
-				struct rect old_area;
-
-				restrict_clip_area(term->dev,&old_area,dlg->x+x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE);
-				g_print_text(drv,term->dev,dlg->x+x+DIALOG_LB,y,(l==ld->current_pos)?bfu_style_wb:bfu_style_bw,txt,0);
-				x+=g_text_width((l==ld->current_pos)?bfu_style_wb:bfu_style_bw,txt);
-				drv->fill_area(term->dev,dlg->x+DIALOG_LB+x,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE,bgcolor);
-				drv->set_clip_area(term->dev,&old_area);
-				if (dlg->s)exclude_from_set(&(dlg->s),dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE);
-			}
-#endif
-			mem_free(txt);
-			l=next_in_tree(ld,l);
-			a++;
-			y+=gf_val(1,G_BFU_FONT_SIZE);
-			if (l==ld->list) break;
-		}
-		if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' ',COLOR_MENU);
-#ifdef G
-		else
-		{
-			drv->fill_area(term->dev,dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,dlg->y+DIALOG_TB+(ld->n_items)*G_BFU_FONT_SIZE,dip_get_color_sRGB(G_BFU_BG_COLOR));
-		}
-#endif
-		break;
-		
-		default:
-		internal(
-			"Invalid list description type.\n"
-			"Somebody's probably shooting into memory.\n"
-			"_______________\n"
-			"`--|_____|--|___ `\\\n"
-			"             \"  \\___\\\n");
-		
-		break;
+	for (a=0,l=ld->win_offset;a<ld->n_items;) {
+		redraw_list_element(term, dlg, y, w, ld, l);
+		l=next_in_tree(ld, l);
+		a++;
+		y+=gf_val(1,G_BFU_FONT_SIZE);
+		if (l==ld->list) break;
 	}
-
+	if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' ',COLOR_MENU);
+#ifdef G
+	else {
+		drv->fill_area(term->dev,dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,dlg->y+DIALOG_TB+(ld->n_items)*G_BFU_FONT_SIZE,dip_get_color_sRGB(G_BFU_BG_COLOR));
+		if (dlg->s) exclude_from_set(&(dlg->s),dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,dlg->y+DIALOG_TB+(ld->n_items)*G_BFU_FONT_SIZE);
+	}
+#endif
 }
 
 
@@ -1138,266 +1151,27 @@ static void redraw_list_line(struct terminal *term, void *bla)
 	int direction=rd->n;
 	int w=dlg->xw-2*DIALOG_LB-(F?sirka_scrollovadla:0);
 	int y=dlg->y+DIALOG_TB+gf_val(ld->win_pos,ld->win_pos*G_BFU_FONT_SIZE);
-	
-	if (!F)
-	{
-		/* novou radku musim prekreslit celou, protoze ji BFU mohlo oznacit a mohla to byt posledni radka v seznamu */
-		set_line_color(term,dlg->x+DIALOG_LB,y,w,COLOR_MENU_SELECTED);
-		if (ld->type)	/* tree */
-		{
-			unsigned char *txt;
-			int b;
-			int x=0;
-			int element=0;
-			struct list*l=ld->current_pos;
+	struct list *l;
 
-			txt=ld->type_item(term, l,1);
-			if (!txt)
-			{
-				txt=mem_alloc(sizeof(unsigned char));
-				*txt=0;
-			}
-
-			if (!term->spec->block_cursor || term->spec->braille) set_cursor(term, dlg->x + DIALOG_LB + x, y, dlg->x + DIALOG_LB + x, y);
-			for (b=0;b<l->depth;b++)
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,COLOR_MENU_SELECTED,0,0,BFU_ELEMENT_PIPE,0);
-			if (l->depth>=0)  /* everything except head */
-			{
-				switch((l->type)&1)
-				{
-					case 0:  /* item */
-					element=BFU_ELEMENT_TEE;
-					break;
-	
-					case 1:  /* directory */
-					element=((l->type)&2)?BFU_ELEMENT_OPEN:BFU_ELEMENT_CLOSED;
-					break;
-	
-					default:  /* this should never happen */
-					internal("=8-Q  lunacy level too high! Call "BOHNICE".\n");
-
-				}
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,COLOR_MENU_SELECTED,0,0,element,(l->type)&4);
-			}
-			print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,COLOR_MENU_SELECTED);
-			x+=strlen(txt);
-			fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ',0);
-			set_line_color(term,dlg->x+x+DIALOG_LB,y,w-x,COLOR_MENU_SELECTED);
-			mem_free(txt);
-		}
-		else	/* flat */
-		{
-			unsigned char *txt;
-			int x=0;
-			struct list *l=ld->current_pos;
-			
-			txt=ld->type_item(term, l,1);
-			if (!txt)
-			{
-				txt=mem_alloc(sizeof(unsigned char));
-				*txt=0;
-			}
-			if (!term->spec->block_cursor || term->spec->braille) set_cursor(term, dlg->x + DIALOG_LB + x, y, dlg->x + DIALOG_LB + x, y);
-
-			/* everything except head */
-
-			if (l!=ld->list)x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,COLOR_MENU_SELECTED,0,0,BFU_ELEMENT_TEE,(l->type)&4);
-			print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,COLOR_MENU_SELECTED);
-			x+=strlen(txt);
-			fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
-			set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,COLOR_MENU_SELECTED);
-			mem_free(txt);
-		}
-
-		/* starou radku musim prekreslit celou, protoze ji BFU mohlo oznacit */
-		if (!direction) goto skip_old_1;
-		if (ld->type)	/* tree */
-		{
-			unsigned char *txt;
-			int b;
-			int x=0;
-			int element=0;
-			struct list*l;
-
-			y+=direction;
-			if (direction==1)l=next_in_tree(ld,ld->current_pos);
-			else l=prev_in_tree(ld,ld->current_pos);
-			
-			txt=ld->type_item(term, l,1);
-			if (!txt)
-			{
-				txt=mem_alloc(sizeof(unsigned char));
-				*txt=0;
-			}
-
-			for (b=0;b<l->depth;b++)
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,COLOR_MENU,0,0,BFU_ELEMENT_PIPE,0);
-			if (l->depth>=0)  /* everything except head */
-			{
-				switch((l->type)&1)
-				{
-					case 0:  /* item */
-					element=BFU_ELEMENT_TEE;
-					break;
-	
-					case 1:  /* directory */
-					element=((l->type)&2)?BFU_ELEMENT_OPEN:BFU_ELEMENT_CLOSED;
-					break;
-	
-					default:  /* this should never happen */
-					internal("=8-Q  lunacy level too high! Call "BOHNICE".\n");
-
-				}
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,COLOR_MENU,0,0,element,(l->type)&4);
-			}
-			print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,COLOR_MENU);
-			x+=strlen(txt);
-			fill_area(term,dlg->x+x+DIALOG_LB,y,w-x,1,' ',0);
-			set_line_color(term,dlg->x+x+DIALOG_LB,y,w-x,COLOR_MENU);
-			mem_free(txt);
-		}
-		else	/* flat */
-		{
-			unsigned char *txt;
-			int x=0;
-			struct list *l;
-			
-			y+=direction;
-			if (direction==1)l=next_in_tree(ld,ld->current_pos);
-			else l=prev_in_tree(ld,ld->current_pos);
-			
-			txt=ld->type_item(term, l,1);
-			if (!txt)
-			{
-				txt=mem_alloc(sizeof(unsigned char));
-				*txt=0;
-			}
-
-			/* everything except head */
-
-			if (l!=ld->list)x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,COLOR_MENU,0,0,BFU_ELEMENT_TEE,(l->type)&4);
-			print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,COLOR_MENU);
-			x+=strlen(txt);
-			fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
-			set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,COLOR_MENU);
-			mem_free(txt);
-		}
-		skip_old_1:;
-#ifdef G
+	redraw_list_element(term, dlg, y, w, ld, ld->current_pos);
+	if (!F && (!term->spec->block_cursor || term->spec->braille)) set_cursor(term, dlg->x + DIALOG_LB, y, dlg->x + DIALOG_LB, y);
+	y+=gf_val(direction, direction*G_BFU_FONT_SIZE);
+	switch (direction) {
+		case 0:
+			l = NULL;
+			break;
+		case 1:
+			l = next_in_tree(ld, ld->current_pos);
+			break;
+		case -1:
+			l = prev_in_tree(ld, ld->current_pos);
+			break;
+		default:
+			internal("redraw_list_line: invalid direction %d", direction);
+			l = NULL;
+			break;
 	}
-	else
-	{
-		unsigned char *txt;
-		struct rect old_area;
-		int x=0;
-		int b;
-		struct list *l;
-		unsigned char element=BFU_ELEMENT_PIPE;
-		long bg_color,fg_color;
-
-		bg_color=dip_get_color_sRGB(G_BFU_BG_COLOR);
-		fg_color=dip_get_color_sRGB(G_BFU_FG_COLOR);
-
-		/* current */
-		l=ld->current_pos;
-		txt=ld->type_item(term, l,1);
-		if (!txt)
-		{
-			txt=mem_alloc(sizeof(unsigned char));
-			*txt=0;
-		}
-
-		if (!ld->type)
-			element=BFU_ELEMENT_TEE;
-		else
-			switch((l->type)&1)
-			{
-				case 0:  /* item */
-				element=BFU_ELEMENT_TEE;
-				break;
-
-				case 1:  /* directory */
-				element=((l->type)&2)?BFU_ELEMENT_OPEN:BFU_ELEMENT_CLOSED;
-				break;
-
-				default:  /* this should never happen */
-				internal("=8-Q  lunacy level too high! Call "BOHNICE".\n");
-
-			}
-
-		if (ld->type)
-		{
-			for (b=0;b<l->depth;b++)
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,0,fg_color,bg_color,BFU_ELEMENT_PIPE,0);
-			if (l->depth>=0)/* everything except head */
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,0,fg_color,bg_color,element,(l->type)&4);
-		}
-		else
-		{
-			if (l!=ld->list)/* everything except head */
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,0,fg_color,bg_color,element,(l->type)&4);
-		}
-
-		restrict_clip_area(term->dev,&old_area,dlg->x+x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE);
-		g_print_text(drv,term->dev,dlg->x+x+DIALOG_LB,y,bfu_style_wb,txt,0);
-		x+=g_text_width(bfu_style_wb,txt);
-		drv->fill_area(term->dev,dlg->x+DIALOG_LB+x,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE,fg_color);
-		drv->set_clip_area(term->dev,&old_area);
-		mem_free(txt);
-		
-		if (!direction) goto skip_old_2;
-		x=0;
-		/* previous/next */
-		if (direction==1)l=next_in_tree(ld,ld->current_pos);
-		else l=prev_in_tree(ld,ld->current_pos);
-		
-		if (!ld->type)
-			element=BFU_ELEMENT_TEE;
-		else
-			switch((l->type)&1)
-			{
-				case 0:  /* item */
-				element=BFU_ELEMENT_TEE;
-				break;
-
-				case 1:  /* directory */
-				element=((l->type)&2)?BFU_ELEMENT_OPEN:BFU_ELEMENT_CLOSED;
-				break;
-
-				default:  /* this should never happen */
-				internal("=8-Q  lunacy level too high! Call "BOHNICE".\n");
-
-			}
-
-		txt=ld->type_item(term, l,1);
-		if (!txt)
-		{
-			txt=mem_alloc(sizeof(unsigned char));
-			*txt=0;
-		}
-
-		y+=direction*G_BFU_FONT_SIZE;
-
-		if (ld->type)
-		{
-			for (b=0;b<l->depth;b++)
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,0,bg_color,fg_color,BFU_ELEMENT_PIPE,0);
-			if (l->depth>=0)/* everything except head */
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,0,bg_color,fg_color,element,(l->type)&4);
-		}
-		else
-			if (l!=ld->list)/* everything except head */
-				x+=draw_bfu_element(term,dlg->x+DIALOG_LB+x,y,0,bg_color,fg_color,element,(l->type)&4);
-		
-		restrict_clip_area(term->dev,&old_area,dlg->x+x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE);
-		g_print_text(drv,term->dev,dlg->x+x+DIALOG_LB,y,bfu_style_bw,txt,0);
-		x+=g_text_width(bfu_style_bw,txt);
-		drv->fill_area(term->dev,dlg->x+DIALOG_LB+x,y,dlg->x+DIALOG_LB+w,y+G_BFU_FONT_SIZE,bg_color);
-		drv->set_clip_area(term->dev,&old_area);
-		mem_free(txt);
-		skip_old_2:;
-#endif
-	}
+	if (l) redraw_list_element(term, dlg, y, w, ld, l);
 }
 
 
@@ -1662,7 +1436,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			ld->win_pos=0;
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
-			draw_to_window(dlg->win,redraw_list_line,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
 		if (ev->x==KBD_END || (upcase(ev->x) == 'E' && ev->y & KBD_CTRL))
@@ -1677,7 +1451,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			ld->win_pos=a-1;
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
-			draw_to_window(dlg->win,redraw_list_line,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
 		if (ev->x==KBD_PAGE_UP || (upcase(ev->x) == 'B' && ev->y & KBD_CTRL))
@@ -1693,7 +1467,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			if (a<ld->n_items){ld->current_pos=ld->win_offset;ld->win_pos=0;}
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
-			draw_to_window(dlg->win,redraw_list_line,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
 		if (ev->x==KBD_PAGE_DOWN || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL))
@@ -1710,7 +1484,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				ld->win_pos=a;
 				rd.n=0;
 				draw_to_window(dlg->win,redraw_list,&rd);
-				draw_to_window(dlg->win,redraw_list_line,&rd);
+				draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 				return EVENT_PROCESSED;
 			}
 			/* here is whole screen only - the window was full before pressing the page-down key */
@@ -1724,7 +1498,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			if (a<ld->n_items){ld->current_pos=prev_in_tree(ld,ld->list);ld->win_pos=ld->n_items-1;}
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
-			draw_to_window(dlg->win,redraw_list_line,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
 		break;
@@ -1763,7 +1537,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			return EVENT_PROCESSED;
 		}
 		/* click on item */
-		if ((ev->b&BM_ACT)==B_DOWN&&(ev->b&BM_BUTT)==B_LEFT)
+		if (((ev->b&BM_ACT)==B_DOWN || (ev->b&BM_ACT)==B_DRAG)&&(ev->b&BM_BUTT)==B_LEFT)
 		{
 			int n,a;
 			struct list *l=ld->win_offset;
@@ -1775,7 +1549,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				(ev->y)>=(dlg->y+DIALOG_TB+gf_val(ld->n_items,G_BFU_FONT_SIZE*(ld->n_items)))||
 				(ev->x)<(dlg->x+DIALOG_LB)||
 				(ev->x)>(dlg->x+dlg->xw-DIALOG_LB-(F?sirka_scrollovadla:0))
-			)break;  /* out of the dialog */
+			)goto skip_item_click;  /* out of the dialog */
 			
 			n=(ev->y-dlg->y-DIALOG_TB)/gf_val(1,G_BFU_FONT_SIZE);
 			for (a=0;a<n;a++)
@@ -1790,7 +1564,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			ld->current_pos=l;
 
 			/* clicked on directory graphical stuff */
-			if ((ld->type)&&(ev->x)<(dlg->x+DIALOG_LB+a*BFU_ELEMENT_WIDTH)&&((l->type)&1))
+			if ((ev->b&BM_ACT)==B_DOWN&&(ld->type)&&(ev->x)<(dlg->x+DIALOG_LB+a*BFU_ELEMENT_WIDTH)&&((l->type)&1))
 			{
 				l->type^=2;
 				if (!(l->type&2))unselect_in_folder(ld, ld->current_pos);
@@ -1801,11 +1575,14 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			return EVENT_PROCESSED;
 		}
 		/* scroll with the bar */
+		skip_item_click:
 #ifdef G
-		if (F&&((ev->b&BM_ACT)==B_DRAG&&(ev->b&BM_BUTT)==B_LEFT))
+		if (F&&(((ev->b&BM_ACT)==B_DRAG||(ev->b&BM_ACT)==B_DOWN||(ev->b&BM_ACT)==B_UP)&&(ev->b&BM_BUTT)==B_LEFT))
 		{
 			int total=get_total_items(ld);
-			int scroll_pos=get_scroll_pos(ld);
+			int scroll_pos;
+			int redraw_all;
+			int rep = 0;
 			signed long delta;
 			long h=ld->n_items*G_BFU_FONT_SIZE;
 
@@ -1816,6 +1593,10 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				(ev->x)>(dlg->x+dlg->xw-DIALOG_LB)
 			)break;  /* out of the dialog */
 			
+			again:
+			rep++;
+			if (rep > total) return EVENT_PROCESSED;
+			scroll_pos=get_scroll_pos(ld);
 			delta=(ev->y-dlg->y-DIALOG_TB)*total/h-scroll_pos;
 			
 			last_mouse_y=ev->y;
@@ -1825,22 +1606,34 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				struct list *lll=find_last_in_window(ld);
 				
 				if (next_in_tree(ld,lll)==ld->list)return EVENT_PROCESSED;  /* already at the bottom */
+				redraw_all = ld->current_pos != lll;
 				ld->current_pos=next_in_tree(ld,lll);
 				ld->win_offset=next_in_tree(ld,ld->win_offset);
 				ld->win_pos=ld->n_items-1;
 				rd.n=-1;
-				draw_to_window(dlg->win,scroll_list,&rd);
-				draw_to_window(dlg->win,redraw_list_line,&rd);
+				if (!redraw_all) {
+					draw_to_window(dlg->win,scroll_list,&rd);
+					draw_to_window(dlg->win,redraw_list_line,&rd);
+				} else {
+					draw_to_window(dlg->win,redraw_list,&rd);
+				}
+				goto again;
 			}
 			if (delta<0)  /* scroll up */
 			{
 				if (ld->win_offset==ld->list)return EVENT_PROCESSED;  /* already on the top */
+				redraw_all = ld->current_pos != ld->win_offset;
 				ld->win_offset=prev_in_tree(ld,ld->win_offset);
 				ld->current_pos=ld->win_offset;
 				ld->win_pos=0;
 				rd.n=+1;
-				draw_to_window(dlg->win,scroll_list,&rd);
-				draw_to_window(dlg->win,redraw_list_line,&rd);
+				if (!redraw_all) {
+					draw_to_window(dlg->win,scroll_list,&rd);
+					draw_to_window(dlg->win,redraw_list_line,&rd);
+				} else {
+					draw_to_window(dlg->win,redraw_list,&rd);
+				}
+				goto again;
 			}
 			return EVENT_PROCESSED;
 
@@ -1942,6 +1735,7 @@ static void create_list_window_fn(struct dialog_data *dlg)
 	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
 	int min=0;
 	int w,rw,y;
+	int n_items;
 	struct redraw_data rd;
 
 	int a=6;
@@ -1950,16 +1744,31 @@ static void create_list_window_fn(struct dialog_data *dlg)
 	if (ld->button_fn)a++;  /* user button */
 	if (ld->type==1)a++;  /* add directory button */
 
-	y=gf_val(ld->n_items,ld->n_items*G_BFU_FONT_SIZE);
+	y = 0;
 	min_buttons_width(term, dlg->items, a, &min);
 	
-	w=gf_val(ld->window_width,ld->window_width*G_BFU_FONT_SIZE);
+	w = term->x * 19 / 20 - 2 * DIALOG_LB;
 	if (w<min)w=min;
 	if (w>term->x-2*DIALOG_LB)w=term->x-2*DIALOG_LB;
 	if (w<5)w=5;
 	
 	rw=0;
 	dlg_format_buttons(dlg, NULL, dlg->items, a, 0, &y, w, &rw, AL_CENTER);
+
+	n_items = term->y - gf_val(2, 3) * DIALOG_TB - gf_val(2, 2*G_BFU_FONT_SIZE) - y;
+#ifdef G
+	if (F) n_items /= G_BFU_FONT_SIZE;
+#endif
+	if (n_items < 2) n_items = 2;
+	ld->n_items = n_items;
+
+	while (ld->win_pos > ld->n_items - 1) {
+		ld->current_pos=prev_in_tree(ld,ld->current_pos);
+		ld->win_pos--;
+	}
+
+	y += gf_val(ld->n_items,ld->n_items*G_BFU_FONT_SIZE);
+
 	rw=w;
 	dlg->xw=rw+2*DIALOG_LB;
 	dlg->yw=y+2*DIALOG_TB;
@@ -1986,6 +1795,7 @@ static void close_list_window(struct dialog_data *dlg)
 	ld->dlg=NULL;
 	if (ld->search_word) mem_free(ld->search_word);
 	ld->search_word=NULL;
+	if (ld->save) ld->save(d->udata);
 }
 
 
@@ -2013,7 +1823,7 @@ int create_list_window(
 			TEXT_(ld->already_in_use),
 			NULL,
 			1,
-			TEXT_(T_OK),NULL,B_ENTER|B_ESC
+			TEXT_(T_CANCEL),NULL,B_ENTER|B_ESC
 		);
 		return 1;
 	}
@@ -2088,35 +1898,13 @@ int create_list_window(
 }
 
 
-#if 0
-void redraw_list_window(struct list_description *ld)
-{
-	struct redraw_data rd;
-
-	if (!(ld->open)||!(ld->dlg))return;
-	rd.ld=ld;
-	rd.dlg=ld->dlg;
-	rd.n=0;
-	
-	draw_to_window(ld->dlg->win,redraw_list,&rd);
-}
-#endif
-
-
 void reinit_list_window(struct list_description *ld)
 {
-	struct redraw_data rd;
-
 	ld->current_pos=ld->list;
 	ld->win_offset=ld->list;
 	ld->win_pos=0;
 
-	if (!(ld->open)||!(ld->dlg))return;
-	rd.ld=ld;
-	rd.dlg=ld->dlg;
-	rd.n=0;
-	
-	draw_to_window(ld->dlg->win,redraw_list,&rd);
+	if (ld->open) internal("reinit_list_window: calling reinit while open");
 }
 
 

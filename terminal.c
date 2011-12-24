@@ -824,7 +824,7 @@ static unsigned char frame_restrict[48] = {
 	179,  0,  0,  0,  0,  0,  0,  0,
 };
 
-#ifdef WIN32
+#if defined(ENABLE_UTF8) && defined(WIN32)
 static inline char_t utf8_hack(char_t c)
 {
 	/*
@@ -1005,7 +1005,7 @@ void destroy_terminal(struct terminal *term)
 		set_handlers(term->fdin, NULL, NULL, NULL, NULL);
 		mem_free(term->input_queue);
 		close(term->fdin);
-		if (term->fdout != 1) {
+		if (!term->master) {
 			if (term->fdout != term->fdin) close(term->fdout);
 		} else {
 			unhandle_terminal_signals(term);

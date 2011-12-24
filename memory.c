@@ -62,10 +62,16 @@ void free_all_caches(void)
 	free_list(cache_upcalls);
 }
 
+int malloc_try_hard = 0;
+
 int out_of_memory(unsigned char *msg, size_t size)
 {
 	int sh = shrink_memory(SH_FREE_SOMETHING);
 	if (sh & ST_SOMETHING_FREED) return 1;
+	if (!malloc_try_hard) {
+		malloc_try_hard = 1;
+		return 1;
+	}
 	if (!msg) return 0;
 
 	fprintf(stderr, "File cache: %lu bytes, %lu files, %lu locked, %lu loading\n", cache_info(CI_BYTES), cache_info(CI_FILES), cache_info(CI_LOCKED), cache_info(CI_LOADING));

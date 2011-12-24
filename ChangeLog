@@ -1,3 +1,71 @@
+=== RELEASE 2.5 ===
+
+Sat Dec 24 20:30:41 MET 2011 mikulas:
+
+	Use icon in pmshell
+
+Wed Dec 21 01:46:04 cet 2011 mikulas:
+
+	Do not guess compression type from extension if Content-Type is html
+
+Mon Dec 19 03:09:04 MET 2011 mikulas:
+
+	Recognise tgz extension
+
+Sun Dec 18 21:33:52 cet 2011 mikulas:
+
+	Fixed some visual glitches in the list editor, window is automatically
+	resized with the terminal
+
+	Fixed a crash if the user changes bookmarks location while some bookmark
+	editing dialog was displayed
+
+	Fixed a bug that bookmark location couldn't be changed on text-only
+	builds
+
+	Removed save bookmarks menu option, bookmarks are saved always when
+	closing bookmark window
+
+Fri Dec 16 02:12:37 MET 2011 mikulas:
+
+	Search for viewer application according to file extension if the server
+	returns content type application/x-<compression method>.
+
+Tue Dec  6 20:03:21 cet 2011 mikulas:
+
+	Implemented forward history
+
+Sun Dec  4 11:35:17 CET 2011 mikulas:
+
+	Fixed memory leaks or lockups if a connection between
+	two links instances was unexpectedly broken
+
+	Implemented a handshake in the communication protocol so that
+	different Links versions won't communicate with each other
+
+	Fixed a possible lockup if the user presses key and the master
+	Links instance disconnects at the same time
+
+Sun Dec  4 06:05:03 CEST 2011 mikulas:
+
+	Use AF_UNIX on Windows
+
+Tue Nov 29 02:44:44 CET 2011 mikulas:
+
+	Do not send spaces in Accept-Charset
+
+Mon Nov 28 03:03:26 CET 2011 mikulas:
+
+	Identify compier in User-Agent
+
+Sun Nov 27 02:28:35 cet 2011 mikulas:
+
+	Heap in high memory on OS/2
+
+Fri Nov 25 01:25:56 CET 2011 mikulas:
+
+	Support lzma compression
+
 === RELEASE 2.4 ===
 
 Sat Nov 19 01:21:25 MET 2011 mikulas:

@@ -22,7 +22,6 @@ static struct list_description blocks_ld={
 	block_find_item, /*ext_find_item,*/
 	&block_search_histroy, /*&ext_search_history,*/
 	0,		/* this is set in init_assoc function */
-	40,  /* width of main window */
 	15,  /* # of items in main window */
 	T_BLOCK_LIST, /*item title*/
 	T_BLOCK_LIST_IN_USE, /*Already open message*/
@@ -30,8 +29,9 @@ static struct list_description blocks_ld={
 	T_BLOCK_DELETE,
 	0,	/* no button */
 	NULL,	/* no button */
+	NULL,	/* no save */
 
-	0,0,0,0,  /* internal vars */
+	NULL,NULL,0,0,  /* internal vars */
 	0, /* modified */
 	NULL,
 	NULL,

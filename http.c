@@ -301,6 +301,8 @@ static void add_user_agent(unsigned char **hdr, int *l)
 		add_to_str(hdr, l, "Links (" VERSION_STRING "; ");
 		add_to_str(hdr, l, system_name);
 		add_to_str(hdr, l, "; ");
+		add_to_str(hdr, l, compiler_name);
+		add_to_str(hdr, l, "; ");
 		if (!F && !list_empty(terminals)) {
 			add_to_str(hdr, l, "text");
 		}
@@ -376,14 +378,13 @@ static void add_accept(unsigned char **hdr, int *l)
 
 static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct http_connection_info *info)
 {
-#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
+#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2) || defined(HAVE_LZMA)
 	if (!http_options.no_compression && !(info->bl_flags & BL_NO_COMPRESSION)) {
 		int orig_l = *l;
 		int l1;
-		int q = strlen(url);
-		if (q >= 2 && !strcasecmp(url + q - 2, ".Z")) goto skip_compress;
-		if (q >= 3 && !strcasecmp(url + q - 3, ".gz")) goto skip_compress;
-		if (q >= 4 && !strcasecmp(url + q - 4, ".bz2")) goto skip_compress;
+		unsigned char *extd = strrchr(url, '.');
+		if (extd && get_compress_by_extension(extd + 1, strchr(extd + 1, 0)))
+			goto skip_compress;
 		add_to_str(hdr, l, "Accept-Encoding: ");
 		l1 = *l;
 #if defined(HAVE_ZLIB)
@@ -394,6 +395,12 @@ static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url,
 		if (!(info->bl_flags & BL_NO_BZIP2)) {
 			if (*l != l1) add_chr_to_str(hdr, l, ',');
 			add_to_str(hdr, l, "bzip2");
+		}
+#endif
+#if defined(HAVE_LZMA)
+		if (!(info->bl_flags & BL_NO_BZIP2)) {
+			if (*l != l1) add_chr_to_str(hdr, l, ',');
+			add_to_str(hdr, l, "lzma,lzma2");
 		}
 #endif
 		if (*l != l1) add_to_str(hdr, l, "\r\n");
@@ -412,7 +419,7 @@ static void add_accept_charset(unsigned char **hdr, int *l, struct http_connecti
 		int aclen = 0;
 		ac = init_str();
 		for (i = 0; (cs = get_cp_mime_name(i)); i++) {
-			if (aclen) add_to_str(&ac, &aclen, ", ");
+			if (aclen) add_to_str(&ac, &aclen, ",");
 			else add_to_str(&ac, &aclen, "Accept-Charset: ");
 			add_to_str(&ac, &aclen, cs);
 		}

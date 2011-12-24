@@ -153,12 +153,14 @@ int get_keepalive_socket(struct connection *c)
 {
 	struct k_conn *k;
 	int cc;
+	if (c->tries > 0 || c->unrestartable) return -1;
 	if (!(k = is_host_on_keepalive_list(c))) return -1;
 	cc = k->conn;
 	del_from_list(k);
 	mem_free(k->host);
 	mem_free(k);
 	c->sock1 = cc;
+	if (max_tries == 1) c->tries = -1;
 	return 0;
 }
 
@@ -489,14 +491,16 @@ static void check_queue_bugs(void)
 	foreach(d, queue) {
 		int q = getpri(d);
 		cc += d->running;
-		if (q < p) if (!ps) {
-			internal("queue is not sorted");
-			sort_queue();
-			ps = 1;
-			goto again;
-		} else {
-			internal("queue is not sorted even after sort_queue!");
-			break;
+		if (q < p) {
+			if (!ps) {
+				internal("queue is not sorted");
+				sort_queue();
+				ps = 1;
+				goto again;
+			} else {
+				internal("queue is not sorted even after sort_queue!");
+				break;
+			}
 		} else p = q;
 		if (d->state < 0) {
 			internal("interrupted connection on queue (conn %s, state %d)", d->url, d->state);

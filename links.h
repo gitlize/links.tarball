@@ -134,6 +134,9 @@ x #endif*/
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
+#ifdef HAVE_ALLOCA_H
+#include <alloca.h>
+#endif
 #ifdef HAVE_SETJMP_H
 #ifndef DONT_INCLUDE_SETJMP
 #ifndef _SETJMP_H
@@ -349,7 +352,8 @@ void int_error(unsigned char *, ...);
 extern int errline;
 extern unsigned char *errfile;
 
-#define internal errfile = (unsigned char *)__FILE__, errline = __LINE__, int_error
+#define internal_ errfile = (unsigned char *)__FILE__, errline = __LINE__, int_error
+#define internal internal_
 #define debug errfile = (unsigned char *)__FILE__, errline = __LINE__, debug_msg
 
 /* inline */
@@ -619,6 +623,7 @@ extern unsigned char *clipboard;
 int shrink_memory(int);
 void register_cache_upcall(int (*)(int), unsigned char *);
 void free_all_caches(void);
+extern int malloc_try_hard;
 int out_of_memory(unsigned char *msg, size_t size);
 
 #ifndef DEBUG_TEST_FREE
@@ -669,6 +674,7 @@ int do_real_lookup(unsigned char *, ip__address *);
 int find_host(unsigned char *, ip__address *, void **, void (*)(void *, int), void *);
 int find_host_no_cache(unsigned char *, ip__address *, void **, void (*)(void *, int), void *);
 void kill_dns_request(void **);
+long dns_info(int type);
 void init_dns(void);
 
 /* cache.c */
@@ -1157,15 +1163,14 @@ struct lru_entry{
 struct lru{
 	int (*compare_function)(void *, void *);
 	struct lru_entry *top, *bottom;
-	unsigned bytes, max_bytes, items;
+	unsigned bytes, items;
 };
 
 void lru_insert(struct lru *cache, void *entry, struct lru_entry ** row
 	, unsigned bytes_consumed);
 void *lru_get_bottom(struct lru *cache);
 void lru_destroy_bottom(struct lru* cache);
-void lru_init (struct lru *cache, int
-	(*compare_function)(void *entry, void *templ), int max_bytes);
+void lru_init (struct lru *cache, int (*compare_function)(void *entry, void *templ));
 void *lru_lookup(struct lru *cache, void *templ, struct lru_entry *row);
 
 /* drivers.c */
@@ -1370,8 +1375,8 @@ void shutdown_virtual_devices(void);
 extern unsigned long aspect, aspect_native; /* Must hold at least 20 bits */
 extern double bfu_aspect;
 extern int aspect_on;
-extern struct lru font_cache; /* For menu.c so that it can print out cache
-			       * statistics. */
+long fontcache_info(int type);
+
 #endif /* #ifdef G */
 
 extern double display_red_gamma,display_green_gamma,display_blue_gamma;
@@ -1454,7 +1459,6 @@ struct cached_image;
 void g_print_text(struct graphics_driver *, struct graphics_device *device, int x, int y, struct style *style, unsigned char *text, int *width);
 int g_text_width(struct style *style, unsigned char *text);
 int g_char_width(struct style *style, int ch);
-void destroy_font_cache(void);
 /*unsigned char apply_gamma_single_8_to_8(unsigned char input, float gamma);*/
 unsigned short apply_gamma_single_8_to_16(unsigned char input, float gamma);
 unsigned char apply_gamma_single_16_to_8(unsigned short input, float gamma);
@@ -1524,7 +1528,6 @@ static inline long dip_get_color_sRGB(int rgb)
 
 
 void init_dip(void);
-void shutdown_dip(void);
 void get_links_icon(unsigned char **data, int *width, int* height, int depth);
 
 #endif
@@ -1853,6 +1856,7 @@ extern struct list_head mms_prog;
 extern struct list_head magnet_prog;
 
 void *assoc_default_value(struct session* ses, unsigned char type);
+unsigned char *get_compress_by_extension(unsigned char *ext, unsigned char *ext_end);
 unsigned char *get_content_type(unsigned char *, unsigned char *);
 unsigned char *get_content_encoding(unsigned char *head, unsigned char *url);
 unsigned char *encoding_2_extension(unsigned char *);
@@ -2033,6 +2037,7 @@ struct link {
 	struct form_control *form;   /* form info, usually NULL */
 	unsigned sel_color;   /* link color */
 	int n;   /* number of points */
+	int first_point_to_move;
 	struct point *pos;
 	struct js_event_spec *js_event;
 	int obj_order;
@@ -2347,7 +2352,7 @@ struct cached_image {
 		 * i. e. 0.45455 is here if the image is in sRGB
 		 * makes sense only if buffer is !=NULL
 		 */
-	int gamma_stamp; /* Number that is increased every gamma change */
+	tcount gamma_stamp; /* Number that is increased every gamma change */
 	struct bitmap bmp; /* Registered bitmap. bmp.x=-1 and bmp.y=-1
 			    * if the bmp is not registered.
 			    */
@@ -2632,6 +2637,7 @@ struct location {
 	unsigned char *prev_url;   /* allocated string with referrer */
 	struct list_head subframes;	/* struct location */
 	struct view_state *vs;
+	tcount location_id;
 };
 
 #define WTD_NO		0
@@ -2675,6 +2681,7 @@ struct session {
 	struct session *next;
 	struct session *prev;
 	struct list_head history;	/* struct location */
+	struct list_head forward_history;
 	struct terminal *term;
 	struct window *win;
 	int id;
@@ -2688,6 +2695,7 @@ struct session {
 	struct f_data_c *wtd_target_base;
 	unsigned char *wanted_framename;
 	int wtd_refresh;
+	int wtd_num_steps;
 	unsigned char *goto_position;
 	struct document_setup ds;
 	struct kbdprefix kbdprefix;
@@ -2764,11 +2772,10 @@ void goto_url(struct session *, unsigned char *);
 void goto_url_not_from_dialog(struct session *, unsigned char *);
 void goto_imgmap(struct session *ses, unsigned char *url, unsigned char *href, unsigned char *target);
 void map_selected(struct terminal *term, struct link_def *ld, struct session *ses);
-void go_back(struct session *);
+void go_back(struct session *, int);
 void go_backwards(struct terminal *term, void *psteps, struct session *ses);
 void reload(struct session *, int);
 void destroy_session(struct session *);
-void destroy_location(struct location *);
 void ses_destroy_defered_jump(struct session *ses);
 struct f_data_c *find_frame(struct session *ses, unsigned char *target, struct f_data_c *base);
 
@@ -3218,7 +3225,7 @@ void query_exit(struct session *ses);
 
 #ifdef G
 
-extern int gamma_stamp;
+extern tcount gamma_stamp;
 extern int display_optimize;	/*0=CRT, 1=LCD RGB, 2=LCD BGR */
 extern int gamma_bits;
 
@@ -3953,6 +3960,7 @@ struct driver_param *get_driver_param(unsigned char *);
 extern int anonymous;
 
 extern unsigned char system_name[];
+extern unsigned char compiler_name[];
 
 extern unsigned char *links_home;
 extern int first_use;
@@ -3980,6 +3988,7 @@ extern struct document_setup dds;
 extern int max_format_cache_entries;
 extern int memory_cache_size;
 extern int image_cache_size;
+extern int font_cache_size;
 
 extern struct rgb default_fg;
 extern struct rgb default_bg;
@@ -4061,7 +4070,7 @@ struct list{
 	unsigned char type;
 	/*
 	 * bit 0: 0=item, 1=directory 
-	 * bit 1: directory is open (1)/close (0); for item unused
+	 * bit 1: directory is open (1)/closed (0); for item unused
 	 * bit 2: 1=item is selected 0=item is not selected
 	 */
 	int depth;
@@ -4085,7 +4094,6 @@ struct list_description{
 	void *(*find_item)(void *start_item, unsigned char *string, int direction /* 1 or -1 */); /* returns pointer to the first item matching given string or NULL if failed. Search starts at start_item including. */
 	struct history *search_history;
 	int codepage;	/* codepage of all string */
-	int window_width;     /* main window width */
 	int n_items;   /* number of items in main window */
 	
 	/* following items are string codes */
@@ -4096,6 +4104,7 @@ struct list_description{
 	int button;  /* when there's no button button_fn is NULL */
 	
 	void (*button_fn)(struct session *, void *);  /* gets pointer to the item */
+	void (*save)(struct session *);
 
 	/* internal variables, should not be modified, initially set to 0 */
 	struct list *current_pos;
@@ -4110,8 +4119,6 @@ struct list_description{
 
 struct list *next_in_tree(struct list_description *ld, struct list *item);
 int create_list_window(struct list_description *,struct list *,struct terminal *,struct session *);
-/* following 2 functions should be called after calling create_list_window fn */
-/*void redraw_list_window(struct list_description *ld);*/	/* redraws list window */
 void reinit_list_window(struct list_description *ld);	/* reinitializes list window */
 
 /* bookmarks.c */
@@ -4123,8 +4130,7 @@ extern struct list bookmarks;
 
 void finalize_bookmarks(void);   /* called, when exiting links */
 void init_bookmarks(void);   /* called at start */
-void reinit_bookmarks(void);
-void save_bookmarks(void);
+void reinit_bookmarks(struct session *ses, unsigned char *new_bookmarks_file, int new_bookmarks_codepage);
 
 /* Launches bookmark manager */
 void menu_bookmark_manager(struct terminal *, void *, struct session *);

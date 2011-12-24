@@ -110,6 +110,9 @@
 #undef HAVE_BZIP2
 
 /* */
+#undef HAVE_LZMA
+
+/* */
 #undef G
 
 /* */

@@ -43,16 +43,16 @@ static struct list_description assoc_ld={
 	assoc_find_item,
 	&assoc_search_history,
 	0,		/* this is set in init_assoc function */
-	50,  /* width of main window */
-	10,  /* # of items in main window */
+	15,  /* # of items in main window */
 	T_ASSOCIATION,
 	T_ASSOCIATIONS_ALREADY_IN_USE,
 	T_ASSOCIATIONS_MANAGER,
 	T_DELETE_ASSOCIATION,
 	0,	/* no button */
 	NULL,	/* no button */
+	NULL,	/* no save*/
 
-	0,0,0,0,  /* internal vars */
+	NULL,NULL,0,0,  /* internal vars */
 	0, /* modified */
 	NULL,
 	NULL,
@@ -440,16 +440,16 @@ static struct list_description ext_ld={
 	ext_find_item,
 	&ext_search_history,
 	0,		/* this is set in init_assoc function */
-	40,  /* width of main window */
-	8,  /* # of items in main window */
+	15,  /* # of items in main window */
 	T_eXTENSION,
 	T_EXTENSIONS_ALREADY_IN_USE,
 	T_EXTENSIONS_MANAGER,
 	T_DELETE_EXTENSION,
 	0,	/* no button */
 	NULL,	/* no button */
+	NULL,	/* no save*/
 
-	0,0,0,0,  /* internal vars */
+	NULL,NULL,0,0,  /* internal vars */
 	0, /* modified */
 	NULL,
 	NULL,
@@ -791,20 +791,33 @@ static int is_in_list(unsigned char *list, unsigned char *str, int l)
 	goto rep;
 }
 
+unsigned char *get_compress_by_extension(unsigned char *ext, unsigned char *ext_end)
+{
+	size_t len = ext_end - ext;
+	if (len == 1 && !casecmp(ext, "z", 1)) return "compress";
+	if (len == 2 && !casecmp(ext, "gz", 2)) return "gzip";
+	if (len == 3 && !casecmp(ext, "tgz", 2)) return "gzip";
+	if (len == 3 && !casecmp(ext, "bz2", 3)) return "bzip2";
+	if (len == 4 && !casecmp(ext, "lzma", 4)) return "lzma";
+	if (len == 2 && !casecmp(ext, "xz", 2)) return "lzma2";
+	return NULL;
+}
+
 static unsigned char *get_content_type_by_extension(unsigned char *url)
 {
 	struct extension *e;
 	struct assoc *a;
-	unsigned char *ct, *ext, *exxt;
+	unsigned char *ct, *eod, *ext, *exxt;
 	int extl, el;
 	ext = NULL, extl = 0;
 	if (!(ct = get_url_data(url))) ct = url;
-	for (; *ct && !end_of_dir(url, *ct); ct++)
+	for (eod = ct; *eod && !end_of_dir(url, *eod); eod++)
+		;
+	for (; ct < eod; ct++)
 		if (*ct == '.') {
 			if (ext) {
-				if (!casecmp(ct, ".z", 3) && (!ct[2] || end_of_dir(url, ct[2]))) break;
-				if (!casecmp(ct, ".gz", 3) && (!ct[3] || end_of_dir(url, ct[3]))) break;
-				if (!casecmp(ct, ".bz2", 4) && (!ct[4] || end_of_dir(url, ct[4]))) break;
+				if (get_compress_by_extension(ct + 1, eod))
+					break;
 			}
 			ext = ct + 1;
 		} else if (dir_sep(*ct)) {
@@ -895,11 +908,26 @@ static unsigned char *get_extension_by_content_type(unsigned char *ct)
 		    strcasecmp(x, "gzip") &&
 		    strcasecmp(x, "bz2") &&
 		    strcasecmp(x, "bzip2") &&
+		    strcasecmp(x, "lzma") &&
+		    strcasecmp(x, "lzma2") &&
+		    strcasecmp(x, "xz") &&
 		    !strchr(x, '-') &&
 		    strlen(x) <= 4) {
 			return stracpy(x);
 		}
 	}
+	return NULL;
+}
+
+static unsigned char *get_content_encoding_from_content_type(unsigned char *ct)
+{
+	if (!strcasecmp(ct, "application/x-gzip") ||
+	    !strcasecmp(ct, "application/x-tgz")) return "gzip";
+	if (!strcasecmp(ct, "application/x-bzip2") ||
+	    !strcasecmp(ct, "application/x-bzip")) return "bzip2";
+	if (!strcasecmp(ct, "application/x-lzma")) return "lzma";
+	if (!strcasecmp(ct, "application/x-lzma2") ||
+	    !strcasecmp(ct, "application/x-xz")) return "lzma2";
 	return NULL;
 }
 
@@ -917,7 +945,8 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 		if (!strcasecmp(ct, "text/plain") ||
 		    !strcasecmp(ct, "application/octet-stream") ||
 		    !strcasecmp(ct, "application/octetstream") ||
-		    !strcasecmp(ct, "application/octet_stream")) {
+		    !strcasecmp(ct, "application/octet_stream") ||
+		    get_content_encoding_from_content_type(ct)) {
 			unsigned char *ctt;
 			int code;
 			if (!get_http_code(head, &code, NULL) && code >= 300)
@@ -939,35 +968,43 @@ no_code_by_extension:
 
 unsigned char *get_content_encoding(unsigned char *head, unsigned char *url)
 {
-	unsigned char *ce, *ct, *ext;
+	unsigned char *ce, *ct, *ext, *extd;
 	unsigned char *u;
-	unsigned l;
 	int code;
 	if ((ce = parse_http_header(head, "Content-Encoding", NULL))) return ce;
 	if ((ct = parse_http_header(head, "Content-Type", NULL))) {
 		unsigned char *s;
 		if ((s = strchr(ct, ';'))) *s = 0;
-		ce = NULL;
-		if (!strcasecmp(ct, "application/x-gzip")) ce = "gzip";
-		if (!strcasecmp(ct, "application/x-bzip2") ||
-		    !strcasecmp(ct, "application/x-bzip")) ce = "bzip2";
+		ce = get_content_encoding_from_content_type(ct);
+		if (ce) {
+			mem_free(ct);
+			return stracpy(ce);
+		}
+		if (is_html_type(ct)) {
+			mem_free(ct);
+			return NULL;
+		}
 		mem_free(ct);
-		if (ce) return stracpy(ce);
 	}
 	if (!get_http_code(head, &code, NULL) && code >= 300) return NULL;
 	if (!(ext = get_url_data(url))) ext = url;
 	for (u = ext; *u; u++) if (end_of_dir(url, *u)) goto skip_ext;
-	l = strlen(ext);
-	if (l >= 3 && !strcasecmp(ext + l - 3, ".gz")) return stracpy("gzip");
-	if (l >= 4 && !strcasecmp(ext + l - 4, ".bz2")) return stracpy("bzip2");
+	extd = strrchr(ext, '.');
+	if (extd) {
+		ce = get_compress_by_extension(extd + 1, strchr(extd + 1, 0));
+		if (ce) return stracpy(ce);
+	}
 	skip_ext:
 	if ((ext = get_filename_from_header(head))) {
-		ce = NULL;
-		l = strlen(ext);
-		if (l >= 3 && !strcasecmp(ext + l - 3, ".gz")) ce = "gzip";
-		if (l >= 4 && !strcasecmp(ext + l - 4, ".bz2")) ce = "bzip2";
+		extd = strrchr(ext, '.');
+		if (extd) {
+			ce = get_compress_by_extension(extd + 1, strchr(extd + 1, 0));
+			if (ce) {
+				mem_free(ext);
+				return stracpy(ce);
+			}
+		}
 		mem_free(ext);
-		if (ce) return stracpy(ce);
 	}
 	return NULL;
 }
@@ -977,6 +1014,8 @@ unsigned char *encoding_2_extension(unsigned char *encoding)
 	if (!strcasecmp(encoding, "gzip") || !strcasecmp(encoding, "x-gzip")) return "gz";
 	if (!strcasecmp(encoding, "compress") || !strcasecmp(encoding, "x-compress")) return "Z";
 	if (!strcasecmp(encoding, "bzip2")) return "bz2";
+	if (!strcasecmp(encoding, "lzma")) return "lzma";
+	if (!strcasecmp(encoding, "lzma2")) return "xz";
 	return NULL;
 }
 
@@ -1059,7 +1098,9 @@ unsigned char *get_prog(struct list_head *l)
 
 int is_html_type(unsigned char *ct)
 {
-	return !strcasecmp(ct, "text/html") || !strcasecmp(ct, "text/x-server-parsed-html") || !casecmp(ct, "application/xhtml", strlen("application/xhtml"));
+	return	!strcasecmp(ct, "text/html") ||
+		!strcasecmp(ct, "text/x-server-parsed-html") ||
+		!casecmp(ct, "application/xhtml", strlen("application/xhtml"));
 }
 
 static unsigned char *get_filename_from_header(unsigned char *head)
@@ -1124,8 +1165,11 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 		x = encoding_2_extension(ct);
 		if (!tmp) {
 			if (x) {
+				if (!strcasecmp(want_ext, ".tgz") && !strcasecmp(x, "gz"))
+					goto skip_tgz_1;
 				add_to_strn(&want_ext, ".");
 				add_to_strn(&want_ext, x);
+				skip_tgz_1:;
 			}
 		} else {
 			if (x) {
@@ -1138,8 +1182,11 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 	}
 	if (strlen(want_ext) > strlen(f) || strcasecmp(want_ext, f + strlen(f) - strlen(want_ext))) {
 		x = strrchr(f, '.');
+		if (x && !strcasecmp(x, ".tgz") && !strcasecmp(want_ext, ".gz"))
+			goto skip_tgz_2;
 		if (x) *x = 0;
 		add_to_strn(&f, want_ext);
+		skip_tgz_2:;
 	}
 	mem_free(want_ext);
 	return f;

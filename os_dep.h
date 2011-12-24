@@ -95,7 +95,10 @@ static inline int dir_sep(char x) { return x == '/' || x == '\\'; }
 #define ASSOC_CONS_XWIN
 #define OS_BAD_SIGNALS
 #ifndef HAVE_PTHREADS
-  #define HAVE_PTHREADS
+#define HAVE_PTHREADS
+#endif
+#ifdef HAVE_SYS_UN_H
+#define USE_AF_UNIX
 #endif
 
 #elif defined(INTERIX)

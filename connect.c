@@ -51,7 +51,6 @@ void close_socket(int *s)
 
 struct conn_info {
 	void (*func)(struct connection *);
-	struct sockaddr_in sa;
 	ip__address addr;
 	int port;
 	int *sock;
@@ -268,6 +267,7 @@ static void dns_found(struct connection *c, int state)
 {
 	int s;
 	struct conn_info *b = c->newconn;
+	struct sockaddr_in sa;
 	if (state) {
 		setcstate(c, S_NO_DNS);
 		abort_connection(c);
@@ -280,11 +280,11 @@ static void dns_found(struct connection *c, int state)
 	}
 	*b->sock = s;
 	fcntl(s, F_SETFL, O_NONBLOCK);
-	memset(&b->sa, 0, sizeof(struct sockaddr_in));
-	b->sa.sin_family = AF_INET;
-	b->sa.sin_addr.s_addr = b->addr;
-	b->sa.sin_port = htons(b->port);
-	if (connect(s, (struct sockaddr *)(void *)&b->sa, sizeof b->sa)) {
+	memset(&sa, 0, sizeof(struct sockaddr_in));
+	sa.sin_family = AF_INET;
+	sa.sin_addr.s_addr = b->addr;
+	sa.sin_port = htons(b->port);
+	if (connect(s, (struct sockaddr *)(void *)&sa, sizeof sa)) {
 		if (errno != EALREADY && errno != EINPROGRESS) {
 #ifdef BEOS
 			if (errno == EWOULDBLOCK) errno = ETIMEDOUT;

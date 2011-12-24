@@ -372,7 +372,7 @@ void file_func(struct connection *c)
 		/* + !stt.st_size is there because of bug in Linux. Read returns
 		   -EACCES when reading 0 bytes to invalid address */
 		file = mem_alloc(stt.st_size + !stt.st_size);
-		if ((r = read(h, file, stt.st_size)) != stt.st_size) {
+		if ((r = hard_read(h, file, stt.st_size)) != stt.st_size) {
 			mem_free(file); close(h);
 			setcstate(c, r == -1 ? get_error_from_errno(errno) : S_FILE_ERROR);
 			abort_connection(c); return;

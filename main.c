@@ -11,7 +11,7 @@ int retval = RET_OK;
 static void unhandle_basic_signals(struct terminal *);
 static void poll_fg(void *);
 
-#if 0
+#ifdef WIN32
 static void sig_terminate(struct terminal *t)
 {
 	unhandle_basic_signals(t);
@@ -115,6 +115,9 @@ static void handle_basic_signals(struct terminal *term)
 	install_signal_handler(SIGHUP, (void (*)(void *))sig_intr, term, 0);
 	if (!F) install_signal_handler(SIGINT, (void (*)(void *))sig_ctrl_c, term, 0);
 	/*install_signal_handler(SIGTERM, (void (*)(void *))sig_terminate, term, 0);*/
+#ifdef WIN32
+	install_signal_handler(SIGQUIT, (void (*)(void *))sig_terminate, term, 0);
+#endif
 #ifdef SIGTSTP
 	if (!F) install_signal_handler(SIGTSTP, (void (*)(void *))sig_tstp, term, 0);
 #endif
@@ -403,7 +406,6 @@ static void terminate_all_subsystems(void)
 	destroy_all_terminals();
 	check_bottom_halves();
 	shutdown_bfu();
-	GF(shutdown_dip());
 	if (!F) free_all_itrms();
 	release_object(&dump_obj);
 	abort_all_connections();

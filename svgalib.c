@@ -1802,15 +1802,15 @@ static void mouse_event_handler(int button, int dx, int dy, int dz, int drx, int
 	}
 	if ((button&MOUSE_FOURTHBUTTON)&&!(mouse_buttons&MOUSE_FOURTHBUTTON)){
 		mouse_aggregate_flush();
-		if (mh) mh(cd,mouse_x, mouse_y,B_RIGHT|B_FOURTH);
+		if (mh) mh(cd,mouse_x, mouse_y,B_FOURTH|B_DOWN);
 	}
 	if ((button&MOUSE_FIFTHBUTTON)&&!(mouse_buttons&MOUSE_FIFTHBUTTON)){
 		mouse_aggregate_flush();
-		if (mh) mh(cd,mouse_x, mouse_y,B_RIGHT|B_FIFTH);
+		if (mh) mh(cd,mouse_x, mouse_y,B_FIFTH|B_DOWN);
 	}
 	if ((button&MOUSE_SIXTHBUTTON)&&!(mouse_buttons&MOUSE_SIXTHBUTTON)){
 		mouse_aggregate_flush();
-		/*if (mh) mh(cd,mouse_x, mouse_y,B_RIGHT|B_SIXTH);*/
+		/*if (mh) mh(cd,mouse_x, mouse_y,B_SIXTH|B_DOWN);*/
 		switch_virtual_device(VD_NEXT);
 	}
 

@@ -583,7 +583,11 @@ static int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsig
 			    buf[pp - 4] >= '0' && buf[pp - 4] <= '9' &&
 			    buf[pp - 3] == ':' &&
 			    buf[pp - 2] >= '0' && buf[pp - 2] <= '5' &&
-			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') ppos = pp;
+			    buf[pp - 1] >= '0' && buf[pp - 1] <= '9') {
+				ppos = pp;
+				if (pp + 2 < p && buf[pp + 1] == ' ' && buf[pp + 2] != ' ')
+					ppos++;
+			}
 		}
 		if (ppos != -1) {
 			pp = ppos;

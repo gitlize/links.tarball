@@ -124,7 +124,8 @@ static inline int compute_width (int ix, int iy, int required_height)
 	return width;
 }
 
-struct lru font_cache; /* This is a cache for screen-ready colored bitmaps
+static struct lru font_cache;
+			/* This is a cache for screen-ready colored bitmaps
                         * of lettrs and/or alpha channels for these (are the
 			* same size, only one byte per pixel and are used
 			* for letters with an image under them )
@@ -1555,6 +1556,9 @@ unsigned char *png_data, int png_length, struct style *style)
 	mem_free(interm2);
 }
 
+static struct font_cache_entry *locked_bw_entry = NULL;
+static struct font_cache_entry *locked_color_entry = NULL;
+
 /* Adds required entry into font_cache and returns pointer to the entry.
  * We assume the entry is FC_COLOR.
  */
@@ -1582,8 +1586,11 @@ static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 			found->bitmap.y, font_data+letter->begin,
 			letter->length, style);
 		do_free=1;
+	} else {
+		locked_bw_entry = found;
 	}
 	new=mem_alloc(sizeof(*new));
+	locked_color_entry = new;
 	new->type=FC_COLOR;
 	new->bitmap=found->bitmap;
 	new->r0=style->r0;
@@ -1628,6 +1635,8 @@ static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 	if (do_free){
 		mem_free(found->bitmap.data);
 		mem_free(found);
+	} else {
+		locked_bw_entry = NULL;
 	}
 	bytes_consumed=new->bitmap.x*new->bitmap.y*(gd->depth&7);
 	/* Number of bytes per pixel in passed bitmaps */
@@ -1638,31 +1647,35 @@ static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 	return new;
 }
 
-/* Prunes the cache to comply with maximum size */
-static inline void prune_font_cache(struct graphics_driver *gd)
+static int destroy_font_cache_bottom(void)
 {
 	struct font_cache_entry *bottom;
+	bottom=lru_get_bottom(&font_cache);
+	if (!bottom) return 0;
+	if (bottom == locked_bw_entry || bottom == locked_color_entry) return 0;
+	if (bottom->type==FC_COLOR){
+		drv->unregister_bitmap(&(bottom->bitmap));
+	}else{
+		mem_free(bottom->bitmap.data);
+	}
+	mem_free(bottom);
+	lru_destroy_bottom(&font_cache);
+	return 1;
+}
 
-	while(font_cache.bytes>font_cache.max_bytes){
-		/* Prune bottom entry of font cache */
-		bottom=lru_get_bottom(&font_cache);
-		if (!bottom){
-#ifdef DEBUG
-			if (font_cache.bytes||font_cache.items){
-				internal("font cache is empty and contains\
-some items or bytes at the same time.\n");
-			}
-#endif
+/* Prunes the cache to comply with maximum size */
+static int prune_font_cache(void)
+{
+	int r = 0;
+
+	while (font_cache.bytes > (unsigned)font_cache_size) {
+		if (destroy_font_cache_bottom()) {
+			r = 1;
+		} else {
 			break;
 		}
-		if (bottom->type==FC_COLOR){
-			gd->unregister_bitmap(&(bottom->bitmap));
-		}else{
-			mem_free(bottom->bitmap.data);
-		}
-		mem_free(bottom);
-		lru_destroy_bottom(&font_cache);
 	}
+	return r;
 }
 
 /* Prints a letter to the specified position and
@@ -1672,6 +1685,7 @@ inline static int print_letter(struct graphics_driver *gd, struct
 	int char_number)
 
 {	
+	int xw;
 	struct font_cache_entry *found;
 	struct font_cache_entry template;
 	struct letter *letter;
@@ -1694,9 +1708,13 @@ inline static int print_letter(struct graphics_driver *gd, struct
 
 	found=lru_lookup(&font_cache, &template, letter->color_list);
 	if (!found) found=supply_color_cache_entry(gd, style, letter);
+	else locked_color_entry = found;
 	gd->draw_bitmap(device, &(found->bitmap), x, y);
-	prune_font_cache(gd);
-	return found->bitmap.x;
+	xw = found->bitmap.x;
+	if (locked_color_entry != found) internal("bad letter lock");
+	locked_color_entry = NULL;
+	prune_font_cache();
+	return xw;
 }
 
 /* Must return values that are:
@@ -1829,29 +1847,21 @@ static int compare_font_entries(void *entry, void *template)
 /* If the cache already exists, it is destroyed and reallocated. If you call it with the same
  * size argument, only a cache flush will yield.
  */
-static void init_font_cache(int bytes)
+static void init_font_cache(void)
 {
-	lru_init(&font_cache, &compare_font_entries, bytes);
+	lru_init(&font_cache, &compare_font_entries);
 }
 
 /* Ensures there are no lru_entry objects allocated - destroys them.
  * Also destroys the bitmaps asociated with them. Does not destruct the
  font_cache per se.
  */
-void destroy_font_cache(void)
+static void destroy_font_cache(void)
 {
-	struct font_cache_entry *bottom;
-	
-	while((bottom=lru_get_bottom(&font_cache))){
-		if (bottom->type==FC_COLOR){
-			drv->unregister_bitmap(&(bottom->bitmap));
-		}else{
-			/* Then it must be FC_BW. */
-			mem_free(bottom->bitmap.data);
-		}
-		mem_free(bottom);
-		lru_destroy_bottom(&font_cache);
-	}
+	while (destroy_font_cache_bottom())
+		;
+	if (lru_get_bottom(&font_cache))
+		internal("destroy_font_cache: cache not freed due to locks");
 }
 
 /* Returns 0 in case the char is not found. */
@@ -1917,18 +1927,46 @@ int g_wrap_text(struct wrap_struct *w)
 void update_aspect(void)
 {
 	aspect=aspect_on?(aspect_native*bfu_aspect+0.5):65536UL;
+	destroy_font_cache();
+}
+
+long fontcache_info(int type)
+{
+	switch (type) {
+		case CI_BYTES:
+			return font_cache.bytes;
+		case CI_FILES:
+			return font_cache.items;
+		default:
+			internal("fontcache_info: query %d", type);
+			return 0;
+	}
+}
+
+static int shrink_font_cache(int u)
+{
+	int freed_something = 0;
+	int has_something;
+	if (u == SH_CHECK_QUOTA) {
+		freed_something = prune_font_cache();
+	}
+	if (u == SH_FREE_ALL) {
+		while (destroy_font_cache_bottom())
+			freed_something = 1;
+	}
+	if (u == SH_FREE_SOMETHING) {
+		freed_something = destroy_font_cache_bottom();
+	}
+	has_something = !!lru_get_bottom(&font_cache);
+	return	(freed_something ? ST_SOMETHING_FREED : 0) |
+		(has_something ? 0 : ST_CACHE_EMPTY);
 }
 
 void init_dip(void)
 {
+	init_font_cache();
 	update_aspect();
-	/* Initializes to 2 MByte */
-	init_font_cache(2000000);
-}
-
-void shutdown_dip(void)
-{
-	destroy_font_cache();
+	register_cache_upcall(shrink_font_cache, "fontcache");
 }
 
 static void recode_font_name(unsigned char **name)

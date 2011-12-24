@@ -90,15 +90,13 @@ void *lru_lookup(struct lru *cache, void *template, struct lru_entry *ptr)
 	return NULL;
 }
 
-void lru_init (struct lru *cache, int
-(*compare_function)(void *entry, void *template), int max_bytes)
+void lru_init (struct lru *cache, int (*compare_function)(void *entry, void *template))
 {
 	cache->compare_function=compare_function;
 	cache->top=NULL;
 	cache->bottom=NULL;
 	cache->bytes=0;
 	cache->items=0;
-	cache->max_bytes=max_bytes;
 }
 
 #endif

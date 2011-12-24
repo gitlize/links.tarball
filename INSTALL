@@ -1,4 +1,4 @@
-Links 2.4 -- How To Install
+Links 2.5 -- How To Install
 ---------------------------
 
 Follow this step-by-step:
@@ -21,6 +21,7 @@ Follow this step-by-step:
    ------------------
    zlib - shows gzipped pages
    libbz2 - shows bzipped content
+   lzma - shows content compressed with lzma
 
    If any of the library is not present on the system or is unusably old and you cannot install it
    (typically because you are not a root), then go to 11) Compiling with
@@ -91,7 +92,8 @@ OS/2 - use ./configure; make
 	SET MAKE=d:/prg/emx/bin/make.exe
 	SET EMXOPT=-h100
 
-Dos, Windows - port it yourself
+Windows - you must have Cygwin or Interix environment
+	Otherwise, compile it just like on Unix
 
 Install:
 

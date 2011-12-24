@@ -116,6 +116,7 @@ static HAB hab_disp;
 static HAB hab;
 static HMQ hmq;
 static HWND hwnd_msg;
+static HPOINTER icon;
 static HPS hps_msg;
 static HDC hdc_mem;
 static HPS hps_mem;
@@ -413,6 +414,7 @@ MRESULT EXPENTRY pm_msg_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 		case MSG_CREATE_WINDOW:
 			win = mp2;
 			win->h = WinCreateStdWindow(HWND_DESKTOP, WS_VISIBLE, &pm_frame, pm_class_name, "Links", 0, 0, 0, &win->hc);
+			if (icon != NULLHANDLE) WinSendMsg(win->h, WM_SETICON, (void *)icon, 0);
 			WinSetWindowPos(win->h, 0, 0, 0, 0, 0, SWP_ACTIVATE);
 			pm_lock;
 			pm_signal;
@@ -487,6 +489,7 @@ static void pm_dispatcher(void *p)
 		pm_status = "Could not get msg window ps.\n";
 		goto fail5;
 	}
+	icon = WinLoadPointer(HWND_DESKTOP, 0, 1);
 	pm_signal;
 	while (!pm_thread_shutdown) {
 		WinGetMsg(hab_disp, &msg, 0L, 0, 0);
@@ -494,6 +497,7 @@ static void pm_dispatcher(void *p)
 	}
 
 	
+		if (icon != NULLHANDLE) WinDestroyPointer(icon);
 		WinReleasePS(hps_msg);
 	fail5:	WinDestroyWindow(hwnd_msg);
 	fail4:
@@ -630,7 +634,7 @@ static void pm_do_console(void)
 	if (FD_ISSET(ih, &s)) {						\
 		if ((r = read(ih, buffer, CONS_BUF)) <= 0) goto br;	\
 		do {							\
-			if ((w = write(oh, buffer, r)) <= 0) goto br;	\
+			if ((w = hard_write(oh, buffer, r)) <= 0) goto br;\
 			r -= w;						\
 		} while (r > 0);					\
 	}
@@ -705,17 +709,18 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 		memset(formats, 0, N_FORMATS * sizeof(LONG));
 		if (GpiQueryDeviceBitmapFormats(hps_msg, N_FORMATS, formats) == FALSE) goto std_form;
 		for (i = 0; i + 1 < N_FORMATS; i += 2) if (formats[i] == 1) switch (formats[i+1]) {
-	/* !!! FIXME: tady by se mely pridat dalsi formaty, ale neznam je */
 			/*
 			case 15:
 				pmshell_driver.depth = 0x7a;
 				pm_bitcount = 15;
 				goto e;
 			*/
+			/* ... causes trouble on S3 Trio video driver
 			case 16:
 				pmshell_driver.depth = 0x82;
 				pm_bitcount = 16;
 				goto e;
+			*/
 			case 24:
 			std_form:
 				pmshell_driver.depth = 0xc3;

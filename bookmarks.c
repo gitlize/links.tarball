@@ -15,7 +15,6 @@
 #endif
 
 int bookmarks_codepage=0;
-static int can_write_bookmarks=0;	/* global flag if we can write bookmarks */
 
 unsigned char bookmarks_file[MAX_STR_LEN]="";
 
@@ -27,6 +26,7 @@ static void bookmark_copy_item(void *, void *);
 static void bookmark_goto_item(struct session *, void *);
 static void *bookmark_default_value(struct session*, unsigned char);
 static void *bookmark_find_item(void *start, unsigned char *str, int direction);
+static void save_bookmarks(struct session *ses);
 
 struct list bookmarks={&bookmarks,&bookmarks,0,-1,NULL};
 
@@ -68,7 +68,6 @@ static struct list_description bookmark_ld=
 	bookmark_find_item,
 	&bookmark_search_history,
 	0,		/* this is set in init_bookmarks function */
-	60,  /* width of main window */
 	15,  /* # of items in main window */
 	T_BOOKMARK,
 	T_BOOKMARKS_ALREADY_IN_USE,
@@ -76,8 +75,9 @@ static struct list_description bookmark_ld=
 	T_DELETE_BOOKMARK,
 	T_GOTO,
 	bookmark_goto_item,	/* FIXME: should work (URL in UTF8), but who knows? */
+	save_bookmarks,
 
-	0,0,0,0,  /* internal vars */
+	NULL,NULL,0,0,  /* internal vars */
 	0, /* modified */
 	NULL,
 	NULL,
@@ -110,7 +110,6 @@ static void free_bookmarks(void)
 /* called before exiting the links */
 void finalize_bookmarks(void)
 {
-	save_bookmarks();
 	free_bookmarks();
 }
 
@@ -604,7 +603,7 @@ static void create_initial_bookmarks(void)
 	add_bookmark("Manual k Linksu","http://links.twibright.com/user.html",2);
 }
 
-static void load_bookmarks(void)
+static void load_bookmarks(struct session *ses)
 {
 	unsigned char *buf;
 	long len;
@@ -632,11 +631,10 @@ static void load_bookmarks(void)
 	 */
 
 	buf=read_config_file(bookmarks_file);
-	can_write_bookmarks=1;
 	if (!buf){
-		can_write_bookmarks=(errno==ENOENT); /* if open failed and the file exists, don't write initial bookmarks when finishing */
 		create_initial_bookmarks();
 		bookmark_ld.modified=1;
+		save_bookmarks(ses);
 		return;
 	}
 
@@ -716,19 +714,45 @@ void init_bookmarks(void)
 		snprintf(bookmarks_file,MAX_STR_LEN,"%sbookmarks.html",links_home?links_home:(unsigned char*)"");
 
 	bookmark_ld.codepage=get_cp_index("utf-8");
-	load_bookmarks();
+	load_bookmarks(NULL);
 }
 
-void reinit_bookmarks(void)
+void reinit_bookmarks(struct session *ses, unsigned char *new_bookmarks_file, int new_bookmarks_codepage)
 {
-	free_bookmarks();
-	bookmarks.next=&bookmarks;
-	bookmarks.prev=&bookmarks;
-	bookmarks.type=0;
-	bookmarks.depth=-1;
-	bookmarks.fotr=NULL;
-	load_bookmarks();
-	reinit_list_window(&bookmark_ld);
+	unsigned char *buf;
+	if (bookmark_ld.open) {
+		msg_box(
+			ses->term,
+			NULL,
+			TEXT_(T_INFO),
+			AL_CENTER,
+			TEXT_(T_BOOKMARKS_ALREADY_IN_USE),
+			NULL,
+			1,
+			TEXT_(T_CANCEL),NULL,B_ENTER|B_ESC
+		);
+		return;
+	}
+
+	if (!strcmp(bookmarks_file, new_bookmarks_file)) {
+		goto save_only;
+	}
+
+	buf=read_config_file(new_bookmarks_file);
+	if (buf) {
+		mem_free(buf);
+		free_bookmarks();
+		safe_strncpy(bookmarks_file,new_bookmarks_file,MAX_STR_LEN);
+		bookmarks_codepage=new_bookmarks_codepage;
+		load_bookmarks(ses);
+		reinit_list_window(&bookmark_ld);
+	} else {
+		save_only:
+		safe_strncpy(bookmarks_file,new_bookmarks_file,MAX_STR_LEN);
+		bookmarks_codepage=new_bookmarks_codepage;
+		bookmark_ld.modified=1;
+		save_bookmarks(ses);
+	}
 }
 
 
@@ -776,7 +800,7 @@ static unsigned char *convert_to_entity_string(unsigned char *str)
 }
 
 /* writes bookmarks to disk */
-void save_bookmarks(void)
+static void save_bookmarks(struct session *ses)
 {
 	struct bookmark_list *b;
 	int depth;
@@ -784,8 +808,9 @@ void save_bookmarks(void)
 	struct conv_table *ct;
 	unsigned char *data;
 	int l;
+	int err;
 
-	if (!bookmark_ld.modified||!can_write_bookmarks)return;
+	if (!bookmark_ld.modified)return;
 	ct=get_translation_table(bookmark_ld.codepage,bookmarks_codepage);
 	data=init_str();
 	l=0;
@@ -842,9 +867,16 @@ void save_bookmarks(void)
 	"</DL><P>\n"
 	"</HTML>\n"
 	);
-	write_to_config_file(bookmarks_file, data);
+	err = write_to_config_file(bookmarks_file, data);
 	mem_free(data);
-	bookmark_ld.modified=0;
+	if (!err) {
+		bookmark_ld.modified=0;
+	} else {
+		if (ses) {
+			unsigned char *f = stracpy(bookmarks_file);
+			msg_box(ses->term, getml(f, NULL), TEXT_(T_BOOKMARK_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_UNABLE_TO_WRITE_TO_BOOKMARK_FILE), " ", f, ": ", get_err_msg(err), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+		}
+	}
 }
 
 void menu_bookmark_manager(struct terminal *term,void *fcp,struct session *ses)

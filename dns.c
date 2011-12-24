@@ -146,13 +146,13 @@ static void lookup_fn(unsigned char *name, int h)
 {
 	ip__address host;
 	if (do_real_lookup(name, &host)) return;
-	write(h, &host, sizeof(ip__address));
+	hard_write(h, (unsigned char *)&host, sizeof(ip__address));
 }
 
 static void end_real_lookup(struct dnsquery *q)
 {
 	int r = 1;
-	if (!q->addr || read(q->h, q->addr, sizeof(ip__address)) != sizeof(ip__address)) goto end;
+	if (!q->addr || hard_read(q->h, (unsigned char *)q->addr, sizeof(ip__address)) != sizeof(ip__address)) goto end;
 	r = 0;
 
 	end:
@@ -306,6 +306,21 @@ void kill_dns_request(void **qp)
 	q->fn = NULL;
 	q->addr = NULL;
 	*qp = NULL;
+}
+
+long dns_info(int type)
+{
+	switch (type) {
+		case CI_FILES: {
+			long n = 0;
+			struct dnsentry *e;
+			foreach(e, dns_cache) n++;
+			return n;
+		}
+		default:
+			internal("dns_info: bad request");
+	}
+	return 0;
 }
 
 static int shrink_dns_cache(int u)

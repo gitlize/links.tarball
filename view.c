@@ -316,7 +316,7 @@ void sort_links(struct f_data *f)
 			if (link->pos) mem_free(link->pos);
 			free_js_event_spec(link->js_event);
 			memmove(link, link + 1, (f->nlinks - i - 1) * sizeof(struct link));
-			f->nlinks --;
+			f->nlinks--;
 			i--;
 			continue;
 		}
@@ -1997,7 +1997,7 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 				}
 				set_bin(fh);
 				do {
-					if ((rd = read(fh, buffer, F_BUFLEN)) == -1) {
+					if ((rd = hard_read(fh, buffer, F_BUFLEN)) == -1) {
 						errn = errno;
 						close(fh);
 						goto error;
@@ -2341,11 +2341,6 @@ void toggle(struct session *ses, struct f_data_c *f, int a)
 	else f->vs->plain = f->vs->plain ^ 1;
 	html_interpret_recursive(f);
 	draw_formatted(ses);
-}
-
-static void back(struct session *ses, struct f_data_c *f, int a)
-{
-	go_back(ses);
 }
 
 void selected_item(struct terminal *term, void *pitem, struct session *ses)
@@ -3421,11 +3416,15 @@ void send_event(struct session *ses, struct event *ev)
 			draw_formatted(ses);
 		}
 		if (ev->x == KBD_LEFT && !ses->term->spec->braille) {
-			back(ses, NULL, 0);
+			go_back(ses, 1);
 			goto x;
 		}
 		if (upcase(ev->x) == 'Z' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
-			back(ses, NULL, 0);
+			go_back(ses, 1);
+			goto x;
+		}
+		if (upcase(ev->x) == 'X' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
+			go_back(ses, -1);
 			goto x;
 		}
 		if (upcase(ev->x) == 'A' && ses->term->spec->braille) {
@@ -3438,23 +3437,17 @@ void send_event(struct session *ses, struct event *ev)
 			print_screen_status(ses);
 			goto x;
 		}
-#ifdef G
-		if (F && (ev->x == KBD_BS)) {
-			back(ses, NULL, 0);
+		if (ev->x == KBD_BS) {
+			go_back(ses, 1);
 			goto x;
 		}
-#endif
 		if (upcase(ev->x) == 'R' && ev->y & KBD_CTRL) {
 			reload(ses, -1);
 			goto x;
 		}
-		if (upcase(ev->x) == 'S' && ev->y & KBD_CTRL) {
-			abort_all_connections();
-			goto x;
-		}
 		if (ev->x == 'g' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 			quak:
-			dialog_goto_url(ses,"");
+			dialog_goto_url(ses, "");
 			goto x;
 		}
 		if (ev->x == 'G' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
@@ -3474,12 +3467,12 @@ void send_event(struct session *ses, struct event *ev)
 			goto x;
 		}
 		/*
-		if (upcase(ev->x) == 'A') {
+		if (upcase(ev->x) == 'A' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 			if (!anonymous) menu_bookmark_manager(ses->term, NULL, ses);
 			goto x;
 		}
 		*/
-		if (upcase(ev->x) == 'S') {
+		if (upcase(ev->x) == 'S' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 			if (!anonymous) menu_bookmark_manager(ses->term, NULL, ses);
 			goto x;
 		}
@@ -3487,7 +3480,7 @@ void send_event(struct session *ses, struct event *ev)
 			exit_prog(ses->term, (void *)(my_intptr_t)(ev->x == KBD_CTRL_C || ev->x == 'Q'), ses);
 			goto x;
 		}
-		if (ev->x == KBD_CLOSE){
+		if (ev->x == KBD_CLOSE) {
 			really_exit_prog(ses);
 			goto x;
 		}
@@ -3506,7 +3499,11 @@ void send_event(struct session *ses, struct event *ev)
 	}
 	if (ev->ev == EV_MOUSE) {
 		if (ev->b == (B_DOWN | B_FOURTH)) {
-			go_back(ses);
+			go_back(ses, 1);
+			goto x;
+		}
+		if (ev->b == (B_DOWN | B_FIFTH)) {
+			go_back(ses, -1);
 			goto x;
 		}
 #ifdef G
@@ -3537,7 +3534,7 @@ void send_event(struct session *ses, struct event *ev)
 		if (ev->y < gf_val(1, G_BFU_FONT_SIZE) && (ev->b & BM_ACT) == B_DOWN) {
 #ifdef G
 			if (F && ev->x < ses->back_size) {
-				go_back(ses);
+				go_back(ses, 1);
 				goto x;
 			} else
 #endif
@@ -3754,10 +3751,7 @@ void open_in_new_window(struct terminal *term, void (*xxx)(struct terminal *, vo
 		mem_free(oin);
 		return;
 	}
-	if (!(mi = new_menu(1))) {
-		mem_free(oin);
-		return;
-	}
+	mi = new_menu(1);
 	for (oi = oin; oi->text; oi++) add_to_menu(&mi, oi->text, "", oi->hk, MENU_FUNC xxx, oi->fn, 0, -1);
 	mem_free(oin);
 	do_menu(term, mi, ses);
@@ -3828,7 +3822,7 @@ void link_menu(struct terminal *term, void *xxx, struct session *ses)
 	struct f_data_c *f = current_frame(ses);
 	struct link *link;
 	struct menu_item *mi;
-	if (!(mi = new_menu(1))) return;
+	mi = new_menu(1);
 	if (!f || !f->vs || !f->f_data) goto x;
 	if (f->vs->current_link == -1) goto no_l;
 	link = &f->f_data->links[f->vs->current_link];

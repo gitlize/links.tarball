@@ -67,14 +67,14 @@ static void menu_save_url_as(struct terminal *term, void *d, struct session *ses
 	dialog_save_url(ses);
 }
 
-static void menu_save_bookmarks(struct terminal *term, void *d, struct session *ses)
-{
-	save_bookmarks();
-}
-
 static void menu_go_back(struct terminal *term, void *d, struct session *ses)
 {
-	go_back(ses);
+	go_back(ses, 1);
+}
+
+static void menu_go_forward(struct terminal *term, void *d, struct session *ses)
+{
+	go_back(ses, -1);
 }
 
 static void menu_reload(struct terminal *term, void *d, struct session *ses)
@@ -140,10 +140,10 @@ static void refresh_abort(struct dialog_data *dlg)
 
 static void cache_inf(struct terminal *term, void *d, struct session *ses)
 {
-	unsigned char *a1, *a2, *a3, *a4, *a5, *a6, *a7, *a8, *a9, *a10, *a11, *a12, *a13, *a14, *a15, *a16;
+	unsigned char *a1, *a2, *a3, *a4, *a5, *a6, *a7, *a8, *a9, *a10, *a11, *a12, *a13, *a14, *a15, *a16, *a17, *a18;
 #ifdef G
 	unsigned char *b14, *b15, *b16, *b17;
-	unsigned char *c14, *c15, *c16, *c17;
+	unsigned char *c14, *c15, *c16;
 #endif
 	int l = 0;
 	struct refresh *r;
@@ -155,26 +155,26 @@ static void cache_inf(struct terminal *term, void *d, struct session *ses)
 	r->data = d;
 	r->timer = -1;
 	l = 0;
-	l = 0, a1 = init_str(); add_to_str(&a1, &l, ": "); add_num_to_str(&a1, &l, select_info(CI_FILES));add_to_str(&a1, &l, " ");
-	l = 0, a2 = init_str(); add_to_str(&a2, &l, ", "); add_num_to_str(&a2, &l, select_info(CI_TIMERS));add_to_str(&a2, &l, " ");
+	l = 0, a1 = init_str(); add_to_str(&a1, &l, ": "); add_num_to_str(&a1, &l, select_info(CI_FILES)); add_to_str(&a1, &l, " ");
+	l = 0, a2 = init_str(); add_to_str(&a2, &l, ", "); add_num_to_str(&a2, &l, select_info(CI_TIMERS)); add_to_str(&a2, &l, " ");
 	l = 0, a3 = init_str(); add_to_str(&a3, &l, ".\n");
 
-	l = 0, a4 = init_str(); add_to_str(&a4, &l, ": "); add_num_to_str(&a4, &l, connect_info(CI_FILES));add_to_str(&a4, &l, " ");
-	l = 0, a5 = init_str(); add_to_str(&a5, &l, ", "); add_num_to_str(&a5, &l, connect_info(CI_CONNECTING));add_to_str(&a5, &l, " ");
-	l = 0, a6 = init_str(); add_to_str(&a6, &l, ", "); add_num_to_str(&a6, &l, connect_info(CI_TRANSFER));add_to_str(&a6, &l, " ");
-	l = 0, a7 = init_str(); add_to_str(&a7, &l, ", "); add_num_to_str(&a7, &l, connect_info(CI_KEEP));add_to_str(&a7, &l, " ");
+	l = 0, a4 = init_str(); add_to_str(&a4, &l, ": "); add_num_to_str(&a4, &l, connect_info(CI_FILES) - connect_info(CI_CONNECTING) - connect_info(CI_TRANSFER)); add_to_str(&a4, &l, " ");
+	l = 0, a5 = init_str(); add_to_str(&a5, &l, ", "); add_num_to_str(&a5, &l, connect_info(CI_CONNECTING)); add_to_str(&a5, &l, " ");
+	l = 0, a6 = init_str(); add_to_str(&a6, &l, ", "); add_num_to_str(&a6, &l, connect_info(CI_TRANSFER)); add_to_str(&a6, &l, " ");
+	l = 0, a7 = init_str(); add_to_str(&a7, &l, ", "); add_num_to_str(&a7, &l, connect_info(CI_KEEP)); add_to_str(&a7, &l, " ");
 	l = 0, a8 = init_str(); add_to_str(&a8, &l, ".\n");
 
-	l = 0, a9 = init_str(); add_to_str(&a9, &l, ": "); add_num_to_str(&a9, &l, cache_info(CI_BYTES));add_to_str(&a9, &l, " ");
-	l = 0, a10 = init_str(); add_to_str(&a10, &l, ", "); add_num_to_str(&a10, &l, cache_info(CI_FILES));add_to_str(&a10, &l, " ");
-	l = 0, a11 = init_str(); add_to_str(&a11, &l, ", "); add_num_to_str(&a11, &l, cache_info(CI_LOCKED));add_to_str(&a11, &l, " ");
-	l = 0, a12 = init_str(); add_to_str(&a12, &l, ", "); add_num_to_str(&a12, &l, cache_info(CI_LOADING));add_to_str(&a12, &l, " ");
+	l = 0, a9 = init_str(); add_to_str(&a9, &l, ": "); add_num_to_str(&a9, &l, cache_info(CI_BYTES)); add_to_str(&a9, &l, " ");
+	l = 0, a10 = init_str(); add_to_str(&a10, &l, ", "); add_num_to_str(&a10, &l, cache_info(CI_FILES)); add_to_str(&a10, &l, " ");
+	l = 0, a11 = init_str(); add_to_str(&a11, &l, ", "); add_num_to_str(&a11, &l, cache_info(CI_LOCKED)); add_to_str(&a11, &l, " ");
+	l = 0, a12 = init_str(); add_to_str(&a12, &l, ", "); add_num_to_str(&a12, &l, cache_info(CI_LOADING)); add_to_str(&a12, &l, " ");
 	l = 0, a13 = init_str(); add_to_str(&a13, &l, ".\n");
 
 #ifdef G
 	if (F) {
 		l = 0, b14 = init_str();
-		add_to_str(&b14, &l, ", ");
+		add_to_str(&b14, &l, ": ");
 		add_num_to_str(&b14, &l, imgcache_info(CI_BYTES));
 		add_to_str(&b14, &l, " ");
 		
@@ -192,45 +192,61 @@ static void cache_inf(struct terminal *term, void *d, struct session *ses)
 		add_to_str(&b17, &l, ".\n");
 		
 		l = 0, c14 = init_str();
-		add_to_str(&c14, &l, ", ");
-		add_num_to_str(&c14, &l, font_cache.bytes);
+		add_to_str(&c14, &l, ": ");
+		add_num_to_str(&c14, &l, fontcache_info(CI_BYTES));
 		add_to_str(&c14, &l, " ");
 		
 		l = 0, c15 = init_str(); 
 		add_to_str(&c15, &l, ", ");
-		add_num_to_str(&c15, &l, font_cache.max_bytes);
+		add_num_to_str(&c15, &l, fontcache_info(CI_FILES));
 		add_to_str(&c15, &l, " ");
 		
-		l = 0, c16 = init_str(); 
-		add_to_str(&c16, &l, ", ");
-		add_num_to_str(&c16, &l, font_cache.items);
-		add_to_str(&c16, &l, " ");
-		
-		l = 0, c17 = init_str();
-		add_to_str(&c17, &l, ".\n");
+		l = 0, c16 = init_str();
+		add_to_str(&c16, &l, ".\n");
 	}
 #endif
 
-	l = 0, a14 = init_str(); add_to_str(&a14, &l, ": "); add_num_to_str(&a14, &l, formatted_info(CI_FILES));add_to_str(&a14, &l, " ");
-	l = 0, a15 = init_str(); add_to_str(&a15, &l, ", "); add_num_to_str(&a15, &l, formatted_info(CI_LOCKED));add_to_str(&a15, &l, " ");
-	l = 0, a16 = init_str(); add_to_str(&a16, &l, ".");
+	l = 0, a14 = init_str(); add_to_str(&a14, &l, ": "); add_num_to_str(&a14, &l, formatted_info(CI_FILES)); add_to_str(&a14, &l, " ");
+	l = 0, a15 = init_str(); add_to_str(&a15, &l, ", "); add_num_to_str(&a15, &l, formatted_info(CI_LOCKED)); add_to_str(&a15, &l, " ");
+	l = 0, a16 = init_str(); add_to_str(&a16, &l, ".\n");
 
-	if (!F) msg_box(term, getml(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, NULL), TEXT_(T_RESOURCES), AL_LEFT | AL_EXTD_TEXT, TEXT_(T_RESOURCES), a1, TEXT_(T_HANDLES), a2, TEXT_(T_TIMERS), a3, TEXT_(T_CONNECTIONS), a4, TEXT_(T_cONNECTIONS), a5, TEXT_(T_CONNECTING), a6, TEXT_(T_tRANSFERRING), a7, TEXT_(T_KEEPALIVE), a8, TEXT_(T_MEMORY_CACHE), a9, TEXT_(T_BYTES), a10, TEXT_(T_FILES), a11, TEXT_(T_LOCKED), a12, TEXT_(T_LOADING), a13, TEXT_(T_FORMATTED_DOCUMENT_CACHE), a14, TEXT_(T_DOCUMENTS), a15, TEXT_(T_LOCKED), a16, NULL, r, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
+	l = 0, a17 = init_str(); add_to_str(&a17, &l, ": "); add_num_to_str(&a17, &l, dns_info(CI_FILES)); add_to_str(&a17, &l, " ");
+	l = 0, a18 = init_str(); add_to_str(&a18, &l, ".");
+
+	if (!F) msg_box(term, getml(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10,
+			a11, a12, a13, a14, a15, a16, a17, a18, NULL),
+			TEXT_(T_RESOURCES), AL_LEFT | AL_EXTD_TEXT,
+			TEXT_(T_RESOURCES), a1, TEXT_(T_HANDLES), a2,
+			TEXT_(T_TIMERS), a3, TEXT_(T_CONNECTIONS), a4,
+			TEXT_(T_WAITING), a5, TEXT_(T_CONNECTING),
+			a6, TEXT_(T_tRANSFERRING), a7, TEXT_(T_KEEPALIVE), a8,
+			TEXT_(T_MEMORY_CACHE), a9, TEXT_(T_BYTES), a10,
+			TEXT_(T_FILES), a11, TEXT_(T_LOCKED), a12,
+			TEXT_(T_LOADING), a13,
+			TEXT_(T_FORMATTED_DOCUMENT_CACHE), a14,
+			TEXT_(T_DOCUMENTS), a15, TEXT_(T_LOCKED), a16,
+			TEXT_(T_DNS_CACHE), a17, TEXT_(T_SERVERS), a18, NULL,
+			r, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
 #ifdef G
 	else msg_box(term, getml(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11,
-				a12, a13, b14, b15, b16, b17, a14, a15, a16,
-				c14, c15, c16, c17, NULL), TEXT_(T_RESOURCES),
+				a12, a13, a14, a15, a16, a17, a18,
+				b14, b15, b16, b17, c14, c15, c16, NULL),
+				TEXT_(T_RESOURCES),
 			AL_LEFT | AL_EXTD_TEXT, TEXT_(T_RESOURCES), a1,
 			TEXT_(T_HANDLES), a2, TEXT_(T_TIMERS), a3,
-			TEXT_(T_CONNECTIONS), a4, TEXT_(T_cONNECTIONS), a5,
+			TEXT_(T_CONNECTIONS), a4, TEXT_(T_WAITING), a5,
 			TEXT_(T_CONNECTING), a6, TEXT_(T_tRANSFERRING), a7,
 			TEXT_(T_KEEPALIVE), a8, TEXT_(T_MEMORY_CACHE), a9,
-			TEXT_(T_BYTES), a10, TEXT_(T_FILES), a11, TEXT_(T_LOCKED),
-			a12, TEXT_(T_LOADING), a13, TEXT_(T_IMAGE_CACHE), b14,
-			TEXT_(T_BYTES), b15, TEXT_(T_IMAGES), b16, TEXT_(T_LOCKED),
-			b17, TEXT_(T_FONT_CACHE), c14, TEXT_(T_BYTES), c15,
-			TEXT_(T_BYTES_MAX), c16, TEXT_(T_LETTERS), c17,
-			TEXT_(T_FORMATTED_DOCUMENT_CACHE), a14, TEXT_(T_DOCUMENTS), a15, TEXT_(T_LOCKED), a16, NULL, r, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
+			TEXT_(T_BYTES), a10, TEXT_(T_FILES), a11,
+			TEXT_(T_LOCKED), a12, TEXT_(T_LOADING), a13,
+			TEXT_(T_IMAGE_CACHE), b14, TEXT_(T_BYTES), b15,
+			TEXT_(T_IMAGES), b16, TEXT_(T_LOCKED), b17,
+			TEXT_(T_FONT_CACHE), c14, TEXT_(T_BYTES), c15,
+			TEXT_(T_LETTERS), c16,
+			TEXT_(T_FORMATTED_DOCUMENT_CACHE), a14,
+			TEXT_(T_DOCUMENTS), a15, TEXT_(T_LOCKED), a16,
+			TEXT_(T_DNS_CACHE), a17, TEXT_(T_SERVERS), a18, NULL,
+			r, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
 #endif
 	r->win = term->windows.next;
 	((struct dialog_data *)r->win->data)->dlg->abort = refresh_abort;
@@ -303,28 +319,29 @@ static void flush_caches(struct terminal *term, void *d, void *e)
 	shrink_memory(SH_FREE_ALL);
 }
 
-/* jde v historii o psteps polozek dozadu */
-void go_backwards(struct terminal *term, void *psteps, struct session *ses)
+/* jde v historii na polozku id_ptr */
+void go_backwards(struct terminal *term, void *id_ptr, struct session *ses)
 {
-	long steps = (my_intptr_t) psteps;
-
-	/*if (ses->tq_goto_position)
-		--steps;
-	if (ses->search_word)
-		mem_free(ses->search_word), ses->search_word = NULL;*/
-
-	while (steps > 1) {
-		struct location *loc = ses->history.next;
-		if ((void *) loc == &ses->history) return;
-		loc = loc->next;
-		if ((void *) loc == &ses->history) return;
-		destroy_location(loc);
-
-		--steps;
+	tcount want_id = (my_intptr_t)id_ptr;
+	struct location *l;
+	int n = 0;
+	foreach(l, ses->history) {
+		if (l->location_id == want_id) {
+			goto have_it;
+		}
+		n++;
 	}
+	n = -1;
+	foreach(l, ses->forward_history) {
+		if (l->location_id == want_id) {
+			goto have_it;
+		}
+		n--;
+	}
+	return;
 
-	if (steps)
-		go_back(ses);
+	have_it:
+	go_back(ses, n);
 }
 
 static struct menu_item no_hist_menu[] = {
@@ -332,23 +349,32 @@ static struct menu_item no_hist_menu[] = {
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
 
+static void add_history_menu_entry(struct menu_item **mi, int *n, struct location *l)
+{
+	unsigned char *url, *pc;
+	if (!*mi) *mi = new_menu(3);
+	url = stracpy(l->url);
+	if ((pc = strchr(url, POST_CHAR))) *pc = 0;
+	add_to_menu(mi, url, "", "", MENU_FUNC go_backwards, (void *)(my_intptr_t)l->location_id, 0, *n);
+	(*n)++;
+	if (*n == MAXINT) overalloc();
+}
+
 static void history_menu(struct terminal *term, void *ddd, struct session *ses)
 {
 	struct location *l;
 	struct menu_item *mi = NULL;
-	long n = 0;
-	foreach(l, ses->history) {
-		if (n) {
-			unsigned char *url;
-			if (!mi && !(mi = new_menu(3))) return;
-			url = stracpy(l->url);
-			if (strchr(url, POST_CHAR)) *strchr(url, POST_CHAR) = 0;
-			add_to_menu(&mi, url, "", "", MENU_FUNC go_backwards, (void *) n, 0, n - 1);
-		}
-		n++;
+	int n = 0;
+	int selected = 0;
+	foreachback(l, ses->forward_history) {
+		add_history_menu_entry(&mi, &n, l);
 	}
-	if (n <= 1) do_menu(term, no_hist_menu, ses);
-	else do_menu(term, mi, ses);
+	selected = n;
+	foreach(l, ses->history) {
+		add_history_menu_entry(&mi, &n, l);
+	}
+	if (!mi) do_menu(term, no_hist_menu, ses);
+	else do_menu_selected(term, mi, ses, selected);
 }
 
 static struct menu_item no_downloads_menu[] = {
@@ -363,7 +389,7 @@ static void downloads_menu(struct terminal *term, void *ddd, struct session *ses
 	int n = 0;
 	foreachback(d, downloads) {
 		unsigned char *u;
-		if (!mi) if (!(mi = new_menu(3))) return;
+		if (!mi) mi = new_menu(3);
 		u = stracpy(d->url);
 		if (strchr(u, POST_CHAR)) *strchr(u, POST_CHAR) = 0;
 		add_to_menu(&mi, u, "", "", MENU_FUNC display_download, d, 0, n);
@@ -410,7 +436,7 @@ static void charset_list(struct terminal *term, void *xxx, struct session *ses)
 	long i; int sel;
 	unsigned char *n;
 	struct menu_item *mi;
-	if (!(mi = new_menu(1))) return;
+	mi = new_menu(1);
 	for (i = 0; (n = get_cp_name(i)); i++) {
 #ifndef ENABLE_UTF8
 		if (is_cp_special(i)) continue;
@@ -432,7 +458,7 @@ static void charset_sel_list(struct terminal *term, struct session *ses, int *pt
 	long i; int sel;
 	unsigned char *n;
 	struct menu_item *mi;
-	if (!(mi = new_menu(1))) return;
+	mi = new_menu(1);
 	for (i = 0; (n = get_cp_name(i)); i++) {
 		if (noutf8 && is_cp_special(i)) continue;
 		add_to_menu(&mi, get_cp_name(i), "", "", MENU_FUNC set_val, (void *)i, 0, i);
@@ -878,7 +904,7 @@ static unsigned char disp_green_g[VO_GAMMA_LEN];
 static unsigned char disp_blue_g[VO_GAMMA_LEN];
 static unsigned char user_g[VO_GAMMA_LEN];
 static unsigned char aspect_str[VO_GAMMA_LEN];
-int gamma_stamp; /* stamp counter for gamma changes */
+tcount gamma_stamp; /* stamp counter for gamma changes */
 
 static void refresh_video(struct session *ses)
 {
@@ -890,12 +916,10 @@ static void refresh_video(struct session *ses)
 	display_blue_gamma=atof(disp_blue_g);
 	user_gamma=atof(user_g);
 	bfu_aspect=atof(aspect_str);
+	/* Flush font cache */
 	update_aspect();
 	gamma_stamp++;
 	
-	/* Flush font cache */
-	destroy_font_cache();
-
 	/* Flush dip_get_color cache */
 	gamma_cache_rgb = -2;
 
@@ -1471,6 +1495,7 @@ static void net_programs(struct terminal *term, void *xxx, void *yyy)
 static unsigned char mc_str[8];
 #ifdef G
 static unsigned char ic_str[8];
+static unsigned char fc_str[8];
 #endif
 static unsigned char doc_str[4];
 
@@ -1478,7 +1503,10 @@ static void cache_refresh(void *xxx)
 {
 	memory_cache_size = atoi(mc_str) * 1024;
 #ifdef G
-	if (F) image_cache_size = atoi(ic_str) * 1024;
+	if (F) {
+		image_cache_size = atoi(ic_str) * 1024;
+		font_cache_size = atoi(fc_str) * 1024;
+	}
 #endif
 	max_format_cache_entries = atoi(doc_str);
 	shrink_memory(SH_CHECK_QUOTA);
@@ -1486,7 +1514,7 @@ static void cache_refresh(void *xxx)
 
 static unsigned char *cache_texts[] = { TEXT_(T_MEMORY_CACHE_SIZE__KB), TEXT_(T_NUMBER_OF_FORMATTED_DOCUMENTS), TEXT_(T_AGGRESSIVE_CACHE) };
 #ifdef G
-static unsigned char *g_cache_texts[] = { TEXT_(T_MEMORY_CACHE_SIZE__KB), TEXT_(T_IMAGE_CACHE_SIZE__KB), TEXT_(T_NUMBER_OF_FORMATTED_DOCUMENTS), TEXT_(T_AGGRESSIVE_CACHE) };
+static unsigned char *g_cache_texts[] = { TEXT_(T_MEMORY_CACHE_SIZE__KB), TEXT_(T_IMAGE_CACHE_SIZE__KB), TEXT_(T_FONT_CACHE_SIZE__KB), TEXT_(T_NUMBER_OF_FORMATTED_DOCUMENTS), TEXT_(T_AGGRESSIVE_CACHE) };
 #endif
 
 static void cache_opt(struct terminal *term, void *xxx, void *yyy)
@@ -1495,12 +1523,15 @@ static void cache_opt(struct terminal *term, void *xxx, void *yyy)
 	int a;
 	snprint(mc_str, 8, memory_cache_size / 1024);
 #ifdef G
-	if (F) snprint(ic_str, 8, image_cache_size / 1024);
+	if (F) {
+		snprint(ic_str, 8, image_cache_size / 1024);
+		snprint(fc_str, 8, font_cache_size / 1024);
+	}
 #endif
 	snprint(doc_str, 4, max_format_cache_entries);
 #ifdef G
 	if (F) {
-		d = mem_calloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
 	} else
 #endif
 	{
@@ -1528,6 +1559,13 @@ static void cache_opt(struct terminal *term, void *xxx, void *yyy)
 		d->items[a].type = D_FIELD;
 		d->items[a].dlen = 8;
 		d->items[a].data = ic_str;
+		d->items[a].fn = check_number;
+		d->items[a].gid = 0;
+		d->items[a].gnum = MAXINT / 1024;
+		a++;
+		d->items[a].type = D_FIELD;
+		d->items[a].dlen = 8;
+		d->items[a].data = fc_str;
 		d->items[a].fn = check_number;
 		d->items[a].gid = 0;
 		d->items[a].gnum = MAXINT / 1024;
@@ -1770,11 +1808,12 @@ static unsigned char fg_color_str[7];
 static unsigned char scroll_area_color_str[7];
 static unsigned char scroll_bar_color_str[7];
 static unsigned char scroll_frame_color_str[7];
+#endif
 
-static void refresh_misc(void *ignore)
+static void refresh_misc(struct session *ses)
 {
-	if (F)
-	{
+#ifdef G
+	if (F) {
 		struct session *ses;
 
 		menu_font_size=strtol(menu_font_str,0,10);
@@ -1790,15 +1829,14 @@ static void refresh_misc(void *ignore)
 			ses->term->dev->resize_handler(ses->term->dev);
 		}
 	}
+#endif
 	if (strcmp(new_bookmarks_file,bookmarks_file)||new_bookmarks_codepage!=bookmarks_codepage)
 	{
-		save_bookmarks();
-		safe_strncpy(bookmarks_file,new_bookmarks_file,MAX_STR_LEN);
-		bookmarks_codepage=new_bookmarks_codepage;
-		reinit_bookmarks();
+		reinit_bookmarks(ses, new_bookmarks_file, new_bookmarks_codepage);
 	}
 }
 
+#ifdef G
 static unsigned char *miscopt_labels_g[] = { TEXT_(T_MENU_FONT_SIZE), TEXT_(T_ENTER_COLORS_AS_RGB_TRIPLETS), TEXT_(T_MENU_FOREGROUND_COLOR), TEXT_(T_MENU_BACKGROUND_COLOR), TEXT_(T_SCROLL_BAR_AREA_COLOR), TEXT_(T_SCROLL_BAR_BAR_COLOR), TEXT_(T_SCROLL_BAR_FRAME_COLOR), TEXT_(T_BOOKMARKS_FILE), NULL };
 #endif
 static unsigned char *miscopt_labels[] = { TEXT_(T_BOOKMARKS_FILE), NULL };
@@ -1929,9 +1967,8 @@ static void miscelaneous_options(struct terminal *term, void *xxx, struct sessio
 #endif
 	}
 	d->title = TEXT_(T_MISCELANEOUS_OPTIONS);
-#ifdef G
 	d->refresh = (void (*)(void *))refresh_misc;
-#endif
+	d->refresh_data = ses;
 	d->fn=miscopt_fn;
 	if (!F)
 		d->udata = miscopt_labels;
@@ -2038,7 +2075,7 @@ static void menu_language_list(struct terminal *term, void *xxx, struct session 
 	long i; int sel;
 	unsigned char *n;
 	struct menu_item *mi;
-	if (!(mi = new_menu(1))) return;
+	mi = new_menu(1);
 	for (i = 0; i < n_languages(); i++) {
 		n = language_name(i);
 		add_to_menu(&mi, n, "", "", MENU_FUNC menu_set_language, (void *)i, 0, i);
@@ -2102,6 +2139,7 @@ static void dlg_resize_terminal(struct terminal *term, void *xxx, struct session
 static struct menu_item file_menu11[] = {
 	{ TEXT_(T_GOTO_URL), "g", TEXT_(T_HK_GOTO_URL), MENU_FUNC menu_goto_url, (void *)0, 0, 0 },
 	{ TEXT_(T_GO_BACK), "z", TEXT_(T_HK_GO_BACK), MENU_FUNC menu_go_back, (void *)0, 0, 0 },
+	{ TEXT_(T_GO_FORWARD), "x", TEXT_(T_HK_GO_FORWARD), MENU_FUNC menu_go_forward, (void *)0, 0, 0 },
 	{ TEXT_(T_HISTORY), ">", TEXT_(T_HK_HISTORY), MENU_FUNC history_menu, (void *)0, 1, 0 },
 	{ TEXT_(T_RELOAD), "Ctrl-R", TEXT_(T_HK_RELOAD), MENU_FUNC menu_reload, (void *)0, 0, 0 },
 };
@@ -2110,6 +2148,7 @@ static struct menu_item file_menu11[] = {
 static struct menu_item file_menu111[] = {
 	{ TEXT_(T_GOTO_URL), "g", TEXT_(T_HK_GOTO_URL), MENU_FUNC menu_goto_url, (void *)0, 0, 0 },
 	{ TEXT_(T_GO_BACK), "z", TEXT_(T_HK_GO_BACK), MENU_FUNC menu_go_back, (void *)0, 0, 0 },
+	{ TEXT_(T_GO_FORWARD), "x", TEXT_(T_HK_GO_FORWARD), MENU_FUNC menu_go_forward, (void *)0, 0, 0 },
 	{ TEXT_(T_HISTORY), ">", TEXT_(T_HK_HISTORY), MENU_FUNC history_menu, (void *)0, 1, 0 },
 	{ TEXT_(T_RELOAD), "Ctrl-R", TEXT_(T_HK_RELOAD), MENU_FUNC menu_reload, (void *)0, 0, 0 },
 };
@@ -2117,8 +2156,6 @@ static struct menu_item file_menu111[] = {
 
 static struct menu_item file_menu12[] = {
 	{ TEXT_(T_BOOKMARKS), "s", TEXT_(T_HK_BOOKMARKS), MENU_FUNC menu_bookmark_manager, (void *)0, 0, 0 },
-	{ TEXT_(T_SAVE_BOOKMARKS), "", TEXT_(T_HK_SAVE_BOOKMARKS), MENU_FUNC menu_save_bookmarks, (void *)0, 0, 0 },
-	/*{ TEXT_(T_ADD_BOOKMARK), "a", TEXT_(T_HK_ADD_BOOKMARK), MENU_FUNC menu_bookmark_manager, (void *)0, 0, 0 },*/
 };
 
 static struct menu_item file_menu21[] = {
@@ -2148,7 +2185,7 @@ static struct menu_item file_menu211_clipb[] = {
 static struct menu_item file_menu22[] = {
 	{ "", "", M_BAR, NULL, NULL, 0, 0} ,
 	{ TEXT_(T_KILL_BACKGROUND_CONNECTIONS), "", TEXT_(T_HK_KILL_BACKGROUND_CONNECTIONS), MENU_FUNC menu_kill_background_connections, (void *)0, 0, 0 },
-	{ TEXT_(T_KILL_ALL_CONNECTIONS), "Ctrl-S", TEXT_(T_HK_KILL_ALL_CONNECTIONS), MENU_FUNC menu_kill_all_connections, (void *)0, 0, 0 },
+	{ TEXT_(T_KILL_ALL_CONNECTIONS), "", TEXT_(T_HK_KILL_ALL_CONNECTIONS), MENU_FUNC menu_kill_all_connections, (void *)0, 0, 0 },
 	{ TEXT_(T_FLUSH_ALL_CACHES), "", TEXT_(T_HK_FLUSH_ALL_CACHES), MENU_FUNC flush_caches, (void *)0, 0, 0 },
 	{ TEXT_(T_RESOURCE_INFO), "", TEXT_(T_HK_RESOURCE_INFO), MENU_FUNC cache_inf, (void *)0, 0, 0 },
 #if 0
@@ -2371,12 +2408,15 @@ static void do_view_menu(struct terminal *term, void *xxx, struct session *ses)
 static void do_setup_menu(struct terminal *term, void *xxx, struct session *ses)
 {
 #ifdef G
-	if (F) if (!anonymous) do_menu(term, setup_menu_g, ses);
-	else do_menu(term, setup_menu_anon_g, ses);
-	else
+	if (F) {
+		if (!anonymous) do_menu(term, setup_menu_g, ses);
+		else do_menu(term, setup_menu_anon_g, ses);
+	} else
 #endif
-	if (!anonymous) do_menu(term, setup_menu, ses);
-	else do_menu(term, setup_menu_anon, ses);
+	{
+		if (!anonymous) do_menu(term, setup_menu, ses);
+		else do_menu(term, setup_menu_anon, ses);
+	}
 }
 
 static struct menu_item main_menu[] = {

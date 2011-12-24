@@ -7,6 +7,8 @@
 
 #include "links.h"
 
+unsigned char system_name[MAX_STR_LEN];
+
 static void get_system_name(void)
 {
 #if defined(HAVE_SYS_UTSNAME_H) && defined(HAVE_UNAME)
@@ -46,6 +48,307 @@ static void get_system_name(void)
 	fail:
 #endif
 	strcpy(system_name, SYSTEM_NAME);
+}
+
+unsigned char compiler_name[MAX_STR_LEN];
+
+static void get_compiler_name(void)
+{
+#if defined(__clang__)
+
+#if !defined(__clang_major__) || !defined(__clang_minor__)
+	sprintf(compiler_name, "LLVM/Clang");
+#else
+	int v1 = __clang_major__+0;
+	int v2 = __clang_minor__+0;
+#ifdef __clang_patchlevel__
+	int v3 = __clang_patchlevel__+0;
+#else
+	int v3 = 0;
+#endif
+	if (v3 > 0) sprintf(compiler_name, "LLVM/Clang %d.%d.%d", v1, v2, v3);
+	else sprintf(compiler_name, "LLVM/Clang %d.%d", v1, v2);
+#endif
+
+#elif defined(__COMO_VERSION__)
+
+	int w = __COMO_VERSION__+0;
+	int v1 = w / 100;
+	int v2 = w % 100;
+	if (!(v2 % 10)) sprintf(compiler_name, "Comeau C %d.%d", v1, v2 / 10);
+	else sprintf(compiler_name, "Comeau C %d.%02d", v1, v2);
+
+#elif defined(__convexc__)
+
+	sprintf(compiler_name, "Convex C");
+
+#elif defined(_CRAYC)
+
+#if !defined(_RELEASE) || !defined(_RELEASE_MINOR)
+	sprintf(compiler_name, "Cray C");
+#else
+	int v1 = _RELEASE+0;
+	int v2 = _RELEASE_MINOR+0;
+	sprintf(compiler_name, "Cray C %d.%d", v1, v2);
+#endif
+
+#elif defined(__DCC__)
+
+#ifndef __VERSION_NUMBER__
+	sprintf(compiler_name, "Diab C");
+#else
+	int w = __VERSION_NUMBER__+0;
+	int v1 = w / 1000;
+	int v2 = w / 100 % 10;
+	int v3 = w % 100;
+	sprintf(compiler_name, "Diab C %d.%d.%02d", v1, v2, v3);
+#endif
+
+#elif defined(__DECC_VER)
+
+	int w = __DECC_VER+0;
+	int v1 = w / 10000000;
+	int v2 = w / 100000 % 100;
+	int v3 = w % 10000;
+	if (!(v2 % 10)) sprintf(compiler_name, "DEC C %d.%d-%d", v1, v2 / 10, v3);
+	else sprintf(compiler_name, "DEC C %d.%02d-%d", v1, v2, v3);
+
+#elif defined(__ghs__)
+
+#ifndef __GHS_VERSION_NUMBER__
+	sprintf(compiler_name, "Green Hill C");
+#else
+	int w = __GHS_VERSION_NUMBER__+0;
+	int v1 = w / 100;
+	int v2 = w / 10 % 10;
+	int v3 = w % 10;
+	sprintf(compiler_name, "Green Hill C %d.%d.%d", v1, v2, v3);
+#endif
+
+#elif defined(__HIGHC__)
+
+	sprintf(compiler_name, "MetaWare High C");
+
+#elif defined(__HP_cc)
+
+	int w = __HP_cc+0;
+	int v1 = w / 10000;
+	int v2 = w / 100 % 100;
+	int v3 = w % 100;
+	if (w <= 1) sprintf(compiler_name, "HP CC");
+	else sprintf(compiler_name, "HP CC %d.%02d.%02d", v1, v2, v3);
+
+#elif defined(__xlc__)
+
+	int w = __xlc__+0;
+	int v1 = w / 0x100;
+	int v2 = w % 0x100;
+	sprintf(compiler_name, "IBM XL C %X.%X", v1, v2);
+
+#elif defined(__IBMC__) && defined(__COMPILER_VER__)
+
+	unsigned w = __COMPILER_VER__+0;
+	int v0 = w / 0x10000000;
+	int v1 = w / 0x1000000 % 0x10;
+	int v2 = w / 0x10000 % 0x100;
+	int v3 = w % 0x10000;
+	unsigned char *os = !v0 ? "S/370" : v0 == 1 ? "OS/390" : v0 == 4 ? "z/OS" : "";
+	sprintf(compiler_name, "IBM%s%s XL C %X.%0X.%X", *os ? " " : "", os, v1, v2, v3);
+
+#elif defined(__ICC)
+
+	int w = __ICC+0;
+	int v1 = w / 100;
+	int v2 = w % 100;
+	if (!(v2 % 10)) sprintf(compiler_name, "Intel C %d.%d", v1, v2 / 10);
+	else sprintf(compiler_name, "Intel C %d.%02d", v1, v2);
+
+#elif defined(__LCC__)
+
+	sprintf(compiler_name, "LCC");
+
+#elif defined(__NDPC__)
+
+	sprintf(compiler_name, "Microway NDP C");
+
+#elif defined(_MSC_VER)
+
+	int w = _MSC_VER+0;
+	int v1 = w / 100;
+	int v2 = w % 100;
+	unsigned char *visual = "";
+	if (v1 >= 8) {
+		v1 -= 6;
+		if (v1 == 2) v1 = 1;
+		visual = "Visual ";
+	}
+	if (!(v2 % 10)) sprintf(compiler_name, "Microsoft %sC %d.%d", visual, v1, v2 / 10);
+	else sprintf(compiler_name, "Microsoft %sC %d.%02d", visual, v1, v2);
+
+#elif defined(__MWERKS__)
+
+	int w = __MWERKS__+0;
+	int v1 = w / 0x1000;
+	int v2 = w / 0x100 % 0x10;
+	int v3 = w % 0x100;
+	if (w <= 1) sprintf(compiler_name, "Metrowerks CodeWarrior");
+	sprintf(compiler_name, "Metrowerks CodeWarrior %x.%x.%x", v1, v2, v3);
+
+#elif defined(__NWCC__)
+
+	sprintf(compiler_name, "NWCC");
+
+#elif defined(__OPEN64__)
+
+	unsigned char *n = "Open64 " __OPEN64__;
+	if (strlen(n) >= sizeof(compiler_name)) n = "Open64";
+	strcpy(compiler_name, n);
+
+#elif defined(__PATHSCALE__)
+
+	unsigned char *n = "PathScale " __PATHSCALE__;
+	if (strlen(n) >= sizeof(compiler_name)) n = "PathScale";
+	strcpy(compiler_name, n);
+
+#elif defined(__PCC__)
+
+	int v1 = __PCC__+0;
+#ifdef __PCC_MINOR__
+	int v2 = __PCC_MINOR__+0;
+#else
+	int v2 = 0;
+#endif
+#ifdef __PCC_MINORMINOR__
+	int v3 = __PCC_MINORMINOR__+0;
+#else
+	int v3 = 0;
+#endif
+	sprintf(compiler_name, "PCC %d.%d.%d", v1, v2, v3);
+
+#elif defined(__PGI) || defined(__PGIC__)
+
+#if !defined(__PGIC__) || !defined(__PGIC_MINOR__)
+	sprintf(compiler_name, "The Portland Group C");
+#else
+	int v1 = __PGIC__+0;
+	int v2 = __PGIC_MINOR__+0;
+#ifdef __PGIC_PATCHLEVEL__
+	int v3 = __PGIC_PATCHLEVEL__+0;
+#else
+	int v3 = 0;
+#endif
+	if (v3 > 0) sprintf(compiler_name, "The Portland Group C %d.%d.%d", v1, v2, v3);
+	else sprintf(compiler_name, "The Portland Group C %d.%d", v1, v2);
+#endif
+
+#elif defined(__SASC__)
+
+	int w = __SASC__+0;
+	int v1 = w / 100;
+	int v2 = w % 100;
+	sprintf(compiler_name, "SAS C %d.%02d", v1, v2);
+
+#elif (defined(__sgi) && defined(_COMPILER_VERSION)) || defined(_SGI_COMPILER_VERSION)
+
+#ifdef _SGI_COMPILER_VERSION
+	int w = _SGI_COMPILER_VERSION;
+#else
+	int w = _COMPILER_VERSION;
+#endif
+	int v1 = w / 100;
+	int v2 = w / 10 % 10;
+	int v3 = w % 10;
+	sprintf(compiler_name, "MIPSpro %d.%d.%d", v1, v2, v3);
+
+#elif defined(__SUNPRO_C)
+
+	int w = __SUNPRO_C+0;
+	int div = w >= 0x1000 ? 0x1000 : 0x100;
+	int v2_digits = w >= 0x1000 ? 2 : 1;
+	int v1 = w / div;
+	int v2 = w % div / 0x10;
+	int v3 = w % 0x10;
+	if (!v3) sprintf(compiler_name, "Sun C %X.%0*X", v1, v2_digits, v2);
+	else sprintf(compiler_name, "Sun C %X.%0*X.%X", v1, v2_digits, v2, v3);
+
+#elif defined(__SYSC__) && defined(__SYSC_VER__)
+
+	int w = __SYSC_VER__+0;
+	int v1 = w / 10000;
+	int v2 = w / 100 % 100;
+	int v3 = w % 100;
+	sprintf(compiler_name, "Dignus Systems C %d.%02d.%02d", v1, v2, v3);
+
+#elif defined(__TenDRA__)
+
+	sprintf(compiler_name, "TenDRA C");
+
+#elif defined(__TINYC__)
+
+	sprintf(compiler_name, "Tiny C");
+
+#elif defined(_UCC)
+
+#if !defined(_MAJOR_REV) || !defined(_MINOR_REV)
+	sprintf(compiler_name, "Ultimate C");
+#else
+	int v1 = _MAJOR_REV+0;
+	int v2 = _MAJOR_REV+0;
+	sprintf(compiler_name, "Ultimate C %d.%d", v1, v2);
+#endif
+
+#elif defined(__USLC__)
+
+	sprintf(compiler_name, "USL C");
+
+#elif defined(__VAXC)
+
+	sprintf(compiler_name, "VAX C");
+
+#elif defined(__VOSC__)
+
+	sprintf(compiler_name, "Stratus VOS C");
+
+#elif defined(__WATCOMC__)
+
+	int w = __WATCOMC__+0;
+	int v1 = w / 100;
+	int v2 = w % 100;
+	unsigned char *op = "";
+	if (v1 >= 12) {
+		v1 -= 11;
+		op = "Open";
+	}
+	if (!(v2 % 10)) sprintf(compiler_name, "%sWatcom C %d.%d", op, v1, v2 / 10);
+	else sprintf(compiler_name, "%sWatcom C %d.%02d", op, v1, v2);
+
+#elif defined(__GNUC__)
+
+	int v1 = __GNUC__+0;
+#ifdef __GNUC_MINOR__
+	int v2 = __GNUC_MINOR__+0;
+#else
+	int v2 = 0;
+#endif
+#ifdef __GNUC_PATCHLEVEL__
+	int v3 = __GNUC_PATCHLEVEL__+0;
+#else
+	int v3 = 0;
+#endif
+#if defined(__llvm__)
+	unsigned char *prefix = "LLVM/";
+#else
+	unsigned char *prefix = "";
+#endif
+	if (v1 == 2 && (v2 >= 90 && v2 <= 91)) sprintf(compiler_name, "%sEGCS 1.%d", prefix, v2 - 90);
+	else if (v3 > 0) sprintf(compiler_name, "%sGNU C %d.%d.%d", prefix, v1, v2, v3);
+	else sprintf(compiler_name, "%sGNU C %d.%d", prefix, v1, v2);
+
+#else
+
+	sprintf(compiler_name, "unknown compiler");
+
+#endif
 }
 
 struct option {
@@ -98,7 +401,7 @@ static unsigned char *get_token(unsigned char **line)
 	int l = 0;
 	int escape = 0;
 	int quote = 0;
-	
+
 	while (**line == ' ' || **line == 9) (*line)++;
 	if (**line) {
 		for (s = init_str(); **line; (*line)++) {
@@ -107,7 +410,7 @@ static unsigned char *get_token(unsigned char **line)
 			else if (**line == '\\') {
 				escape = 1;
 				continue;
-			}	
+			}
 			else if (**line == '"') {
 				quote = !quote;
 				continue;
@@ -194,7 +497,7 @@ unsigned char *read_config_file(unsigned char *name)
 	if ((h = open(name, O_RDONLY | O_NOCTTY)) == -1) return NULL;
 	set_bin(h);
 	s = init_str();
-	while ((r = read(h, cfg_buffer, FILE_BUF)) > 0) {
+	while ((r = hard_read(h, cfg_buffer, FILE_BUF)) > 0) {
 		int i;
 		for (i = 0; i < r; i++) if (!cfg_buffer[i]) cfg_buffer[i] = ' ';
 		add_bytes_to_str(&s, &l, cfg_buffer, r);
@@ -222,7 +525,7 @@ int write_to_config_file(unsigned char *name, unsigned char *c)
 	rr = strlen(c);
 	r = rr;
 	while (r > 0) {
-		if ((w = write(h, c + rr - r, r)) <= 0) {
+		if ((w = hard_write(h, c + rr - r, r)) <= 0) {
 			int err = !w ? ENOSPC : errno;
 			close(h);
 			unlink(tmp_name);
@@ -320,7 +623,7 @@ skip_path_conv:;
 			sleep(3);
 			mem_free(home_links);
 			home_links = stracpy(home);
-			add_to_strn(&home_links, ".links");		
+			add_to_strn(&home_links, ".links");
 		}
 		mem_free(config_dir);
 	} else add_to_strn(&home_links, ".links");
@@ -371,6 +674,7 @@ skip_path_conv:;
 void init_home(void)
 {
 	get_system_name();
+	get_compiler_name();
 	links_home = get_home(&first_use);
 	if (!links_home) {
 		fprintf(stderr, "Unable to find or create links config directory. Please check, that you have $HOME variable set correctly and that you have write permission to your home directory.\n\007");
@@ -451,11 +755,11 @@ static void num_wr(struct option *o, unsigned char **s, int *l)
 static unsigned char *dbl_rd(struct option *o, unsigned char *c)
 {
 	unsigned char *tok = get_token(&c);
-	char *end;
+	unsigned char *end;
 	double d;
-	
+
 	if (!tok) return "Missing argument";
-	d = strtod(tok, &end);
+	d = strtod(tok, (char **)(void *)&end);
 
 	if (*end) {
 		mem_free(tok);
@@ -472,7 +776,7 @@ static unsigned char *dbl_rd(struct option *o, unsigned char *c)
 
 static void dbl_wr(struct option *o, unsigned char **s, int *l)
 {
-	char number[80];
+	unsigned char number[80];
 	snprintf(number, sizeof number, "%.4f", *(double*)o->ptr);
 
 	add_nm(o, s, l);
@@ -597,7 +901,7 @@ static unsigned char *block_rd(struct option *o, unsigned char *c)
 
 	if(!(url = get_token(&c)))
 		return err;
-	
+
 	block_add_URL_fn(NULL, url);
 
 	mem_free(url);
@@ -1107,7 +1411,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    (default 0)\n"
 "  Retry on internal server errors (50x).\n"
 "\n"
-" -http.referer <0>/<1>/<2>/<3>\n"
+" -http.referer <0>/<1>/<2>/<3>/<4>\n"
 "    (default 0)\n"
 "  0 - do not send referer\n"
 "  1 - send the requested URL as referer\n"
@@ -1351,8 +1655,6 @@ unsigned char ggr_display[MAX_STR_LEN] = "";
 
 int anonymous = 0;
 
-unsigned char system_name[MAX_STR_LEN];
-
 unsigned char default_target[MAX_STR_LEN] ="";
 
 unsigned char *links_home = NULL;
@@ -1377,6 +1679,7 @@ int dump_codepage = -1;
 int max_format_cache_entries = 5;
 int memory_cache_size = 1048576;
 int image_cache_size = 1048576;
+int font_cache_size = 2097152;
 
 struct document_setup dds = { 0, 0, 1, 1, 0, 0, 3, 0, 0, 0, 18, 1, 
 	100, /* Image scale */
@@ -1454,6 +1757,7 @@ static struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 999, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &memory_cache_size, "memory_cache_size", "memory-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &image_cache_size, "image_cache_size", "image-cache-size"},
+	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &font_cache_size, "font_cache_size", "font-cache-size"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.http_proxy, "http_proxy", "http-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.ftp_proxy, "ftp_proxy", "ftp-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.socks_proxy, "socks_proxy", "socks-proxy"},

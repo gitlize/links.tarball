@@ -699,7 +699,8 @@ static void x_process_events(void *data)
 			gd->size.x2=event.xconfigure.width;
 			gd->size.y2=event.xconfigure.height;
 			x_update_driver_param(event.xconfigure.width, event.xconfigure.height);
-			while (XCheckWindowEvent(x_display,*((Window *)(gd->driver_data)),ExposureMask,&event)==True) ;
+			while (XCheckWindowEvent(x_display,*((Window *)(gd->driver_data)),ExposureMask,&event)==True)
+				;
 			if (XCheckWindowEvent(x_display,*((Window *)(gd->driver_data)),StructureNotifyMask,&event)==True) {
 				if (event.type==ConfigureNotify) goto configure_notify_again;
 				replay_event=1;
@@ -772,6 +773,14 @@ static void x_process_events(void *data)
 					a=B_MIDDLE;
 					break;
 
+					case 8:
+					a=B_FOURTH;
+					break;
+
+					case 9:
+					a=B_FIFTH;
+					break;
+
 					default:
 					goto r_xx;
 
@@ -825,6 +834,14 @@ static void x_process_events(void *data)
 
 					case 7:
 					a=B_WHEELRIGHT;
+					break;
+
+					case 8:
+					a=B_FOURTH;
+					break;
+
+					case 9:
+					a=B_FIFTH;
 					break;
 
 					default:
@@ -1029,7 +1046,8 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 		
 		x_driver_param=stracpy(param);
 		
-		for (p=x_driver_param;(*p)&&(*p)!='x'&&(*p)!='X';p++);
+		for (p=x_driver_param;(*p)&&(*p)!='x'&&(*p)!='X';p++)
+			;
 		if (!(*p))goto done;
 		*p=0;
 		w=strtoul(x_driver_param,(char **)(void *)&e,10);

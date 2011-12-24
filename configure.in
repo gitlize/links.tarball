@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.4)
+AM_INIT_AUTOMAKE(links, 2.5)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -143,6 +143,8 @@ AC_CHECK_HEADERS(langinfo.h)
 AC_CHECK_HEADERS(pwd.h)
 AC_CHECK_HEADERS(grp.h)
 AC_CHECK_HEADERS(malloc.h)
+AC_CHECK_HEADERS(alloca.h)
+AC_CHECK_HEADERS(umalloc.h)
 dnl javascript AC_CHECK_HEADERS(md5.h)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
@@ -255,6 +257,10 @@ AC_HAVE_FUNCS(setrlimit)
 AC_HAVE_FUNCS(setlocale)
 AC_HAVE_FUNCS(nl_langinfo)
 AC_HAVE_FUNCS(_heapmin)
+AC_HAVE_FUNCS(_ucreate)
+AC_HAVE_FUNCS(_uopen)
+AC_HAVE_FUNCS(_udestroy)
+AC_HAVE_FUNCS(_udefault)
 
 AC_HAVE_FUNCS(snprintf)
 AC_HAVE_FUNCS(raise)
@@ -494,11 +500,9 @@ fi
 AC_ARG_WITH(gpm, [  --without-gpm           compile without gpm mouse],[if test "$withval" = no; then disable_gpm=yes; else disable_gpm=no; fi])
 
 if test "$disable_gpm" != yes; then
-	AC_CHECK_LIB(gpm, Gpm_Open)
-	cf_have_gpm_lib=$ac_cv_lib_gpm_Gpm_Open
 	AC_CHECK_HEADERS(gpm.h)
-	cf_have_gpm_includes=$ac_cv_header_gpm_h
-	if test "$cf_have_gpm_lib" = yes && test "$cf_have_gpm_includes" = yes ; then cf_have_gpm=yes ; else cf_have_gpm=no; fi
+	AC_CHECK_LIB(gpm, Gpm_Open)
+	if test "$ac_cv_lib_gpm_Gpm_Open" = yes && test "$ac_cv_header_gpm_h" = yes ; then cf_have_gpm=yes ; else cf_have_gpm=no; fi
 else
 	cf_have_gpm=no
 fi
@@ -642,6 +646,7 @@ cf_have_ssl=$cf_result
 
 AC_ARG_WITH(zlib, [  --without-zlib          compile without zlib compression],[if test "$withval" = no; then disable_zlib=yes; else disable_zlib=no; fi])
 AC_ARG_WITH(bzip2, [  --without-bzip2         compile without bzip2 compression],[if test "$withval" = no; then disable_bzip2=yes; else disable_bzip2=no; fi])
+AC_ARG_WITH(lzma, [  --without-lzma          compile without lzma compression],[if test "$withval" = no; then disable_lzma=yes; else disable_lzma=no; fi])
 compression=""
 
 if test "$disable_zlib" != yes ; then
@@ -658,6 +663,15 @@ if test "$disable_bzip2" != yes ; then
 	if test "$ac_cv_header_bzlib_h" = yes && test "$ac_cv_lib_bz2_BZ2_bzDecompress" = yes; then
 		AC_DEFINE(HAVE_BZIP2)
 		compression="$compression BZIP2"
+	fi
+fi
+
+if test "$disable_lzma" != yes ; then
+	AC_CHECK_HEADERS(lzma.h)
+	AC_CHECK_LIB(lzma, lzma_auto_decoder)
+	if test "$ac_cv_header_lzma_h" = yes && test "$ac_cv_lib_lzma_lzma_auto_decoder" = yes; then
+		AC_DEFINE(HAVE_LZMA)
+		compression="$compression LZMA"
 	fi
 fi
 

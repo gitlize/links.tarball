@@ -12,6 +12,7 @@ static void increase_download_file(unsigned char **f);
 static struct location *new_location(void);
 static int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *err);
 static void refresh_timer(struct f_data_c *);
+static void destroy_location(struct location *loc);
 
 
 int are_there_downloads(void)
@@ -216,7 +217,8 @@ void print_error_dialog(struct session *ses, struct status *stat, unsigned char 
 {
 	unsigned char *t = get_err_msg(stat->state);
 	unsigned char *u = stracpy(title);
-	if (strchr(u, POST_CHAR)) *strchr(u, POST_CHAR) = 0;
+	unsigned char *pc;
+	if ((pc = strchr(u, POST_CHAR))) *pc = 0;
 	if (!t) return;
 	msg_box(ses->term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), " ", u, ":\n\n", t, NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC/*, _("Retry"), NULL, 0 !!! FIXME: retry */);
 }
@@ -628,7 +630,7 @@ static int download_write(struct download *down, void *ptr, off_t to_write)
 	int err;
 	if (to_write != (int)to_write || (int)to_write < 0) to_write = MAXINT;
 	try_write_again:
-	w = write(down->handle, ptr, to_write);
+	w = hard_write(down->handle, ptr, to_write);
 	if (w >= 0) err = 0;
 	else err = errno;
 	if (w <= -!to_write) {
@@ -1591,9 +1593,30 @@ static int plain_type(struct session *ses, struct object_request *rq, unsigned c
 	return r;
 }
 
-#define DECODE_STEP	4096
+#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2) || defined(HAVE_LZMA)
+#define HAVE_ANY_COMPRESSION
+#endif
 
-#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
+#ifdef HAVE_ANY_COMPRESSION
+
+static void decoder_memory_init(unsigned char **p, size_t *size, off_t init_length)
+{
+	if (init_length > 0 && init_length < MAXINT) *size = init_length;
+	else *size = 4096;
+	*p = mem_alloc(*size);
+}
+
+static void decoder_memory_expand(unsigned char **p, size_t size, size_t *addsize)
+{
+	size_t add = size / 4 + 1;
+	if (size + add < size) {
+		if (add > 1) add >>= 1;
+		else overalloc();
+	}
+	*addsize = add;
+	*p = mem_realloc(*p, size + add);
+}
+
 static void decompress_error(struct terminal *term, struct cache_entry *ce, unsigned char *lib, unsigned char *msg, int *errp)
 {
 	struct window *win;
@@ -1617,6 +1640,7 @@ static void decompress_error(struct terminal *term, struct cache_entry *ce, unsi
 	if ((uu = strchr(u, POST_CHAR))) *uu = 0;
 	msg_box(term, getml(u, NULL), TEXT_(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DECOMPRESSING_), u, TEXT_(T__wITH_), lib, ": ", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
+
 #endif
 
 #ifdef HAVE_ZLIB
@@ -1638,8 +1662,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 	retry_after_memory_error:
 	memory_error = 0;
 	header = 0;
-	size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
-	p = mem_alloc(size);
+	decoder_memory_init(&p, &size, ce->length);
 	init_again:
 	err = 0;
 	skip_gzip_header = 0;
@@ -1769,21 +1792,17 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 						break;
 		}
 		if (!z.avail_out) {
-			p = mem_realloc(p, size + DECODE_STEP);
+			size_t addsize;
+			decoder_memory_expand(&p, size, &addsize);
 			z.next_out = p + size;
-			z.avail_out = DECODE_STEP;
-			size += DECODE_STEP;
+			z.avail_out = addsize;
+			size += addsize;
 		}
 		if (z.avail_in) goto repeat_frag;
 		/* In zlib 1.1.3, inflate(Z_SYNC_FLUSH) doesn't work.
 		   The following line fixes it --- for last fragment, loop until
 		   we get an eof. */
 		if (r == Z_OK && (void *)f->next == (void *)&ce->frag) goto repeat_frag;
-		/*{
-			static int x = 0;
-			if (++x < 100) goto repeat_frag;
-			x = 0;
-		}*/
 		offset += f->length;
 	}
 	finish:
@@ -1815,6 +1834,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 	}
 	*p_start = p;
 	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
+	*p_start = mem_realloc(*p_start, *p_len);
 	return 0;
 }
 #endif
@@ -1835,8 +1855,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 	retry_after_memory_error:
 	err = 0;
 	memory_error = 0;
-	size = ce->length > 0 ? (ce->length + DECODE_STEP - 1) & ~(size_t)(DECODE_STEP - 1) : DECODE_STEP;
-	p = mem_alloc(size);
+	decoder_memory_init(&p, &size, ce->length);
 	memset(&z, 0, sizeof z);
 	z.next_in = NULL;
 	z.avail_in = 0;
@@ -1893,10 +1912,11 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 						break;
 		}
 		if (!z.avail_out) {
-			p = mem_realloc(p, size + DECODE_STEP);
+			size_t addsize;
+			decoder_memory_expand(&p, size, &addsize);
 			z.next_out = p + size;
-			z.avail_out = DECODE_STEP;
-			size += DECODE_STEP;
+			z.avail_out = addsize;
+			size += addsize;
 		}
 		if (z.avail_in) goto repeat_frag;
 		offset += f->length;
@@ -1930,6 +1950,120 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 	}
 	*p_start = p;
 	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
+	*p_start = mem_realloc(*p_start, *p_len);
+	return 0;
+}
+#endif
+
+#ifdef HAVE_LZMA
+#undef internal
+#include <lzma.h>
+#define internal internal_
+static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int *errp)
+{
+	unsigned char err;
+	unsigned char memory_error;
+	lzma_stream z = LZMA_STREAM_INIT;
+	off_t offset;
+	int r;
+	unsigned char *p;
+	struct fragment *f;
+	size_t size;
+
+	retry_after_memory_error:
+	err = 0;
+	memory_error = 0;
+	decoder_memory_init(&p, &size, ce->length);
+	z.next_in = NULL;
+	z.avail_in = 0;
+	z.next_out = p;
+	z.avail_out = size;
+	r = lzma_auto_decoder(&z, UINT64_MAX, 0);
+	init_failed:
+	switch (r) {
+		case LZMA_OK:		break;
+		case LZMA_MEM_ERROR:	memory_error = 1;
+					err = 1;
+					goto after_inflateend;
+		case LZMA_OPTIONS_ERROR:	
+					decompress_error(term, ce, "lzma", "Invalid parameter", errp);
+					err = 1;
+					goto after_inflateend;
+		case LZMA_PROG_ERROR:	decompress_error(term, ce, "lzma", "Lzma is miscompiled", errp);
+					err = 1;
+					goto after_inflateend;
+		default:		decompress_error(term, ce, "lzma", "Unknown return value on lzma_auto_decoder", errp);
+					err = 1;
+					goto after_inflateend;
+	}
+	offset = 0;
+	foreach(f, ce->frag) {
+		if (f->offset != offset) break;
+		z.next_in = f->data;
+		z.avail_in = f->length;
+		repeat_frag:
+		r = lzma_code(&z, LZMA_RUN);
+		switch (r) {
+			case LZMA_OK:		
+			case LZMA_NO_CHECK:	
+			case LZMA_UNSUPPORTED_CHECK:
+			case LZMA_GET_CHECK:
+						break;
+			case LZMA_STREAM_END:
+						lzma_end(&z);
+						r = lzma_auto_decoder(&z, UINT64_MAX, 0);
+						if (r != LZMA_OK) goto init_failed;
+						break;
+			case LZMA_MEM_ERROR:	memory_error = 1;
+						err = 1;
+						goto finish;
+			case LZMA_MEMLIMIT_ERROR:
+						decompress_error(term, ce, "lzma", "Memory limit was exceeded", errp);
+						err = 1;
+						goto finish;
+			case LZMA_FORMAT_ERROR:
+			case LZMA_DATA_ERROR:
+			case LZMA_BUF_ERROR:
+						decompress_error(term, ce, "lzma", TEXT_(T_COMPRESSED_ERROR), errp);
+						err = 1;
+						goto finish;
+			case LZMA_OPTIONS_ERROR:decompress_error(term, ce, "lzma", "File contains unsupported options", errp);
+						err = 1;
+						goto finish;
+			case LZMA_PROG_ERROR:	decompress_error(term, ce, "lzma", "Lzma is miscompiled", errp);
+						err = 1;
+						goto finish;
+			default:		decompress_error(term, ce, "lzma", "Unknown return value on lzma_code", errp);
+						err = 1;
+						break;
+		}
+		if (!z.avail_out) {
+			size_t addsize;
+			decoder_memory_expand(&p, size, &addsize);
+			z.next_out = p + size;
+			z.avail_out = addsize;
+			size += addsize;
+		}
+		if (z.avail_in) goto repeat_frag;
+		offset += f->length;
+	}
+	finish:
+	lzma_end(&z);
+	after_inflateend:
+	if (memory_error) {
+		mem_free(p);
+		if (out_of_memory(NULL, 0))
+			goto retry_after_memory_error;
+		decompress_error(term, ce, "lzma", TEXT_(T_OUT_OF_MEMORY), errp);
+		return 1;
+	}
+	if (err && (unsigned char *)z.next_out == p) {
+		mem_free(p);
+		return 1;
+	}
+	*p_start = p;
+	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
+	*p_start = mem_realloc(*p_start, *p_len);
 	return 0;
 }
 #endif
@@ -1942,7 +2076,7 @@ static int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsig
 	*start = *end = NULL;
 	if (!ce) return 1;
 	if (ce->decompressed) {
-#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2)
+#if defined(HAVE_ANY_COMPRESSION)
 		return_decompressed:
 #endif
 		*start = ce->decompressed;
@@ -1963,6 +2097,13 @@ static int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsig
 		if (!strcasecmp(enc, "bzip2")) {
 			mem_free(enc);
 			if (decode_bzip2(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
+			goto return_decompressed;
+		}
+#endif
+#ifdef HAVE_LZMA
+		if (!strcasecmp(enc, "lzma") || !strcasecmp(enc, "lzma2")) {
+			mem_free(enc);
+			if (decode_lzma(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
@@ -2096,16 +2237,19 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 	if (rq && (rq->state == O_FAILED || rq->state == O_INCOMPLETE) && (fd->rq == rq || fd->ses->rq == rq)) print_error_dialog(fd->ses, &rq->stat, rq->url);
 }
 
+static tcount location_id = 0;
+
 static struct location *new_location(void)
 {
 	struct location *loc;
 	loc = mem_calloc(sizeof(struct location));
+	loc->location_id = location_id++;
 	init_list(loc->subframes);
 	loc->vs = create_vs();
 	return loc;
 }
 
-static inline struct location *alloc_ses_location(struct session *ses)
+static struct location *alloc_ses_location(struct session *ses)
 {
 	struct location *loc;
 	if (!(loc = new_location())) return NULL;
@@ -2210,7 +2354,7 @@ struct f_data_c *find_frame(struct session *ses, unsigned char *target, struct f
 	goto d;
 }
 
-void destroy_location(struct location *loc)
+static void destroy_location(struct location *loc)
 {
 	while (loc->subframes.next != &loc->subframes) destroy_location(loc->subframes.next);
 	del_from_list(loc);
@@ -2221,10 +2365,16 @@ void destroy_location(struct location *loc)
 	mem_free(loc);
 }
 
+static void clear_forward_history(struct session *ses)
+{
+	while (!list_empty(ses->forward_history)) destroy_location(ses->forward_history.next);
+}
+
 static void ses_go_forward(struct session *ses, int plain, int refresh)
 {
 	struct location *cl;
 	struct f_data_c *fd;
+	clear_forward_history(ses);
 	if (ses->search_word) mem_free(ses->search_word), ses->search_word = NULL;
 	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
 	if ((fd = find_frame(ses, ses->wtd_target, ses->wtd_target_base))&&fd!=ses->screen) {
@@ -2248,10 +2398,39 @@ static void ses_go_forward(struct session *ses, int plain, int refresh)
 
 static void ses_go_backward(struct session *ses)
 {
+	int n;
+	struct location *loc;
 	if (ses->search_word) mem_free(ses->search_word), ses->search_word = NULL;
 	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
 	reinit_f_data_c(ses->screen);
-	destroy_location(cur_loc(ses));
+	if (!ses->wtd_num_steps) internal("ses_go_backward: wtd_num_steps is zero");
+	if (ses->wtd_num_steps > 0) {
+		n = ses->wtd_num_steps;
+		foreach(loc, ses->history) {
+			if (!n--) goto have_back_loc;
+		}
+		internal("ses_go_backward: session history disappeared");
+		return;
+		have_back_loc:
+		for (n = 0; n < ses->wtd_num_steps; n++) {
+			loc = cur_loc(ses);
+			del_from_list(loc);
+			add_to_list(ses->forward_history, loc);
+		}
+	} else {
+		n = ses->wtd_num_steps;
+		foreach(loc, ses->forward_history) {
+			if (!++n) goto have_fwd_loc;
+		}
+		internal("ses_go_backward: session forward history disappeared");
+		return;
+		have_fwd_loc:
+		for (n = 0; n < -ses->wtd_num_steps; n++) {
+			loc = (struct location *)ses->forward_history.next;
+			del_from_list(loc);
+			add_to_list(ses->history, loc);
+		}
+	}
 #ifdef G
 	ses->locked_link = 0;
 #endif
@@ -2744,9 +2923,11 @@ void map_selected(struct terminal *term, struct link_def *ld, struct session *se
 	if (ld->link) goto_url_f(ses, NULL, ld->link, ld->target, current_frame(ses), -1, x, 0, 0);
 }
 
-void go_back(struct session *ses)
+void go_back(struct session *ses, int num_steps)
 {
 	struct location *loc;
+	int n;
+	if (!num_steps) return;
 	ses->reloadlevel = NC_CACHE;
 	ses_destroy_defered_jump(ses);
 	if (ses_abort_1st_state_loading(ses)) {
@@ -2754,11 +2935,21 @@ void go_back(struct session *ses)
 		print_screen_status(ses);
 		return;
 	}
-	if (ses->history.next == &ses->history || ses->history.next == ses->history.prev)
+	n = num_steps;
+	if (num_steps > 0) {
+		foreach(loc, ses->history) {
+			if (!n--) goto have_loc;
+		}
 		return;
-	loc = ((struct location *)ses->history.next)->next;
+	} else {
+		foreach(loc, ses->forward_history) {
+			if (!++n) goto have_loc;
+		}
+		return;
+	}
+	have_loc:
 	ses->wtd = ses_go_back_to_2nd_state;
-	if (ses->default_status){mem_free(ses->default_status);ses->default_status=NULL;}	/* smazeme default status, aby neopruzoval na jinych strankach */
+	ses->wtd_num_steps = num_steps;
 	request_object(ses->term, loc->url, loc->prev_url, PRI_MAIN, NC_ALWAYS_CACHE, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);
 }
 
@@ -2809,6 +3000,7 @@ static struct session *create_session(struct window *win)
 	struct session *ses;
 	ses = mem_calloc(sizeof(struct session));
 	init_list(ses->history);
+	init_list(ses->forward_history);
 	ses->term = term;
 	ses->win = win;
 	ses->id = session_id++;
@@ -2924,6 +3116,7 @@ void destroy_session(struct session *ses)
 		destroy_formatted(f);
 	}
 	while (!list_empty(ses->history)) destroy_location(ses->history.next);
+	clear_forward_history(ses);
 	if (ses->st) mem_free(ses->st);
 	if (ses->st_old) mem_free(ses->st_old);
 	if (ses->default_status)mem_free(ses->default_status);

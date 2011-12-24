@@ -80,6 +80,18 @@
 /* Define if you have the _read_kbd function.  */
 #undef HAVE__READ_KBD
 
+/* Define if you have the _ucreate function.  */
+#undef HAVE__UCREATE
+
+/* Define if you have the _udefault function.  */
+#undef HAVE__UDEFAULT
+
+/* Define if you have the _udestroy function.  */
+#undef HAVE__UDESTROY
+
+/* Define if you have the _uopen function.  */
+#undef HAVE__UOPEN
+
 /* Define if you have the calloc function.  */
 #undef HAVE_CALLOC
 
@@ -233,6 +245,9 @@
 /* Define if you have the <X11/keysymdef.h> header file.  */
 #undef HAVE_X11_KEYSYMDEF_H
 
+/* Define if you have the <alloca.h> header file.  */
+#undef HAVE_ALLOCA_H
+
 /* Define if you have the <arpa/inet.h> header file.  */
 #undef HAVE_ARPA_INET_H
 
@@ -301,6 +316,9 @@
 
 /* Define if you have the <linux/vt.h> header file.  */
 #undef HAVE_LINUX_VT_H
+
+/* Define if you have the <lzma.h> header file.  */
+#undef HAVE_LZMA_H
 
 /* Define if you have the <malloc.h> header file.  */
 #undef HAVE_MALLOC_H
@@ -377,6 +395,9 @@
 /* Define if you have the <time.h> header file.  */
 #undef HAVE_TIME_H
 
+/* Define if you have the <umalloc.h> header file.  */
+#undef HAVE_UMALLOC_H
+
 /* Define if you have the <unistd.h> header file.  */
 #undef HAVE_UNISTD_H
 
@@ -415,6 +436,9 @@
 
 /* Define if you have the jpeg library (-ljpeg).  */
 #undef HAVE_LIBJPEG
+
+/* Define if you have the lzma library (-llzma).  */
+#undef HAVE_LIBLZMA
 
 /* Define if you have the m library (-lm).  */
 #undef HAVE_LIBM
@@ -569,6 +593,9 @@
 
 /* */
 #undef HAVE_BZIP2
+
+/* */
+#undef HAVE_LZMA
 
 /* */
 #undef G

@@ -180,7 +180,16 @@ void defrag_entry(struct cache_entry *e)
 		internal("fragments overlay");
 		return;
 	}
-	if (g == f->next && f->length == f->real_length) return;
+	/*debug("%p %p %d %d", g, f->next, f->length, f->real_length);*/
+	if (g == f->next) {
+		if (f->length != f->real_length) {
+			f = mem_realloc(f, sizeof(struct fragment) + f->length);
+			f->real_length = f->length;
+			f->next->prev = f;
+			f->prev->next = f;
+		}
+		return;
+	}
 	for (l = 0, h = f; h != g; h = h->next) l += h->length;
 	if (l > MAXINT - (int)sizeof(struct fragment) || l < 0) overalloc();
 	n = mem_alloc(sizeof(struct fragment) + l);
