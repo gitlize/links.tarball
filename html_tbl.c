@@ -41,7 +41,7 @@
 #define R_ALL		3
 #define R_GROUPS	4
 
-static void get_align(char *attr, int *a)
+static void get_align(unsigned char *attr, int *a)
 {
 	unsigned char *al;
 	if ((al = get_attr_val(attr, "align"))) {
@@ -54,7 +54,7 @@ static void get_align(char *attr, int *a)
 	}
 }
 
-static void get_valign(char *attr, int *a)
+static void get_valign(unsigned char *attr, int *a)
 {
 	unsigned char *al;
 	if ((al = get_attr_val(attr, "valign"))) {
@@ -66,15 +66,15 @@ static void get_valign(char *attr, int *a)
 	}
 }
 
-static void get_c_width(char *attr, int *w, int sh)
+static void get_c_width(unsigned char *attr, int *w, int sh)
 {
 	unsigned char *al;
 	if ((al = get_attr_val(attr, "width"))) {
 		if (*al && al[strlen(al) - 1] == '*') {
-			char *en;
+			unsigned char *en;
 			unsigned long n;
 			al[strlen(al) - 1] = 0;
-			n = strtoul(al, &en, 10);
+			n = strtoul(al, (char **)(void *)&en, 10);
 			if (n < 10000 && !*en) *w = W_REL - n;
 		} else {
 			int p = get_width(attr, "width", sh);
@@ -112,7 +112,7 @@ struct table_cell {
 	struct rect_set *brd;
 	int g_width;
 	struct rect rect;
-	int dgen;
+	tcount dgen;
 #endif
 };
 
@@ -387,6 +387,11 @@ struct s_e {
 	unsigned char *s, *e;
 };
 
+static int default_line_align(void)
+{
+	return par_format.align == AL_NO ? AL_NO : AL_LEFT;
+}
+
 static struct table *parse_table(unsigned char *html, unsigned char *eof, unsigned char **end, struct rgb *bgcolor, int sh, struct s_e **bad_html, int *bhp)
 {
 	int qqq;
@@ -397,7 +402,7 @@ static struct table *parse_table(unsigned char *html, unsigned char *eof, unsign
 	int x = 0, y = -1;
 	int p = 0;
 	unsigned char *lbhp = NULL;
-	int l_al = AL_LEFT;
+	int l_al = default_line_align();
 	int l_val = VAL_MIDDLE;
 	int csp, rsp;
 	int group = 0;
@@ -496,7 +501,7 @@ static struct table *parse_table(unsigned char *html, unsigned char *eof, unsign
 		if (p) CELL(t, x, y)->end = html, p = 0;
 		if (lbhp) (*bad_html)[*bhp-1].e = html, lbhp = NULL;
 		if (group) group--;
-		l_al = AL_LEFT;
+		l_al = default_line_align();
 		l_val = VAL_MIDDLE;
 		memcpy(&l_col, bgcolor, sizeof(struct rgb));
 		get_align(t_attr, &l_al);
@@ -624,24 +629,22 @@ static struct table *parse_table(unsigned char *html, unsigned char *eof, unsign
 	return t;
 }
 
-static void get_cell_width(char *start, char *end, int cellpd, int w, int a, int *min, int *max, int n_link, int *n_links, unsigned char *bgc)
+static void get_cell_width(struct table *t, struct table_cell *c, int w, int a, int *min, int *max, int *n_links)
 {
-	struct part *p;
-#ifdef G
-	struct g_part *gp;
-#endif
 	if (min) *min = -1;
 	if (max) *max = -1;
-	if (n_links) *n_links = n_link;
+	if (n_links) *n_links = c->link_num;
 	if (!F) {
-		if (!(p = format_html_part(start, end, AL_LEFT, cellpd, w, NULL, !!a, !!a, NULL, n_link))) return;
+		struct part *p;
+		if (!(p = format_html_part(c->start, c->end, c->align != AL_NO ? AL_LEFT : AL_NO, t->cellpd, w, NULL, !!a, !!a, NULL, c->link_num))) return;
 		if (min) *min = p->x;
 		if (max) *max = p->xmax;
 		if (n_links) *n_links = p->link_num;
 		mem_free(p);
 #ifdef G
 	} else {
-		if (!(gp = g_format_html_part(start, end, AL_LEFT, 0, w, NULL, n_link, NULL, bgc, NULL))) return;
+		struct g_part *gp;
+		if (!(gp = g_format_html_part(c->start, c->end, c->align != AL_NO ? AL_LEFT : AL_NO, 0, w, NULL, c->link_num, NULL, c->bgcolor_str, NULL))) return;
 		if (min) *min = gp->x;
 		if (max) *max = gp->xmax;
 		if (n_links) *n_links = gp->link_num;
@@ -659,7 +662,7 @@ static inline void check_cell_widths(struct table *t)
 		int min, max;
 		struct table_cell *c = CELL(t, i, j);
 		if (!c->start) continue;
-		get_cell_width(c->start, c->end, t->cellpd, 0, 0, &min, &max, c->link_num, NULL, gf_val(NULL, c->bgcolor_str));
+		get_cell_width(t, c, 0, 0, &min, &max, NULL);
 		/*if (min != c->min_width || max < c->max_width) internal("check_cell_widths failed");*/
 	}
 }
@@ -669,7 +672,7 @@ do {									\
 		struct table_cell *c = cc;				\
 		if (!c->start) continue;				\
 		c->link_num = nl;					\
-		get_cell_width(c->start, c->end, t->cellpd, 0, 0, &c->min_width, &c->max_width, nl, &nl, gf_val(NULL, c->bgcolor_str));\
+		get_cell_width(t, c, 0, 0, &c->min_width, &c->max_width, &nl);\
 } while (0)
 
 static void get_cell_widths(struct table *t)
@@ -874,7 +877,7 @@ static void distribute_widths(struct table *t, int width)
 	int i;
 	int d = width - t->min_t;
 	int om = 0;
-	char *u;
+	unsigned char *u;
 	int *w, *mx;
 	int mmax_c = 0;
 	t->rw = 0;
@@ -989,10 +992,10 @@ static void check_table_widths(struct table *t)
 		if (!c->start) continue;
 		for (k = 1; k < c->colspan; k++) p += get_vline_width(t, i + k) >= 0;
 		for (k = 0; k < c->colspan; k++) p += t->w_c[i + k];
-		get_cell_width(c->start, c->end, t->cellpd, p, 1, &c->x_width, NULL, c->link_num, NULL, NULL);
+		get_cell_width(t, c, p, 1, &c->x_width, NULL, NULL);
 		if (c->x_width > p) {
 			/*int min, max;
-			get_cell_width(c->start, c->end, t->cellpd, 0, 0, &min, &max, c->link_num, NULL, NULL);
+			get_cell_width(t, c, 0, 0, &min, &max, NULL);
 			internal("cell is now wider (%d > %d) min = %d, max = %d, now_min = %d, now_max = %d", c->x_width, p, t->min_c[i], t->max_c[i], min, max);*/
 			/* sbohem, internale. chytl jsi mi spoustu chyb v tabulkovaci, ale ted je proste cas jit ... ;-( */
 			c->x_width = p;
@@ -1195,17 +1198,18 @@ static void display_complicated_table(struct table *t, int x, int y, int *yy)
 	*yy = yp + (!!(t->frame & F_ABOVE) + !!(t->frame & F_BELOW)) * !!t->border;
 }
 
-/* !!! FIXME: background */
+static int AF;
+
 #define draw_frame_point(xx, yy, ii, jj)	\
-if (H_LINE_X((ii-1), (jj)) >= 0 || H_LINE_X((ii), (jj)) >= 0 || V_LINE_X((ii), (jj-1)) >= 0 || V_LINE_X((ii), (jj)) >= 0) xset_hchar(t->p, (xx), (yy), frame_table[V_LINE((ii),(jj)-1)+3*H_LINE((ii),(jj))+9*H_LINE((ii)-1,(jj))+27*V_LINE((ii),(jj))], ATTR_FRAME)
+if (H_LINE_X((ii-1), (jj)) >= 0 || H_LINE_X((ii), (jj)) >= 0 || V_LINE_X((ii), (jj-1)) >= 0 || V_LINE_X((ii), (jj)) >= 0) xset_hchar(t->p, (xx), (yy), frame_table[V_LINE((ii),(jj)-1)+3*H_LINE((ii),(jj))+9*H_LINE((ii)-1,(jj))+27*V_LINE((ii),(jj))], AF)
 
 #define draw_frame_hline(xx, yy, ll, ii, jj)	\
-if (H_LINE_X((ii), (jj)) >= 0) xset_hchars(t->p, (xx), (yy), (ll), hline_table[H_LINE((ii), (jj))], ATTR_FRAME)
+if (H_LINE_X((ii), (jj)) >= 0) xset_hchars(t->p, (xx), (yy), (ll), hline_table[H_LINE((ii), (jj))], AF)
 
 #define draw_frame_vline(xx, yy, ll, ii, jj)	\
 {						\
 	int qq;					\
-	if (V_LINE_X((ii), (jj)) >= 0) for (qq = 0; qq < (ll); qq++) xset_hchar(t->p, (xx), (yy) + qq, vline_table[V_LINE((ii), (jj))], ATTR_FRAME); }
+	if (V_LINE_X((ii), (jj)) >= 0) for (qq = 0; qq < (ll); qq++) xset_hchar(t->p, (xx), (yy) + qq, vline_table[V_LINE((ii), (jj))], AF); }
 
 #ifndef DEBUG
 #define H_LINE_X(xx, yy) fh[(xx) + 1 + (t->x + 2) * (yy)]
@@ -1329,14 +1333,20 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	int cye;
 	int x;
 	int i;
-	/*int llm = last_link_to_move;*/
 	struct s_e *bad_html = NULL;
 	int bad_html_n;
 	struct node *n, *nn;
 	int cpd_pass, cpd_width, cpd_last;
+	int AF_SAVE = AF;
 	table_level++;
 	memcpy(&bgcolor, &par_format.bgcolor, sizeof(struct rgb));
 	get_bgcolor(attr, &bgcolor);
+	if (!F) {
+		int bg = find_nearest_color(&bgcolor, 8);
+		int fg = find_nearest_color(&d_opt->default_fg, 16);
+		/*fg = fg_color(fg, bg);*/
+		AF = ATTR_FRAME | (fg & 7) | (bg << 3) | ((fg & 8) << 3);
+	}
 	if ((border = get_num(attr, "border")) == -1) border = has_attr(attr, "border") || has_attr(attr, "rules") || has_attr(attr, "frame");
 	/*if (!border) border = 1;*/
 	if ((cellsp = get_num(attr, "cellspacing")) == -1) cellsp = gf_val(1, 2);
@@ -1516,6 +1526,7 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 		else g_free_table_cache();
 #endif
 	}
+	AF = AF_SAVE;
 }
 
 #ifdef G
@@ -1569,7 +1580,7 @@ static void table_mouse_event(struct f_data_c *fd, struct g_object_table *o, int
 	int i, j;
 	for (j = 0; j < t->y; j++) for (i = 0; i < t->x; i++) {
 		struct table_cell *c = CELL(t, i, j);
-		if (c->root) if (g_forward_mouse(fd, (struct g_object *)c->root, x, y, b)) return;
+		if (c->root) if (!g_forward_mouse(fd, (struct g_object *)c->root, x, y, b)) return;
 	}
 }
 
@@ -1593,11 +1604,11 @@ static void draw_rect_sets(struct graphics_device *dev, struct background *bg, s
 
 static void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int y)
 {
-	static int dgen = 1;
+	static tcount dgen = 0;
+	tcount my_dgen = ++dgen;
 	int i, j;
 	struct table *t = o->t;
 	struct graphics_device *dev = fd->ses->term->dev;
-	dgen++;
 	/*
 	for (j = 0; j < t->y; j++) for (i = 0; i < t->x; i++) {
 		struct table_cell *c = CELL(t, i, j);*/
@@ -1608,8 +1619,9 @@ static void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int
 	for (i = (dev->clip.y1 - y) >> RECT_BOUND_BITS; i <= (dev->clip.y2 - y - 1) >> RECT_BOUND_BITS; i++) if (i >= 0 && i < t->nr_cells) for (j = 0; j < t->w_cells[i]; j++) {
 		struct table_cell *c = t->r_cells[i][j];
 		/*fprintf(stderr, "draw: %d %d\n", i, j);*/
-		if (c->root && c->dgen != dgen) {
+		if (c->root && c->dgen != my_dgen) {
 			struct rect clip;
+			c->dgen = my_dgen;
 			memcpy(&clip, &c->rect, sizeof(struct rect));
 			clip.x1 += x;
 			clip.x2 += x;
@@ -1620,7 +1632,6 @@ static void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int
 			restrict_clip_area(dev, &clip, x + c->root->x, y + c->root->y, x + c->root->x + c->root->xw/*c->g_width*/, y + c->root->y + c->root->yw);
 			c->root->draw(fd, c->root, x + c->root->x, y + c->root->y);
 			drv->set_clip_area(dev, &clip);
-			c->dgen = dgen;
 		}
 	}
 	draw_rect_sets(dev, t->bg, t->r_bg, t->nr_bg, x, y);

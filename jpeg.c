@@ -376,6 +376,22 @@ decoder_ended:
 		img_end(cimg);
 	}
 }
+
+void add_jpeg_version(unsigned char **s, int *l)
+{
+	add_to_str(s, l, "JPEG (");
+#if defined(JPEG_LIB_VERSION_MAJOR) && defined(JPEG_LIB_VERSION_MINOR)
+	add_num_to_str(s, l, JPEG_LIB_VERSION_MAJOR);
+	add_to_str(s, l, ".");
+	add_num_to_str(s, l, JPEG_LIB_VERSION_MINOR);
+#else
+	add_num_to_str(s, l, JPEG_LIB_VERSION / 10);
+	add_to_str(s, l, ".");
+	add_num_to_str(s, l, JPEG_LIB_VERSION % 10);
+#endif
+	add_to_str(s, l, ")");
+}
+
 #endif /* #ifdef HAVE_JPEG */
 
 #endif /* #ifdef G */

@@ -88,14 +88,6 @@ Runs links as a separate instance - instead of connecting to
 existing instance.
 
 .TP
-\f3-download-utime \f2<0>/<1>\f1
-Set time of downloaded files to last modification time reported by server.
-
-.TP
-\f3-async-dns \f2<0>/<1>\f1
-Asynchronous DNS resolver on(1)/off(0). 
-
-.TP
 \f3-max-connections \f2<max>\f1
 Maximum number of concurrent connections.
 (default: 10)
@@ -119,6 +111,18 @@ Timeout on receive.
 \f3-unrestartable-receive-timeout \f2<sec>\f1
 Timeout on non restartable connections.
 (default: 600)
+
+.TP
+\f3-bind-address \f2<ip address>\f1
+Use a specific local IP address.
+
+.TP
+\f3-async-dns \f2<0>/<1>\f1
+Asynchronous DNS resolver on(1)/off(0). 
+
+.TP
+\f3-download-utime \f2<0>/<1>\f1
+Set time of downloaded files to last modification time reported by server.
 
 .TP
 \f3-format-cache-size \f2<num>\f1
@@ -256,11 +260,11 @@ and some servers don't like it.
 Size of font in menu.
 
 .TP
-\f3-background-color \f20xRRGGBB\f1
+\f3-menu-background-color \f20xRRGGBB\f1
 Set menu background color in graphics mode. RRGGBB are hex.
 
 .TP
-\f3-foreground-color \f20xRRGGBB\f1
+\f3-menu-foreground-color \f20xRRGGBB\f1
 Set menu foreground color in graphics mode. RRGGBB are hex.
 
 .TP
@@ -422,6 +426,38 @@ Margin in text mode.
 .TP
 \f3-html-user-font-size \f2<size>\f1
 Size of font on pages in graphics mode.
+
+.TP
+\f3-html-t-text-color \f2<0>-<15>\f1
+Text color in text mode.
+
+.TP
+\f3-html-t-link-color \f2<0>-<15>\f1
+Link color in text mode.
+
+.TP
+\f3-html-t-background-color \f2<0>-<7>\f1
+Background color in text mode.
+
+.TP
+\f3-html-t-ignore-document-color \f2<0>/<1>\f1
+Ignore colors specified in html document in text mode.
+
+.TP
+\f3-html-g-text-color \f20xRRGGBB\f1
+Text color in graphics mode.
+
+.TP
+\f3-html-g-link-color \f20xRRGGBB\f1
+Link color in graphics mode.
+
+.TP
+\f3-html-g-background-color \f20xRRGGBB\f1
+Background color in graphics mode.
+
+.TP
+\f3-html-g-ignore-document-color \f2<0>/<1>\f1
+Ignore colors specified in html document in graphics mode.
 
 .TP
 \f3-lookup \f2<hostname>\f1

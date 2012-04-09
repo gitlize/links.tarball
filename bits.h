@@ -14,6 +14,8 @@
 #define t2c unsigned
 #elif SIZEOF_UNSIGNED_LONG == 2
 #define t2c unsigned long
+#elif defined(SIZEOF_UNSIGNED_LONG_LONG) && SIZEOF_UNSIGNED_LONG_LONG == 2
+#define t2c unsigned long long
 #endif /* #if sizeof(short) */
 
 /* t4c
@@ -27,6 +29,8 @@
 #define t4c unsigned
 #elif SIZEOF_UNSIGNED_LONG == 4
 #define t4c unsigned long
+#elif defined(SIZEOF_UNSIGNED_LONG_LONG) && SIZEOF_UNSIGNED_LONG_LONG == 4
+#define t4c unsigned long long
 #endif /* #if sizeof(short) */
 
 /* t8c
@@ -40,5 +44,7 @@
 #define t8c unsigned
 #elif SIZEOF_UNSIGNED_LONG == 8
 #define t8c unsigned long
+#elif defined(SIZEOF_UNSIGNED_LONG_LONG) && SIZEOF_UNSIGNED_LONG_LONG == 8
+#define t8c unsigned long long
 #endif /* #if sizeof(short) */
 

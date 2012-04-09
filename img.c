@@ -1175,6 +1175,10 @@ static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 #endif /* #ifdef DEBUG */
 	ret:;
 	drv->set_clip_area(fdatac->ses->term->dev, &r);
+#ifdef LINKS_TESTMODE_IMAGE_AUTO_EXIT
+	if (cimg->state & 1)
+		terminate_loop = 1;
+#endif
 }
 
 /* Prior to calling this function you have to fill out

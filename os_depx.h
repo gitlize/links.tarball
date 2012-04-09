@@ -23,6 +23,14 @@
 #endif
 #endif
 
+#if defined(HAVE_STRTOLL) && !defined(MAXLLONG)
+#ifdef LLONG_MAX
+#define MAXLLONG LLONG_MAX
+#else
+#define MAXLLONG ((long long)((unsigned long long)-1L >> 1))
+#endif
+#endif
+
 #ifndef SA_RESTART
 #define SA_RESTART	0
 #endif
@@ -69,8 +77,7 @@ int bounced_write(int handle, const void *buf, size_t size);
 
 #if defined(GRDRV_SVGALIB)
 #define loop_select vga_select
-int vga_select(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-		              struct timeval *timeout);
+int vga_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);
 #elif defined(GRDRV_ATHEOS)
 #define loop_select ath_select
 int ath_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);

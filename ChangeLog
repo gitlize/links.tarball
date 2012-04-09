@@ -1,3 +1,144 @@
+=== RELEASE 2.6 ===
+
+Sat Apr  7 03:54:41 CEST 2012 mikulas:
+
+	Fixed reads and writes out of memory in the xbm decoder
+	It may have security implications
+
+Mon Apr  2 05:34:15 CEST 2012 mikulas:
+
+	Fixed character set in the window title in X11
+
+Fri Mar 30 05:10:32 CEST 2012 mikulas:
+
+	Check EINTR after each syscall to work around non-working SA_RESTART
+	on some old Unices
+
+Wed Mar 28 22:11:23 CEST 2012 mikulas:
+
+	Fixed access out of allocated memory in the graphics renderer.
+	It may have security implications --- although just two characters
+	('-' and 0) were written to the unallocated area.
+
+Tue Mar 27 21:49:38 CEST 2012 mikulas:
+
+	Fixed an infinite loop in usemap when invalid html tag was processed
+
+Sun Mar 25 04:46:43 CEST 2012 mikulas:
+
+	Fixed a crash if the user runs links with pipe on stdin
+
+Sun Mar 25 02:42:11 MET 2012 mikulas:
+
+	Fixed inefficiency when moving or dragging mouse over big documents
+
+Sat Mar 24 01:26:05 CET 2012 mikulas:
+
+	Fixed inefficiency when displaying documents with long lines
+
+Wed Mar  7 23:02:27 CET 2012 mikulas:
+
+	Fix copy and paste of Unicode characters to/from Xwindow
+	clipboard
+
+Tue Feb 28 21:04:51 CET 2012 mikulas:
+
+	Fixed visual glitches in the select box in text-mode UTF-8
+
+Sun Feb 26 18:31:17 MET 2012 mikulas:
+
+	Use key ' to move forward
+
+Thu Feb 23 23:13:35 CET 2012 mikulas:
+
+	Fixed access out of memory when pasting too long string from
+	a clipboard
+
+Thu Feb 23 00:52:09 CET 2012 mikulas:
+
+	The NSS encryption library can cause browser lockup. Add a warning.
+	The user should use OpenSSL instead of NSS.
+
+Wed Feb 22 23:11:45 CET 2012 mikulas:
+
+	Fix for big endian Xserver
+
+Tue Feb 21 03:03:33 MET 2012 mikulas:
+
+	Restrict textarea and input field width to screen size minus margins
+
+Tue Feb 21 00:29:09 CET 2012 mikulas:
+
+	Fixed saving formatted document when UTF-8 is used
+
+Sun Feb 19 22:24:20 MET 2012 mikulas:
+
+	Fixed a crash if the user selected "Frame at full-screen" in the menu
+	and there was no page displayed in the current frame
+
+Mon Feb 13 19:35:07 MET 2012 mikulas:
+
+	Reload bookmarks if some other Links instance changes them
+
+Mon Feb 13 18:37:41 MET 2012 mikulas:
+
+	Fixed some messages about decompression errors when http authentication
+	and compression was used at the same time
+
+Sun Feb 12 18:32:26 MET 2012 mikulas:
+
+	Display filename and percentage in the download menu
+
+Sun Feb 12 17:50:01 MET 2012 mikulas:
+
+	Fixed divide-by-zero crash in the download code
+
+Sun Feb 12 15:22:12 MET 2012 mikulas:
+
+	Continue downloads to partially downloaded file
+
+Tue Feb  7 07:13:49 MET 2012 mikulas:
+
+	Add information about versions of libraries
+
+Tue Feb  7 00:39:28 cet 2012 mikulas:
+
+	Fixed visual glitches in the list editor
+
+Sun Feb  5 20:35:43 cet 2012 mikulas:
+
+	Fixed integer overflows if file cache has more than 2GB
+
+Mon Jan 23 21:54:19 MET 2012 mikulas:
+
+	Don't compact <br> tags inside <pre> (fixes line numbers in
+	source code viewer on github)
+
+Mon Jan 23 03:23:07 CET 2012 mikulas:
+
+	Support non-english keyboard in the Xwindow driver
+
+Sun Jan 15 01:42:59 cet 2012 mikulas:
+
+	When opening a new window, copy html options from the existing session
+
+Sat Jan 14 22:59:53 cet 2012 mikulas:
+
+	Support #! translation according to Google specification
+
+Thu Jan  5 02:43:42 CET 2012 mikulas:
+
+	Fixed reading of a freed memory if the user deletes a user program
+	while a query box with user programs is displayed
+
+Fri Dec 30 15:34:11 MET 2011 mikulas:
+
+	Allow the user to set local IP address
+
+Thu Dec 29 18:41:51 MET 2011 mikulas:
+
+	Allow the user to change colors
+
 === RELEASE 2.5 ===
 
 Sat Dec 24 20:30:41 MET 2011 mikulas:

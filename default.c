@@ -11,29 +11,38 @@ unsigned char system_name[MAX_STR_LEN];
 
 static void get_system_name(void)
 {
-#if defined(HAVE_SYS_UTSNAME_H) && defined(HAVE_UNAME)
-	struct utsname name;
-	memset(&name, 0, sizeof name);
-	if (!uname(&name)) {
-		unsigned char *str = init_str();
-		int l = 0;
-		add_to_str(&str, &l, name.sysname);
-		add_to_str(&str, &l, " ");
-		add_to_str(&str, &l, name.release);
-		add_to_str(&str, &l, " ");
-		add_to_str(&str, &l, name.machine);
-		if (l >= MAX_STR_LEN) str[MAX_STR_LEN - 1] = 0;
-		strcpy(system_name, str);
-		mem_free(str);
+#ifdef OS2
+	if (!os_get_system_name(system_name))
 		return;
+#endif
+#if defined(HAVE_SYS_UTSNAME_H) && defined(HAVE_UNAME)
+	{
+		struct utsname name;
+		int rs;
+		memset(&name, 0, sizeof name);
+		EINTRLOOP(rs, uname(&name));
+		if (!rs) {
+			unsigned char *str = init_str();
+			int l = 0;
+			add_to_str(&str, &l, name.sysname);
+			add_to_str(&str, &l, " ");
+			add_to_str(&str, &l, name.release);
+			add_to_str(&str, &l, " ");
+			add_to_str(&str, &l, name.machine);
+			if (l >= MAX_STR_LEN) str[MAX_STR_LEN - 1] = 0;
+			strcpy(system_name, str);
+			mem_free(str);
+			return;
+		}
 	}
 #endif
 #ifdef HAVE_POPEN
-	{
+	if (0) {
 		FILE *f;
 		unsigned char *p;
 		memset(system_name, 0, MAX_STR_LEN);
-		if (!(f = popen("uname -srm", "r"))) goto fail;
+		ENULLLOOP(f, popen("uname -srm", "r"));
+		if (!f) goto fail;
 		if (fread(system_name, 1, MAX_STR_LEN - 1, f) <= 0) {
 			pclose(f);
 			goto fail;
@@ -54,7 +63,19 @@ unsigned char compiler_name[MAX_STR_LEN];
 
 static void get_compiler_name(void)
 {
-#if defined(__clang__)
+#if defined(__BORLANDC__)
+
+	int w = __BORLANDC__+0;
+	int v1 = w / 0x100;
+	int v2 = w / 0x10 % 0x10;
+	int v3 = w % 0x10;
+	if (v1 == 4 && v2 < 5) v1 = 3;
+	if (v1 == 4 && v2 == 5) v2 = 0;
+
+	if (!v3) sprintf(compiler_name, "Borland C %d.%d", v1, v2);
+	else sprintf(compiler_name, "Borland C %d.%d.%d", v1, v2, v3);
+
+#elif defined(__clang__)
 
 #if !defined(__clang_major__) || !defined(__clang_minor__)
 	sprintf(compiler_name, "LLVM/Clang");
@@ -103,6 +124,15 @@ static void get_compiler_name(void)
 	int v3 = w % 100;
 	sprintf(compiler_name, "Diab C %d.%d.%02d", v1, v2, v3);
 #endif
+
+#elif defined(__DMC__)
+
+	int w = __DMC__+0;
+	int v1 = w / 0x100;
+	int v2 = w / 0x10 % 0x10;
+	int v3 = w % 0x10;
+	if (!v3) sprintf(compiler_name, "Digital Mars C %d.%d", v1, v2);
+	else sprintf(compiler_name, "Digital Mars C %d.%d.%d", v1, v2, v3);
 
 #elif defined(__DECC_VER)
 
@@ -494,7 +524,9 @@ unsigned char *read_config_file(unsigned char *name)
 	int h, r;
 	int l = 0;
 	unsigned char *s;
-	if ((h = open(name, O_RDONLY | O_NOCTTY)) == -1) return NULL;
+	int rs;
+	EINTRLOOP(h, open(name, O_RDONLY | O_NOCTTY));
+	if (h == -1) return NULL;
 	set_bin(h);
 	s = init_str();
 	while ((r = hard_read(h, cfg_buffer, FILE_BUF)) > 0) {
@@ -503,7 +535,7 @@ unsigned char *read_config_file(unsigned char *name)
 		add_bytes_to_str(&s, &l, cfg_buffer, r);
 	}
 	if (r == -1) mem_free(s), s = NULL;
-	close(h);
+	EINTRLOOP(rs, close(h));
 	return s;
 }
 
@@ -512,12 +544,23 @@ int write_to_config_file(unsigned char *name, unsigned char *c)
 	int rr;
 	int r;
 	int h, w;
-	unsigned char *tmp_name = stracpy(name);
-	unsigned char *ds, *dt, *dot;
-	for (dt = ds = tmp_name; *dt; dt++) if (dir_sep(*dt)) ds = dt;
-	if ((dot = strchr(ds, '.'))) *dot = 0;
-	add_to_strn(&tmp_name, ".tmp");
-	if ((h = open(tmp_name, O_WRONLY | O_NOCTTY | O_CREAT | O_TRUNC, 0666)) == -1) {
+	int count = 0;
+	int tmp_namel;
+	unsigned char *tmp_name;
+	int rs;
+try_new_count:
+	tmp_namel = 0;
+	tmp_name = init_str();
+	add_to_str(&tmp_name, &tmp_namel, name);
+	add_to_str(&tmp_name, &tmp_namel, ".tmp.");
+	add_num_to_str(&tmp_name, &tmp_namel, count);
+	EINTRLOOP(h, open(tmp_name, O_WRONLY | O_NOCTTY | O_CREAT | O_TRUNC | O_EXCL, 0600));
+	if (h == -1) {
+		if (errno == EEXIST && count < MAXINT) {
+			count++;
+			mem_free(tmp_name);
+			goto try_new_count;
+		}
 		mem_free(tmp_name);
 		return get_error_from_errno(errno);
 	}
@@ -527,20 +570,21 @@ int write_to_config_file(unsigned char *name, unsigned char *c)
 	while (r > 0) {
 		if ((w = hard_write(h, c + rr - r, r)) <= 0) {
 			int err = !w ? ENOSPC : errno;
-			close(h);
-			unlink(tmp_name);
+			EINTRLOOP(rs, close(h));
+			EINTRLOOP(rs, unlink(tmp_name));
 			mem_free(tmp_name);
 			return get_error_from_errno(err);
 		}
 		r -= w;
 	}
-	close(h);
+	EINTRLOOP(rs, close(h));
 #ifndef RENAME_OVER_EXISTING_FILES
-	unlink(name);
+	EINTRLOOP(rs, unlink(name));
 #endif
-	if (rename(tmp_name, name)) {
+	EINTRLOOP(rs, rename(tmp_name, name));
+	if (rs) {
 		int err = errno;
-		unlink(tmp_name);
+		EINTRLOOP(rs, unlink(tmp_name));
 		mem_free(tmp_name);
 		return get_error_from_errno(err);
 	}
@@ -551,6 +595,7 @@ int write_to_config_file(unsigned char *name, unsigned char *c)
 static unsigned char *get_home(int *n)
 {
 	struct stat st;
+	int rs;
 	unsigned char *home = NULL;
 	unsigned char *home_links;
 	unsigned char *config_dir = stracpy(getenv("CONFIG_DIR"));
@@ -580,9 +625,12 @@ static unsigned char *get_home(int *n)
 skip_path_conv:;
 		}
 #endif
-		if (home && (stat(home, &st) == -1 || !S_ISDIR(st.st_mode))) {
-			mem_free(home);
-			home = NULL;
+		if (home) {
+			EINTRLOOP(rs, stat(home, &st));
+			if (rs || !S_ISDIR(st.st_mode)) {
+				mem_free(home);
+				home = NULL;
+			}
 		}
 	}
 #endif
@@ -616,7 +664,8 @@ skip_path_conv:;
 	{
 		add_to_strn(&home_links, config_dir);
 		while (home_links[0] && dir_sep(home_links[strlen(home_links) - 1])) home_links[strlen(home_links) - 1] = 0;
-		if (stat(home_links, &st) != -1 && S_ISDIR(st.st_mode)) {
+		EINTRLOOP(rs, stat(home_links, &st));
+		if (!rs && S_ISDIR(st.st_mode)) {
 			add_to_strn(&home_links, "/links");
 		} else {
 			fprintf(stderr, "CONFIG_DIR set to %s. But directory %s doesn't exist.\n\007", config_dir, home_links);
@@ -627,9 +676,11 @@ skip_path_conv:;
 		}
 		mem_free(config_dir);
 	} else add_to_strn(&home_links, ".links");
-	if (stat(home_links, &st)) {
+	EINTRLOOP(rs, stat(home_links, &st));
+	if (rs) {
 #ifdef HAVE_MKDIR
-		if (!mkdir(home_links, 0777)) goto home_creat;
+		EINTRLOOP(rs, mkdir(home_links, 0700));
+		if (!rs) goto home_creat;
 #endif
 		if (config_dir) goto failed;
 		goto first_failed;
@@ -638,14 +689,19 @@ skip_path_conv:;
 	/* This is a Cygwin hack! Cygwin reports stat for "links" if no
 	   "links" exists and only "links.exe" does. So try to create directory
 	   anyway. */
-	if (!mkdir(home_links, 0777)) goto home_creat;
+#ifdef HAVE_MKDIR
+	EINTRLOOP(rs, mkdir(home_links, 0700));
+	if (!rs) goto home_creat;
+#endif
 	first_failed:
 	mem_free(home_links);
 	home_links = stracpy(home);
 	add_to_strn(&home_links, "links");
-	if (stat(home_links, &st)) {
+	EINTRLOOP(rs, stat(home_links, &st));
+	if (rs) {
 #ifdef HAVE_MKDIR
-		if (!mkdir(home_links, 0777)) goto home_creat;
+		EINTRLOOP(rs, mkdir(home_links, 0700));
+		if (!rs) goto home_creat;
 #else
 		mem_free(home_links);
 		home_links = stracpy(home);
@@ -654,7 +710,10 @@ skip_path_conv:;
 		goto failed;
 	}
 	if (S_ISDIR(st.st_mode)) goto home_ok;
-	if (!mkdir(home_links, 0777)) goto home_creat;
+#ifdef HAVE_MKDIR
+	EINTRLOOP(rs, mkdir(home_links, 0700));
+	if (!rs) goto home_creat;
+#endif
 	failed:
 	mem_free(home_links);
 	mem_free(home);
@@ -664,7 +723,7 @@ skip_path_conv:;
 	if (n) *n = 0;
 	home_creat:
 #ifdef HAVE_CHMOD
-	chmod(home_links, 0700);
+	EINTRLOOP(rs, chmod(home_links, 0700));
 #endif
 	add_to_strn(&home_links, "/");
 	mem_free(home);
@@ -814,7 +873,9 @@ static unsigned char *cp_rd(struct option *o, unsigned char *c)
 	int i;
 	if (!tok) return "Missing argument";
 	if ((i = get_cp_index(tok)) == -1) e = "Unknown codepage";
-	else if (o->min == 1 && is_cp_special(i)) e = "UTF-8 can't be here";
+#ifndef ENABLE_UTF8
+	else if (o->min == 1 && i == utf8_table) e = "UTF-8 can't be here";
+#endif
 	else *(int *)o->ptr = i;
 	mem_free(tok);
 	return e;
@@ -1019,7 +1080,7 @@ static unsigned char *term_rd(struct option *o, unsigned char *c)
 	if (!(w = get_token(&c))) goto err;
 	if ((i = get_cp_index(w)) == -1) goto err_f;
 #ifndef ENABLE_UTF8
-	if ((is_cp_special(i))) {
+	if (i == utf8_table) {
 		i = 0;
 	}
 #endif
@@ -1063,7 +1124,7 @@ static unsigned char *term2_rd(struct option *o, unsigned char *c)
 	if (!(w = get_token(&c))) goto err;
 	if ((i = get_cp_index(w)) == -1) goto err_f;
 #ifndef ENABLE_UTF8
-	if ((is_cp_special(i))) {
+	if (i == utf8_table) {
 		i = 0;
 	}
 #endif
@@ -1166,6 +1227,15 @@ static void dp_wr(struct option *o, unsigned char **s, int *l)
 		add_to_str(s, l, " ");
 		add_to_str(s, l, get_cp_mime_name(dp->codepage));
 	}
+}
+
+static unsigned char *ip_rd(struct option *o, unsigned char *c)
+{
+	unsigned char *e;
+	e = str_rd(o, c);
+	if (e) return e;
+	if (*(unsigned char *)o->ptr && numeric_ip_address(o->ptr, NULL) == -1) return "Invalid IP address";
+	return NULL;
 }
 
 static unsigned char *gen_cmd(struct option *o, unsigned char ***argv, int *argc)
@@ -1302,12 +1372,6 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Runs links as a separate instance - instead of connecting to\n"
 "    existing instance.\n"
 "\n"
-" -download-utime <0>/<1>\n"
-"  Set time of downloaded files to last modification time reported by server.\n"
-"\n"
-" -async-dns <0>/<1>\n"
-"  Asynchronous DNS resolver on(1)/off(0).\n"
-"\n"
 " -max-connections <max>\n"
 "  Maximum number of concurrent connections.\n"
 "    (default: 10)\n"
@@ -1327,6 +1391,15 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 (" -unrestartable-receive-timeout <sec>\n"
 "  Timeout on non restartable connections.\n"
 "    (default: 600)\n"
+"\n"
+" -bind-address <ip address>\n"
+"  Use a specific local IP address.\n"
+"\n"
+" -async-dns <0>/<1>\n"
+"  Asynchronous DNS resolver on(1)/off(0).\n"
+"\n"
+" -download-utime <0>/<1>\n"
+"  Set time of downloaded files to last modification time reported by server.\n"
 "\n"
 " -format-cache-size <num>\n"
 "  Number of formatted document pages cached.\n"
@@ -1445,10 +1518,10 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -menu-font-size <size>\n"
 "  Size of font in menu.\n"
 "\n"
-" -background-color 0xRRGGBB\n"
+" -menu-background-color 0xRRGGBB\n"
 "  Set menu background color in graphics mode, RRGGBB are hex.\n"
 "\n"
-" -foreground-color 0xRRGGBB\n"
+" -menu-foreground-color 0xRRGGBB\n"
 "  Set menu foreground color in graphics mode.\n"
 "\n"
 " -scroll-bar-area-color 0xRRGGBB\n"
@@ -1578,6 +1651,30 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -html-user-font-size <size>\n"
 "  Size of font on pages in graphics mode.\n"
 "\n"
+" -html-t-text-color <0>-<15>\n"
+"  Text color in text mode.\n"
+"\n"
+" -html-t-link-color <0>-<15>\n"
+"  Link color in text mode.\n"
+"\n"
+" -html-t-background-color <0>-<7>\n"
+"  Background color in text mode.\n"
+"\n"
+" -html-t-ignore-document-color <0>/<1>\n"
+"  Ignore colors specified in html document in text mode.\n"
+"\n"
+" -html-g-text-color 0xRRGGBB\n"
+"  Text color in graphics mode.\n"
+"\n"
+" -html-g-link-color 0xRRGGBB\n"
+"  Link color in graphics mode.\n"
+"\n"
+" -html-g-background-color 0xRRGGBB\n"
+"  Background color in graphics mode.\n"
+"\n"
+" -html-g-ignore-document-color <0>/<1>\n"
+"  Ignore colors specified in html document in graphics mode.\n"
+"\n"
 " -lookup <hostname>\n"
 "  Does name lookup, like command \"host\".\n"
 "\n"
@@ -1665,13 +1762,14 @@ int base_session = 0;
 int dmp = 0;
 int force_html = 0;
 
-int async_lookup = 1;
-int download_utime = 0;
 int max_connections = 10;
 int max_connections_to_host = 8;
 int max_tries = 3;
 int receive_timeout = 120;
 int unrestartable_receive_timeout = 600;
+unsigned char bind_ip_address[16] = "";
+int async_lookup = 1;
+int download_utime = 0;
 
 int screen_width = 80;
 int dump_codepage = -1;
@@ -1681,20 +1779,31 @@ int memory_cache_size = 1048576;
 int image_cache_size = 1048576;
 int font_cache_size = 2097152;
 
-struct document_setup dds = { 0, 0, 1, 1, 0, 0, 3, 0, 0, 0, 18, 1, 
-	100, /* Image scale */
-	0, /* Porn enable */
-	0 };
-
-struct rgb default_fg = { 191, 191, 191, 0 };
-struct rgb default_bg = { 0, 0, 0, 0 };
-struct rgb default_link = { 255, 255, 255, 0 };
-struct rgb default_vlink = { 255, 255, 0, 0 };
-
-struct rgb default_fg_g = { 0, 0, 0, 0 };
-struct rgb default_bg_g = { 192, 192, 192, 0 };
-struct rgb default_link_g = { 0, 0, 255, 0 };
-struct rgb default_vlink_g = { 0, 0, 128, 0 };
+struct document_setup dds = {
+	0, /* assumed codepage */
+	0, /* ignore codepage from server */
+	1, /* tables */
+	1, /* frames */
+	0, /* images */
+	0, /* image_names */
+	3, /* margin */
+	0, /* num_links */
+	0, /* table_order */
+	0, /* auto_refresh */
+	18, /* font_size */
+	1, /* display images */
+	100, /* image scale */
+	0, /* porn enable */
+	0, /* target in new window */
+	7, /* t text color */
+	15, /* t link color */
+	0, /* t background color */
+	0, /* t ignore document color */
+	0x000000, /* g text color */
+	0x0000ff, /* g link color */
+	0xc0c0c0, /* g background color */
+	0, /* g ignore document color */
+};
 
 struct proxies proxies = { "", "", "", "", 0 };
 int js_enable=1;   /* 0=disable javascript */
@@ -1747,13 +1856,14 @@ static struct option links_options[] = {
 	{1, dump_cmd, NULL, NULL, D_DUMP, 0, NULL, NULL, "dump"},
 	{1, gen_cmd, num_rd, NULL, 10, 512, &screen_width, "dump_width", "width" },
 	{1, gen_cmd, cp_rd, NULL, 1, 0, &dump_codepage, "dump_codepage", "codepage" },
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &async_lookup, "async_dns", "async-dns"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &download_utime, "download_utime", "download-utime"},
 	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections, "max_connections", "max-connections"},
 	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections_to_host, "max_connections_to_host", "max-connections-to-host"},
 	{1, gen_cmd, num_rd, num_wr, 0, 16, &max_tries, "retries", "retries"},
 	{1, gen_cmd, num_rd, num_wr, 1, 9999, &receive_timeout, "receive_timeout", "receive-timeout"},
 	{1, gen_cmd, num_rd, num_wr, 1, 9999, &unrestartable_receive_timeout, "unrestartable_receive_timeout", "unrestartable-receive-timeout"},
+	{1, gen_cmd, ip_rd, str_wr, 0, 16, bind_ip_address, "bind_address", "bind-address"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &async_lookup, "async_dns", "async-dns"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &download_utime, "download_utime", "download-utime"},
 	{1, gen_cmd, num_rd, num_wr, 0, 999, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &memory_cache_size, "memory_cache_size", "memory-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &image_cache_size, "image_cache_size", "image-cache-size"},
@@ -1761,7 +1871,8 @@ static struct option links_options[] = {
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.http_proxy, "http_proxy", "http-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.ftp_proxy, "ftp_proxy", "ftp-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.socks_proxy, "socks_proxy", "socks-proxy"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.dns_append, "-append_text_to_dns_lookups", "append-text-to-dns-lookups"},
+	{1, gen_cmd, str_rd, NULL, 0, MAX_STR_LEN, proxies.dns_append, "-append_text_to_dns_lookups", NULL}, /* old version incorrectly saved it with '-' */
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.dns_append, "append_text_to_dns_lookups", "append-text-to-dns-lookups"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &proxies.only_proxies, "only_proxies", "only-proxies"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, download_dir, "download_dir", "download-dir"},
 	{1, gen_cmd, lang_rd, lang_wr, 0, 0, &current_language, "language", "language"},
@@ -1782,8 +1893,8 @@ static struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.fast_ftp, "ftp.fast", "ftp.fast"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.set_tos, "ftp.set_iptos", "ftp.set-iptos"},
 	{1, gen_cmd, num_rd, num_wr, 1, MAX_FONT_SIZE, &menu_font_size, "menu_font_size", "menu-font-size"},
-	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_BG_COLOR, "background_color", "background-color"},
-	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_FG_COLOR, "foreground_color", "foreground-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_BG_COLOR, "background_color", "menu-background-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_BFU_FG_COLOR, "foreground_color", "menu-foreground-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_SCROLL_BAR_AREA_COLOR, "scroll_bar_area_color", "scroll-bar-area-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_SCROLL_BAR_BAR_COLOR, "scroll_bar_bar_color", "scroll-bar-bar-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_SCROLL_BAR_FRAME_COLOR, "scroll_bar_frame_color", "scroll-bar-frame-color"},
@@ -1823,21 +1934,29 @@ static struct option links_options[] = {
 };
 
 static struct option html_options[] = {
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.hard_assume, "html_hard_assume", "html-hard-assume"},
 	{1, gen_cmd, cp_rd, cp_wr, 0, 0, &dds.assume_cp, "html_assume_codepage", "html-assume-codepage"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.hard_assume, "html_hard_assume", "html-hard-assume"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.tables, "html_tables", "html-tables"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.frames, "html_frames", "html-frames"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.images, "html_images", "html-images"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.image_names, "html_image_names", "html-image-names"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.display_images, "html_display_images", "html-display-images"},
-	{1, gen_cmd, num_rd, num_wr, 1, 500, &dds.image_scale, "html_image_scale", "html-image-scale"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.porn_enable, "html_bare_image_autoscale", "html-bare-image-autoscale"},
+	{1, gen_cmd, num_rd, num_wr, 0, 9, &dds.margin, "html_margin", "html-margin"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.num_links, "html_numbered_links", "html-numbered-links"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.table_order, "html_table_order", "html-table-order"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.auto_refresh, "html_auto_refresh", "html-auto-refresh"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.target_in_new_window, "html_target_in_new_window", "html-target-in-new-window"},
-	{1, gen_cmd, num_rd, num_wr, 0, 9, &dds.margin, "html_margin", "html-margin"},
 	{1, gen_cmd, num_rd, num_wr, 1, MAX_FONT_SIZE, &dds.font_size, "html_font_size", "html-user-font-size"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.display_images, "html_display_images", "html-display-images"},
+	{1, gen_cmd, num_rd, num_wr, 1, 500, &dds.image_scale, "html_image_scale", "html-image-scale"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.porn_enable, "html_bare_image_autoscale", "html-bare-image-autoscale"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.target_in_new_window, "html_target_in_new_window", "html-target-in-new-window"},
+	{1, gen_cmd, num_rd, num_wr, 0, 15, &dds.t_text_color, "html_text_color", "html-text-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 15, &dds.t_link_color, "html_link_color", "html-link-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 7, &dds.t_background_color, "html_background_color", "html-background-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.t_ignore_document_color, "html_ignore_document_color", "html-ignore-document-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &dds.g_text_color, "html_g_text_color", "html-g-text-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &dds.g_link_color, "html_g_link_color", "html-g-link-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &dds.g_background_color, "html_g_background_color", "html-g-background-color"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.g_ignore_document_color, "html_g_ignore_document_color", "html-g-ignore-document-color"},
 	{0, NULL, NULL, NULL, 0, 0, NULL, NULL, NULL},
 };
 

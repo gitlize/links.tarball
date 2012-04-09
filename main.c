@@ -48,8 +48,8 @@ void sig_tstp(struct terminal *t)
 {
 #if defined(SIGSTOP) && !defined(NO_CTRL_Z)
 #if defined(SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
-	pid_t pid = getpid();
-	pid_t newpid;
+	pid_t pid, newpid;
+	EINTRLOOP(pid, getpid());
 #endif
 	if (!F) {
 		block_itrm(1);
@@ -60,16 +60,24 @@ void sig_tstp(struct terminal *t)
 	}
 #endif
 #if defined(SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
-	if (!(newpid = fork())) {
+	EINTRLOOP(newpid, fork());
+	if (!newpid) {
 		while (1) {
+			int rr;
 			sleep(1);
-			kill(pid, SIGCONT);
+			EINTRLOOP(rr, kill(pid, SIGCONT));
 		}
 	}
 #endif
-	raise(SIGSTOP);
+	{
+		int rr;
+		EINTRLOOP(rr, raise(SIGSTOP));
+	}
 #if defined(SIGCONT) && defined(SIGTTOU) && defined(HAVE_GETPID)
-	if (newpid != -1) kill(newpid, SIGKILL);
+	if (newpid != -1) {
+		int rr;
+		EINTRLOOP(rr, kill(newpid, SIGKILL));
+	}
 #endif
 #endif
 	if (fg_poll_timer != -1) kill_timer(fg_poll_timer);
@@ -93,7 +101,7 @@ static void poll_fg(void *t)
 	if (r == -2) {
 		/* This will unblock externally spawned viewer, if it exists */
 #ifdef SIGCONT
-		kill(0, SIGCONT);
+		EINTRLOOP(r, kill(0, SIGCONT));
 #endif
 	}
 }
@@ -176,16 +184,17 @@ static int terminal_pipe[2];
 int attach_terminal(int in, int out, int ctl, void *info, int len)
 {
 	struct terminal *term;
-	fcntl(terminal_pipe[0], F_SETFL, O_NONBLOCK);
-	fcntl(terminal_pipe[1], F_SETFL, O_NONBLOCK);
+	int rs;
+	EINTRLOOP(rs, fcntl(terminal_pipe[0], F_SETFL, O_NONBLOCK));
+	EINTRLOOP(rs, fcntl(terminal_pipe[1], F_SETFL, O_NONBLOCK));
 	handle_trm(in, out, out, terminal_pipe[1], ctl, info, len);
 	mem_free(info);
 	if ((term = init_term(terminal_pipe[0], out, win_func))) {
 		handle_basic_signals(term);	/* OK, this is race condition, but it must be so; GPM installs it's own buggy TSTP handler */
 		return terminal_pipe[1];
 	}
-	close(terminal_pipe[0]);
-	close(terminal_pipe[1]);
+	EINTRLOOP(rs, close(terminal_pipe[0]));
+	EINTRLOOP(rs, close(terminal_pipe[1]));
 	return -1;
 }
 
@@ -242,14 +251,10 @@ static void end_dump(struct object_request *r, void *p)
 		o.yw = 25;
 		o.col = 0;
 		o.cp = dump_codepage == -1 ? 0 : dump_codepage;
-		ds2do(&dds, &o);
+		ds2do(&dds, &o, 0);
 		o.plain = 0;
 		o.frames = 0;
 		o.js_enable = 0;
-		memcpy(&o.default_fg, &default_fg, sizeof(struct rgb));
-		memcpy(&o.default_bg, &default_bg, sizeof(struct rgb));
-		memcpy(&o.default_link, &default_link, sizeof(struct rgb));
-		memcpy(&o.default_vlink, &default_vlink, sizeof(struct rgb));
 		o.framename = "";
 		if (!(fd->f_data = cached_format_html(fd, r, r->url, &o, NULL))) goto term_1;
 		dump_to_file(fd->f_data, oh);
@@ -283,9 +288,11 @@ static void init(void)
 	void *info;
 	int len;
 	unsigned char *u;
+	int rs;
+
 	initialize_all_subsystems();
 
-	utf8_table=get_cp_index("UTF-8");
+	utf8_table = get_cp_index("UTF-8");
 
 /* OS/2 has some stupid bug and the pipe must be created before socket :-/ */
 	if (c_pipe(terminal_pipe)) {
@@ -303,10 +310,10 @@ static void init(void)
 		init_os_terminal();
 	}
 	if (!ggr && !no_connect && (uh = bind_to_af_unix()) != -1) {
-		close(terminal_pipe[0]);
-		close(terminal_pipe[1]);
+		EINTRLOOP(rs, close(terminal_pipe[0]));
+		EINTRLOOP(rs, close(terminal_pipe[1]));
 		if (!(info = create_session_info(base_session, u, default_target, &len))) {
-			close(uh);
+			EINTRLOOP(rs, close(uh));
 			retval = RET_FATAL;
 			goto ttt;
 		}
@@ -352,16 +359,17 @@ static void init(void)
 		}
 		initialize_all_subsystems_2();
 		if (!((info = create_session_info(base_session, u, default_target, &len)) && gf_val(attach_terminal(get_input_handle(), get_output_handle(), get_ctl_handle(), info, len), attach_g_terminal(info, len)) != -1)) {
+			error("Could not open initial session");
 			retval = RET_FATAL;
-			terminate_loop = 1;
+			goto tttt;
 		}
 	} else {
 		unsigned char *uu, *wd;
 		initialize_all_subsystems_2();
-		close(terminal_pipe[0]);
-		close(terminal_pipe[1]);
+		EINTRLOOP(rs, close(terminal_pipe[0]));
+		EINTRLOOP(rs, close(terminal_pipe[1]));
 		if (!*u) {
-			fprintf(stderr, "URL expected after %s\n.", dmp == D_DUMP ? "-dump" : "-source");
+			fprintf(stderr, "URL expected after %s\n", dmp == D_DUMP ? "-dump" : "-source");
 			retval = RET_SYNTAX;
 			goto tttt;
 		}

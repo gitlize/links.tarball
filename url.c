@@ -252,7 +252,7 @@ static void translate_directories(unsigned char *url)
 	unsigned char *s, *d;
 	int lo = !casecmp(url, "file://", 7);
 	if (!casecmp(url, "javascript:", 11)) return;
-	if (!casecmp(url, "magnet:", strlen("magnet:"))) return;
+	if (!casecmp(url, "magnet:", 7)) return;
 	if (!dd || dd == url/* || *--dd != '/'*/) return;
 	if (!dsep(*dd)) {
 		dd--;
@@ -287,6 +287,55 @@ static void translate_directories(unsigned char *url)
 	}
 	p:
 	if ((*d++ = *s++)) goto r;
+}
+
+unsigned char *translate_hashbang(unsigned char *up)
+{
+	unsigned char *u, *p, *dp, *data, *post_seq;
+	int q;
+	unsigned char *r;
+	int rl;
+	if (!strstr(up, "#!") && !strstr(up, "#%21")) return up;
+	u = stracpy(up);
+	p = extract_position(u);
+	if (!p) {
+		free_u_ret_up:
+		mem_free(u);
+		return up;
+	}
+	if (p[0] == '!') dp = p + 1;
+	else if (!casecmp(p, "%21", 3)) dp = p + 3;
+	else {
+		mem_free(p);
+		goto free_u_ret_up;
+	}
+	if (!(post_seq = strchr(u, POST_CHAR))) post_seq = strchr(u, 0);
+	data = get_url_data(u);
+	if (!data) data = u;
+	r = init_str();
+	rl = 0;
+	add_bytes_to_str(&r, &rl, u, post_seq - u);
+	q = strlen(data);
+	if (q && (data[q - 1] == '&' || data[q - 1] == '?'))
+		;
+	else if (strchr(data, '?')) add_chr_to_str(&r, &rl, '&');
+	else add_chr_to_str(&r, &rl, '?');
+	add_to_str(&r, &rl, "_escaped_fragment_=");
+	for (; *dp; dp++) {
+		unsigned char c = *dp;
+		if (c <= 0x20 || c == 0x23 || c == 0x25 || c == 0x26 || c == 0x2b || c >= 0x7f) {
+			unsigned char h[4];
+			sprintf(h, "%%%02X", c);
+			add_to_str(&r, &rl, h);
+		} else {
+			add_chr_to_str(&r, &rl, c);
+		}
+	}
+	add_to_str(&r, &rl, post_seq);
+	mem_free(u);
+	mem_free(p);
+	mem_free(up);
+	return r;
 }
 
 static void insert_wd(unsigned char **up, unsigned char *cwd)
@@ -328,9 +377,7 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 			;
 		*p = 0;
 		add_to_strn(&n, rel);
-		extend_str(&n, 1);
-		translate_directories(n);
-		return n;
+		goto return_n;
 	}
 	if (rel[0] == '?' || rel[0] == '&') {
 		unsigned char rj[3];
@@ -342,11 +389,10 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		d += strcspn(d, rj);
 		n = memacpy(base, d - base);
 		add_to_strn(&n, rel);
-		translate_directories(n);
-		return n;
+		goto return_n;
 	}
 	if (rel[0] == '/' && rel[1] == '/') {
-		unsigned char *s, *n;
+		unsigned char *s;
 		if (!(s = strstr(base, "//"))) {
 			if (!(s = strchr(base, ':'))) {
 				bad_base:
@@ -357,19 +403,13 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		}
 		n = memacpy(base, s - base);
 		add_to_strn(&n, rel);
-		if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
-			extend_str(&n, 1);
-			translate_directories(n);
-			return n;
-		}
+		if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_n;
 		mem_free(n);
 	}
 	if (!casecmp("proxy://", rel, 8)) goto prx;
 	if (!parse_url(rel, &l, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
 		n = stracpy(rel);
-		extend_str(&n, 1);
-		translate_directories(n);
-		return n;
+		goto return_n;
 	}
 	n = stracpy(rel);
 	while (n[0] && n[strlen(n) - 1] <= ' ') n[strlen(n) - 1] = 0;
@@ -378,11 +418,7 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 	if (!ch || strchr(ch, '/')) ch = n + strlen(n);
 	memmove(ch + 1, ch, strlen(ch) + 1);
 	*ch = '/';
-	if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
-		extend_str(&n, 1);
-		translate_directories(n);
-		return n;
-	}
+	if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_n;
 	mem_free(n);
 	prx:
 	if (parse_url(base, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &p, NULL, NULL) || !p) {
@@ -395,9 +431,12 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		if (end_of_dir(base, *pp)) break;
 		if (dsep(*pp)) p = pp + 1;
 	}
-	n = mem_alloc(p - base + strlen(rel) + 2);
-	memcpy(n, base, p - base);
-	strcpy(n + (p - base), rel);
+	n = memacpy(base, p - base);
+	add_to_strn(&n, rel);
+	goto return_n;
+
+	return_n:
+	extend_str(&n, 1);
 	translate_directories(n);
 	return n;
 }
@@ -419,10 +458,7 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	if (!casecmp("proxy://", url, 8)) return NULL;
 	if (!parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &da, NULL, NULL)) {
 		nu = stracpy(url);
-		insert_wd(&nu, cwd);
-		extend_str(&nu, 1);
-		translate_directories(nu);
-		return nu;
+		goto return_nu;
 	}
 	if (strchr(url, POST_CHAR)) return NULL;
 	if (strstr(url, "://")) {
@@ -432,12 +468,7 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		if (!ch || strchr(ch, '/')) ch = nu + strlen(nu);
 		memmove(ch + 1, ch, strlen(ch) + 1);
 		*ch = '/';
-		if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
-			insert_wd(&nu, cwd);
-			extend_str(&nu, 1);
-			translate_directories(nu);
-			return nu;
-		}
+		if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_nu;
 		mem_free(nu);
 	}
 	ch = url + strcspn(url, ".:/@");
@@ -469,13 +500,11 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		nu = stracpy(prefix);
 		add_to_strn(&nu, url);
 		if (sl && !strchr(url, '/')) add_to_strn(&nu, "/");
-		if (parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) mem_free(nu), nu = NULL;
-		else {
-			insert_wd(&nu, cwd);
-			extend_str(&nu, 1);
-			translate_directories(nu);
+		if (parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
+			mem_free(nu);
+			return NULL;
 		}
-		return nu;
+		goto return_nu;
 	}
 #ifdef DOS_FS
 	if (ch == url + 1) goto set_prefix;
@@ -483,28 +512,25 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	if (!(nu = memacpy(url, ch - url + 1))) return NULL;
 	add_to_strn(&nu, "//");
 	add_to_strn(&nu, ch + 1);
-	if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
-		insert_wd(&nu, cwd);
-		extend_str(&nu, 1);
-		translate_directories(nu);
-		return nu;
-	}
+	if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_nu;
 	add_to_strn(&nu, "/");
-	if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
-		insert_wd(&nu, cwd);
-		extend_str(&nu, 1);
-		translate_directories(nu);
-		return nu;
-	}
+	if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_nu;
 	mem_free(nu);
 	return NULL;
+
+	return_nu:
+	insert_wd(&nu, cwd);
+	extend_str(&nu, 1);
+	translate_directories(nu);
+	nu = translate_hashbang(nu);
+	return nu;
 }
 
 unsigned char *extract_position(unsigned char *url)
 {
 	unsigned char *u, *uu, *r;
 	if ((u = get_url_data(url))) url = u;
-	if (!(u = strchr(url, POST_CHAR))) u = url + strlen(url);
+	if (!(u = strchr(url, POST_CHAR))) u = strchr(url, 0);
 	if (!(uu = memchr(url, '#', u - url))) return NULL;
 	r = mem_alloc(u - uu);
 	memcpy(r, uu + 1, u - uu - 1);

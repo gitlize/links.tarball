@@ -32,9 +32,9 @@
 
 #include "links.h" 
 
-tcount jsint_execute_seq = 0;
-
 #ifdef JS
+
+tcount jsint_execute_seq = 0;
 
 #include "struct.h"
 #include "ipret.h"

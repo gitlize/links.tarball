@@ -18,6 +18,8 @@ int bookmarks_codepage=0;
 
 unsigned char bookmarks_file[MAX_STR_LEN]="";
 
+static struct stat bookmarks_st;
+
 static void *bookmark_new_item(void *);
 static unsigned char *bookmark_type_item(struct terminal *, void *, int);
 static void bookmark_delete_item(void *);
@@ -275,7 +277,7 @@ static void bookmark_edit_done(void *data)
 	}
 
 	s->fn(s->dlg,s->data,item,&bookmark_ld);
-	d->udata=0;  /* for abort function */
+	d->udata=NULL;  /* for abort function */
 }
 
 
@@ -591,7 +593,7 @@ static void add_bookmark(unsigned char *title, unsigned char *url, int depth)
 /* Created pre-cooked bookmarks */
 static void create_initial_bookmarks(void)
 {
-	bookmarks_codepage=get_cp_index("8859-2");
+	bookmarks_codepage=utf8_table;
 	add_bookmark("Links",NULL,0);
 	add_bookmark("English",NULL,1);
 	add_bookmark("Calibration Procedure","http://atrey.karlin.mff.cuni.cz/~clock/twibright/links/calibration.html",2);
@@ -617,6 +619,7 @@ static void load_bookmarks(struct session *ses)
 	int depth;
 
 	struct document_options dop;
+	int rs;
 	
 	memset(&dop, 0, sizeof(dop));
 	dop.plain=1;
@@ -699,40 +702,33 @@ static void load_bookmarks(struct session *ses)
 			depth++;
 			continue;
 		}
-		
 	}
 	if (status==2)mem_free(url);
 smitec:
 	mem_free(buf);
 	d_opt=&dd_opt;
 	bookmark_ld.modified=0;
+
+	EINTRLOOP(rs, stat(bookmarks_file, &bookmarks_st));
+	if (rs)
+		memset(&bookmarks_st, 0, sizeof bookmarks_st);
 }
 
 void init_bookmarks(void)
 {
+	memset(&bookmarks_st, 0, sizeof bookmarks_st);
 	if (!*bookmarks_file)
 		snprintf(bookmarks_file,MAX_STR_LEN,"%sbookmarks.html",links_home?links_home:(unsigned char*)"");
 
-	bookmark_ld.codepage=get_cp_index("utf-8");
+	bookmark_ld.codepage=utf8_table;
 	load_bookmarks(NULL);
 }
 
 void reinit_bookmarks(struct session *ses, unsigned char *new_bookmarks_file, int new_bookmarks_codepage)
 {
 	unsigned char *buf;
-	if (bookmark_ld.open) {
-		msg_box(
-			ses->term,
-			NULL,
-			TEXT_(T_INFO),
-			AL_CENTER,
-			TEXT_(T_BOOKMARKS_ALREADY_IN_USE),
-			NULL,
-			1,
-			TEXT_(T_CANCEL),NULL,B_ENTER|B_ESC
-		);
+	if (test_list_window_in_use(&bookmark_ld, ses->term))
 		return;
-	}
 
 	if (!strcmp(bookmarks_file, new_bookmarks_file)) {
 		goto save_only;
@@ -809,6 +805,7 @@ static void save_bookmarks(struct session *ses)
 	unsigned char *data;
 	int l;
 	int err;
+	int rs;
 
 	if (!bookmark_ld.modified)return;
 	ct=get_translation_table(bookmark_ld.codepage,bookmarks_codepage);
@@ -877,10 +874,27 @@ static void save_bookmarks(struct session *ses)
 			msg_box(ses->term, getml(f, NULL), TEXT_(T_BOOKMARK_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_UNABLE_TO_WRITE_TO_BOOKMARK_FILE), " ", f, ": ", get_err_msg(err), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		}
 	}
+
+	EINTRLOOP(rs, stat(bookmarks_file, &bookmarks_st));
+	if (rs)
+		memset(&bookmarks_st, 0, sizeof bookmarks_st);
 }
 
 void menu_bookmark_manager(struct terminal *term,void *fcp,struct session *ses)
 {
+	struct stat st;
+	int rs;
+	EINTRLOOP(rs, stat(bookmarks_file, &st));
+	if (!rs &&
+	    (st.st_ctime != bookmarks_st.st_ctime ||
+	     st.st_mtime != bookmarks_st.st_mtime ||
+	     st.st_size != bookmarks_st.st_size)) {
+		if (!test_list_window_in_use(&bookmark_ld, NULL)) {
+			free_bookmarks();
+			load_bookmarks(ses);
+			reinit_list_window(&bookmark_ld);
+		}
+	}
 	create_list_window(&bookmark_ld,&bookmarks,term,ses);
 }
 

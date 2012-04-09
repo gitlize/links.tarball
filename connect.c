@@ -20,10 +20,12 @@ static void log_data(unsigned char *data, int len)
 		sleep(1);
 		hlaseno = 1;
 	}
-	if ((fd = open(LOG_TRANSFER, O_WRONLY | O_APPEND | O_CREAT, 0600)) != -1) {
+	EINTRLOOP(fd, open(LOG_TRANSFER, O_WRONLY | O_APPEND | O_CREAT, 0600));
+	if (fd != -1) {
+		int rw;
 		set_bin(fd);
-		write(fd, data, len);
-		close(fd);
+		EINTRLOOP(rw, write(fd, data, len));
+		EINTRLOOP(rw, close(fd));
 	}
 }
 
@@ -41,10 +43,40 @@ static void exception(struct connection *c)
 	retry_connection(c);
 }
 
+int socket_and_bind(unsigned char *address)
+{
+	int s;
+	int rs;
+	EINTRLOOP(s, socket(PF_INET, SOCK_STREAM, IPPROTO_TCP));
+	if (s == -1)
+		return -1;
+	if (address && *address) {
+		struct sockaddr_in sa;
+		ip__address addr;
+		if (numeric_ip_address(address, &addr) == -1) {
+			errno = EINVAL;
+			return -1;
+		}
+		memset(&sa, 0, sizeof(struct sockaddr_in));
+		sa.sin_family = AF_INET;
+		sa.sin_addr.s_addr = addr;
+		sa.sin_port = htons(0);
+		EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sa, sizeof sa));
+		if (rs) {
+			int sv_errno = errno;
+			EINTRLOOP(rs, close(s));
+			errno = sv_errno;
+			return -1;
+		}
+	}
+	return s;
+}
+
 void close_socket(int *s)
 {
+	int rs;
 	if (*s == -1) return;
-	close(*s);
+	EINTRLOOP(rs, close(*s));
 	set_handlers(*s, NULL, NULL, NULL, NULL);
 	*s = -1;
 }
@@ -114,26 +146,32 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port)
 {
 	int s;
+	int rs;
 	struct sockaddr_in sa;
 	struct sockaddr_in sb;
 	socklen_t len = sizeof(sa);
 	memset(&sa, 0, sizeof sa);
 	memset(&sb, 0, sizeof sb);
-	if (getsockname(cc, (struct sockaddr *)(void *)&sa, &len)) {
+	EINTRLOOP(rs, getsockname(cc, (struct sockaddr *)(void *)&sa, &len));
+	if (rs) {
 		e:
 		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
 		return -1;
 	}
-	if ((s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) goto e;
+	EINTRLOOP(s, socket(PF_INET, SOCK_STREAM, IPPROTO_TCP));
+	if (s == -1) goto e;
+	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
 	*sock = s;
-	fcntl(s, F_SETFL, O_NONBLOCK);
 	memcpy(&sb, &sa, sizeof(struct sockaddr_in));
-	sb.sin_port = 0;
-	if (bind(s, (struct sockaddr *)(void *)&sb, sizeof sb)) goto e;
+	sb.sin_port = htons(0);
+	EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sb, sizeof sb));
+	if (rs) goto e;
 	len = sizeof(sa);
-	if (getsockname(s, (struct sockaddr *)(void *)&sa, &len)) goto e;
-	if (listen(s, 1)) goto e;
+	EINTRLOOP(rs, getsockname(s, (struct sockaddr *)(void *)&sa, &len));
+	if (rs) goto e;
+	EINTRLOOP(rs, listen(s, 1));
+	if (rs) goto e;
 	memcpy(port, &sa.sin_addr.s_addr, 4);
 	memcpy(port + 4, &sa.sin_port, 2);
 	return 0;
@@ -202,7 +240,7 @@ static void handle_socks(struct connection *c)
 		retry_connection(c);
 		return;
 	}
-	wr = write(*b->sock, command + b->socks_byte_count, len - b->socks_byte_count);
+	EINTRLOOP(wr, write(*b->sock, command + b->socks_byte_count, len - b->socks_byte_count));
 	mem_free(command);
 	if (wr <= 0) {
 		setcstate(c, wr ? get_error_from_errno(errno) : S_CANT_WRITE);
@@ -225,7 +263,7 @@ static void handle_socks_reply(struct connection *c)
 	struct conn_info *b = c->newconn;
 	int rd;
 	set_timeout(c);
-	rd = read(*b->sock, b->socks_reply + b->socks_byte_count, sizeof b->socks_reply - b->socks_byte_count);
+	EINTRLOOP(rd, read(*b->sock, b->socks_reply + b->socks_byte_count, sizeof b->socks_reply - b->socks_byte_count));
 	if (rd <= 0) {
 		setcstate(c, rd ? get_error_from_errno(errno) : S_CANT_READ);
 		retry_connection(c);
@@ -266,6 +304,7 @@ static void handle_socks_reply(struct connection *c)
 static void dns_found(struct connection *c, int state)
 {
 	int s;
+	int rs;
 	struct conn_info *b = c->newconn;
 	struct sockaddr_in sa;
 	if (state) {
@@ -273,18 +312,19 @@ static void dns_found(struct connection *c, int state)
 		abort_connection(c);
 		return;
 	}
-	if ((s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+	if ((s = socket_and_bind(bind_ip_address)) == -1) {
 		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
 		return;
 	}
+	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
 	*b->sock = s;
-	fcntl(s, F_SETFL, O_NONBLOCK);
 	memset(&sa, 0, sizeof(struct sockaddr_in));
 	sa.sin_family = AF_INET;
 	sa.sin_addr.s_addr = b->addr;
 	sa.sin_port = htons(b->port);
-	if (connect(s, (struct sockaddr *)(void *)&sa, sizeof sa)) {
+	EINTRLOOP(rs, connect(s, (struct sockaddr *)(void *)&sa, sizeof sa));
+	if (rs) {
 		if (errno != EALREADY && errno != EINPROGRESS) {
 #ifdef BEOS
 			if (errno == EWOULDBLOCK) errno = ETIMEDOUT;
@@ -305,14 +345,19 @@ static void connected(struct connection *c)
 	struct conn_info *b = c->newconn;
 	int err = 0;
 	socklen_t len = sizeof(int);
-	if (getsockopt(*b->sock, SOL_SOCKET, SO_ERROR, (void *)&err, &len))
+	int rs;
+	errno = 0;
+	EINTRLOOP(rs, getsockopt(*b->sock, SOL_SOCKET, SO_ERROR, (void *)&err, &len));
+	if (!rs) {
+		if (err >= 10000) err -= 10000;	/* Why does EMX return so large values? */
+	} else {
 		if (!(err = errno)) {
-			err = -(S_STATE);
-			goto bla;
+			setcstate(c, S_STATE);
+			retry_connection(c);
+			return;
 		}
-	if (err >= 10000) err -= 10000;	/* Why does EMX return so large values? */
+	}
 	if (err > 0) {
-		bla:
 		setcstate(c, get_error_from_errno(err));
 		retry_connection(c);
 		return;
@@ -394,7 +439,9 @@ static void write_select(struct connection *c)
 		}
 	} else
 #endif
-		if ((wr = write(wb->sock, wb->data + wb->pos, wb->len - wb->pos)) <= 0) {
+	{
+		EINTRLOOP(wr, write(wb->sock, wb->data + wb->pos, wb->len - wb->pos));
+		if (wr <= 0) {
 #ifdef ATHEOS
 	/* Workaround for a bug in Syllable */
 			if (wr && errno == EAGAIN) {
@@ -405,8 +452,8 @@ static void write_select(struct connection *c)
 			retry_connection(c);
 			return;
 		}
+	}
 
-	/*printf("wr: %d\n", wr);*/
 	if ((wb->pos += wr) == wb->len) {
 		void (*f)(struct connection *) = wb->done;
 		c->buffer = NULL;
@@ -470,7 +517,9 @@ static void read_select(struct connection *c)
 		}
 	} else
 #endif
-		if ((rd = read(rb->sock, rb->data + rb->len, READ_SIZE)) <= 0) {
+	{
+		EINTRLOOP(rd, read(rb->sock, rb->data + rb->len, READ_SIZE));
+		if (rd <= 0) {
 			if (rb->close && !rd) {
 				rb->close = 2;
 				rb->done(c, rb);
@@ -497,6 +546,7 @@ static void read_select(struct connection *c)
 			retry_connection(c);
 			return;
 		}
+	}
 	log_data(rb->data + rb->len, rd);
 	rb->len += rd;
 	rb->done(c, rb);

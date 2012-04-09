@@ -415,7 +415,7 @@ static void redraw_list(struct terminal *term, void *bla);
 /* returns next visible item in tree list */
 /* works only with visible items (head or any item returned by this function) */
 /* when list is flat returns next item */
-struct list *next_in_tree(struct list_description *ld, struct list *item)
+static struct list *next_in_tree(struct list_description *ld, struct list *item)
 {
 	int depth=item->depth;
 
@@ -609,7 +609,7 @@ static int list_item_add(struct dialog_data *dlg,struct dialog_item_data *useles
 	struct list *item=ld->current_pos;
 	struct list *new_item;
 
-	if (!(new_item=ld->new_item(ld->default_value((struct session*)(dlg->dlg->udata),0))))return 1;
+	if (!(new_item=ld->new_item(ld->default_value ? ld->default_value((struct session*)(dlg->dlg->udata),0) : NULL)))return 1;
 	new_item->prev=0;
 	new_item->next=0;
 	new_item->type=0;
@@ -773,7 +773,7 @@ predratovano:
 			TEXT_(T_NO_ITEMS_SELECTED),  /* text */
 			NULL,  /* data */
 			1,  /* # of buttons */
-			TEXT_(T_OK),NULL,B_ESC|B_ENTER  /* button1 */
+			TEXT_(T_CANCEL),NULL,B_ESC|B_ENTER  /* button1 */
 		);
 	else
 	{
@@ -983,19 +983,20 @@ static int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *use
 	return 0;
 }
 
-static void redraw_list_element(struct terminal *term, struct dialog_data *dlg, int y, int w, struct list_description *ld, struct list *l)
+static int redraw_list_element(struct terminal *term, struct dialog_data *dlg, int y, int w, struct list_description *ld, struct list *l)
 {
 	struct list *lx;
 	unsigned char *xp;
 	int xd;
 	unsigned char *txt;
 	int x=0;
+	int text_position;
 	unsigned color = 0;
 	long bgcolor = 0, fgcolor = 0;
 	int b, element;
 
 	if (!F) {
-		color=(l==ld->current_pos)?COLOR_MENU_SELECTED:COLOR_MENU;
+		color=(l==ld->current_pos)?COLOR_MENU_SELECTED:COLOR_MENU_TEXT;
 #ifdef G
 	} else {
 		bgcolor=(l==ld->current_pos)?G_BFU_FG_COLOR:G_BFU_BG_COLOR;
@@ -1072,10 +1073,11 @@ static void redraw_list_element(struct terminal *term, struct dialog_data *dlg, 
 		}
 	}
 
+	text_position = x;
 	if (!F)
 	{
 		print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,color);
-		x+=strlen(txt);
+		x+=cp_len(term->spec->charset, txt);
 		fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
 		set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,color);
 	}
@@ -1094,6 +1096,7 @@ static void redraw_list_element(struct terminal *term, struct dialog_data *dlg, 
 	}
 #endif
 	mem_free(txt);
+	return text_position;
 }
 
 /* redraws list */
@@ -1130,7 +1133,7 @@ static void redraw_list(struct terminal *term, void *bla)
 		y+=gf_val(1,G_BFU_FONT_SIZE);
 		if (l==ld->list) break;
 	}
-	if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' ',COLOR_MENU);
+	if (!F) fill_area(term,dlg->x+DIALOG_LB,y,w,ld->n_items-a,' ',COLOR_MENU_TEXT);
 #ifdef G
 	else {
 		drv->fill_area(term->dev,dlg->x+DIALOG_LB,y,dlg->x+DIALOG_LB+w,dlg->y+DIALOG_TB+(ld->n_items)*G_BFU_FONT_SIZE,dip_get_color_sRGB(G_BFU_BG_COLOR));
@@ -1154,7 +1157,9 @@ static void redraw_list_line(struct terminal *term, void *bla)
 	struct list *l;
 
 	redraw_list_element(term, dlg, y, w, ld, ld->current_pos);
-	if (!F && (!term->spec->block_cursor || term->spec->braille)) set_cursor(term, dlg->x + DIALOG_LB, y, dlg->x + DIALOG_LB, y);
+	if (!F && (!term->spec->block_cursor || term->spec->braille)) {
+		set_cursor(term, dlg->x + DIALOG_LB, y, dlg->x + DIALOG_LB, y);
+	}
 	y+=gf_val(direction, direction*G_BFU_FONT_SIZE);
 	switch (direction) {
 		case 0:
@@ -1216,13 +1221,16 @@ static void scroll_list(struct terminal *term, void *bla)
 		}
 		
 		restrict_clip_area(term->dev,&old_area,dlg->x+DIALOG_LB,y+top,dlg->x+DIALOG_LB+w,y+bottom+G_BFU_FONT_SIZE*(ld->n_items));
+		if (drv->flags & GD_DONT_USE_SCROLL)
+			goto redraw_all;
 		set=NULL;
 		drv->vscroll(dev,&set,top+bottom);
 
 		if (set)	/* redraw rectangles in the set - we cannot redraw particular rectangles, we are only able to redraw whole window */
 		{
-			redraw_list(term, bla);
 			mem_free(set);
+redraw_all:
+			redraw_list(term, bla);
 		}
 		drv->set_clip_area(term->dev,&old_area);
 
@@ -1524,7 +1532,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			{
 				struct list *l1;
 				l1=next_in_tree(ld,l);  /* current item under the mouse pointer */
-				if (l1==ld->list)break;
+				if (l1==ld->list)goto break2;
 				else l=l1;
 			}
 			a=ld->type?((l->depth)>=0?(l->depth)+1:0):(l->depth>=0);
@@ -1534,6 +1542,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			ld->win_pos=n;
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
 		/* click on item */
@@ -1556,7 +1565,10 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			{
 				struct list *l1;
 				l1=next_in_tree(ld,l);  /* current item under the mouse pointer */
-				if (l1==ld->list)break;
+				if (l1==ld->list) {
+					n=a;
+					break;
+				}
 				else l=l1;
 			}
 			a=ld->type?((l->depth)>=0?(l->depth)+1:0):(l->depth>=0);
@@ -1572,6 +1584,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			ld->win_pos=n;
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
 		/* scroll with the bar */
@@ -1712,6 +1725,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			return EVENT_PROCESSED;
 
 		}
+		break2:
 		break;
 		
 		case EV_INIT:
@@ -1755,7 +1769,11 @@ static void create_list_window_fn(struct dialog_data *dlg)
 	rw=0;
 	dlg_format_buttons(dlg, NULL, dlg->items, a, 0, &y, w, &rw, AL_CENTER);
 
-	n_items = term->y - gf_val(2, 3) * DIALOG_TB - gf_val(2, 2*G_BFU_FONT_SIZE) - y;
+	n_items = term->y - y;
+	if (!term->spec->braille) 
+		n_items -= gf_val(2, 3) * DIALOG_TB + gf_val(2, 2*G_BFU_FONT_SIZE);
+	else
+		n_items -= 2;
 #ifdef G
 	if (F) n_items /= G_BFU_FONT_SIZE;
 #endif
@@ -1798,6 +1816,24 @@ static void close_list_window(struct dialog_data *dlg)
 	if (ld->save) ld->save(d->udata);
 }
 
+int test_list_window_in_use(struct list_description *ld, struct terminal *term)
+{
+	if (ld->open) {
+		if (term)
+			msg_box(
+				term,
+				NULL,
+				TEXT_(T_INFO),
+				AL_CENTER,
+				TEXT_(ld->already_in_use),
+				NULL,
+				1,
+				TEXT_(T_CANCEL),NULL,B_ENTER|B_ESC
+			);
+		return 1;
+	}
+	return 0;
+}
 
 /* dialog->udata2  ...  list_description  */
 /* dialog->udata   ...  session */
@@ -1812,21 +1848,9 @@ int create_list_window(
 	int a;
 
 	/* zavodime, zavodime... */
-	if (!(ld->open))ld->open=1;
-	else /* already in use */
-	{
-		msg_box(
-			term,
-			NULL,
-			TEXT_(T_INFO),
-			AL_CENTER,
-			TEXT_(ld->already_in_use),
-			NULL,
-			1,
-			TEXT_(T_CANCEL),NULL,B_ENTER|B_ESC
-		);
+	if (test_list_window_in_use(ld, term))
 		return 1;
-	}
+	ld->open=1;
 	
 	if (!ld->current_pos)
 	{

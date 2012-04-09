@@ -988,7 +988,7 @@ void apply_gamma_exponent_and_undercolor_32_to_48(unsigned short *dest,
 		ri=(r*65535)+0.5;
 		gi=(g*65535)+0.5;
 		bi=(b*65535)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		/* To prevent segfaults in case of crappy floating arithmetics
 		 */
 		if (ri>=65536) ri=65535;
@@ -1047,7 +1047,7 @@ void apply_gamma_exponent_and_undercolor_64_to_48(unsigned short *dest,
 		ri=r*65535+0.5;
 		gi=g*65535+0.5;
 		bi=b*65535+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		/* To prevent segfaults in case of crappy floating arithmetics
 		 */
 		if (ri>=65536) ri=65535;
@@ -1129,21 +1129,21 @@ void apply_gamma_exponent_48_to_48(unsigned short *dest,
 		a*=inv_65535;
 		a=pow(a,red_gamma);
 		*dest=(a*65535)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		if (*dest>=0x10000) *dest=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		a=src[1];
 		a*=inv_65535;
 		a=pow(a,green_gamma);
 		dest[1]=(a*65535)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		if (dest[1]>=0x10000) dest[1]=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		a=src[2];
 		a*=inv_65535;
 		a=pow(a,blue_gamma);
 		dest[2]=(a*65535)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		if (dest[2]>=0x10000) dest[2]=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 	}
@@ -1181,21 +1181,21 @@ void apply_gamma_exponent_24_to_48(unsigned short *dest, unsigned char *src, int
 		a*=inv_255;
 		a=pow(a,red_gamma);
 		*dest=(a*65535)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		if (*dest>=0x10000) *dest=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		a=src[1];
 		a*=inv_255;
 		a=pow(a,green_gamma);
 		dest[1]=(a*65535)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		if (dest[1]>=0x10000) dest[1]=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		a=src[2];
 		a*=inv_255;
 		a=pow(a,blue_gamma);
 		dest[2]=(a*65535)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		if (dest[2]>=0x10000) dest[2]=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 	}
@@ -1220,20 +1220,20 @@ void make_gamma_table(struct cached_image *cimg)
 		cimg->gamma_table=ptr_16;
 		for (a=0;a<256;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,rg)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		/* To test against crappy arithmetics */
 			if (*ptr_16>=0x10000) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 		for (a=0;a<256;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,gg)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 			if (*ptr_16>=0x10000) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 		for (a=0;a<256;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,bg)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 			if (*ptr_16>=0x10000) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
@@ -1244,19 +1244,19 @@ void make_gamma_table(struct cached_image *cimg)
 		cimg->gamma_table=ptr_16;
 		for (a=0;a<0x10000;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,rg)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 			if (*ptr_16>=0x10000) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 		for (a=0;a<0x10000;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,gg)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 			if (*ptr_16>=0x10000) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 		for (a=0;a<0x10000;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,bg)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 			if (*ptr_16>=0x10000) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
@@ -1294,7 +1294,7 @@ unsigned short apply_gamma_single_8_to_16(unsigned char input, float gamma)
 	a=pow(a,gamma);
 	a*=65535;
 	retval = a+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 			if (retval>=0x10000) retval=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 	return retval;
@@ -1313,7 +1313,7 @@ unsigned short apply_gamma_single_16_to_16(unsigned short input, float gamma)
 	unsigned short retval;
 	
 	retval = 65535*pow(((float)input)/65535,gamma)+0.5;
-#if SIZEOF_UNSIGNED_SHORT > 2
+#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 			if (retval>=0x10000) retval=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 	return retval;
@@ -1423,9 +1423,23 @@ unsigned char *png_data, int png_length, struct style *style)
 	work.pointer = png_data;
 	work.length = png_length;
 	
+	retry1:
 	png_ptr=png_create_read_struct(PNG_LIBPNG_VER_STRING,
 			NULL, my_png_error, my_png_warning);
+	if (!png_ptr) {
+		if (out_of_memory(NULL, 0)) goto retry1;
+		error("png_create_read_struct failed");
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
+	retry2:
 	info_ptr=png_create_info_struct(png_ptr);
+	if (!info_ptr) {
+		if (out_of_memory(NULL, 0)) goto retry2;
+		error("png_create_info_struct failed");
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
 	png_set_read_fn(png_ptr,&work,(png_rw_ptr)&read_stored_data);
 	png_read_info(png_ptr, info_ptr);
 	*x=png_get_image_width(png_ptr,info_ptr);
@@ -1783,7 +1797,7 @@ int x, int y, struct style *style, unsigned char *text, int *width)
 		style -> flags=original_flags;
 		return;
 	}
-	while (*text){
+	while (*text) {
 		int p;
 		int u;
 		GET_UTF_8(text, u);
@@ -1865,7 +1879,7 @@ static void destroy_font_cache(void)
 }
 
 /* Returns 0 in case the char is not found. */
-static inline int g_get_width(struct style *style, int charcode)
+static inline int g_get_width(struct style *style, unsigned charcode)
 {
 	int x, y, width;
 
@@ -1891,32 +1905,36 @@ int g_text_width(struct style *style, unsigned char *text)
 	return w;
 }
 
-int g_char_width(struct style *style, int charcode)
+int g_char_width(struct style *style, unsigned charcode)
 {
 	return g_get_width(style, charcode);
 }
 
 int g_wrap_text(struct wrap_struct *w)
 {
+	unsigned char *init_text = w->text;
 	while (*w->text) {
 		int u;
 		int s;
-		if (*w->text == ' ') w->last_wrap = w->text,
-				     w->last_wrap_obj = w->obj;
+		unsigned char *l_text = w->text;
+		if (*l_text == ' ') w->last_wrap = l_text,
+				    w->last_wrap_obj = w->obj;
 		GET_UTF_8(w->text, u);
 		if (!u) continue;
-		if (u == 0x01 || u == 0xa0) u = ' ';
 		s = g_get_width(w->style, u);
-		if (u == 0xad) s = 0;
 		if ((w->pos += s) <= w->width) {
 			c:
-			if (u != 0xad || *w->text == ' ') continue;
+			if (u != 0xad || *w->text == ' ' || w->force_break) continue;
 			s = g_char_width(w->style, '-');
 			if (w->pos + s <= w->width || (!w->last_wrap && !w->last_wrap_obj)) {
-				w->last_wrap = w->text;
+				w->last_wrap = l_text;
 				w->last_wrap_obj = w->obj;
 				continue;
 			}
+		}
+		if (w->force_break && !w->last_wrap && l_text != init_text) {
+			w->last_wrap = l_text;
+			w->last_wrap_obj = w->obj;
 		}
 		if (!w->last_wrap && !w->last_wrap_obj) goto c;
 		return 0;
@@ -1930,7 +1948,7 @@ void update_aspect(void)
 	destroy_font_cache();
 }
 
-long fontcache_info(int type)
+unsigned long fontcache_info(int type)
 {
 	switch (type) {
 		case CI_BYTES:
@@ -2163,7 +2181,7 @@ long real_dip_get_color_sRGB(int rgb)
 
 /* ATTENTION!!! allocates using malloc. Due to braindead Xlib, which
  * frees it using free and thus it is not possible to use mem_alloc. */
-void get_links_icon(unsigned char **data, int *width, int* height, int depth)
+void get_links_icon(unsigned char **data, int *width, int *height, int depth)
 {
 	struct bitmap b;
 	unsigned short *tmp1;

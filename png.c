@@ -191,15 +191,23 @@ void png_start(struct cached_image *cimg)
 	png_infop info_ptr;
 	struct png_decoder *decoder;
 
+	retry1:
 	png_ptr=png_create_read_struct(PNG_LIBPNG_VER_STRING,
 			NULL, img_my_png_error, img_my_png_warning);
-#ifdef DEBUG
-	if (!png_ptr) internal("png_create_read_struct failed\n");
-#endif /* #ifdef DEBUG */
+	if (!png_ptr) {
+		if (out_of_memory(NULL, 0)) goto retry1;
+		error("png_create_read_struct failed");
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
+	retry2:
 	info_ptr=png_create_info_struct(png_ptr);
-#ifdef DEBUG
-	if (!info_ptr) internal ("png_create_info_struct failed\n");
-#endif /* #ifdef DEBUG */
+	if (!info_ptr) {
+		if (out_of_memory(NULL, 0)) goto retry2;
+		error("png_create_info_struct failed");
+		fatal_tty_exit();
+		exit(RET_FATAL);
+	}
 	if (setjmp(png_jmpbuf(png_ptr))){
 error:
 		png_destroy_read_struct(&png_ptr, &info_ptr,
@@ -237,5 +245,15 @@ void png_restart(struct cached_image *cimg, unsigned char *data, int length)
 	if (end_callback_hit) img_end(cimg);
 }
 
+void add_png_version(unsigned char **s, int *l)
+{
+	add_to_str(s, l, "PNG (");
+#ifdef HAVE_PNG_GET_LIBPNG_VER
+	add_to_str(s, l, (unsigned char *)png_get_libpng_ver(NULL));
+#else
+	add_to_str(s, l, PNG_LIBPNG_VER_STRING);
+#endif
+	add_to_str(s, l, ")");
+}
 
 #endif /* #ifdef G */

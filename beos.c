@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -82,10 +83,10 @@ int be_accept(int s, struct sockaddr *sa, int *sal)
 int be_bind(int s, struct sockaddr *sa, int sal)
 {
 	/*struct sockaddr_in *sin = (struct sockaddr_in *)sa;
-	if (!sin->sin_port) {
+	if (!ntohs(sin->sin_port)) {
 		int i;
 		for (i = 16384; i < 49152; i++) {
-			sin->sin_port = i;
+			sin->sin_port = htons(i);
 			if (!be_bind(s, sa, sal)) return 0;
 		}
 		return -1;
@@ -114,7 +115,7 @@ int be_pipe(int *fd)
 	}
 	memset(&sa1, 0, sizeof(sa1));
 	sa1.sin_family = AF_INET;
-	sa1.sin_port = 0;
+	sa1.sin_port = htons(0);
 	sa1.sin_addr.s_addr = INADDR_ANY;
 	if (be_bind(s1, (struct sockaddr *)&sa1, sizeof(sa1))) {
 		/*perror("bind");*/
@@ -156,6 +157,7 @@ int be_select(int n, struct fd_set *rd, struct fd_set *wr, struct fd_set *exc, s
 {
 	int i, s;
 	struct fd_set d, rrd;
+retry:
 	FD_ZERO(&d);
 	if (!rd) rd = &d;
 	if (!wr) wr = &d;
@@ -169,6 +171,7 @@ int be_select(int n, struct fd_set *rd, struct fd_set *wr, struct fd_set *exc, s
 	FD_ZERO(&rrd);
 	for (i = SHS; i < n; i++) if (FD_ISSET(i, rd)) FD_SET(i - SHS, &rrd);
 	if ((s = select(FD_SETSIZE, &rrd, &d, &d, tm)) < 0) {
+		if (errno == EINTR) goto retry;
 		FD_ZERO(rd);
 		return 0;
 	}
@@ -194,8 +197,6 @@ int be_getsockopt(int s, int level, int optname, void *optval, int *optlen)
 static int ihpipe[2];
 
 static int inth;
-
-#include <errno.h>
 
 static void input_handle_th(void *p)
 {

@@ -82,8 +82,10 @@ static int get_address(void)
 
 static void unlink_unix(void)
 {
+	int rs;
 	/*debug("unlink: %s", s_unix.sun.sun_path);*/
-	if (unlink(s_unix.sun.sun_path)) {
+	EINTRLOOP(rs, unlink(s_unix.sun.sun_path));
+	if (rs) {
 		/*perror("unlink");*/
 	}
 }
@@ -110,8 +112,9 @@ static void sleep_a_little_bit(void)
 {
 	struct timeval tv = { 0, 100000 };
 	fd_set dummy;
+	int rs;
 	FD_ZERO(&dummy);
-	select(0, &dummy, &dummy, &dummy, &tv);
+	EINTRLOOP(rs, select(0, &dummy, &dummy, &dummy, &tv));
 }
 
 int bind_to_af_unix(void)
@@ -121,6 +124,7 @@ int bind_to_af_unix(void)
 	int cnt = 0;
 	int af;
 	int r;
+	int rs;
 	struct links_handshake received_handshake;
 	memset(&links_handshake, 0, sizeof links_handshake);
 	safe_strncpy(links_handshake.version, "Links " VERSION_STRING, sizeof links_handshake.version);
@@ -129,33 +133,39 @@ int bind_to_af_unix(void)
 	links_handshake.sizeof_long = sizeof(long);
 	if ((af = get_address()) == -1) return -1;
 	again:
-	if ((s_unix_fd = socket(af, SOCK_STREAM, 0)) == -1) return -1;
+	EINTRLOOP(s_unix_fd, socket(af, SOCK_STREAM, 0));
+	if (s_unix_fd == -1) return -1;
 #if defined(SOL_SOCKET) && defined(SO_REUSEADDR)
-	setsockopt(s_unix_fd, SOL_SOCKET, SO_REUSEADDR, (void *)&a1, sizeof a1);
+	EINTRLOOP(rs, setsockopt(s_unix_fd, SOL_SOCKET, SO_REUSEADDR, (void *)&a1, sizeof a1));
 #endif
-	if (bind(s_unix_fd, &s_unix.s, s_unix_l)) {
+	EINTRLOOP(rs, bind(s_unix_fd, &s_unix.s, s_unix_l));
+	if (rs) {
 		/*perror("");
 		debug("bind: %d", errno);*/
 		if (af == PF_INET && errno == EADDRNOTAVAIL) {
 			/* do not try to connect if the user has not configured loopback interface */
-			close(s_unix_fd);
+			EINTRLOOP(rs, close(s_unix_fd));
 			return -1;
 		}
-		close(s_unix_fd);
-		if ((s_unix_fd = socket(af, SOCK_STREAM, 0)) == -1) return -1;
+		EINTRLOOP(rs, close(s_unix_fd));
+		EINTRLOOP(s_unix_fd, socket(af, SOCK_STREAM, 0));
+		if (s_unix_fd == -1) return -1;
 #if defined(SOL_SOCKET) && defined(SO_REUSEADDR)
-		setsockopt(s_unix_fd, SOL_SOCKET, SO_REUSEADDR, (void *)&a1, sizeof a1);
+		EINTRLOOP(rs, setsockopt(s_unix_fd, SOL_SOCKET, SO_REUSEADDR, (void *)&a1, sizeof a1));
 #endif
-		if (connect(s_unix_fd, &s_unix.s, s_unix_l)) {
+		EINTRLOOP(rs, connect(s_unix_fd, &s_unix.s, s_unix_l));
+		if (rs) {
 retry:
 			/*perror("");
 			debug("connect: %d", errno);*/
 			if (++cnt < MAX_BIND_TRIES) {
 				sleep_a_little_bit();
-				close(s_unix_fd), s_unix_fd = -1;
+				EINTRLOOP(rs, close(s_unix_fd));
+				s_unix_fd = -1;
 				goto again;
 			}
-			close(s_unix_fd), s_unix_fd = -1;
+			EINTRLOOP(rs, close(s_unix_fd));
+			s_unix_fd = -1;
 			if (!u) {
 				unlink_unix();
 				u = 1;
@@ -173,10 +183,12 @@ retry:
 			goto close_and_fail;
 		return s_unix_fd;
 	}
-	if (listen(s_unix_fd, 100)) {
+	EINTRLOOP(rs, listen(s_unix_fd, 100));
+	if (rs) {
 		error("ERROR: listen failed: %d", errno);
 		close_and_fail:
-		close(s_unix_fd), s_unix_fd = -1;
+		EINTRLOOP(rs, close(s_unix_fd));
+		s_unix_fd = -1;
 		return -1;
 	}
 	s_unix_master = 1;
@@ -189,21 +201,22 @@ static void af_unix_connection(void *xxx)
 	socklen_t l = s_unix_l;
 	int ns;
 	int r;
+	int rs;
 	struct links_handshake received_handshake;
 	memset(&s_unix_acc, 0, sizeof s_unix_acc);
-	ns = accept(s_unix_fd, &s_unix_acc.s, &l);
+	EINTRLOOP(ns, accept(s_unix_fd, &s_unix_acc.s, &l));
 	if (ns == -1) return;
 	HANDSHAKE_WRITE(ns, S2C1_HANDSHAKE_LENGTH) {
-		close(ns);
+		EINTRLOOP(rs, close(ns));
 		return;
 	}
 	HANDSHAKE_READ(ns, C2S2_HANDSHAKE_LENGTH) {
 		sleep_a_little_bit();	/* workaround a race in previous Links version */
-		close(ns);
+		EINTRLOOP(rs, close(ns));
 		return;
 	}
 	HANDSHAKE_WRITE(ns, S2C3_HANDSHAKE_LENGTH) {
-		close(ns);
+		EINTRLOOP(rs, close(ns));
 		return;
 	}
 	init_term(ns, ns, win_func);
@@ -212,11 +225,12 @@ static void af_unix_connection(void *xxx)
 
 void af_unix_close(void)
 {
+	int rs;
 	if (s_unix_master) {
 		set_handlers(s_unix_fd, NULL, NULL, NULL, NULL);
 	}
 	if (s_unix_fd != -1) {
-		close(s_unix_fd);
+		EINTRLOOP(rs, close(s_unix_fd));
 		s_unix_fd = -1;
 	}
 	if (s_unix_master) {

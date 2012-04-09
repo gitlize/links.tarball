@@ -12,10 +12,11 @@
 /* DEBUG LEVEL:
  *		 0=vsechno vypnuty
  *		 1=leaky
- *		 2=leaky, ruda zona, alloc, realloc a free patterny
+ *		 2=leaky, ruda zona
+ *		 3=leaky, ruda zona, alloc, realloc a free patterny
  *		-1=tajny level ;-)
  */
-/* nastavuje se v configure --enable-debuglevel=-1,0,1,2
+/* nastavuje se v configure --enable-debuglevel=-1,0,1,2,3
 #define DEBUGLEVEL			2
 */
 
@@ -66,7 +67,7 @@
 
 #define COL(x)				(x)
 
-#define COLOR_MENU			(term && !term->spec->braille ? COL(070) : COL(007))
+#define COLOR_MENU_TEXT			(term && !term->spec->braille ? COL(070) : COL(007))
 #define COLOR_MENU_FRAME		(term && !term->spec->braille ? COL(070) : COL(007))
 #define COLOR_MENU_SELECTED		(term && !term->spec->braille ? COL(007) : COL(007))
 #define COLOR_MENU_HOTKEY		(term && !term->spec->braille ? COL(007) : COL(0107))
@@ -97,9 +98,7 @@
 #define DIALOG_FRAME			2
 
 #define COLOR_TITLE			COL(007)
-#define COLOR_TITLE_BG			COL(007)
 #define COLOR_STATUS			COL(070)
-#define COLOR_STATUS_BG			COL(007)
 
 #define G_BFU_DEFAULT_FONT		"century-medium-roman-serif-vari"
 #define G_BFU_DEFAULT_FONT_SIZE		16
@@ -162,7 +161,7 @@
 #define DISPLAY_TIME_MIN		200
 #define DISPLAY_TIME_MAX_FIRST		1000
 #define DISPLAY_TIME			15
-#define IMG_DISPLAY_TIME		4
+#define IMG_DISPLAY_TIME		7
 
 #define STAT_UPDATE_MIN			100
 #define STAT_UPDATE_MAX			1000
@@ -176,6 +175,7 @@
 #define HTML_FRAME_CHAR_HEIGHT		16
 #define HTML_TABLE_2ND_PASS
 #define HTML_DEFAULT_INPUT_SIZE		20
+#define HTML_MINIMAL_TEXTAREA_WIDTH	6
 #define HTML_DEFAULT_TEXTAREA_WIDTH	40
 #define HTML_DEFAULT_TEXTAREA_HEIGHT	7
 

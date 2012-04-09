@@ -47,20 +47,14 @@
 /* Define if your <sys/time.h> declares struct tm.  */
 #undef TM_IN_SYS_TIME
 
-/* The number of bytes in a int.  */
-#undef SIZEOF_INT
-
-/* The number of bytes in a long.  */
-#undef SIZEOF_LONG
-
-/* The number of bytes in a short.  */
-#undef SIZEOF_SHORT
-
 /* The number of bytes in a unsigned.  */
 #undef SIZEOF_UNSIGNED
 
 /* The number of bytes in a unsigned long.  */
 #undef SIZEOF_UNSIGNED_LONG
+
+/* The number of bytes in a unsigned long long.  */
+#undef SIZEOF_UNSIGNED_LONG_LONG
 
 /* The number of bytes in a unsigned short.  */
 #undef SIZEOF_UNSIGNED_SHORT
@@ -68,11 +62,38 @@
 /* Define if you have the DirectFBInit function.  */
 #undef HAVE_DIRECTFBINIT
 
+/* Define if you have the Gpm_GetLibVersion function.  */
+#undef HAVE_GPM_GETLIBVERSION
+
 /* Define if you have the MouOpen function.  */
 #undef HAVE_MOUOPEN
 
+/* Define if you have the XCloseIM function.  */
+#undef HAVE_XCLOSEIM
+
+/* Define if you have the XCreateIC function.  */
+#undef HAVE_XCREATEIC
+
+/* Define if you have the XDestroyIC function.  */
+#undef HAVE_XDESTROYIC
+
 /* Define if you have the XOpenDisplay function.  */
 #undef HAVE_XOPENDISPLAY
+
+/* Define if you have the XOpenIM function.  */
+#undef HAVE_XOPENIM
+
+/* Define if you have the XSupportsLocale function.  */
+#undef HAVE_XSUPPORTSLOCALE
+
+/* Define if you have the XmbTextListToTextProperty function.  */
+#undef HAVE_XMBTEXTLISTTOTEXTPROPERTY
+
+/* Define if you have the Xutf8LookupString function.  */
+#undef HAVE_XUTF8LOOKUPSTRING
+
+/* Define if you have the XwcLookupString function.  */
+#undef HAVE_XWCLOOKUPSTRING
 
 /* Define if you have the _heapmin function.  */
 #undef HAVE__HEAPMIN
@@ -158,6 +179,9 @@
 /* Define if you have the png_get_image_width function.  */
 #undef HAVE_PNG_GET_IMAGE_WIDTH
 
+/* Define if you have the png_get_libpng_ver function.  */
+#undef HAVE_PNG_GET_LIBPNG_VER
+
 /* Define if you have the png_get_sRGB function.  */
 #undef HAVE_PNG_GET_SRGB
 
@@ -190,6 +214,9 @@
 
 /* Define if you have the setrlimit function.  */
 #undef HAVE_SETRLIMIT
+
+/* Define if you have the sigdelset function.  */
+#undef HAVE_SIGDELSET
 
 /* Define if you have the sigfillset function.  */
 #undef HAVE_SIGFILLSET
@@ -224,6 +251,9 @@
 /* Define if you have the unixpath2win function.  */
 #undef HAVE_UNIXPATH2WIN
 
+/* Define if you have the uwin_path function.  */
+#undef HAVE_UWIN_PATH
+
 /* Define if you have the winpath2unix function.  */
 #undef HAVE_WINPATH2UNIX
 
@@ -256,6 +286,9 @@
 
 /* Define if you have the <bzlib.h> header file.  */
 #undef HAVE_BZLIB_H
+
+/* Define if you have the <cygwin/process.h> header file.  */
+#undef HAVE_CYGWIN_PROCESS_H
 
 /* Define if you have the <directfb.h> header file.  */
 #undef HAVE_DIRECTFB_H
@@ -347,6 +380,9 @@
 /* Define if you have the <png.h> header file.  */
 #undef HAVE_PNG_H
 
+/* Define if you have the <process.h> header file.  */
+#undef HAVE_PROCESS_H
+
 /* Define if you have the <pwd.h> header file.  */
 #undef HAVE_PWD_H
 
@@ -406,6 +442,9 @@
 
 /* Define if you have the <util/locker.h> header file.  */
 #undef HAVE_UTIL_LOCKER_H
+
+/* Define if you have the <uwin.h> header file.  */
+#undef HAVE_UWIN_H
 
 /* Define if you have the <values.h> header file.  */
 #undef HAVE_VALUES_H

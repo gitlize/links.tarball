@@ -94,31 +94,22 @@ directfb_fb_init_driver (unsigned char *param, unsigned char *display)
   pixelformat = config.pixelformat;
 
   directfb_driver.depth = (((DFB_BYTES_PER_PIXEL (pixelformat) & 0x7)) |
-                           ((DFB_BITS_PER_PIXEL  (pixelformat) & 0x1F) << 3));
+                           ((DFB_COLOR_BITS_PER_PIXEL  (pixelformat) & 0x1F) << 3));
 
   if (directfb_driver.depth == 4)
 	directfb_driver.depth = 196;
 
   /* endian test */
-  if (htons (0x1234) == 0x1234)
-    directfb_driver.depth |= 0x100;
+  if (htons (0x1234) == 0x1234) {
+     if ((directfb_driver.depth & 0x7) == 2)
+	directfb_driver.depth |= 0x100;
+     if ((directfb_driver.depth & 0x7) == 4)
+	directfb_driver.depth |= 0x200;
+  }
 
-  switch (directfb_driver.depth) {
-  	case 33:
-	case 65:
-	case 122:
-	case 130:
-	case 378:
-	case 386:
-	case 451:
-	case 195:
-	case 452:
-	case 196:
-	case 708:
-		break;
-	default:
-		error = "Unsupported color depth";
-		goto ret_layer;
+  if (!get_color_fn(directfb_driver.depth)) {
+	error = "Unsupported color depth";
+	goto ret_layer;
   }
 
   directfb_driver.x = config.width;
@@ -179,7 +170,7 @@ directfb_init_device (void)
   gd->clip = gd->size;
 
   data = mem_alloc (sizeof (DFBDeviceData));
-  
+
   data->window       = window;
   data->flip_pending = 0;
 
@@ -354,6 +345,9 @@ directfb_draw_bitmap (struct graphics_device *gd, struct bitmap *bmp,
   IDirectFBSurface *src  = bmp->flags;
   if (!src) return;
 
+  if (gd->clip.x1 >= gd->clip.x2 ||
+      gd->clip.y1 >= gd->clip.y2) return;
+
   data->surface->Blit (data->surface, src, NULL, x, y);
 
   directfb_register_flip (data, x, y, bmp->x, bmp->y);
@@ -375,7 +369,7 @@ directfb_draw_bitmaps (struct graphics_device *gd, struct bitmap **bmps,
   do
     {
       IDirectFBSurface *src = bmp->flags;
-      
+
       if (src)
         data->surface->Blit (data->surface, src, NULL, x, y);
 
@@ -418,6 +412,8 @@ directfb_draw_hline (struct graphics_device *gd,
 {
   DFBDeviceData *data = gd->driver_data;
 
+  if (right <= left) return;
+
   right--;
 
   directfb_set_color (data->surface, color);
@@ -431,7 +427,9 @@ directfb_draw_vline (struct graphics_device *gd,
                      int x, int top, int bottom, long color)
 {
   DFBDeviceData *data = gd->driver_data;
-  
+
+  if (bottom <= top) return;
+
   bottom--;
 
   directfb_set_color (data->surface, color);
@@ -451,7 +449,7 @@ directfb_set_clip_area (struct graphics_device *gd, struct rect *r)
   region.y2 = r->y2 - 1;
 
   gd->clip = *r;
-  
+
   data->surface->SetClip (data->surface, &region);
 }
 
@@ -501,7 +499,7 @@ directfb_vscroll (struct graphics_device *gd, struct rect_set **set, int sc)
   return 1;
 }
 
-struct graphics_driver directfb_driver = 
+struct graphics_driver directfb_driver =
 {
   "directfb",
   directfb_fb_init_driver,
@@ -569,7 +567,7 @@ static void directfb_register_flip (DFBDeviceData *data,
       data->flip_region.y1 = y;
       data->flip_region.x2 = w;
       data->flip_region.y2 = h;
- 
+
       data->flip_pending = 1;
 
       register_bottom_half (directfb_flip_surface, data);
@@ -814,7 +812,7 @@ directfb_add_to_table (struct graphics_device *gd)
   int i;
 
   i = data->id % DIRECTFB_HASH_TABLE_SIZE;
-  
+ 
   devices = directfb_hash_table[i];
 
   if (devices)

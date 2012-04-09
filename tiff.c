@@ -46,67 +46,77 @@ void tiff_restart(struct cached_image *cimg, unsigned char *data, int length)
 	deco->tiff_size+=length;
 }
 
-static toff_t __tiff_size(thandle_t data)
+static toff_t tiff_size(thandle_t data)
 {
 	struct cached_image *cimg=(struct cached_image *)data;
 	struct tiff_decoder *deco=(struct tiff_decoder*)cimg->decoder;
 
 	if (!deco->tiff_open)internal("BUG IN LIBTIFF: sizeproc called on closed file. Contact the libtiff authors.\n");
-	
+
 	return deco->tiff_size;
 }
 
 
-static tsize_t __tiff_read(thandle_t data, tdata_t dest, tsize_t count)
+static tsize_t tiff_read(thandle_t data, tdata_t dest, tsize_t count)
 {
 	struct cached_image *cimg=(struct cached_image *)data;
 	struct tiff_decoder *deco=(struct tiff_decoder*)cimg->decoder;
-	int n;
-	
+
 	if (!deco->tiff_open)internal("BUG IN LIBTIFF: readproc called on closed file. Contact the libtiff authors.\n");
 
-	n=(deco->tiff_pos+count>deco->tiff_size)?deco->tiff_size-deco->tiff_pos:count;
-	memcpy(dest,deco->tiff_data+deco->tiff_pos,n);
-	deco->tiff_pos+=n;
-	return n;
+	if (count < 0)
+		return 0;
+
+	if (count > deco->tiff_size-deco->tiff_pos)
+		count = deco->tiff_size-deco->tiff_pos;
+	memcpy(dest,deco->tiff_data+deco->tiff_pos,count);
+	deco->tiff_pos+=count;
+	return count;
 }
 
 
-static tsize_t __tiff_write(thandle_t data, tdata_t dest, tsize_t count)
+static tsize_t tiff_write(thandle_t data, tdata_t dest, tsize_t count)
 {
 	internal("BUG IN LIBTIFF: writeproc called on read-only file. Contact the libtiff authors.\n");
 	return 0;
 }
 
 
-static toff_t __tiff_seek(thandle_t data, toff_t offset, int whence)
+static toff_t tiff_seek(thandle_t data, toff_t offset, int whence)
 {
 	struct cached_image *cimg=(struct cached_image *)data;
 	struct tiff_decoder *deco=(struct tiff_decoder*)cimg->decoder;
-	
+	long pos;
+
 	if (!deco->tiff_open)internal("BUG IN LIBTIFF: seekproc called on closed file. Contact the libtiff authors.\n");
 
 	switch(whence)
 	{
 		case SEEK_SET:
-		deco->tiff_pos=(offset>(toff_t)deco->tiff_size)?(toff_t)deco->tiff_size:offset;
-		break;
+			pos = offset;
+			break;
 		case SEEK_CUR:
-		deco->tiff_pos+=((toff_t)deco->tiff_pos+offset>(toff_t)deco->tiff_size)?(toff_t)deco->tiff_size-(toff_t)deco->tiff_pos:offset;
-		break;
+			pos = (unsigned long)deco->tiff_pos + offset;
+			break;
 		case SEEK_END:
-		deco->tiff_pos=(offset>(toff_t)deco->tiff_size)?0:(toff_t)deco->tiff_size-offset;
-		break;
+			pos = (unsigned long)deco->tiff_size + offset;
+			break;
+		default:
+			pos = deco->tiff_pos;
+			break;
 	}
+	if (pos > deco->tiff_size) pos = deco->tiff_size;
+	if (pos < 0) pos = 0;
+	deco->tiff_pos = pos;
 	return deco->tiff_pos;
 }
 
 
-static int __tiff_close(void *data)
+static int tiff_close(void *data)
 {
 	struct cached_image *cimg=(struct cached_image *)data;
 	struct tiff_decoder *deco=(struct tiff_decoder*)cimg->decoder;
-	
+
 	if (!deco->tiff_open)internal("BUG IN LIBTIFF: closeproc called on closed file. Contact the libtiff authors.\n");
 	if (deco->tiff_data)mem_free(deco->tiff_data),deco->tiff_data=NULL;
 	deco->tiff_open=0;
@@ -114,11 +124,11 @@ static int __tiff_close(void *data)
 }
 
 
-static int __tiff_mmap(thandle_t data, tdata_t *dest, toff_t *len)
+static int tiff_mmap(thandle_t data, tdata_t *dest, toff_t *len)
 {
 	struct cached_image *cimg=(struct cached_image *)data;
 	struct tiff_decoder *deco=(struct tiff_decoder*)cimg->decoder;
-	
+
 	if (!deco->tiff_open)internal("BUG IN LIBTIFF: mapproc called on closed file. Contact the libtiff authors.\n");
 	*dest=deco->tiff_data;
 	*len=deco->tiff_size;
@@ -126,16 +136,16 @@ static int __tiff_mmap(thandle_t data, tdata_t *dest, toff_t *len)
 }
 
 
-static void __tiff_munmap(thandle_t data, tdata_t dest, toff_t len)
+static void tiff_munmap(thandle_t data, tdata_t dest, toff_t len)
 {
 	struct cached_image *cimg=(struct cached_image *)data;
 	struct tiff_decoder *deco=(struct tiff_decoder*)cimg->decoder;
-	
+
 	if (!deco->tiff_open)internal("BUG IN LIBTIFF: unmapproc called on closed file. Contact the libtiff authors.\n");
 }
 
 
-static void __tiff_error_handler(const char* module, const char* fmt, va_list ap)
+static void tiff_error_handler(const char* module, const char* fmt, va_list ap)
 {
 }
 
@@ -148,7 +158,7 @@ static void flip_buffer(void *buf,int width,int height)
 		register t4c a,b;
 		t4c *p,*q;
 		int i,l;
-		
+
 		for (l=0,p=buffer,q=buffer+width*(height-1);l<(height>>1);l++,q-=(width<<1))
 			for (i=0;i<width;a=*p,b=*q,*p++=b,*q++=a,i++)
 				;
@@ -158,10 +168,10 @@ static void flip_buffer(void *buf,int width,int height)
 		int l;
 		unsigned char *tmp;
 		int w=4*width;
-		
+
 		if ((unsigned)w > MAXINT) overalloc();
 		tmp=mem_alloc(w*sizeof(unsigned char));
-		
+
 		/* tohle je pomalejsi, protoze se kopiruje pamet->pamet, pamet->pamet */
 		/* kdyz mame 4B typek, tak se kopiruje pamet->reg, reg->pamet */
 		for (l=0,p=buffer,q=buffer+w*(height-1);l<(height>>1);l++,q-=w,p+=w)
@@ -176,7 +186,7 @@ static void flip_buffer(void *buf,int width,int height)
 		int w=width<<2; /* 4 bytes per pixel */
 		unsigned char *p,*q;
 		int i,l;
-		
+
 		for (l=0,p=buffer,q=buffer+w*(height-1);l<(height>>1);l++,q-=(w<<1))
 			for (i=0;i<width;i++,p+=4,q+=4)
 			{
@@ -210,19 +220,19 @@ void tiff_finish(struct cached_image *cimg)
 
 	if (!deco->tiff_size){img_end(cimg);return;}
 	deco->tiff_open=1;
-	TIFFSetErrorHandler(__tiff_error_handler);
-	TIFFSetWarningHandler(__tiff_error_handler);
+	TIFFSetErrorHandler(tiff_error_handler);
+	TIFFSetWarningHandler(tiff_error_handler);
 	t=TIFFClientOpen(
 			"Prave si rek' svy posledni slova. A vybral sis k tomu prihodny misto.",
 			"r",
 			cimg,
-			(TIFFReadWriteProc)__tiff_read,
-			(TIFFReadWriteProc)__tiff_write,
-			(TIFFSeekProc)__tiff_seek,
-			(TIFFCloseProc)__tiff_close,
-			(TIFFSizeProc)__tiff_size,
-			(TIFFMapFileProc)__tiff_mmap,
-			(TIFFUnmapFileProc)__tiff_munmap
+			(TIFFReadWriteProc)tiff_read,
+			(TIFFReadWriteProc)tiff_write,
+			(TIFFSeekProc)tiff_seek,
+			(TIFFCloseProc)tiff_close,
+			(TIFFSizeProc)tiff_size,
+			(TIFFMapFileProc)tiff_mmap,
+			(TIFFUnmapFileProc)tiff_munmap
 		);
 	if (!t){img_end(cimg);return;}
 	bla=TIFFGetField(t, TIFFTAG_IMAGEWIDTH, &(cimg->width));
@@ -242,9 +252,25 @@ void tiff_finish(struct cached_image *cimg)
 	 * left corner as the origin.  Vertically mirror scanlines. 
 	 */
 	flip_buffer((void*)(cimg->buffer),cimg->width,cimg->height);
-	
+
 	img_end(cimg);
 }
+
+void add_tiff_version(unsigned char **s, int *l)
+{
+	unsigned char *p, *pp;
+	int pl;
+	add_to_str(s, l, "TIFF (");
+	p = (unsigned char *)TIFFGetVersion();
+	pp = strstr(p, "LIBTIFF, ");
+	if (pp) p = pp + 9;
+	pp = strstr(p, "Version ");
+	if (pp) p = pp + 8;
+	pl = strcspn(p, " \n");
+	add_bytes_to_str(s, l, p, pl);
+	add_to_str(s, l, ")");
+}
+
 #endif /* #ifdef HAVE_TIFF */
 
 #endif /* #ifdef G */

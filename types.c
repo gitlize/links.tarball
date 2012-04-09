@@ -17,8 +17,6 @@ static void assoc_delete_item(void *);
 static void *assoc_find_item(void *start, unsigned char *str, int direction);
 static unsigned char *assoc_type_item(struct terminal *, void *, int);
 
-static unsigned char *get_filename_from_header(unsigned char *head);
-
 
 struct list assoc={&assoc,&assoc,0,-1,NULL};
 
@@ -36,7 +34,7 @@ static struct list_description assoc_ld={
 	&assoc,  /* list */
 	assoc_new_item,
 	assoc_edit_item,
-	assoc_default_value,
+	NULL,
 	assoc_delete_item,
 	assoc_copy_item,
 	assoc_type_item,
@@ -58,11 +56,6 @@ static struct list_description assoc_ld={
 	NULL,
 	1,
 };
-
-void *assoc_default_value(struct session* ses, unsigned char type)
-{
-	return NULL;
-}
 
 static void *assoc_new_item(void *ignore)
 {
@@ -245,7 +238,7 @@ static void assoc_edit_done(void *data)
 	mem_free(item->prog); item->prog=txt;
 
 	s->fn(s->dlg,s->data,item,&assoc_ld);
-	d->udata=0;  /* for abort function */
+	d->udata=NULL;  /* for abort function */
 }
 
 /* destroys an item, this function is called when edit window is aborted */
@@ -267,7 +260,7 @@ static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	struct assoc_ok_struct *s;
 	unsigned char *ct, *prog, *label;
 
-	d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item) + 3 * MAX_STR_LEN);
+	d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item) + 3 * MAX_STR_LEN);
 
 	label=(unsigned char *)&d->items[12];
 	ct=label+MAX_STR_LEN;
@@ -433,7 +426,7 @@ static struct list_description ext_ld={
 	&extensions,  /* list */
 	ext_new_item,
 	ext_edit_item,
-	assoc_default_value,
+	NULL,
 	ext_delete_item,
 	ext_copy_item,
 	ext_type_item,
@@ -588,7 +581,7 @@ static void ext_edit_done(void *data)
 	mem_free(item->ct); item->ct=txt;
 
 	s->fn(s->dlg,s->data,item,&ext_ld);
-	d->udata=0;  /* for abort function */
+	d->udata=NULL;  /* for abort function */
 }
 
 
@@ -612,7 +605,7 @@ static void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(str
 	unsigned char *ext;
 	unsigned char *ct;
 
-	d = mem_calloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + 2 * MAX_STR_LEN);
+	d = mem_calloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item) + 2 * MAX_STR_LEN);
 
 	ext=(unsigned char *)&d->items[5];
 	ct = ext + MAX_STR_LEN;
@@ -713,6 +706,30 @@ void update_ext(struct extension *new)
 	repl->type=0;
 }
 
+void update_prog(struct list_head *l, unsigned char *p, int s)
+{
+	struct protocol_program *repl;
+	foreach(repl, *l) if (repl->system == s) {
+		mem_free(repl->prog);
+		goto ss;
+	}
+	repl = mem_alloc(sizeof(struct protocol_program));
+	add_to_list(*l, repl);
+	repl->system = s;
+	ss:
+	repl->prog = mem_alloc(MAX_STR_LEN);
+	safe_strncpy(repl->prog, p, MAX_STR_LEN);
+}
+
+unsigned char *get_prog(struct list_head *l)
+{
+	struct protocol_program *repl;
+	foreach(repl, *l) if (repl->system == SYSTEM_ID) return repl->prog;
+	update_prog(l, "", SYSTEM_ID);
+	foreach(repl, *l) if (repl->system == SYSTEM_ID) return repl->prog;
+	return NULL;
+}
+
 
 /* creates default extensions if extension list is empty */
 void create_initial_extensions(void)
@@ -796,14 +813,14 @@ unsigned char *get_compress_by_extension(unsigned char *ext, unsigned char *ext_
 	size_t len = ext_end - ext;
 	if (len == 1 && !casecmp(ext, "z", 1)) return "compress";
 	if (len == 2 && !casecmp(ext, "gz", 2)) return "gzip";
-	if (len == 3 && !casecmp(ext, "tgz", 2)) return "gzip";
+	if (len == 3 && !casecmp(ext, "tgz", 3)) return "gzip";
 	if (len == 3 && !casecmp(ext, "bz2", 3)) return "bzip2";
 	if (len == 4 && !casecmp(ext, "lzma", 4)) return "lzma";
 	if (len == 2 && !casecmp(ext, "xz", 2)) return "lzma2";
 	return NULL;
 }
 
-static unsigned char *get_content_type_by_extension(unsigned char *url)
+unsigned char *get_content_type_by_extension(unsigned char *url)
 {
 	struct extension *e;
 	struct assoc *a;
@@ -934,6 +951,7 @@ static unsigned char *get_content_encoding_from_content_type(unsigned char *ct)
 unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 {
 	unsigned char *ct;
+	int code;
 	if ((ct = parse_http_header(head, "Content-Type", NULL))) {
 		unsigned char *s;
 		if ((s = strchr(ct, ';'))) *s = 0;
@@ -948,7 +966,6 @@ unsigned char *get_content_type(unsigned char *head, unsigned char *url)
 		    !strcasecmp(ct, "application/octet_stream") ||
 		    get_content_encoding_from_content_type(ct)) {
 			unsigned char *ctt;
-			int code;
 			if (!get_http_code(head, &code, NULL) && code >= 300)
 				goto no_code_by_extension;
 			ctt = get_content_type_by_header_and_extension(head, url);
@@ -961,6 +978,8 @@ no_code_by_extension:
 		if (!*ct) mem_free(ct);
 		else return ct;
 	}
+	if (!get_http_code(head, &code, NULL) && code >= 300)
+		return stracpy("text/html");
 	ct = get_content_type_by_header_and_extension(head, url);
 	if (ct) return ct;
 	return !force_html ? stracpy("text/plain") : stracpy("text/html");
@@ -1022,7 +1041,7 @@ unsigned char *encoding_2_extension(unsigned char *encoding)
 /* returns field with associations */
 struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 {
-	struct assoc *vecirek;
+	struct assoc *assoc_array;
 	struct assoc *a;
 	int count=0;
 	foreach(a, assoc) 
@@ -1030,70 +1049,15 @@ struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 			if (count == MAXINT) overalloc();
 			count++;
 		}
-	*n=count;
-	if (!count)return NULL;
+	*n = count;
+	if (!count) return NULL;
 	if ((unsigned)count > MAXINT / sizeof(struct assoc)) overalloc();
-	vecirek=mem_alloc(count*sizeof(struct assoc));
-	count=0;
+	assoc_array = mem_alloc(count*sizeof(struct assoc));
+	count = 0;
 	foreach(a, assoc) 
 		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, strlen(type))) 
-			vecirek[count++]=*a;
-	return vecirek;
-}
-
-void free_types(void)
-{
-	struct assoc *a;
-	struct extension *e;
-	struct protocol_program *p;
-	foreach(a, assoc) {
-		mem_free(a->ct);
-		mem_free(a->prog);
-		mem_free(a->label);
-	}
-	free_list(assoc);
-	foreach(e, extensions) {
-		mem_free(e->ext);
-		mem_free(e->ct);
-	}
-	free_list(extensions);
-	foreach(p, mailto_prog) mem_free(p->prog);
-	free_list(mailto_prog);
-	foreach(p, telnet_prog) mem_free(p->prog);
-	free_list(telnet_prog);
-	foreach(p, tn3270_prog) mem_free(p->prog);
-	free_list(tn3270_prog);
-	foreach(p, mms_prog) mem_free(p->prog);
-	free_list(mms_prog);
-	foreach(p, magnet_prog) mem_free(p->prog);
-	free_list(magnet_prog);
-
-	free_list(ext_search_history.items);
-	free_list(assoc_search_history.items);
-}
-
-void update_prog(struct list_head *l, unsigned char *p, int s)
-{
-	struct protocol_program *repl;
-	foreach(repl, *l) if (repl->system == s) {
-		mem_free(repl->prog);
-		goto ss;
-	}
-	repl = mem_alloc(sizeof(struct protocol_program));
-	add_to_list(*l, repl);
-	repl->system = s;
-	ss:
-	repl->prog = mem_alloc(MAX_STR_LEN);
-	safe_strncpy(repl->prog, p, MAX_STR_LEN);
-}
-
-unsigned char *get_prog(struct list_head *l)
-{
-	struct protocol_program *repl;
-	foreach(repl, *l) if (repl->system == SYSTEM_ID) return repl->prog;
-	update_prog(l, "", SYSTEM_ID);
-	foreach(repl, *l) if (repl->system == SYSTEM_ID) return repl->prog;
-	return NULL;
+			assoc_array[count++] = *a;
+	return assoc_array;
 }
 
 int is_html_type(unsigned char *ct)
@@ -1103,7 +1067,7 @@ int is_html_type(unsigned char *ct)
 		!casecmp(ct, "application/xhtml", strlen("application/xhtml"));
 }
 
-static unsigned char *get_filename_from_header(unsigned char *head)
+unsigned char *get_filename_from_header(unsigned char *head)
 {
 	unsigned char *ct, *x, *y;
 	if ((ct = parse_http_header(head, "Content-Disposition", NULL))) {
@@ -1139,7 +1103,9 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 	unsigned char *ct, *want_ext;
 	want_ext = stracpy("");
 	f = get_filename_from_header(head);
-	if (f) goto no_ct;
+	if (f) {
+		goto no_ct;
+	}
 	if (!(u = get_url_data(url))) u = url;
 	for (e = s = u; *e && !end_of_dir(url, *e); e++) {
 		if (dir_sep(*e)) s = e + 1;
@@ -1160,16 +1126,26 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 		mem_free(ct);
 	}
 	no_ct:
+	if (!*want_ext) {
+		x = strrchr(f, '.');
+		if (x) {
+			mem_free(want_ext);
+			want_ext = stracpy(x);
+		}
+	}
 	ct = get_content_encoding(head, url);
 	if (ct) {
 		x = encoding_2_extension(ct);
 		if (!tmp) {
 			if (x) {
-				if (!strcasecmp(want_ext, ".tgz") && !strcasecmp(x, "gz"))
-					goto skip_tgz_1;
+				unsigned char *w = strrchr(want_ext, '.');
+				if (w && !strcasecmp(w, ".tgz") && !strcasecmp(x, "gz"))
+					goto skip_want_ext;
+				if (w && !strcasecmp(w + 1, x))
+					goto skip_want_ext;
 				add_to_strn(&want_ext, ".");
 				add_to_strn(&want_ext, x);
-				skip_tgz_1:;
+				skip_want_ext:;
 			}
 		} else {
 			if (x) {
@@ -1191,3 +1167,35 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 	mem_free(want_ext);
 	return f;
 }
+
+void free_types(void)
+{
+	struct assoc *a;
+	struct extension *e;
+	struct protocol_program *p;
+	foreach(a, assoc) {
+		mem_free(a->ct);
+		mem_free(a->prog);
+		mem_free(a->label);
+	}
+	free_list(assoc);
+	foreach(e, extensions) {
+		mem_free(e->ext);
+		mem_free(e->ct);
+	}
+	free_list(extensions);
+	foreach(p, mailto_prog) mem_free(p->prog);
+	free_list(mailto_prog);
+	foreach(p, telnet_prog) mem_free(p->prog);
+	free_list(telnet_prog);
+	foreach(p, tn3270_prog) mem_free(p->prog);
+	free_list(tn3270_prog);
+	foreach(p, mms_prog) mem_free(p->prog);
+	free_list(mms_prog);
+	foreach(p, magnet_prog) mem_free(p->prog);
+	free_list(magnet_prog);
+
+	free_list(ext_search_history.items);
+	free_list(assoc_search_history.items);
+}
+

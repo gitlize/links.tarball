@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.5)
+AM_INIT_AUTOMAKE(links, 2.6)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -136,8 +136,11 @@ AC_CHECK_HEADERS(sys/utsname.h)
 AC_CHECK_HEADERS(sys/un.h)
 AC_CHECK_HEADERS(sys/fmutex.h)
 AC_CHECK_HEADERS(sys/cygwin.h)
+AC_CHECK_HEADERS(uwin.h)
 AC_CHECK_HEADERS(interix/interix.h)
 AC_CHECK_HEADERS(io.h)
+AC_CHECK_HEADERS(process.h)
+AC_CHECK_HEADERS(cygwin/process.h)
 AC_CHECK_HEADERS(setjmp.h)
 AC_CHECK_HEADERS(langinfo.h)
 AC_CHECK_HEADERS(pwd.h)
@@ -170,18 +173,26 @@ AC_STRUCT_TM
 if test "$ac_cv_have_emx" = yes; then
 	default_short=2
 	default_int=4
+	default_long=4
+	default_long_long=8
 else
 	default_short=0
 	default_int=0
+	default_long=0
+	default_long_long=0
 fi
 
 dnl Check for compiler type sizes
-AC_CHECK_SIZEOF(short, "$default_short")
+dnl AC_CHECK_SIZEOF(short, "$default_short")
 AC_CHECK_SIZEOF(unsigned short,"$default_short")
-AC_CHECK_SIZEOF(int,"$default_int")
+dnl AC_CHECK_SIZEOF(int,"$default_int")
 AC_CHECK_SIZEOF(unsigned, "$default_int")
-AC_CHECK_SIZEOF(long, "$default_int")
-AC_CHECK_SIZEOF(unsigned long, "$default_int")
+dnl AC_CHECK_SIZEOF(long, "$default_long")
+AC_CHECK_SIZEOF(unsigned long, "$default_long")
+if test "$ac_cv_have_long_long" = yes; then
+dnl 	AC_CHECK_SIZEOF(long long, "$default_long")
+	AC_CHECK_SIZEOF(unsigned long long, "$default_long")
+fi
 AC_CACHE_CHECK([for big endian], ac_cv_big_endian,
 	AC_TRY_RUN([
 	long l;
@@ -251,7 +262,6 @@ AC_HAVE_FUNCS(getpagesize)
 AC_HAVE_FUNCS(strptime)
 AC_HAVE_FUNCS(getpwuid)
 AC_HAVE_FUNCS(getgrgid)
-AC_HAVE_FUNCS(sigfillset)
 AC_HAVE_FUNCS(getrlimit)
 AC_HAVE_FUNCS(setrlimit)
 AC_HAVE_FUNCS(setlocale)
@@ -266,6 +276,8 @@ AC_HAVE_FUNCS(snprintf)
 AC_HAVE_FUNCS(raise)
 AC_HAVE_FUNCS(gettimeofday)
 AC_HAVE_FUNCS(tempnam)
+AC_HAVE_FUNCS(sigfillset)
+AC_HAVE_FUNCS(sigdelset)
 AC_HAVE_FUNCS(strtol)
 AC_HAVE_FUNCS(strtoul)
 AC_HAVE_FUNCS(strtoq)
@@ -422,6 +434,8 @@ AC_HAVE_FUNCS(cfmakeraw)
 AC_HAVE_FUNCS(cygwin_conv_to_full_win32_path)
 AC_HAVE_FUNCS(cygwin_conv_path)
 
+AC_HAVE_FUNCS(uwin_path)
+
 AC_HAVE_FUNCS(unixpath2win)
 AC_HAVE_FUNCS(winpath2unix)
 
@@ -430,11 +444,12 @@ AC_ARG_ENABLE(debuglevel, [  --enable-debuglevel     set internal checking level
 	-1 - recover from segmentation faults
 	 0 - no checks (fastest)
 	 1 - check memory leaks
-	 2 - check memory leaks, memory red zone, pattern filling], cf_debuglevel="$enableval", cf_debuglevel=0)
+	 2 - check memory leaks, red zone
+	 3 - check memory leaks, red zone, pattern filling], cf_debuglevel="$enableval", cf_debuglevel=0)
 if test "$cf_debuglevel" = no; then cf_debuglevel=0; fi
 if test "$cf_debuglevel" = yes; then cf_debuglevel=2; fi
 AC_MSG_RESULT($cf_debuglevel)
-if test "$cf_debuglevel" != -1 && test "$cf_debuglevel" != 0 && test "$cf_debuglevel" != 1 && test "$cf_debuglevel" != 2; then
+if test "$cf_debuglevel" != -1 && test "$cf_debuglevel" != 0 && test "$cf_debuglevel" != 1 && test "$cf_debuglevel" != 2 && test "$cf_debuglevel" != 3; then
 	AC_ERROR([Invalid debuglevel specified])
 fi
 AC_DEFINE_UNQUOTED(DEBUGLEVEL, $cf_debuglevel)
@@ -502,6 +517,7 @@ AC_ARG_WITH(gpm, [  --without-gpm           compile without gpm mouse],[if test 
 if test "$disable_gpm" != yes; then
 	AC_CHECK_HEADERS(gpm.h)
 	AC_CHECK_LIB(gpm, Gpm_Open)
+	AC_HAVE_FUNCS(Gpm_GetLibVersion)
 	if test "$ac_cv_lib_gpm_Gpm_Open" = yes && test "$ac_cv_header_gpm_h" = yes ; then cf_have_gpm=yes ; else cf_have_gpm=no; fi
 else
 	cf_have_gpm=no
@@ -558,32 +574,35 @@ fi
 cf_result=no
 #ifdef HAVE_SSL
 ssld=yes
+withval=
 AC_ARG_WITH(ssl, [  --with-ssl(=directory)  enable SSL support
   --with-ssl=nss          enable SSL support through NSS OpenSSL emulation], [if test "$withval" = no; then disable_ssl=yes; else ssld="$withval"; fi])
 AC_ARG_ENABLE(ssl-pkgconfig, [  --disable-ssl-pkgconfig don't use pkgconfig when searching for openssl], cf_openssl_pkgconfig="$enableval", cf_openssl_pkgconfig=yes)
 if test -z "$disable_ssl"; then
+	CPPFLAGS_X="$CPPFLAGS"
+	LIBS_X="$LIBS"
 	if test "$static_link" != 0; then
 		AC_CHECK_LIB(dl, dlopen)
 		AC_CHECK_LIB(z, inflate)
 	fi
-	CPPFLAGS_X="$CPPFLAGS"
-	LIBS_X="$LIBS"
+	CPPFLAGS_XX="$CPPFLAGS"
+	LIBS_XX="$LIBS"
 	if test "$cf_result" = no && test "$ssld" = yes -o "$ssld" = openssl; then
 		if test "$cf_openssl_pkgconfig" = no; then
 			pkgconfig_openssl=no
 		else
 			PKG_CHECK_MODULES(OPENSSL,openssl,pkgconfig_openssl=yes,pkgconfig_openssl=no)
+			if test "$PKG_CONFIG" != no -a "$pkgconfig_openssl" = no; then
+				AC_MSG_RESULT(no)
+			fi
 		fi
 		if test "$pkgconfig_openssl" = yes; then
 			AC_MSG_CHECKING([for OpenSSL])
-			CPPFLAGS="$CPPFLAGS_X $OPENSSL_CFLAGS"
-			LIBS="$OPENSSL_LIBS $LIBS_X"
-			AC_TRY_LINK([#include <openssl/ssl.h>], [OpenSSL_add_all_algorithms()], cf_result=openssl, cf_result=no)
-			if test "$cf_result" = no; then
-				AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
-			fi
+			CPPFLAGS="$CPPFLAGS_XX $OPENSSL_CFLAGS"
+			LIBS="$OPENSSL_LIBS $LIBS_XX"
+			AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
+			AC_MSG_RESULT($cf_result)
 		fi
-		AC_MSG_RESULT($cf_result)
 	fi
 
 	if test "$cf_result" = no && test "$ssld" != nss; then
@@ -594,15 +613,13 @@ if test -z "$disable_ssl"; then
 		for ssldir in $ssld; do
 			if test "$cf_result" = no; then
 				if test ! -z "$ssldir" && test "$ssldir" != /usr && test "$ssldir" != .; then
-					LIBS="-L$ssldir/lib -lssl -lcrypto $LIBS_X"
-					CPPFLAGS="$CPPFLAGS_X -I$ssldir/include"
+					LIBS="-L$ssldir/lib -lssl -lcrypto $LIBS_XX"
+					CPPFLAGS="$CPPFLAGS_XX -I$ssldir/include"
 				else
-					LIBS="-lssl -lcrypto $LIBS_X"
+					LIBS="-lssl -lcrypto $LIBS_XX"
+					CPPFLAGS="$CPPFLAGS_XX"
 				fi
-				AC_TRY_LINK([#include <openssl/ssl.h>], [OpenSSL_add_all_algorithms()], cf_result=openssl, cf_result=no)
-				if test "$cf_result" = no; then
-					AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
-				fi
+				AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
 			fi
 		done
 		AC_MSG_RESULT($cf_result)
@@ -613,6 +630,9 @@ if test -z "$disable_ssl"; then
 			pkgconfig_nss=no
 		else
 			PKG_CHECK_MODULES(NSS,nss,pkgconfig_nss=yes,pkgconfig_nss=no)
+			if test "$PKG_CONFIG" != no -a "$pkgconfig_nss" = no; then
+				AC_MSG_RESULT(no)
+			fi
 		fi
 		if test "$pkgconfig_nss" = no; then
 			NSS_CFLAGS=""
@@ -621,12 +641,12 @@ if test -z "$disable_ssl"; then
 		CPPFLAGS="$CPPFLAGS_X $NSS_CFLAGS"
 		LIBS="-lnss_compat_ossl $NSS_LIBS $LIBS_X"
 		AC_MSG_CHECKING([for NSS-compat-ossl])
-		AC_TRY_LINK([#include <nss_compat_ossl/nss_compat_ossl.h>], [OpenSSL_add_ssl_algorithms()], cf_result=nss, cf_result=no)
+		AC_TRY_LINK([#include <nss_compat_ossl/nss_compat_ossl.h>], [SSLeay_add_ssl_algorithms()], cf_result=nss, cf_result=no)
 		AC_MSG_RESULT($cf_result)
 	fi
 
 	if test "$cf_result" = no; then
-		if test "$withval" = yes; then
+		if test -n "$withval" -a "$withval" != no; then
 			AC_MSG_ERROR("OpenSSL not found")
 		fi
 	        CPPFLAGS="$CPPFLAGS_X"
@@ -728,24 +748,36 @@ if test "$disable_directfb" != yes ; then
 		if expr $directfb_version \>= 0.9.17 >/dev/null; then
 			AC_MSG_RESULT(yes)
 
-			CPPFLAGS_X="$CPPFLAGS"
-			LIBS_X="$LIBS"
-
-			CPPFLAGS="$CPPFLAGS `$DIRECTFB_CONFIG --cflags`"
-			LIBS="`$DIRECTFB_CONFIG --libs` $LIBS"
-
-			AC_CHECK_HEADERS(directfb.h)
-			AC_HAVE_FUNCS(DirectFBInit)
-
-			if test "$ac_cv_header_directfb_h" = yes && test "$ac_cv_func_DirectFBInit" = yes; then
-				AC_DEFINE(GRDRV_DIRECTFB)
-				drivers="$drivers DIRECTFB"
-			else
-				CPPFLAGS="$CPPFLAGS_X"
-				LIBS="$LIBS_X"
-			fi
+			DIRECTFB_CFLAGS="`$DIRECTFB_CONFIG --cflags`"
+			DIRECTFB_LIBS="`$DIRECTFB_CONFIG --libs`"
+			pkgconfig_directfb=yes
 		else
 			AC_MSG_RESULT(no)
+			pkgconfig_directfb=no
+		fi
+	else
+		PKG_CHECK_MODULES(DIRECTFB,directfb,pkgconfig_directfb=yes,pkgconfig_directfb=no)
+		if test "$PKG_CONFIG" != no -a "$pkgconfig_directfb" = no; then
+			AC_MSG_RESULT(no)
+		fi
+	fi
+
+	if test "$pkgconfig_directfb" = "yes"; then
+		CPPFLAGS_X="$CPPFLAGS"
+		LIBS_X="$LIBS"
+
+		CPPFLAGS="$CPPFLAGS $DIRECTFB_CFLAGS"
+		LIBS="$DIRECTFB_LIBS $LIBS"
+
+		AC_CHECK_HEADERS(directfb.h)
+		AC_HAVE_FUNCS(DirectFBInit)
+
+		if test "$ac_cv_header_directfb_h" = yes && test "$ac_cv_func_DirectFBInit" = yes; then
+			AC_DEFINE(GRDRV_DIRECTFB)
+			drivers="$drivers DIRECTFB"
+		else
+			CPPFLAGS="$CPPFLAGS_X"
+			LIBS="$LIBS_X"
 		fi
 	fi
 fi
@@ -774,6 +806,9 @@ if test "$disable_x" != yes ; then
 	AC_CHECK_HEADERS(X11/Xlib.h X11/X.h X11/Xutil.h X11/Xatom.h X11/Xlocale.h X11/keysymdef.h)
 
 	AC_HAVE_FUNCS(XOpenDisplay)
+	AC_HAVE_FUNCS(XOpenIM XCloseIM XCreateIC XDestroyIC XwcLookupString)
+	AC_HAVE_FUNCS(Xutf8LookupString)
+	AC_HAVE_FUNCS(XSupportsLocale XmbTextListToTextProperty)
 
 	if test "$have_x" = yes -o "$ac_cv_have_x2" != no && test "$ac_cv_func_XOpenDisplay" = yes && test "$ac_cv_header_X11_Xlib_h" = yes && test "$ac_cv_header_X11_X_h" = yes && test "$ac_cv_header_X11_Xutil_h" = yes && test "$ac_cv_header_X11_Xatom_h" = yes && test "$ac_cv_header_X11_keysymdef_h" = yes; then
 		AC_DEFINE(GRDRV_X)
@@ -861,11 +896,17 @@ fi
 	fi
 	if test "$cf_libpng_pkgconfig" != no; then
 		PKG_CHECK_MODULES(LIBPNG,libpng >= 1.0.0,pkgconfig_libpng=yes,pkgconfig_libpng=no)
+		if test "$PKG_CONFIG" != no -a "$pkgconfig_libpng" = no; then
+			AC_MSG_RESULT(no)
+		fi
 		if test "$pkgconfig_libpng" = "yes"; then
 			CPPFLAGS="$CPPFLAGS $LIBPNG_CFLAGS"
 			LIBS="$LIBPNG_LIBS $LIBS"
 		else
 			PKG_CHECK_MODULES(LIBPNG12,libpng12,pkgconfig_libpng12=yes,pkgconfig_libpng12=no)
+			if test "$PKG_CONFIG" != no -a "$pkgconfig_libpng12" = no; then
+				AC_MSG_RESULT(no)
+			fi
 			if test "$pkgconfig_libpng12" = "yes"; then
 				CPPFLAGS="$CPPFLAGS $LIBPNG12_CFLAGS"
 				LIBS="$LIBPNG12_LIBS $LIBS"
@@ -882,6 +923,7 @@ fi
 	fi
 
 	AC_HAVE_FUNCS(png_set_rgb_to_gray)
+	AC_HAVE_FUNCS(png_get_libpng_ver)
 	AC_HAVE_FUNCS(png_get_image_width png_get_image_height png_get_gAMA png_get_color_type png_get_bit_depth png_set_strip_alpha png_get_valid png_get_sRGB)
 	if test "$ac_cv_func_png_get_image_width" != yes ||
 	   test "$ac_cv_func_png_get_image_height" != yes ||
@@ -967,6 +1009,18 @@ if test "$ac_cv_have_emx" = yes; then
 	if test "$ac_cv_have_x2" != no; then echo "xterm for OS/2 support:	YES"; else echo "xterm for OS/2 support:	NO"; fi
 fi
 echo "---------------------------------------------------------"
+if test "$cf_have_ssl" = "nss"; then
+	echo "!!! WARNING !!! NSS encryption library can cause lockup"
+	echo "of the whole browser if the server is not responding."
+	echo "It is recommended to use OpenSSL instead."
+	echo "---------------------------------------------------------"
+fi
+if test -n "`echo "$drivers"|grep -w X`" -a "$ac_cv_header_interix_interix_h" = yes; then
+	echo "!!! WARNING !!! Xwindow in Interix is unreliable and"
+	echo "it may cause browser lockup."
+	echo "It is recommended to use Cygwin instead."
+	echo "---------------------------------------------------------"
+fi
 
 
 #mv Makefile Makefile.tmp

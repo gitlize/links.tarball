@@ -20,7 +20,7 @@ struct list_head c_domains = { &c_domains, &c_domains };
 struct c_server {
 	struct c_server *next;
 	struct c_server *prev;
-	int accept;
+	int accpt;
 	unsigned char server[1];
 };
 
@@ -137,7 +137,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	}
 	cookie->id = cookie_id++;
 	foreach (cs, c_servers) if (!strcasecmp(cs->server, server)) {
-		if (cs->accept) goto ok;
+		if (cs->accpt) goto ok;
 		else {
 			free_cookie(cookie);
 			mem_free(cookie);
@@ -222,7 +222,7 @@ static void cookie_default(void *idp, int a)
 	strcpy(s->server, c->server);
 	add_to_list(c_servers, s);
 	found:
-	s->accept = a;
+	s->accpt = a;
 }
 
 static void accept_cookie_always(void *idp)
@@ -259,7 +259,9 @@ int is_path_prefix(unsigned char *d, unsigned char *s)
 
 int cookie_expired(struct cookie *c)	/* parse_http_date is broken */
 {
-	return 0 && (c->expires && c->expires < time(NULL));
+	time_t t;
+	EINTRLOOPX(t, time(NULL), (time_t)-1);
+	return 0 && (c->expires && c->expires < t);
 }
 
 void add_cookies(unsigned char **s, int *l, unsigned char *url)

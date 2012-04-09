@@ -117,6 +117,16 @@ static unsigned char *init_graphics_driver(struct graphics_driver *gd, unsigned 
 	return r;
 }
 
+
+void add_graphics_drivers(unsigned char **s, int *l)
+{
+	struct graphics_driver **gd;
+	for (gd = graphics_drivers; *gd; gd++) {
+		if (gd != graphics_drivers) add_to_str(s, l, ", ");
+		add_to_str(s, l, (*gd)->name);
+	}
+}
+
 unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsigned char *display)
 {
 	unsigned char *s = init_str();
@@ -158,10 +168,7 @@ unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsign
 		add_to_str(&s, &l, "Unknown graphics driver ");
 		if (driver) add_to_str(&s, &l, driver);
 		add_to_str(&s, &l, ".\nThe following graphics drivers are supported:\n");
-		for (gd = graphics_drivers; *gd; gd++) {
-			if (gd != graphics_drivers) add_to_str(&s, &l, ", ");
-			add_to_str(&s, &l, (*gd)->name);
-		}
+		add_graphics_drivers(&s, &l);
 		add_to_str(&s, &l, "\n");
 	}
 	return s;

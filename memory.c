@@ -19,11 +19,15 @@ int shrink_memory(int type)
 	struct cache_upcall *c;
 	int a = 0;
 	foreach(c, cache_upcalls) a |= c->upcall(type);
-	if (a & ST_SOMETHING_FREED) {
 #if defined(HAVE__HEAPMIN)
-		_heapmin();
-#endif
+	{
+		static time_t last_heapmin = 0;
+		if (a & ST_SOMETHING_FREED || time(NULL) - last_heapmin >= 10) {
+			_heapmin();
+			time(&last_heapmin);
+		}
 	}
+#endif
 	return a;
 }
 
@@ -74,13 +78,18 @@ int out_of_memory(unsigned char *msg, size_t size)
 	}
 	if (!msg) return 0;
 
+	fprintf(stderr, "\n");
 	fprintf(stderr, "File cache: %lu bytes, %lu files, %lu locked, %lu loading\n", cache_info(CI_BYTES), cache_info(CI_FILES), cache_info(CI_LOCKED), cache_info(CI_LOADING));
+#ifdef HAVE_ANY_COMPRESSION
+	fprintf(stderr, "Decompressed cache: %lu bytes, %lu files, %lu locked\n", decompress_info(CI_BYTES), decompress_info(CI_FILES), decompress_info(CI_LOCKED));
+#endif
 #ifdef G
 	if (F) {
 		fprintf(stderr, "Image cache: %lu bytes, %lu files, %lu locked\n", imgcache_info(CI_BYTES), imgcache_info(CI_FILES), imgcache_info(CI_LOCKED));
 	}
 #endif
 	fprintf(stderr, "Formatted document cache: %lu documents, %lu locked\n", formatted_info(CI_FILES), formatted_info(CI_LOCKED));
+	fprintf(stderr, "DNS cache: %lu servers\n", dns_info(CI_FILES));
 
 	error("ERROR: out of memory (%s(%lu) returned NULL)", msg, (unsigned long)size);
 	fatal_tty_exit();

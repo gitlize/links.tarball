@@ -704,7 +704,7 @@ static void make_16_table(int *table, int bits, int pos,double gamma, int dump_t
 					if (!sample_state) {
 						if (now != start_time) start_time = now, sample_state = 1;
 					} else {
-						if (now - start_time > SLOW_FPU_DETECT_THRESHOLD && (now - start_time) * 65536 / j > SLOW_FPU_MAX_STARTUP / 3) {
+						if ((uttime)now - (uttime)start_time > SLOW_FPU_DETECT_THRESHOLD && ((uttime)now - (uttime)start_time) * 65536 / j > SLOW_FPU_MAX_STARTUP / 3) {
 							x_slow_fpu = 1;
 							goto repeat_loop;
 						}

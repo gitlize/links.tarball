@@ -681,7 +681,7 @@ static void svga_unregister_bitmap(struct bitmap *bmp)
  * the right position to start with inside the bitmap. */
 #define	CLIP_PREFACE \
 	int xs=hndl->x,ys=hndl->y;\
-	char *data=hndl->data;\
+	unsigned char *data=hndl->data;\
 	int mouse_hidden;\
 \
  	TEST_INACTIVITY\
@@ -1002,7 +1002,7 @@ static void draw_hline_paged(struct graphics_device *dev, int left, int y, int r
 static void draw_vline_paged_1(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
 	int dest,n, page,paga,remains;
-	int byte=*(char *)&color;
+	int byte=*(unsigned char *)&color;
 	VLINE_CLIP_PREFACE;
 	SYNC
 	dest=top*vga_linewidth+x;
@@ -1164,7 +1164,7 @@ static void draw_vline_paged(struct graphics_device *dev, int x, int top, int bo
 	if (remains<vga_bytes){
 		memcpy(my_graph_mem+paga,&color,remains);
 		vga_setpage(++page);
-		memcpy(my_graph_mem,(char *)&color+remains,vga_bytes-remains);
+		memcpy(my_graph_mem,(unsigned char *)&color+remains,vga_bytes-remains);
 		lina+=vga_linewidth;
 		n--;
 		if (!n) goto end;
@@ -2385,8 +2385,9 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 		global_mouse_hidden=1;
 		/* To ensure hide_mouse and show_mouse will do nothing */
 	}
-	signal(SIGPIPE, SIG_IGN);
-	signal(SIGTSTP, SIG_IGN);
+	ignore_signals();
+	errno = 0;
+	while (signal(SIGTSTP, SIG_IGN) == SIG_ERR && errno == EINTR) errno = 0;
 	install_signal_handler(SIGINT, (void (*)(void *))svga_ctrl_c, svgalib_kbd, 0);
 	return NULL;
 }
@@ -2480,7 +2481,7 @@ static int vga_unblock(struct graphics_device *dev)
 
 static void *svga_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
-	return ((char *)bmp->data)+bmp->skip*top;
+	return ((unsigned char *)bmp->data)+bmp->skip*top;
 }
 
 
@@ -2492,8 +2493,7 @@ static void svga_commit_strip(struct bitmap *bmp, int top, int lines)
 /* This is a nasty hack */
 #undef select
 
-int vga_select(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-			      struct timeval *timeout)
+int vga_select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout)
 {
 	int retval,i;
 

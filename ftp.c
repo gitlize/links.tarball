@@ -38,7 +38,7 @@ static void ftp_retr_file(struct connection *, struct read_buffer *);
 static void ftp_got_final_response(struct connection *, struct read_buffer *);
 static void created_data_connection(struct connection *);
 static void got_something_from_data_connection(struct connection *);
-static void ftp_end_request(struct connection *);
+static void ftp_end_request(struct connection *, int);
 static int get_ftp_response(struct connection *, struct read_buffer *, int);
 static int ftp_process_dirlist(struct cache_entry *, off_t *, int *, unsigned char *, int, int, int *);
 
@@ -244,8 +244,9 @@ static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 	}
 #ifdef HAVE_IPTOS
 	if (ftp_options.set_tos) {
+		int rx;
 		int on = IPTOS_THROUGHPUT;
-		setsockopt(c->sock2, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int));
+		EINTRLOOP(rx, setsockopt(c->sock2, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int)));
 	}
 #endif
 	if (!(de = strchr(d, POST_CHAR))) de = d + strlen(d);
@@ -439,6 +440,7 @@ static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 		{
 #if defined(HAVE_STRTOLL)
 			long long est = strtoll(&d[p], NULL, 10);
+			if (est == MAXLLONG) est = -1;
 #elif defined(HAVE_STRTOQ)
 			longlong est = strtoq(&d[p], NULL, 10);
 #else
@@ -446,7 +448,7 @@ static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 			if (est == MAXLONG) est = -1;
 #endif
 			if (est < 0 || (off_t)est < 0 || (off_t)est != est) est = 0;
-			if (est && !c->from) c->est_length = est; /* !!! FIXME: when I add appedning to downloaded file */
+			if (est) c->est_length = est + c->from;
 		}
 		nol:;
 	}
@@ -478,22 +480,21 @@ static void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 		add_to_strn(&c->cache->redirect, "/");
 		c->cache->incomplete = 0;
 		/*setcstate(c, S_FTP_NO_FILE);*/
-		setcstate(c, S_OK);
+		setcstate(c, S__OK);
 		abort_connection(c);
 		return;
 	}
 	skip_redir:
 	if (g >= 400) { setcstate(c, S_FTP_FILE_ERROR); abort_connection(c); return; }
 	if (inf->conn_st == 2) {
-		setcstate(c, S_OK);
-		ftp_end_request(c);
+		ftp_end_request(c, S__OK);
 	} else {
 		inf->conn_st = 1;
 		if (c->state != S_TRANS) setcstate(c, S_GETH);
 	}
 }
 
-static int is_date(char *data)	/* can touch at most data[-4] --- "n 12 "<--if fed with this --- if you change it, fix the caller */
+static int is_date(unsigned char *data)	/* can touch at most data[-4] --- "n 12 "<--if fed with this --- if you change it, fix the caller */
 {
 	/* fix for ftp://ftp.su.se/ */
 	if (*data == ' ') data--;
@@ -514,6 +515,7 @@ static int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsig
 	int p;
 	int len;
 	int f;
+	int a;
 	again:
 	buf = bf + ret;
 	len = ln - ret;
@@ -635,7 +637,9 @@ static int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsig
 		add_conv_str(&str, &sl, buf, p, 0);
 	}
 	add_chr_to_str(&str, &sl, '\n');
-	if (add_fragment(ce, *pos, str, sl)) *tr = 0;
+	a = add_fragment(ce, *pos, str, sl);
+	if (a < 0) return a;
+	if (a == 1) *tr = 0;
 	*pos += sl;
 	mem_free(str);
 	goto again;
@@ -646,8 +650,9 @@ static void created_data_connection(struct connection *c)
 	struct ftp_connection_info *inf = c->info;
 #ifdef HAVE_IPTOS
 	if (ftp_options.set_tos) {
+		int rx;
 		int on = IPTOS_THROUGHPUT;
-		setsockopt(c->sock2, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int));
+		EINTRLOOP(rx, setsockopt(c->sock2, IPPROTO_IP, IP_TOS, (char *)&on, sizeof(int)));
 	}
 #endif
 	inf->d = 1;
@@ -658,13 +663,16 @@ static void got_something_from_data_connection(struct connection *c)
 {
 	struct ftp_connection_info *inf = c->info;
 	int l;
+	int m;
+	int rs;
 	set_timeout(c);
 	if (!inf->d) {
 		int ns;
 		inf->d = 1;
 		set_handlers(c->sock2, NULL, NULL, NULL, NULL);
-		if ((ns = accept(c->sock2, NULL, NULL)) == -1) goto e;
-		close(c->sock2);
+		EINTRLOOP(ns, accept(c->sock2, NULL, NULL));
+		if (ns == -1) goto e;
+		EINTRLOOP(rs, close(c->sock2));
 		c->sock2 = ns;
 		set_handlers(ns, (void (*)(void *))got_something_from_data_connection, NULL, NULL, c);
 		return;
@@ -681,10 +689,16 @@ static void got_something_from_data_connection(struct connection *c)
 		unsigned char *ud;
 		unsigned char *s0;
 		int s0l;
+		int err = 0;
 		static unsigned char ftp_head[] = "<html><head><title>/";
 		static unsigned char ftp_head2[] = "</title></head><body><h2>Directory /";
 		static unsigned char ftp_head3[] = "</h2><pre>";
-#define A(s) add_fragment(c->cache, c->from, s, strlen(s)), c->from += strlen(s)
+#define A(s)							\
+do {								\
+	m = add_fragment(c->cache, c->from, s, strlen(s));	\
+	if (m < 0 && !err) err = m;				\
+	c->from += strlen(s);					\
+} while (0)
 		A(ftp_head);
 		ud = stracpy(get_url_data(c->url));
 		if (strchr(ud, POST_CHAR)) *strchr(ud, POST_CHAR) = 0;
@@ -699,9 +713,15 @@ static void got_something_from_data_connection(struct connection *c)
 		mem_free(s0);
 		if (!c->cache->head) c->cache->head = stracpy("\r\n");
 		add_to_strn(&c->cache->head, "Content-Type: text/html\r\n");
+		if (err) {
+			setcstate(c, err);
+			abort_connection(c);
+			return;
+		}
 #undef A
 	}
-	if ((l = read(c->sock2, inf->ftp_buffer + inf->buf_pos, FTP_BUF - inf->buf_pos)) == -1) {
+	EINTRLOOP(l, read(c->sock2, inf->ftp_buffer + inf->buf_pos, FTP_BUF - inf->buf_pos));
+	if (l == -1) {
 		e:
 		if (inf->conn_st != 1 && !inf->dir && !c->from) {
 			set_handlers(c->sock2, NULL, NULL, NULL, NULL);
@@ -721,37 +741,52 @@ static void got_something_from_data_connection(struct connection *c)
 				return;
 			}
 			c->received += l;
-			if (add_fragment(c->cache, c->from, inf->ftp_buffer, l) == 1) c->tries = 0;
+			m = add_fragment(c->cache, c->from, inf->ftp_buffer, l);
+			if (m < 0) {
+				setcstate(c, m);
+				abort_connection(c);
+				return;
+			}
+			if (m == 1) c->tries = 0;
 			c->from += l;
 		} else {
-			int m;
 			c->received += l;
 			m = ftp_process_dirlist(c->cache, &c->from, &inf->dpos, inf->ftp_buffer, l + inf->buf_pos, 0, &c->tries);
+			if (m < 0) {
+				setcstate(c, m);
+				abort_connection(c);
+				return;
+			}
 			memmove(inf->ftp_buffer, inf->ftp_buffer + m, inf->buf_pos + l - m);
 			inf->buf_pos += l - m;
 		}
 		setcstate(c, S_TRANS);
 		return;
 	}
-	ftp_process_dirlist(c->cache, &c->from, &inf->dpos, inf->ftp_buffer, inf->buf_pos, 1, &c->tries);
+	m = ftp_process_dirlist(c->cache, &c->from, &inf->dpos, inf->ftp_buffer, inf->buf_pos, 1, &c->tries);
+	if (m < 0) {
+		setcstate(c, m);
+		abort_connection(c);
+		return;
+	}
 	set_handlers(c->sock2, NULL, NULL, NULL, NULL);
 	close_socket(&c->sock2);
 	if (inf->conn_st == 1) {
-		setcstate(c, S_OK);
-		ftp_end_request(c);
+		ftp_end_request(c, S__OK);
 	} else {
 		inf->conn_st = 2;
 	}
 }
 
-static void ftp_end_request(struct connection *c)
+static void ftp_end_request(struct connection *c, int state)
 {
-	if (c->state == S_OK) {
+	if (state == S__OK) {
 		if (c->cache) {
 			truncate_entry(c->cache, c->from, 1);
 			c->cache->incomplete = 0;
 		}
 	}
+	setcstate(c, state);
 	add_keepalive_socket(c, FTP_KEEPALIVE_TIMEOUT);
 }
 

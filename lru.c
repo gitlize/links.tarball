@@ -31,7 +31,7 @@ void lru_insert(struct lru *cache, void *entry, struct lru_entry ** row,
 	}
 	*row=new_entry;
 	cache->top=new_entry;
-cache->bytes+=bytes_consumed;
+	cache->bytes+=bytes_consumed;
 	cache->items++;		
 }
 

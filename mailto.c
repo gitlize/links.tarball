@@ -46,7 +46,7 @@ static void tn_func(struct session *ses, unsigned char *url, struct list_head *p
 	unsigned char *m;
 	unsigned char *h, *p;
 	int hl, pl;
-	unsigned char *hh, *pp;
+	unsigned char *hh, *pp = NULL	/* against warning */;
 	int f = 1;
 	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, &h, &hl, &p, &pl, NULL, NULL, NULL) || !hl) goto fail;
 	if (!(hh = memacpy(h, hl))) goto fail;

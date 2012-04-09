@@ -134,7 +134,10 @@ static void pm_send_event(struct pm_window *win, int t, int x1, int y1, int x2, 
 		ev->x1 = x1, ev->y1 = y1;
 		ev->x2 = x2, ev->y2 = y2;
 		if (!win->in) {
-			if (list_empty(pm_event_windows)) write(pm_pipe[1], "x", 1);
+			if (list_empty(pm_event_windows)) {
+				int wr;
+				EINTRLOOP(wr, write(pm_pipe[1], "x", 1));
+			}
 			add_to_list(pm_event_windows, win);
 			win->in = 1;
 		}
@@ -228,7 +231,7 @@ static int win_y(struct pm_window *win)
 	return y;
 }
 
-MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
+static MRESULT EXPENTRY pm_window_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 {
 	int k_usch, k_usvk, k_fsflags;
 	int scancode;
@@ -406,7 +409,7 @@ struct title_set {
 	unsigned char *text;
 };
 
-MRESULT EXPENTRY pm_msg_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
+static MRESULT EXPENTRY pm_msg_proc(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 {
 	struct title_set *w;
 	if (msg == WM_USER) switch ((int)mp1) {
@@ -463,7 +466,7 @@ static void pm_dispatcher(void *p)
 	if ((pm_cp = WinQueryCp(hmq))) {
 		unsigned char a[64];
 		snprint(a, 64, pm_cp);
-		if ((pm_cp = get_cp_index(a)) < 0 || is_cp_special(pm_cp)) pm_cp = 0;
+		if ((pm_cp = get_cp_index(a)) < 0 || pm_cp == utf8_table) pm_cp = 0;
 	}
 	/*{
 		ULONG cp_list[100];
@@ -533,7 +536,9 @@ static void pm_handler(void *p)
 		}
 	}
 	if (list_empty(pm_event_windows)) {
-		if (read(pm_pipe[0], &c, 1) != 1) pm_pipe_error(NULL);
+		int rd;
+		EINTRLOOP(rd, read(pm_pipe[0], &c, 1));
+		if (rd != 1) pm_pipe_error(NULL);
 	}
 	pm_unlock;
 	if (!ev) return;
@@ -574,7 +579,8 @@ static void pm_sigcld(void *p)
 {
 	int st;
 	pid_t w;
-	if (!(w = waitpid(pm_child_pid, &st, WNOHANG))) return;
+	EINTRLOOP(w, waitpid(pm_child_pid, &st, WNOHANG));
+	if (!w) return;
 	if (w > 0) exit(st);
 	else exit(RET_FATAL);
 }
@@ -584,33 +590,49 @@ static int pm_cons_ok = 0;
 	
 static void pm_setup_console(void)
 {
+	int rs;
 	if (pm_cons_ok) goto fail9;
-	if ((pm_sin = dup(0)) < 0) goto fail;
-	if ((pm_sout = dup(1)) < 0) goto fail1;
-	if ((pm_serr = dup(2)) < 0) goto fail2;
+	EINTRLOOP(pm_sin, dup(0));
+	if (pm_sin < 0) goto fail;
+	EINTRLOOP(pm_sout, dup(1));
+	if (pm_sout < 0) goto fail1;
+	EINTRLOOP(pm_serr, dup(2));
+	if (pm_serr < 0) goto fail2;
 	if (c_pipe(pm_ip)) goto fail3;
 	if (c_pipe(pm_op)) goto fail4;
 	if (c_pipe(pm_ep)) goto fail5;
-	if (dup2(pm_ip[0], 0) != 0) goto fail6;
-	if (dup2(pm_op[1], 1) != 1) goto fail7;
-	if (dup2(pm_ep[1], 2) != 2) goto fail8;
-	close(pm_ip[0]);
-	close(pm_op[1]);
-	close(pm_ep[1]);
+	EINTRLOOP(rs, dup2(pm_ip[0], 0));
+	if (rs != 0) goto fail6;
+	EINTRLOOP(rs, dup2(pm_op[1], 1));
+	if (rs != 1) goto fail7;
+	EINTRLOOP(rs, dup2(pm_ep[1], 2));
+	if (rs != 2) goto fail8;
+	EINTRLOOP(rs, close(pm_ip[0]));
+	EINTRLOOP(rs, close(pm_op[1]));
+	EINTRLOOP(rs, close(pm_ep[1]));
 	pm_cons_ok = 1;
 	return;
-fail9:	dup2(pm_serr, 2);
-fail8:	dup2(pm_sout, 1);
-fail7:	dup2(pm_sin, 0);
-fail6:	close(pm_ep[0]);
-	close(pm_ep[1]);
-fail5:	close(pm_op[0]);
-	close(pm_op[1]);
-fail4:	close(pm_ip[0]);
-	close(pm_ip[1]);
-fail3:	close(pm_serr);
-fail2:	close(pm_sout);
-fail1:	close(pm_sin);
+fail9:	
+	EINTRLOOP(rs, dup2(pm_serr, 2));
+fail8:	
+	EINTRLOOP(rs, dup2(pm_sout, 1));
+fail7:	
+	EINTRLOOP(rs, dup2(pm_sin, 0));
+fail6:	
+	EINTRLOOP(rs, close(pm_ep[0]));
+	EINTRLOOP(rs, close(pm_ep[1]));
+fail5:	
+	EINTRLOOP(rs, close(pm_op[0]));
+	EINTRLOOP(rs, close(pm_op[1]));
+fail4:	
+	EINTRLOOP(rs, close(pm_ip[0]));
+	EINTRLOOP(rs, close(pm_ip[1]));
+fail3:	
+	EINTRLOOP(rs, close(pm_serr));
+fail2:	
+	EINTRLOOP(rs, close(pm_sout));
+fail1:	
+	EINTRLOOP(rs, close(pm_sin));
 fail:	pm_cons_ok = 0;
 }
 
@@ -619,6 +641,7 @@ static void pm_do_console(void)
 #define CONS_BUF 20
 	unsigned char buffer[CONS_BUF];
 	fd_set s;
+	int rs;
 	int m = pm_op[0] > pm_ep[0] ? pm_op[0] : pm_ep[0];
 	if (pm_sin > m) m = pm_sin;
 	m++;
@@ -627,12 +650,19 @@ static void pm_do_console(void)
 		int r, w;
 		FD_ZERO(&s);
 		/*FD_SET(pm_sin, &s);*/
+		if (m > (int)FD_SETSIZE) {
+			error("too big handle %d", m - 1);
+			fatal_tty_exit();
+			exit(RET_FATAL);
+		}
 		FD_SET(pm_op[0], &s);
 		FD_SET(pm_ep[0], &s);
-		if (select(m, &s, NULL, NULL, NULL) <= 0) goto br;
+		EINTRLOOP(rs, select(m, &s, NULL, NULL, NULL));
+		if (rs <= 0) goto br;
 #define SEL_CHK(ih, oh)							\
 	if (FD_ISSET(ih, &s)) {						\
-		if ((r = read(ih, buffer, CONS_BUF)) <= 0) goto br;	\
+		EINTRLOOP(r, read(ih, buffer, CONS_BUF));		\
+		if (r <= 0) goto br;					\
 		do {							\
 			if ((w = hard_write(oh, buffer, r)) <= 0) goto br;\
 			r -= w;						\
@@ -655,6 +685,7 @@ static unsigned char *pm_get_driver_param(void)
 static unsigned char *pm_init_driver(unsigned char *param, unsigned char *display)
 {
 	unsigned char *s;
+	int rs;
 	pm_bitmap_count = 0;
 	if ((hab = WinInitialize(0)) == 0) {
 		s = "WinInitialize failed.\n";
@@ -668,7 +699,7 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 		s = "Could not create pipe.\n";
 		goto r3;
 	}
-	fcntl(pm_pipe[1], F_SETFL, O_NONBLOCK);
+	EINTRLOOP(rs, fcntl(pm_pipe[1], F_SETFL, O_NONBLOCK));
 	memset(pm_windows, 0, sizeof(struct pm_window *) * WIN_HASH);
 	pm_lock_init;
 	pm_thread_shutdown = 0;
@@ -697,7 +728,8 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 		}
 		pm_do_console();
 		pm_setup_console();
-		while (1) select(1, NULL, NULL, NULL, NULL);
+		while (1)
+			EINTRLOOP(rs, select(1, NULL, NULL, NULL, NULL));
 		f:
 		s = pm_status;
 		goto r4;
@@ -744,8 +776,8 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 
 	return NULL;
 	r4:
-	close(pm_pipe[0]);
-	close(pm_pipe[1]);
+	EINTRLOOP(rs, close(pm_pipe[0]));
+	EINTRLOOP(rs, close(pm_pipe[1]));
 	r3:
 	DosCloseEventSem(pm_sem);
 	r2:
@@ -814,13 +846,14 @@ static void pm_shutdown_device(struct graphics_device *dev)
 
 static void pm_shutdown_driver(void)
 {
+	int rs;
 	pm_send_msg(MSG_SHUTDOWN_THREAD, NULL);
 	GpiDestroyPS(hps_mem);
 	DevCloseDC(hdc_mem);
 	if (pm_bitmapinfo) mem_free(pm_bitmapinfo);
 	set_handlers(pm_pipe[0], NULL, NULL, NULL, NULL);
-	close(pm_pipe[0]);
-	close(pm_pipe[1]);
+	EINTRLOOP(rs, close(pm_pipe[0]));
+	EINTRLOOP(rs, close(pm_pipe[1]));
 	DosCloseEventSem(pm_sem);
 	WinTerminate(hab);
 	if (pm_bitmap_count) internal("pm_shutdown_driver: %d bitmaps leaked", pm_bitmap_count);
@@ -828,8 +861,7 @@ static void pm_shutdown_driver(void)
 
 static void pm_set_window_title(struct graphics_device *dev, unsigned char *title)
 {
-	static int idx = -1;
-	struct conv_table *ct = get_translation_table(idx >= 0 ? idx : (idx = get_cp_index("utf-8")), pm_cp);
+	struct conv_table *ct = get_translation_table(utf8_table, pm_cp);
 	struct title_set w;
 	w.win = pm_win(dev);
 	w.text = convert_string(ct, title, strlen(title), NULL);

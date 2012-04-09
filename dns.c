@@ -51,6 +51,17 @@ static int get_addr_byte(unsigned char **ptr, unsigned char *res, unsigned char 
 	return 0;
 }
 
+int numeric_ip_address(unsigned char *name, ip__address *host)
+{
+	ip__address dummy;
+	if (!host) host = &dummy;
+	if (get_addr_byte(&name, ((unsigned char *)host + 0), '.')) return -1;
+	if (get_addr_byte(&name, ((unsigned char *)host + 1), '.')) return -1;
+	if (get_addr_byte(&name, ((unsigned char *)host + 2), '.')) return -1;
+	if (get_addr_byte(&name, ((unsigned char *)host + 3), 0)) return -1;
+	return 0;
+}
+
 #ifdef EXTERNAL_LOOKUP
 
 static int do_external_lookup(unsigned char *name, ip__address *host)
@@ -61,30 +72,33 @@ static int do_external_lookup(unsigned char *name, ip__address *host)
 	int pi[2];
 	pid_t f;
 	unsigned char *n;
-	if (pipe(pi) == -1)
+	int rs;
+	if (c_pipe(pi) == -1)
 		return -1;
-	f = fork();
+	EINTRLOOP(f, fork());
 	if (f == -1) {
-		close(pi[0]);
-		close(pi[1]);
+		EINTRLOOP(rs, close(pi[0]));
+		EINTRLOOP(rs, close(pi[1]));
 		return -1;
 	}
 	if (!f) {
-		close(pi[0]);
-		if (dup2(pi[1], 1) == -1) _exit(1);
-		if (dup2(pi[1], 2) == -1) _exit(1);
-		close(pi[1]);
-		execlp("host", "host", name, NULL);
-		execl("/usr/sbin/host", "host", name, NULL);
+		EINTRLOOP(rs, close(pi[0]));
+		EINTRLOOP(rs, dup2(pi[1], 1));
+		if (rs == -1) _exit(1);
+		EINTRLOOP(rs, dup2(pi[1], 2));
+		if (rs == -1) _exit(1);
+		EINTRLOOP(rs, close(pi[1]));
+		EINTRLOOP(rs, execlp("host", "host", name, NULL));
+		EINTRLOOP(rs, execl("/usr/sbin/host", "host", name, NULL));
 		_exit(1);
 	}
-	close(pi[1]);
+	EINTRLOOP(rs, close(pi[1]));
 	rd = hard_read(pi[0], buffer, sizeof buffer - 1);
 	if (rd >= 0) buffer[rd] = 0;
 	if (rd > 0) {
 		while (hard_read(pi[0], sink, sizeof sink) > 0);
 	}
-	close(pi[0]);
+	EINTRLOOP(rs, close(pi[0]));
 	/* Don't wait for the process, we already have sigchld handler that
 	 * does cleanup.
 	 * waitpid(f, NULL, 0); */
@@ -115,13 +129,7 @@ int do_real_lookup(unsigned char *name, ip__address *host)
 	struct hostent *hst;
 	if (!*name) return -1;
 	for (n = name; *n; n++) if (*n != '.' && (*n < '0' || *n > '9')) goto nogethostbyaddr;
-	n = name;
-	if (get_addr_byte(&n, ((unsigned char *)host + 0), '.')) goto skip_addr;
-	if (get_addr_byte(&n, ((unsigned char *)host + 1), '.')) goto skip_addr;
-	if (get_addr_byte(&n, ((unsigned char *)host + 2), '.')) goto skip_addr;
-	if (get_addr_byte(&n, ((unsigned char *)host + 3), 0)) goto skip_addr;
-	return 0;
-	skip_addr:
+	if (!numeric_ip_address(name, host)) return 0;
 #ifdef HAVE_GETHOSTBYADDR
 	if (!(hst = gethostbyaddr(name, strlen(name), AF_INET)))
 #endif
@@ -152,19 +160,21 @@ static void lookup_fn(unsigned char *name, int h)
 static void end_real_lookup(struct dnsquery *q)
 {
 	int r = 1;
+	int rs;
 	if (!q->addr || hard_read(q->h, (unsigned char *)q->addr, sizeof(ip__address)) != sizeof(ip__address)) goto end;
 	r = 0;
 
 	end:
 	set_handlers(q->h, NULL, NULL, NULL, NULL);
-	close(q->h);
+	EINTRLOOP(rs, close(q->h));
 	q->xfn(q, r);
 }
 
 static void failed_real_lookup(struct dnsquery *q)
 {
+	int rs;
 	set_handlers(q->h, NULL, NULL, NULL, NULL);
-	close(q->h);
+	EINTRLOOP(rs, close(q->h));
 	q->xfn(q, -1);
 }
 #endif
@@ -300,19 +310,16 @@ int find_host(unsigned char *name, ip__address *addr, void **qp, void (*fn)(void
 void kill_dns_request(void **qp)
 {
 	struct dnsquery *q = *qp;
-	/*set_handlers(q->h, NULL, NULL, NULL, NULL);
-	close(q->h);
-	mem_free(q);*/
 	q->fn = NULL;
 	q->addr = NULL;
 	*qp = NULL;
 }
 
-long dns_info(int type)
+unsigned long dns_info(int type)
 {
 	switch (type) {
 		case CI_FILES: {
-			long n = 0;
+			unsigned long n = 0;
 			struct dnsentry *e;
 			foreach(e, dns_cache) n++;
 			return n;

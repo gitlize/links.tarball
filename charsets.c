@@ -92,7 +92,7 @@ unsigned char *u2cp(int u, int to, int fallback)
 	if (u < 128) return strings[u];
 	if (u == 0xa0) return "\001";
 	if (u == 0xad) return "";
-	if (codepages[to].table == table_utf_8) return encode_utf_8(u);
+	if (to == utf8_table) return encode_utf_8(u);
 	if (u < 0xa0) {
 		u = strange_chars[u - 0x80];
 		if (!u) return NULL;
@@ -191,10 +191,11 @@ static struct conv_table *get_translation_table_to_utf_8(int from)
 	static int lfr = -1;
 	if (from == -1) return NULL;
 	if (from == lfr) return utf_table;
+	lfr = from;
 	if (utf_table_init) memset(utf_table, 0, sizeof(struct conv_table) * 256), utf_table_init = 0;
 	else free_utf_table();
 	for (i = 0; i < 128; i++) utf_table[i].u.str = strings[i];
-	if (codepages[from].table == table_utf_8) {
+	if (from == utf8_table) {
 		for (i = 128; i < 256; i++) utf_table[i].u.str = stracpy(strings[i]);
 		return utf_table;
 	}
@@ -245,7 +246,7 @@ unsigned short int utf8_2_uni_table[0x200] = {
 };
 
 unsigned char utf_8_1[256] = {
-	0, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+	6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
 	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
 	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
 	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
@@ -253,32 +254,39 @@ unsigned char utf_8_1[256] = {
 	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
 	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
 	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+	6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
 	5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
 	4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-	3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 0, 0,
+	3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 6, 6,
 };
 
-int get_utf_8(unsigned char **s)
+static unsigned min_utf_8[9] = {
+	0, 0x4000000, 0x200000, 0x10000, 0x800, 0x80, 0x100, 0x1,
+};
+
+unsigned get_utf_8(unsigned char **s)
 {
-	int v, l;
+	unsigned v, min;
+	int l;
 	unsigned char *p = *s;
-	if (!(l = utf_8_1[p[0]])) {
-		(*s)++;
-		ret:
-		return 0;
-	}
+	l = utf_8_1[p[0]];
+	min = min_utf_8[l];
 	v = p[0] & ((1 << l) - 1);
 	(*s)++;
 	while (l++ <= 5) {
-		int c = **s - 0x80;
-		if (c < 0 || c >= 0x40) goto ret;
+		unsigned c = **s - 0x80;
+		if (c >= 0x40) {
+			return 0;
+		}
 		(*s)++;
 		v = (v << 6) + c;
+	}
+	if (v < min) {
+		return 0;
 	}
 	return v;
 }
@@ -298,12 +306,12 @@ struct conv_table *get_translation_table(int from, int to)
 	static int lfr = -1;
 	static int lto = -1;
 	if (/*from == to ||*/ from == -1 || to == -1) return NULL;
-	if (codepages[to].table == table_utf_8) return get_translation_table_to_utf_8(from);
+	if (to == utf8_table) return get_translation_table_to_utf_8(from);
 	if (table_init) memset(table, 0, sizeof(struct conv_table) * 256), table_init = 0;
 	if (from == lfr && to == lto) return table;
 	lfr = from; lto = to;
 	new_translation_table(table);
-	if (codepages[from].table == table_utf_8) {
+	if (from == utf8_table) {
 		int j;
 		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? (unsigned char *)"\001" : codepages[to].table[j].u == 0xad ? (unsigned char *)"" : strings[codepages[to].table[j].c]);
 		for (i = 0; unicode_7b[i].x != -1; i++) if (unicode_7b[i].x >= 0x80) add_utf_8(table, unicode_7b[i].x, unicode_7b[i].s);
@@ -463,20 +471,6 @@ static inline int compare_names(unsigned char *one, unsigned char *two)
 
 }
 
-/*
-int get_cp_index(unsigned char *n)
-{
-	int i, a;
-
-	for (i = 0; codepages[i].name; i++) {
-		if (compare_names(n,codepages[i].name)) return i;
-		for (a = 0; codepages[i].aliases[a]; a++)
-			if (compare_names(n,codepages[i].aliases[a])) return i;
-	}
-	return -1;
-}
-*/
-
 int get_cp_index(unsigned char *n)
 {
 	int i, a, p, q;
@@ -525,7 +519,7 @@ unsigned charset_upcase(unsigned ch, int cp)
 	u = cp2u(ch, cp);
 	BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, u, res);
 	if (res == -1) return ch;
-	if (codepages[cp].table == table_utf_8) return unicode_upcase[res].up;
+	if (cp == utf8_table) return unicode_upcase[res].up;
 	str = u2cp(unicode_upcase[res].up, cp, 0);
 	if (!str || !str[0] || str[1]) return ch;
 	return str[0];
@@ -533,16 +527,14 @@ unsigned charset_upcase(unsigned ch, int cp)
 
 unsigned uni_upcase(unsigned ch)
 {
-	int cp = get_cp_index("utf-8");
-	if (cp < 0) cp = 0;
-	return charset_upcase(ch, cp);
+	return charset_upcase(ch, utf8_table);
 }
 
 void charset_upcase_string(unsigned char **chp, int cp)
 {
 	unsigned char *ch = *chp;
 	int i;
-	if (codepages[cp].table == table_utf_8) {
+	if (cp == utf8_table) {
 		ch = unicode_upcase_string(ch);
 		mem_free(*chp);
 		*chp = ch;
@@ -570,7 +562,7 @@ unsigned char *unicode_upcase_string(unsigned char *ch)
 unsigned char *to_utf8_upcase(unsigned char *str, int cp)
 {
 	unsigned char *str1, *str2;
-	struct conv_table *ct = get_translation_table(cp, get_cp_index("utf-8"));
+	struct conv_table *ct = get_translation_table(cp, utf8_table);
 	str1 = convert_string(ct, str, strlen(str), NULL);
 	str2 = unicode_upcase_string(str1);
 	mem_free(str1);
@@ -617,13 +609,13 @@ int strlen_utf8(unsigned char *s)
 
 int cp_len(int cp, unsigned char *s)
 {
-	if (is_cp_special(cp)) return strlen_utf8(s);
-	return strlen((char *)s);
+	if (cp == utf8_table) return strlen_utf8(s);
+	return strlen(s);
 }
 
 unsigned char *cp_strchr(int charset, unsigned char *str, unsigned chr)
 {
-	if (!is_cp_special(charset)) {
+	if (charset != utf8_table) {
 		if (chr >= 0x100)
 			return NULL;
 		return (unsigned char *)strchr(str, chr);

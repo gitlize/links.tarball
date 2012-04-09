@@ -8,10 +8,11 @@
 struct list_head downloads = {&downloads, &downloads};
 
 /* prototypes */
+static void abort_and_delete_download(struct download *down);
+static void undisplay_download(struct download *down);
 static void increase_download_file(unsigned char **f);
+static void copy_additional_files(struct additional_files **a);
 static struct location *new_location(void);
-static int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *err);
-static void refresh_timer(struct f_data_c *);
 static void destroy_location(struct location *loc);
 
 
@@ -40,10 +41,10 @@ void free_strerror_buf(void)
 
 int get_error_from_errno(int errn)
 {
-	if (errn > 0 && (errn < -S_OK || errn > -S_MAX))
+	if (errn > 0 && (errn < -S__OK || errn > -S_MAX))
 		return -errn;
 #ifdef BEOS
-	if (-errn > 0 && (-errn < -S_OK || -errn > -S_MAX))
+	if (-errn > 0 && (-errn < -S__OK || -errn > -S_MAX))
 		return errn;
 #endif
 	return S_UNKNOWN_ERROR;
@@ -53,7 +54,7 @@ unsigned char *get_err_msg(int state)
 {
 	unsigned char *e;
 	struct strerror_val *s;
-	if ((state >= S_MAX && state <= S_OK) || state >= S_WAIT) {
+	if ((state >= S_MAX && state <= S__OK) || state >= S_WAIT) {
 		int i;
 		for (i = 0; msg_dsc[i].msg; i++)
 			if (msg_dsc[i].n == state) return msg_dsc[i].msg;
@@ -91,8 +92,7 @@ static void add_time_to_str(unsigned char **s, int *l, ttime t)
 {
 	unsigned char q[64];
 	if (t < 0) t = 0;
-	t &= 0xffffffff;
-	if (t >= 86400) sprintf(q, "%dd ", (int)(t / 86400)), add_to_str(s, l, q);
+	if (t >= 86400) sprintf(q, "%ud ", (unsigned)(t / 86400)), add_to_str(s, l, q);
 	if (t >= 3600) t %= 86400, sprintf(q, "%d:%02d", (int)(t / 3600), (int)(t / 60 % 60)), add_to_str(s, l, q);
 	else sprintf(q, "%d", (int)(t / 60)), add_to_str(s, l, q);
 	sprintf(q, ":%02d", (int)(t % 60)), add_to_str(s, l, q);
@@ -130,7 +130,7 @@ void change_screen_status(struct session *ses)
 	} else {
 		struct f_data_c *fd = current_frame(ses);
 		if (fd->rq) stat = &fd->rq->stat;
-		if (stat && stat->state == S_OK && fd->af) {
+		if (stat && stat->state == S__OK && fd->af) {
 			struct additional_file *af;
 			foreach(af, fd->af->af) {
 				if (af->rq && af->rq->stat.state >= 0) {
@@ -152,7 +152,7 @@ void change_screen_status(struct session *ses)
 	 */
 	ses->st = NULL;
 	if (stat) {
-		if (stat->state == S_OK) ses->st = print_current_link(ses);
+		if (stat->state == S__OK) ses->st = print_current_link(ses);
 		if (!ses->st) ses->st = ses->default_status ? stracpy(ses->default_status) : get_stat_msg(stat, ses->term);
 	} else {
 		ses->st = stracpy(ses->default_status);
@@ -163,14 +163,16 @@ static void x_print_screen_status(struct terminal *term, struct session *ses)
 {
 	unsigned char *m;
 	if (!F) {
-		fill_area(term, 0, term->y - 1, term->x, 1, ' ', COLOR_STATUS_BG);
+		int color = (ses->ds.t_background_color << 3) | (ses->ds.t_text_color & 7) | ((ses->ds.t_text_color & 8) << 3);
+		if (!term->spec->col) color = COLOR_TITLE;
+		fill_area(term, 0, term->y - 1, term->x, 1, ' ', color);
 		if (ses->st) print_text(term, 0, term->y - 1, strlen(ses->st), ses->st, COLOR_STATUS);
-		fill_area(term, 0, 0, term->x, 1, ' ', COLOR_TITLE_BG);
+		fill_area(term, 0, 0, term->x, 1, ' ', color);
 		if ((m = print_current_title(ses))) {
 			int p = term->x - 1 - cp_len(ses->term->spec->charset, m);
 			if (p < 0) p = 0;
 			if (term->spec->braille) p = 0;
-			print_text(term, p, 0, cp_len(ses->term->spec->charset, m), m, COLOR_TITLE);
+			print_text(term, p, 0, cp_len(ses->term->spec->charset, m), m, color);
 			mem_free(m);
 		}
 #ifdef G
@@ -273,17 +275,23 @@ static struct session *get_download_ses(struct download *down)
 
 static void close_download_file(struct download *down)
 {
-	if (down->handle != -1) prealloc_truncate(down->handle, down->last_pos - down->file_shift), close(down->handle), down->handle = -1;
+	int rs;
+	if (down->handle != -1) {
+		EINTRLOOP(rs, ftruncate(down->handle, down->last_pos - down->file_shift));
+		EINTRLOOP(rs, close(down->handle));
+		down->handle = -1;
+	}
 }
 
 static void delete_download_file(struct download *down)
 {
+	int rs;
 	unsigned char *file = stracpy(down->orig_file);
 	unsigned char *wd = get_cwd();
 	set_cwd(down->cwd);
 	while (1) {
 		unsigned char *f = translate_download_file(file);
-		unlink(f);
+		EINTRLOOP(rs, unlink(f));
 		mem_free(f);
 		if (!strcmp(file, down->file)) break;
 		increase_download_file(&file);
@@ -294,6 +302,10 @@ static void delete_download_file(struct download *down)
 
 static void abort_download(struct download *down)
 {
+	unregister_bottom_half((void (*)(void *))abort_download, down);
+	unregister_bottom_half((void (*)(void *))abort_and_delete_download, down);
+	unregister_bottom_half((void (*)(void *))undisplay_download, down);
+
 	if (down->win) delete_window(down->win);
 	if (down->ask) delete_window(down->ask);
 	if (down->stat.state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
@@ -372,6 +384,40 @@ static void download_abort_function(struct dialog_data *dlg)
 	down->win = NULL;
 }
 
+static int test_percentage(struct status *stat)
+{
+	return stat->prg->size > 0;
+}
+
+static int download_meter(int size, struct status *stat)
+{
+	int m;
+	if (!stat->prg->size) return 0;
+	m = (int)((double)size * (double)stat->prg->pos / (double)stat->prg->size);
+	if (m < 0) m = 0;
+	if (m > size) m = size;
+	return m;
+}
+
+unsigned char *download_percentage(struct download *down, int pad)
+{
+	unsigned char *s;
+	int l;
+	int perc;
+	struct status *stat = &down->stat;
+	if (stat->state != S_TRANS || !test_percentage(stat)) return stracpy("");
+	s = init_str();
+	l = 0;
+	perc = download_meter(100, stat);
+	if (pad) {
+		if (perc < 10) add_chr_to_str(&s, &l, ' ');
+		if (perc < 100) add_chr_to_str(&s, &l, ' ');
+	}
+	add_num_to_str(&s, &l, perc);
+	add_chr_to_str(&s, &l, '%');
+	return s;
+}
+
 void download_window_function(struct dialog_data *dlg)
 {
 	struct download *down = dlg->dlg->udata;
@@ -379,6 +425,7 @@ void download_window_function(struct dialog_data *dlg)
 	int max = 0, min = 0;
 	int w, x, y;
 	int t = 0;
+	int show_percentage = 0;
 	unsigned char *m, *u;
 	struct status *stat = &down->stat;
 	if (!F) redraw_below_window(dlg->win);
@@ -406,15 +453,17 @@ void download_window_function(struct dialog_data *dlg)
 		add_to_str(&m, &l, "\n");
 		add_to_str(&m, &l, _(TEXT_(T_ELAPSED_TIME), term));
 		add_to_str(&m, &l, " ");
-		add_time_to_str(&m, &l, stat->prg->elapsed / 1000);
+		add_time_to_str(&m, &l, (uttime)stat->prg->elapsed / 1000);
 		if (stat->prg->size >= 0 && stat->prg->loaded > 0) {
 			add_to_str(&m, &l, ", ");
 			add_to_str(&m, &l, _(TEXT_(T_ESTIMATED_TIME), term));
 			add_to_str(&m, &l, " ");
 			/*add_time_to_str(&m, &l, stat->prg->elapsed / 1000 * stat->prg->size / stat->prg->loaded * 1000 - stat->prg->elapsed);*/
-			add_time_to_str(&m, &l, (stat->prg->size - stat->prg->pos) / ((longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100)));
+			/*add_time_to_str(&m, &l, (stat->prg->size - stat->prg->pos) / ((longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100)));*/
+			add_time_to_str(&m, &l, (stat->prg->size - stat->prg->pos) / ((double)stat->prg->loaded * 1000 / stat->prg->elapsed));
 		}
 	} else m = stracpy(_(get_err_msg(stat->state), term));
+	show_percentage = t && test_percentage(stat);
 	u = stracpy(down->url);
 	if (strchr(u, POST_CHAR)) *strchr(u, POST_CHAR) = 0;
 	max_text_width(term, u, &max, AL_LEFT);
@@ -426,7 +475,7 @@ void download_window_function(struct dialog_data *dlg)
 	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
 	if (w < min) w = min;
 	if (!dlg->win->term->spec->braille && w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
-	if (t && stat->prg->size >= 0) {
+	if (show_percentage) {
 		if (w < DOWN_DLG_MIN) w = DOWN_DLG_MIN;
 	} else {
 		if (w > max) w = max;
@@ -435,7 +484,7 @@ void download_window_function(struct dialog_data *dlg)
 	y = 0;
 	dlg_format_text(dlg, NULL, u, 0, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	if (t && stat->prg->size >= 0) y += gf_val(2, 2 * G_BFU_FONT_SIZE);
+	if (show_percentage) y += gf_val(2, 2 * G_BFU_FONT_SIZE);
 	dlg_format_text(dlg, NULL, m, 0, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
 	dlg_format_buttons(dlg, NULL, dlg->items, dlg->n, 0, &y, w, NULL, AL_CENTER);
@@ -446,34 +495,39 @@ void download_window_function(struct dialog_data *dlg)
 	y = dlg->y + DIALOG_TB + gf_val(1, G_BFU_FONT_SIZE);
 	x = dlg->x + DIALOG_LB;
 	dlg_format_text(dlg, term, u, x, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	if (t && stat->prg->size >= 0) {
+	if (show_percentage) {
 		if (!F) {
-			unsigned char q[64];
+			unsigned char *q;
 			int p = w - 6;
 			if (term->spec->braille && p > 39 - 6) p = 39 - 6;
 			y++;
 			set_only_char(term, x, y, '[', 0);
 			set_only_char(term, x + p + 1, y, ']', 0);
-			fill_area(term, x + 1, y, (int)((longlong)p * (longlong)stat->prg->pos / (longlong)stat->prg->size), 1, CHAR_DIALOG_METER, COLOR_DIALOG_METER);
-			sprintf(q, "%3d%%", (int)((longlong)100 * (longlong)stat->prg->pos / (longlong)stat->prg->size));
+			fill_area(term, x + 1, y, download_meter(p, stat), 1, CHAR_DIALOG_METER, COLOR_DIALOG_METER);
+			q = download_percentage(down, 1);
 			print_text(term, x + p + 2, y, strlen(q), q, COLOR_DIALOG_TEXT);
+			mem_free(q);
 			y++;
 #ifdef G
 		} else {
-			unsigned char q[64];
+			unsigned char *q;
 			int p, s, ss, m;
 			y += G_BFU_FONT_SIZE;
-			sprintf(q, "]%3d%%", (int)((longlong)100 * (longlong)stat->prg->pos / (longlong)stat->prg->size));
+			q = download_percentage(down, 1);
+			extend_str(&q, 1);
+			memmove(q + 1, q, strlen(q) + 1);
+			q[0] = ']';
 			s = g_text_width(bfu_style_bw_mono, "[");
 			ss = g_text_width(bfu_style_bw_mono, q);
 			p = w - s - ss;
 			if (p < 0) p = 0;
-			m = (int)((longlong)p * (longlong)stat->prg->pos / (longlong)stat->prg->size);
+			m = download_meter(p, stat);
 			g_print_text(drv, term->dev, x, y, bfu_style_bw_mono, "[", NULL);
 			drv->fill_area(term->dev, x + s, y, x + s + m, y + G_BFU_FONT_SIZE, bfu_fg_color);
 			drv->fill_area(term->dev, x + s + m, y, x + s + p, y + G_BFU_FONT_SIZE, bfu_bg_color);
 			g_print_text(drv, term->dev, x + w - ss, y, bfu_style_bw_mono, q, NULL);
 			if (dlg->s) exclude_from_set(&dlg->s, x, y, x + w, y + G_BFU_FONT_SIZE);
+			mem_free(q);
 			y += G_BFU_FONT_SIZE;
 #endif
 		}
@@ -657,6 +711,7 @@ static int download_write(struct download *down, void *ptr, off_t to_write)
 		return -1;
 	}
 	down->last_pos += w;
+	down->downloaded_something = 1;
 	return 0;
 }
 
@@ -664,11 +719,11 @@ static void download_data(struct status *stat, struct download *down)
 {
 	struct cache_entry *ce;
 	struct fragment *frag;
+	int rs;
 	if (!(ce = stat->ce)) goto end_store;
 	if (stat->state >= S_WAIT && stat->state < S_TRANS) goto end_store;
 	if (!down->remotetime && ce->last_modified) down->remotetime = parse_http_date(ce->last_modified);
-/*	  fprintf(stderr,"\nFEFE date %s\n",ce->last_modified); */
-	if (!down->last_pos) {
+	if (!down->downloaded_something) {
 		unsigned char *enc = get_content_encoding(ce->head, ce->url);
 		if (enc) {
 			if (!encoding_2_extension(enc)) down->decompress = 1;
@@ -681,7 +736,7 @@ static void download_data(struct status *stat, struct download *down)
 				int cache;
 				if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
 				u = join_urls(down->url, ce->redirect);
-				if (!u) goto x;
+				u = translate_hashbang(u);
 				if ((pos = extract_position(u))) mem_free(pos);
 				if (!http_options.bug_302_redirect) if (!ce->redirect_get && (p = strchr(down->url, POST_CHAR))) add_to_strn(&u, p);
 				prev_down_url = down->url;
@@ -696,7 +751,7 @@ static void download_data(struct status *stat, struct download *down)
 				cache = NC_CACHE;
 				if (!strcmp(down->url, prev_down_url) || down->redirect_cnt >= MAX_CACHED_REDIRECTS) cache = NC_RELOAD;
 				mem_free(prev_down_url);
-				load_url(down->url, NULL, &down->stat, PRI_DOWNLOAD, cache);
+				load_url(down->url, NULL, &down->stat, PRI_DOWNLOAD, cache, 1, down->last_pos);
 				return;
 			} else {
 				if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
@@ -705,15 +760,16 @@ static void download_data(struct status *stat, struct download *down)
 			}
 		}
 	}
-	x:
 	if (!down->decompress) foreach(frag, ce->frag) while (frag->offset <= down->last_pos && frag->offset + frag->length > down->last_pos) {
 #ifdef HAVE_OPEN_PREALLOC
-		if (!down->last_pos && (!down->stat.prg || down->stat.prg->size > 0)) {
+		if (!down->last_pos && !strcmp(down->file, down->orig_file) && (!down->stat.prg || down->stat.prg->size > 0)) {
 			struct stat st;
-			if (fstat(down->handle, &st) || !S_ISREG(st.st_mode)) goto skip_prealloc;
+			int rs;
+			EINTRLOOP(rs, fstat(down->handle, &st));
+			if (rs || !S_ISREG(st.st_mode)) goto skip_prealloc;
 			close_download_file(down);
 			delete_download_file(down);
-			if ((down->handle = create_download_file(get_download_ses(down), down->cwd, down->file, !!down->prog, down->stat.prg ? down->stat.prg->size : ce->length)) < 0) goto det_abt;
+			if ((down->handle = create_download_file(get_download_ses(down), down->cwd, down->file, !down->prog ? CDF_EXCL : CDF_RESTRICT_PERMISSION | CDF_EXCL, down->stat.prg ? down->stat.prg->size : ce->length)) < 0) goto det_abt;
 			skip_prealloc:;
 		}
 #endif
@@ -724,7 +780,7 @@ static void download_data(struct status *stat, struct download *down)
 			return;
 		}
 	}
-	detach_connection(stat, down->last_pos);
+	if (!down->decompress) detach_connection(stat, down->last_pos);
 	end_store:;
 	if (stat->state < 0) {
 		if (down->decompress) {
@@ -737,7 +793,7 @@ static void download_data(struct status *stat, struct download *down)
 				if (download_write(down, start + down->last_pos, end - start - down->last_pos)) goto det_abt;
 			}
 		}
-		if (stat->state != S_OK) {
+		if (stat->state != S__OK) {
 			unsigned char *t = get_err_msg(stat->state);
 			if (t) {
 				unsigned char *tt = stracpy(down->url);
@@ -757,7 +813,7 @@ static void download_data(struct status *stat, struct download *down)
 				foo.actime = foo.modtime = down->remotetime;
 				while (1) {
 					unsigned char *f = translate_download_file(file);
-					utime(file, &foo);
+					EINTRLOOP(rs, utime(f, &foo));
 					mem_free(f);
 					if (!strcmp(file, down->file)) break;
 					increase_download_file(&file);
@@ -789,31 +845,31 @@ unsigned char *translate_download_file(unsigned char *fi)
 	return file;
 }
 
-int create_download_file(struct session *ses, unsigned char *cwd, unsigned char *fi, int safe, off_t siz)
+int create_download_file(struct session *ses, unsigned char *cwd, unsigned char *fi, int mode, off_t siz)
 {
 	unsigned char *wd;
 	unsigned char *file;
 	int h;
 #ifdef NO_FILE_SECURITY
-	int sf = 0;
+	int perm = 0666;
 #else
-	int sf = safe;
+	int perm = mode & CDF_RESTRICT_PERMISSION ? 0600 : 0666;
 #endif
 	wd = get_cwd();
 	set_cwd(cwd);
 	file = translate_download_file(fi);
 #ifdef HAVE_OPEN_PREALLOC
-	if (siz) {
-		h = open_prealloc(file, O_CREAT|O_WRONLY|O_TRUNC|(safe?O_EXCL:0), sf ? 0600 : 0666, siz);
+	if (siz && !(mode & CDF_NOTRUNC)) {
+		h = open_prealloc(file, O_CREAT | O_NOCTTY | O_WRONLY | O_TRUNC | (mode & CDF_EXCL ? O_EXCL : 0), perm, siz);
 	} else
 #endif
 	{
-		h = open(file, O_CREAT|O_WRONLY|O_TRUNC|(safe?O_EXCL:0), sf ? 0600 : 0666);
+		EINTRLOOP(h, open(file, O_CREAT | O_NOCTTY | O_WRONLY | (mode & CDF_NOTRUNC ? 0 : O_TRUNC) | (mode & CDF_EXCL ? O_EXCL : 0), perm));
 	}
 	if (h == -1) {
 		unsigned char *msg, *msge;
 		int errn = errno;
-		if (errn == EEXIST && safe) {
+		if (errn == EEXIST && mode & CDF_NO_POPUP_ON_EEXIST) {
 			h = -2;
 			goto x;
 		}
@@ -828,6 +884,70 @@ int create_download_file(struct session *ses, unsigned char *cwd, unsigned char 
 	mem_free(file);
 	if (wd) set_cwd(wd), mem_free(wd);
 	return h;
+}
+
+static int create_or_append_download_file(struct session *ses, unsigned char *cwd, unsigned char *fi, int mode, int *hp, unsigned char **xl_file, off_t *last_pos, off_t *file_shift)
+{
+	int rs;
+	int down_flags = mode == DOWNLOAD_CONTINUE ? CDF_NOTRUNC : mode == DOWNLOAD_OVERWRITE ? 0 : CDF_EXCL;
+
+	*xl_file = stracpy(fi);
+	*last_pos = 0;
+	*file_shift = 0;
+
+	retry_next_file:
+	test_abort_downloads_to_file(*xl_file, ses->term->cwd, 1);
+
+	if ((*hp = create_download_file(ses, ses->term->cwd, *xl_file, down_flags, 0)) < 0)
+		goto err_free;
+
+	if (mode == DOWNLOAD_CONTINUE) {
+		off_t ls;
+		unsigned char *f;
+		struct stat st;
+
+		EINTRLOOP(rs, fstat(*hp, &st));
+		if (rs || !S_ISREG(st.st_mode))
+			goto ret_0;
+
+		EINTRLOOP(ls, lseek(*hp, 0, SEEK_END));
+		if (ls == (off_t)-1) {
+			unsigned char *emsg = stracpy(strerror(errno));
+			unsigned char *msg = stracpy(*xl_file);
+			msg_box(ses->term, getml(msg, emsg, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_CALLING_LSEEK_ON_FILE), " ", msg, ": ", emsg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+			goto err_close;
+		}
+		if ((off_t)(0UL + *last_pos + ls) < 0 ||
+		    (off_t)(0UL + *last_pos + ls) < *last_pos) {
+			unsigned char *msg1 = stracpy(fi);
+			unsigned char *msg2 = stracpy(*xl_file);
+			msg_box(ses->term, getml(msg1, msg2, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_TOO_LARGE_FILE_SEQUENCE), " ", msg1, " - ", msg2, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+			goto err_close;
+		}
+		*last_pos += ls;
+
+		f = stracpy(*xl_file);
+		increase_download_file(&f);
+		EINTRLOOP(rs, stat(f, &st));
+		if (rs || !S_ISREG(st.st_mode)) {
+			mem_free(f);
+			goto ret_0;
+		}
+		EINTRLOOP(rs, close(*hp));
+		mem_free(*xl_file);
+		*xl_file = f;
+		*file_shift = *last_pos;
+		goto retry_next_file;
+	}
+
+	ret_0:
+	return 0;
+
+	err_close:
+	EINTRLOOP(rs, close(*hp));
+	err_free:
+	mem_free(*xl_file);
+	return -1;
 }
 
 static void increase_download_file(unsigned char **f)
@@ -919,31 +1039,35 @@ unsigned char *subst_file(unsigned char *prog, unsigned char *file, int cyg_subs
 	return nn;
 }
 
-void start_download(struct session *ses, unsigned char *file)
+void start_download(struct session *ses, unsigned char *file, int mode)
 {
 	struct download *down;
 	int h;
 	unsigned char *url = ses->dn_url;
 	unsigned char *pos;
+	unsigned char *xl_file;
+	off_t last_pos = 0, file_shift = 0;
+
 	if (!url) return;
 	if ((pos = extract_position(url))) mem_free(pos);
-	test_abort_downloads_to_file(file, ses->term->cwd, 1);
-	if ((h = create_download_file(ses, ses->term->cwd, file, 0, 0)) < 0) return;
+
+	if (create_or_append_download_file(ses, ses->term->cwd, file, mode, &h, &xl_file, &last_pos, &file_shift) < 0) return;
+
 	down = mem_calloc(sizeof(struct download));
 	down->url = stracpy(url);
 	down->stat.end = (void (*)(struct status *, void *))download_data;
 	down->stat.data = down;
 	down->decompress = 0;
-	down->last_pos = 0;
-	down->file_shift = 0;
+	down->last_pos = last_pos;
+	down->file_shift = file_shift;
 	down->cwd = stracpy(ses->term->cwd);
 	down->orig_file = stracpy(file);
-	down->file = stracpy(file);
+	down->file = xl_file;
 	down->handle = h;
 	down->ses = ses;
 	down->remotetime = 0;
 	add_to_list(downloads, down);
-	load_url(url, NULL, &down->stat, PRI_DOWNLOAD, NC_CACHE);
+	load_url(url, NULL, &down->stat, PRI_DOWNLOAD, NC_CACHE, 1, down->last_pos);
 	display_download(ses->term, down, ses);
 }
 
@@ -984,7 +1108,7 @@ static struct f_data *format_html(struct f_data_c *fd, struct object_request *rq
 	if (!rq->ce || !(f = init_formatted(opt))) goto nul;
 	f->fd = fd;
 	f->ses = fd->ses;
-	f->time_to_get = -get_time();
+	f->time_to_get = -(uttime)get_time();
 	clone_object(rq, &f->rq);
 	if (f->rq->ce) {
 		unsigned char *start; unsigned char *end;
@@ -1016,7 +1140,7 @@ static struct f_data *format_html(struct f_data_c *fd, struct object_request *rq
 			}
 		}
 	} else f->use_tag = 0;
-	f->time_to_get += get_time();
+	f->time_to_get += (uttime)get_time();
 	) nul:return NULL;
 	return f;
 }
@@ -1029,7 +1153,7 @@ static void count_frames(struct f_data_c *fd, int *i)
 	foreach(sub, fd->subframes) count_frames(sub, i);
 }
 
-long formatted_info(int type)
+unsigned long formatted_info(int type)
 {
 	int i = 0;
 	struct session *ses;
@@ -1069,30 +1193,6 @@ static void f_data_attach(struct f_data_c *fd, struct f_data *f)
 	}
 }
 
-static void detach_f_data(struct f_data **ff)
-{
-	struct f_data *f = *ff;
-	if (!f) return;
-#ifdef G
-	f->hlt_pos = -1;
-	f->hlt_len = 0;
-	f->start_highlight_x = -1;
-	f->start_highlight_y = -1;
-#endif
-	*ff = NULL;
-	if (f->frame_desc_link) {
-		destroy_formatted(f);
-		return;
-	}
-	f->fd = NULL;
-#ifdef G
-	f->locked_on = NULL;
-	free_list(f->image_refresh);
-#endif
-	if (f->uncacheable || !f_is_cacheable(f) || !f->ses) destroy_formatted(f);
-	else add_to_list(f->ses->format_cache, f);
-}
-
 static inline int is_format_cache_entry_uptodate(struct f_data *f)
 {
 	struct cache_entry *ce = f->rq->ce;
@@ -1106,6 +1206,36 @@ static inline int is_format_cache_entry_uptodate(struct f_data *f)
 		if (af->unknown_image_size) if (tag2 != af->use_tag2) return 0;
 	}
 	return 1;
+}
+
+static void detach_f_data(struct f_data **ff)
+{
+	struct f_data *f = *ff;
+	struct f_data_c *fd;
+	if (!f) return;
+	fd = f->fd;
+	*ff = NULL;
+#ifdef G
+	f->hlt_pos = -1;
+	f->hlt_len = 0;
+	f->start_highlight_x = -1;
+	f->start_highlight_y = -1;
+#endif
+	if (f->frame_desc_link) {
+		destroy_formatted(f);
+		return;
+	}
+	f->fd = NULL;
+#ifdef G
+	f->locked_on = NULL;
+	free_list(f->image_refresh);
+#endif
+	if (f->uncacheable || !f_is_cacheable(f) || !is_format_cache_entry_uptodate(f) || !f->ses) {
+		destroy_formatted(f);
+	} else {
+		add_to_list(f->ses->format_cache, f);
+		copy_additional_files(&fd->af);	/* break structure sharing */
+	}
 }
 
 static int shrink_format_cache(int u)
@@ -1322,7 +1452,7 @@ static void html_interpret(struct f_data_c *fd)
 		oxw = oyw = oxp = oyp = -1;
 	}
 	memset(&o, 0, sizeof(struct document_options));
-	ds2do(&fd->ses->ds, &o);
+	ds2do(&fd->ses->ds, &o, F || fd->ses->term->spec->col);
 	if (fd->parent && fd->parent->f_data && !o.hard_assume) {
 		o.assume_cp = fd->parent->f_data->cp;
 	}
@@ -1352,26 +1482,26 @@ static void html_interpret(struct f_data_c *fd)
 	}
 	o.scrolling = fd->scrolling;
 	if (fd->ses->term->spec) {
-		o.col = fd->ses->term->spec->col;
+		if (!F) {
+			if (!fd->ses->ds.t_ignore_document_color)
+				o.col = fd->ses->term->spec->col;
+			else
+				o.col = 0;
+		}
+#ifdef G
+		else {
+			if (!fd->ses->ds.g_ignore_document_color)
+				o.col = 2;
+			else
+				o.col = 0;
+		}
+#endif
 		o.cp = fd->ses->term->spec->charset;
 		o.braille = fd->ses->term->spec->braille;
 	} else {
 		o.col = 3;
 		o.cp = 0;
 		o.braille = 0;
-	}
-	if (!F) {
-		memcpy(&o.default_fg, &default_fg, sizeof(struct rgb));
-		memcpy(&o.default_bg, &default_bg, sizeof(struct rgb));
-		memcpy(&o.default_link, &default_link, sizeof(struct rgb));
-		memcpy(&o.default_vlink, &default_vlink, sizeof(struct rgb));
-#ifdef G
-	} else {
-		memcpy(&o.default_fg, &default_fg_g, sizeof(struct rgb));
-		memcpy(&o.default_bg, &default_bg_g, sizeof(struct rgb));
-		memcpy(&o.default_link, &default_link_g, sizeof(struct rgb));
-		memcpy(&o.default_vlink, &default_vlink_g, sizeof(struct rgb));
-#endif
 	}
 	if (!(o.framename = fd->loc->name)) o.framename = NULL;
 	doc_js = NULL;
@@ -1440,7 +1570,7 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 	if ((u = extract_position(url))) mem_free(u);
 	if (!f->af) {
 		if (!(f->af = f->fd->af)) {
-			f->af = f->fd->af = mem_calloc(sizeof(struct additional_files));
+			f->af = f->fd->af = mem_alloc(sizeof(struct additional_files));
 			f->af->refcount = 1;
 			init_list(f->af->af);
 		}
@@ -1450,7 +1580,7 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 		mem_free(url);
 		return af;
 	}
-	af = mem_alloc(sizeof(struct additional_file) + strlen(url) + 1);
+	af = mem_alloc(sizeof(struct additional_file) + strlen(url));
 	af->use_tag = 0;
 	af->use_tag2 = 0;
 	strcpy(af->url, url);
@@ -1460,6 +1590,24 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 	add_to_list(f->af->af, af);
 	mem_free(url);
 	return af;
+}
+
+static void copy_additional_files(struct additional_files **a)
+{
+	struct additional_files *afs;
+	struct additional_file *af;
+	if (!*a || (*a)->refcount == 1) return;
+	(*a)->refcount--;
+	afs = mem_alloc(sizeof(struct additional_files));
+	afs->refcount = 1;
+	init_list(afs->af);
+	foreachback(af, (*a)->af) {
+		struct additional_file *afc = mem_alloc(sizeof(struct additional_file) + strlen(af->url));
+		memcpy(afc, af, sizeof(struct additional_file) + strlen(af->url));
+		if (af->rq) clone_object(af->rq, &afc->rq);
+		add_to_list(afs->af, afc);
+	}
+	*a = afs;
 }
 
 #ifdef G
@@ -1520,7 +1668,9 @@ void reinit_f_data_c(struct f_data_c *fd)
 		if (fd->ses->wtd_target_base == fd1) fd->ses->wtd_target_base = NULL;
 		reinit_f_data_c(fd1);
 		if (fd->ses->wtd_target_base == fd1) fd->ses->wtd_target_base = fd;
+#ifdef JS
 		if (fd->ses->defered_target_base == fd1) fd->ses->defered_target_base = fd;
+#endif
 	}
 	free_list(fd->subframes);
 #ifdef JS
@@ -1533,13 +1683,13 @@ void reinit_f_data_c(struct f_data_c *fd)
 		if (af->rq->state != O_OK) release_object(&af->rq);
 	}
 	if (fd->af) foreach(af, fd->af->af) if (af->rq) af->rq->upcall = NULL;
+	free_additional_files(&fd->af);
 	detach_f_data(&fd->f_data);
+	release_object(&fd->rq);
 	if (fd->link_bg) mem_free(fd->link_bg), fd->link_bg = NULL;
 	fd->link_bg_n = 0;
 	if (fd->goto_position) mem_free(fd->goto_position), fd->goto_position = NULL;
 	if (fd->went_to_position) mem_free(fd->went_to_position), fd->went_to_position = NULL;
-	release_object(&fd->rq);
-	free_additional_files(&fd->af);
 	fd->next_update = get_time();
 	fd->done = 0;
 	fd->parsed_done = 0;
@@ -1593,542 +1743,6 @@ static int plain_type(struct session *ses, struct object_request *rq, unsigned c
 	return r;
 }
 
-#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2) || defined(HAVE_LZMA)
-#define HAVE_ANY_COMPRESSION
-#endif
-
-#ifdef HAVE_ANY_COMPRESSION
-
-static void decoder_memory_init(unsigned char **p, size_t *size, off_t init_length)
-{
-	if (init_length > 0 && init_length < MAXINT) *size = init_length;
-	else *size = 4096;
-	*p = mem_alloc(*size);
-}
-
-static void decoder_memory_expand(unsigned char **p, size_t size, size_t *addsize)
-{
-	size_t add = size / 4 + 1;
-	if (size + add < size) {
-		if (add > 1) add >>= 1;
-		else overalloc();
-	}
-	*addsize = add;
-	*p = mem_realloc(*p, size + add);
-}
-
-static void decompress_error(struct terminal *term, struct cache_entry *ce, unsigned char *lib, unsigned char *msg, int *errp)
-{
-	struct window *win;
-	unsigned char *u, *uu, *server;
-	if ((u = parse_http_header(ce->head, "Content-Encoding", NULL))) {
-		mem_free(u);
-		if ((server = get_host_name(ce->url))) {
-			add_blacklist_entry(server, BL_NO_COMPRESSION);
-			mem_free(server);
-		}
-	}
-	if (!term) return;
-	if (errp) *errp = 1;
-	else foreach(win, term->windows) if (win->handler == dialog_func) {
-		struct dialog_data *d = win->data;
-		if (d->dlg->title == TEXT_(T_DECOMPRESSION_ERROR)) {
-			return;
-		}
-	}
-	u = stracpy(ce->url);
-	if ((uu = strchr(u, POST_CHAR))) *uu = 0;
-	msg_box(term, getml(u, NULL), TEXT_(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DECOMPRESSING_), u, TEXT_(T__wITH_), lib, ": ", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
-}
-
-#endif
-
-#ifdef HAVE_ZLIB
-#include <zlib.h>
-static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int defl, int *errp)
-{
-	unsigned char err;
-	unsigned char memory_error;
-	unsigned char skip_gzip_header;
-	unsigned char old_zlib;
-	z_stream z;
-	off_t offset;
-	size_t header;
-	int r;
-	unsigned char *p;
-	struct fragment *f;
-	size_t size;
-
-	retry_after_memory_error:
-	memory_error = 0;
-	header = 0;
-	decoder_memory_init(&p, &size, ce->length);
-	init_again:
-	err = 0;
-	skip_gzip_header = 0;
-	old_zlib = 0;
-	memset(&z, 0, sizeof z);
-	z.next_in = NULL;
-	z.avail_in = 0;
-	z.next_out = p;
-	z.avail_out = size;
-	z.zalloc = NULL;
-	z.zfree = NULL;
-	z.opaque = NULL;
-	r = inflateInit2(&z, defl == 1 ? 15 : defl == 2 ? -15 : 15 + 16);
-	init_failed:
-	switch (r) {
-		case Z_OK:		break;
-		case Z_MEM_ERROR:	memory_error = 1;
-					err = 1;
-					goto after_inflateend;
-		case Z_STREAM_ERROR:	
-					if (!defl && !old_zlib) {
-						defrag_entry(ce);
-						r = inflateInit2(&z, -15);
-						skip_gzip_header = 1;
-						old_zlib = 1;
-						goto init_failed;
-					}
-					decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Invalid parameter", errp);
-					err = 1;
-					goto after_inflateend;
-		case Z_VERSION_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Bad zlib version", errp);
-					err = 1;
-					goto after_inflateend;
-		default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateInit2", errp);
-					err = 1;
-					goto after_inflateend;
-	}
-	offset = 0;
-	foreach(f, ce->frag) {
-		if (f->offset != offset) break;
-		z.next_in = f->data;
-		z.avail_in = f->length;
-		if (header && !offset) {
-			z.next_in = (unsigned char *)z.next_in + header;
-			z.avail_in -= header;
-		}
-		repeat_frag:
-		if (skip_gzip_header == 2) {
-			if (z.avail_in < 8) goto finish;
-			z.next_in = (unsigned char *)z.next_in + 8;
-			z.avail_in -= 8;
-			skip_gzip_header = 1;
-		}
-		if (skip_gzip_header) {
-			/* if zlib is old, we have to skip gzip header manually
-			   otherwise zlib 1.2.x can do it automatically */
-			unsigned char *head = z.next_in;
-			unsigned headlen = 10;
-			if (z.avail_in <= 11) goto finish;
-			if (head[0] != 0x1f || head[1] != 0x8b) {
-				decompress_error(term, ce, "zlib", TEXT_(T_COMPRESSED_ERROR), errp);
-				err = 1;
-				goto finish;
-			}
-			if (head[2] != 8 || head[3] & 0xe0) {
-				decompress_error(term, ce, "zlib", TEXT_(T_UNKNOWN_COMPRESSION_METHOD), errp);
-				err = 1;
-				goto finish;
-			}
-			if (head[3] & 0x04) {
-				headlen += 2 + head[10] + (head[11] << 8);
-				if (headlen >= z.avail_in) goto finish;
-			}
-			if (head[3] & 0x08) {
-				do {
-					headlen++;
-					if (headlen >= z.avail_in) goto finish;
-				} while (head[headlen - 1]);
-			}
-			if (head[3] & 0x10) {
-				do {
-					headlen++;
-					if (headlen >= z.avail_in) goto finish;
-				} while (head[headlen - 1]);
-			}
-			if (head[3] & 0x01) {
-				headlen += 2;
-				if (headlen >= z.avail_in) goto finish;
-			}
-			z.next_in = (unsigned char *)z.next_in + headlen;
-			z.avail_in -= headlen;
-			skip_gzip_header = 0;
-		}
-		r = inflate(&z, (void *)f->next == (void *)&ce->frag ? Z_SYNC_FLUSH : Z_NO_FLUSH);
-		switch (r) {
-			case Z_OK:		break;
-			case Z_BUF_ERROR:	break;
-			case Z_STREAM_END:	r = inflateEnd(&z);
-						if (r != Z_OK) goto end_failed;
-						r = inflateInit2(&z, old_zlib ? -15 : defl ? 15 : 15 + 16);
-						if (r != Z_OK) {
-							old_zlib = 0;
-							goto init_failed;
-						}
-						if (old_zlib) {
-							skip_gzip_header = 2;
-						}
-						break;
-			case Z_NEED_DICT:
-			case Z_DATA_ERROR:	if (defl == 1) {
-							defl = 2;
-							r = inflateEnd(&z);
-							if (r != Z_OK) goto end_failed;
-							goto init_again;
-						}
-						decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT_(T_COMPRESSED_ERROR), errp);
-						err = 1;
-						goto finish;
-			case Z_STREAM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflate", errp);
-						err = 1;
-						goto finish;
-			case Z_MEM_ERROR:	memory_error = 1;
-						err = 1;
-						goto finish;
-			default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflate", errp);
-						err = 1;
-						break;
-		}
-		if (!z.avail_out) {
-			size_t addsize;
-			decoder_memory_expand(&p, size, &addsize);
-			z.next_out = p + size;
-			z.avail_out = addsize;
-			size += addsize;
-		}
-		if (z.avail_in) goto repeat_frag;
-		/* In zlib 1.1.3, inflate(Z_SYNC_FLUSH) doesn't work.
-		   The following line fixes it --- for last fragment, loop until
-		   we get an eof. */
-		if (r == Z_OK && (void *)f->next == (void *)&ce->frag) goto repeat_frag;
-		offset += f->length;
-	}
-	finish:
-	r = inflateEnd(&z);
-	end_failed:
-	switch (r) {
-		case Z_OK:		break;
-		case Z_STREAM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflateEnd", errp);
-					err = 1;
-					break;
-		case Z_MEM_ERROR:	memory_error = 1;
-					err = 1;
-					break;
-		default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateEnd", errp);
-					err = 1;
-					break;
-	}
-	after_inflateend:
-	if (memory_error) {
-		mem_free(p);
-		if (out_of_memory(NULL, 0))
-			goto retry_after_memory_error;
-		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT_(T_OUT_OF_MEMORY), errp);
-		return 1;
-	}
-	if (err && (unsigned char *)z.next_out == p) {
-		mem_free(p);
-		return 1;
-	}
-	*p_start = p;
-	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
-	*p_start = mem_realloc(*p_start, *p_len);
-	return 0;
-}
-#endif
-
-#ifdef HAVE_BZIP2
-#include <bzlib.h>
-static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int *errp)
-{
-	unsigned char err;
-	unsigned char memory_error;
-	bz_stream z;
-	off_t offset;
-	int r;
-	unsigned char *p;
-	struct fragment *f;
-	size_t size;
-
-	retry_after_memory_error:
-	err = 0;
-	memory_error = 0;
-	decoder_memory_init(&p, &size, ce->length);
-	memset(&z, 0, sizeof z);
-	z.next_in = NULL;
-	z.avail_in = 0;
-	z.next_out = p;
-	z.avail_out = size;
-	z.bzalloc = NULL;
-	z.bzfree = NULL;
-	z.opaque = NULL;
-	r = BZ2_bzDecompressInit(&z, 0, 0);
-	init_failed:
-	switch (r) {
-		case BZ_OK:		break;
-		case BZ_MEM_ERROR:	memory_error = 1;
-					err = 1;
-					goto after_inflateend;
-		case BZ_PARAM_ERROR:	
-					decompress_error(term, ce, "bzip2", "Invalid parameter", errp);
-					err = 1;
-					goto after_inflateend;
-		case BZ_CONFIG_ERROR:	decompress_error(term, ce, "bzip2", "Bzlib is miscompiled", errp);
-					err = 1;
-					goto after_inflateend;
-		default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompressInit", errp);
-					err = 1;
-					goto after_inflateend;
-	}
-	offset = 0;
-	foreach(f, ce->frag) {
-		if (f->offset != offset) break;
-		z.next_in = f->data;
-		z.avail_in = f->length;
-		repeat_frag:
-		r = BZ2_bzDecompress(&z);
-		switch (r) {
-			case BZ_OK:		break;
-			case BZ_STREAM_END:
-						r = BZ2_bzDecompressEnd(&z);
-						if (r != BZ_OK) goto end_failed;
-						r = BZ2_bzDecompressInit(&z, 0, 0);
-						if (r != BZ_OK) goto init_failed;
-						break;
-			case BZ_DATA_ERROR_MAGIC:
-			case BZ_DATA_ERROR:	decompress_error(term, ce, "bzip2", TEXT_(T_COMPRESSED_ERROR), errp);
-						err = 1;
-						goto finish;
-			case BZ_PARAM_ERROR:	decompress_error(term, ce, "bzip2", "Internal error on BZ2_bzDecompress", errp);
-						err = 1;
-						goto finish;
-			case BZ_MEM_ERROR:	memory_error = 1;
-						err = 1;
-						goto finish;
-			default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompress", errp);
-						err = 1;
-						break;
-		}
-		if (!z.avail_out) {
-			size_t addsize;
-			decoder_memory_expand(&p, size, &addsize);
-			z.next_out = p + size;
-			z.avail_out = addsize;
-			size += addsize;
-		}
-		if (z.avail_in) goto repeat_frag;
-		offset += f->length;
-	}
-	finish:
-	r = BZ2_bzDecompressEnd(&z);
-	end_failed:
-	switch (r) {
-		case BZ_OK:		break;
-		case BZ_PARAM_ERROR:	decompress_error(term, ce, "bzip2", "Internal error on BZ2_bzDecompressEnd", errp);
-					err = 1;
-					break;
-		case BZ_MEM_ERROR:	memory_error = 1;
-					err = 1;
-					break;
-		default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompressEnd", errp);
-					err = 1;
-					break;
-	}
-	after_inflateend:
-	if (memory_error) {
-		mem_free(p);
-		if (out_of_memory(NULL, 0))
-			goto retry_after_memory_error;
-		decompress_error(term, ce, "bzip2", TEXT_(T_OUT_OF_MEMORY), errp);
-		return 1;
-	}
-	if (err && (unsigned char *)z.next_out == p) {
-		mem_free(p);
-		return 1;
-	}
-	*p_start = p;
-	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
-	*p_start = mem_realloc(*p_start, *p_len);
-	return 0;
-}
-#endif
-
-#ifdef HAVE_LZMA
-#undef internal
-#include <lzma.h>
-#define internal internal_
-static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int *errp)
-{
-	unsigned char err;
-	unsigned char memory_error;
-	lzma_stream z = LZMA_STREAM_INIT;
-	off_t offset;
-	int r;
-	unsigned char *p;
-	struct fragment *f;
-	size_t size;
-
-	retry_after_memory_error:
-	err = 0;
-	memory_error = 0;
-	decoder_memory_init(&p, &size, ce->length);
-	z.next_in = NULL;
-	z.avail_in = 0;
-	z.next_out = p;
-	z.avail_out = size;
-	r = lzma_auto_decoder(&z, UINT64_MAX, 0);
-	init_failed:
-	switch (r) {
-		case LZMA_OK:		break;
-		case LZMA_MEM_ERROR:	memory_error = 1;
-					err = 1;
-					goto after_inflateend;
-		case LZMA_OPTIONS_ERROR:	
-					decompress_error(term, ce, "lzma", "Invalid parameter", errp);
-					err = 1;
-					goto after_inflateend;
-		case LZMA_PROG_ERROR:	decompress_error(term, ce, "lzma", "Lzma is miscompiled", errp);
-					err = 1;
-					goto after_inflateend;
-		default:		decompress_error(term, ce, "lzma", "Unknown return value on lzma_auto_decoder", errp);
-					err = 1;
-					goto after_inflateend;
-	}
-	offset = 0;
-	foreach(f, ce->frag) {
-		if (f->offset != offset) break;
-		z.next_in = f->data;
-		z.avail_in = f->length;
-		repeat_frag:
-		r = lzma_code(&z, LZMA_RUN);
-		switch (r) {
-			case LZMA_OK:		
-			case LZMA_NO_CHECK:	
-			case LZMA_UNSUPPORTED_CHECK:
-			case LZMA_GET_CHECK:
-						break;
-			case LZMA_STREAM_END:
-						lzma_end(&z);
-						r = lzma_auto_decoder(&z, UINT64_MAX, 0);
-						if (r != LZMA_OK) goto init_failed;
-						break;
-			case LZMA_MEM_ERROR:	memory_error = 1;
-						err = 1;
-						goto finish;
-			case LZMA_MEMLIMIT_ERROR:
-						decompress_error(term, ce, "lzma", "Memory limit was exceeded", errp);
-						err = 1;
-						goto finish;
-			case LZMA_FORMAT_ERROR:
-			case LZMA_DATA_ERROR:
-			case LZMA_BUF_ERROR:
-						decompress_error(term, ce, "lzma", TEXT_(T_COMPRESSED_ERROR), errp);
-						err = 1;
-						goto finish;
-			case LZMA_OPTIONS_ERROR:decompress_error(term, ce, "lzma", "File contains unsupported options", errp);
-						err = 1;
-						goto finish;
-			case LZMA_PROG_ERROR:	decompress_error(term, ce, "lzma", "Lzma is miscompiled", errp);
-						err = 1;
-						goto finish;
-			default:		decompress_error(term, ce, "lzma", "Unknown return value on lzma_code", errp);
-						err = 1;
-						break;
-		}
-		if (!z.avail_out) {
-			size_t addsize;
-			decoder_memory_expand(&p, size, &addsize);
-			z.next_out = p + size;
-			z.avail_out = addsize;
-			size += addsize;
-		}
-		if (z.avail_in) goto repeat_frag;
-		offset += f->length;
-	}
-	finish:
-	lzma_end(&z);
-	after_inflateend:
-	if (memory_error) {
-		mem_free(p);
-		if (out_of_memory(NULL, 0))
-			goto retry_after_memory_error;
-		decompress_error(term, ce, "lzma", TEXT_(T_OUT_OF_MEMORY), errp);
-		return 1;
-	}
-	if (err && (unsigned char *)z.next_out == p) {
-		mem_free(p);
-		return 1;
-	}
-	*p_start = p;
-	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
-	*p_start = mem_realloc(*p_start, *p_len);
-	return 0;
-}
-#endif
-
-static int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *errp)
-{
-	unsigned char *enc;
-	struct fragment *fr;
-	if (errp) *errp = 0;
-	*start = *end = NULL;
-	if (!ce) return 1;
-	if (ce->decompressed) {
-#if defined(HAVE_ANY_COMPRESSION)
-		return_decompressed:
-#endif
-		*start = ce->decompressed;
-		*end = ce->decompressed + ce->decompressed_len;
-		return 0;
-	}
-	enc = get_content_encoding(ce->head, ce->url);
-	if (enc) {
-#ifdef HAVE_ZLIB
-		if (!strcasecmp(enc, "gzip") || !strcasecmp(enc, "x-gzip") || !strcasecmp(enc, "deflate")) {
-			int defl = !strcasecmp(enc, "deflate");
-			mem_free(enc);
-			if (decode_gzip(term, ce, &ce->decompressed, &ce->decompressed_len, defl, errp)) goto uncompressed;
-			goto return_decompressed;
-		}
-#endif
-#ifdef HAVE_BZIP2
-		if (!strcasecmp(enc, "bzip2")) {
-			mem_free(enc);
-			if (decode_bzip2(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
-			goto return_decompressed;
-		}
-#endif
-#ifdef HAVE_LZMA
-		if (!strcasecmp(enc, "lzma") || !strcasecmp(enc, "lzma2")) {
-			mem_free(enc);
-			if (decode_lzma(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
-			goto return_decompressed;
-		}
-#endif
-		mem_free(enc);
-		goto uncompressed;
-	}
-	uncompressed:
-	defrag_entry(ce);
-	fr = ce->frag.next;
-	if ((void *)fr == &ce->frag || fr->offset || !fr->length) return 1;
-	*start = fr->data, *end = fr->data + fr->length;
-	return 0;
-}
-
-int get_file(struct object_request *o, unsigned char **start, unsigned char **end)
-{
-	struct terminal *term;
-	*start = *end = NULL;
-	if (!o) return 1;
-	foreach(term, terminals) if (o->term == term->count) goto ok;
-	term = NULL;
-	ok:
-	return get_file_by_term(term, o->ce, start, end, NULL);
-}
-
 static void refresh_timer(struct f_data_c *fd)
 {
 	if (fd->ses->rq) {
@@ -2160,6 +1774,7 @@ static int frame_and_all_subframes_loaded(struct f_data_c *fd)
 
 void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 {
+	int first = !fd->f_data;
 	if (fd->done) {
 		if (f_is_finished(fd->f_data)) goto priint;
 		else fd->done = 0, fd->parsed_done = 1;
@@ -2179,7 +1794,7 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		draw_fd(fd);
 		/* it may happen that html_interpret requests load of additional file */
 		if (!f_is_finished(fd->f_data)) goto more_data;
-		fn:
+fn:
 		if (fd->f_data->are_there_scripts) {
 			jsint_scan_script_tags(fd);
 			if (!f_is_finished(fd->f_data)) goto more_data;
@@ -2188,14 +1803,13 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		fd->parsed_done = 0;
 		if (fd->f_data->refresh) {
 			if (fd->refresh_timer != -1) kill_timer(fd->refresh_timer);
-			fd->refresh_timer = install_timer(fd->f_data->refresh_seconds * 1000, (void (*)(void *))refresh_timer, fd);
+			fd->refresh_timer = install_timer((uttime)fd->f_data->refresh_seconds * 1000, (void (*)(void *))refresh_timer, fd);
 		}
 #ifdef JS
 		jsint_run_queue(fd);
 #endif
-	} else more_data: if (get_time() >= fd->next_update) {
+	} else if ((ttime)((uttime)get_time() - (uttime)fd->next_update) >= 0 || (rq == fd->rq && rq->state < 0)) {
 		ttime t;
-		int first = !fd->f_data;
 		if (!fd->parsed_done) {
 			html_interpret(fd);
 			if (fd->rq->state < 0 && !f_need_reparse(fd->f_data)) {
@@ -2208,15 +1822,16 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		}
 		draw_fd(fd);
 		if (fd->rq->state < 0 && f_is_finished(fd->f_data)) goto fn;
-		t = fd->f_data ? ((fd->parsed_done ? 0 : fd->f_data->time_to_get * DISPLAY_TIME) + fd->f_data->time_to_draw * IMG_DISPLAY_TIME) : 0;
+more_data:
+		t = fd->f_data ? ((uttime)(fd->parsed_done ? 0 : fd->f_data->time_to_get * DISPLAY_TIME) + (uttime)fd->f_data->time_to_draw * IMG_DISPLAY_TIME) : 0;
 		if (t < DISPLAY_TIME_MIN) t = DISPLAY_TIME_MIN;
 		if (first && t > DISPLAY_TIME_MAX_FIRST) t = DISPLAY_TIME_MAX_FIRST;
-		fd->next_update = get_time() + t;
+		fd->next_update = (uttime)get_time() + t;
 	} else {
 		change_screen_status(fd->ses);
 		print_screen_status(fd->ses);
 	}
-	priint:
+priint:
 	/* process onload handler of a frameset */
 #ifdef JS
 	{
@@ -2235,15 +1850,19 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 	}
 #endif
 	if (rq && (rq->state == O_FAILED || rq->state == O_INCOMPLETE) && (fd->rq == rq || fd->ses->rq == rq)) print_error_dialog(fd->ses, &rq->stat, rq->url);
+#ifdef LINKS_TESTMODE_DOCUMENT_AUTO_EXIT
+	if (f_is_finished(fd->f_data))
+		terminate_loop = 1;
+#endif
 }
 
-static tcount location_id = 0;
+static unsigned location_id = 0;
 
 static struct location *new_location(void)
 {
 	struct location *loc;
 	loc = mem_calloc(sizeof(struct location));
-	loc->location_id = location_id++;
+	loc->location_id = ++location_id;
 	init_list(loc->subframes);
 	loc->vs = create_vs();
 	return loc;
@@ -2449,13 +2068,16 @@ static void tp_cancel(struct session *ses)
 	release_object(&ses->tq);
 }
 
-static void continue_download(struct session *ses, unsigned char *file)
+static void continue_download(struct session *ses, unsigned char *file, int mode)
 {
 	unsigned char *enc;
 	struct download *down;
 	int h;
 	int namecount = 0;
 	unsigned char *url = ses->tq->url;
+	unsigned char *xl_file;
+	off_t last_pos = 0, file_shift = 0;
+
 	if (ses->tq_prog) {
 		if (ses->tq_prog_flag_direct && ses->tq->state != O_OK && !strchr(url, POST_CHAR) && !check_shell_url(url)) {
 			unsigned char *prog = subst_file(ses->tq_prog, url, 0);
@@ -2470,32 +2092,38 @@ static void continue_download(struct session *ses, unsigned char *file)
 			tp_cancel(ses);
 			return;
 		}
-	}
-	if (!ses->tq_prog) test_abort_downloads_to_file(file, ses->term->cwd, 1);
-	if ((h = create_download_file(ses, ses->term->cwd, file, !!ses->tq_prog, 0)) < 0) {
-		if (h == -2 && ses->tq_prog) {
-			if (++namecount < DOWNLOAD_NAME_TRIES) {
-				mem_free(file);
-				goto new_name;
+		if ((h = create_download_file(ses, ses->term->cwd, file, CDF_RESTRICT_PERMISSION | CDF_EXCL | CDF_NO_POPUP_ON_EEXIST, 0)) < 0) {
+			if (h == -2 && ses->tq_prog) {
+				if (++namecount < DOWNLOAD_NAME_TRIES) {
+					mem_free(file);
+					goto new_name;
+				}
+				msg_box(ses->term, NULL, TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_COULD_NOT_CREATE_TEMPORARY_FILE), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 			}
-			msg_box(ses->term, NULL, TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_COULD_NOT_CREATE_TEMPORARY_FILE), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+			mem_free(file);
+			tp_cancel(ses);
+			return;
 		}
-		if (ses->tq_prog) mem_free(file);
-		tp_cancel(ses);
-		return;
+		xl_file = stracpy(file);
+	} else {
+		if (create_or_append_download_file(ses, ses->term->cwd, file, mode, &h, &xl_file, &last_pos, &file_shift)) {
+			tp_cancel(ses);
+			return;
+		}
 	}
 	down = mem_calloc(sizeof(struct download));
 	down->url = stracpy(url);
 	down->stat.end = (void (*)(struct status *, void *))download_data;
 	down->stat.data = down;
 	down->decompress = 0;
-	down->last_pos = 0;
-	down->file_shift = 0;
+	down->last_pos = last_pos;
+	down->file_shift = file_shift;
 	down->cwd = stracpy(ses->term->cwd);
 	down->orig_file = stracpy(file);
-	down->file = stracpy(file);
+	down->file = xl_file;
 	down->handle = h;
 	down->ses = ses;
+	down->remotetime = 0;
 	if (ses->tq_prog) {
 		down->prog = subst_file(ses->tq_prog, file, 1);
 		mem_free(file);
@@ -2523,12 +2151,12 @@ static void continue_download(struct session *ses, unsigned char *file)
 static void tp_save(struct session *ses)
 {
 	if (ses->tq_prog) mem_free(ses->tq_prog), ses->tq_prog = NULL;
-	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, &continue_download, tp_cancel);
+	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, &continue_download, tp_cancel, DOWNLOAD_CONTINUE);
 }
 
 static void tp_open(struct session *ses)
 {
-	continue_download(ses, "");
+	continue_download(ses, "", DOWNLOAD_DEFAULT);
 }
 
 static int ses_abort_1st_state_loading(struct session *ses)
@@ -2564,43 +2192,40 @@ static int direct_download_possible(struct object_request *rq, struct assoc *a)
 	return ret;
 }
 
-static int prog_sel_save(struct dialog_data *dlg, struct dialog_item_data* idata)
+static int prog_sel_save(struct dialog_data *dlg, struct dialog_item_data *idata)
 {
-	struct session *ses=(struct session *)(dlg->dlg->udata2);
+	struct session *ses = (struct session *)dlg->dlg->udata2;
 
-	if (ses->tq_prog) mem_free(ses->tq_prog), ses->tq_prog = NULL;
-	query_file(ses, ses->tq->url, ses->tq->ce ? ses->tq->ce->head : NULL, &continue_download, tp_cancel);
+	tp_save(ses);
 
-	cancel_dialog(dlg,idata);
+	cancel_dialog(dlg, idata);
 	return 0;
 }
 
-static int prog_sel_display(struct dialog_data *dlg, struct dialog_item_data* idata)
+static int prog_sel_display(struct dialog_data *dlg, struct dialog_item_data *idata)
 {
-	struct session *ses=(struct session *)(dlg->dlg->udata2);
+	struct session *ses = (struct session *)dlg->dlg->udata2;
 
-	ses_abort_1st_state_loading(ses);
-	ses->rq = ses->tq;
-	ses->tq = NULL;
-	ses_go_forward(ses, 1, 0);
+	tp_display(ses);
 
-	cancel_dialog(dlg,idata);
+	cancel_dialog(dlg, idata);
 	return 0;
 }
 
-static int prog_sel_cancel(struct dialog_data *dlg, struct dialog_item_data* idata)
+static int prog_sel_cancel(struct dialog_data *dlg, struct dialog_item_data *idata)
 {
-	struct session *ses=(struct session *)(dlg->dlg->udata2);
+	struct session *ses = (struct session *)dlg->dlg->udata2;
 
-	release_object(&ses->tq);
-	cancel_dialog(dlg,idata);
+	tp_cancel(ses);
+
+	cancel_dialog(dlg, idata);
 	return 0;
 }
 
-static int prog_sel_open(struct dialog_data *dlg, struct dialog_item_data* idata)
+static int prog_sel_open(struct dialog_data *dlg, struct dialog_item_data *idata)
 {
-	struct assoc *a=(struct assoc*)idata->item->udata;
-	struct session *ses=(struct session *)(dlg->dlg->udata2);
+	struct assoc *a = (struct assoc*)idata->item->udata;
+	struct session *ses = (struct session *)dlg->dlg->udata2;
 
 	if (!a) internal("This should not happen.\n");
 	ses->tq_prog = stracpy(a->prog), ses->tq_prog_flag_block = a->block, ses->tq_prog_flag_direct = direct_download_possible(ses->tq, a);
@@ -2609,87 +2234,43 @@ static int prog_sel_open(struct dialog_data *dlg, struct dialog_item_data* idata
 	return 0;
 }
 
-static void vysad_dvere(struct dialog_data *dlg)
-{
-	struct terminal *term = dlg->win->term;
-	/*struct session *ses=(struct session *)(dlg->dlg->udata2);*/
-	unsigned char *ct=(unsigned char *)(dlg->dlg->udata);
-	int max = 0, min = 0;
-	int w, rw;
-	int y = 0;
-	unsigned char *txt;
-	int l=0;
-
-	txt=init_str();
-	
-	/* brainovi to tady pada !!!
-	add_to_str(&txt,&l,ses->tq->url);
-	add_to_str(&txt,&l," ");
-	add_to_str(&txt,&l,_(TEXT_(T_HAS_TYPE),term));
-	*/
-	add_to_str(&txt,&l,_(TEXT_(T_CONTEN_TYPE_IS),term));
-	add_to_str(&txt,&l," ");
-	add_to_str(&txt,&l,ct);
-	add_to_str(&txt,&l,".\n");
-	if (!anonymous)
-		add_to_str(&txt,&l,_(TEXT_(T_DO_YOU_WANT_TO_OPEN_SAVE_OR_DISPLAY_THIS_FILE),term));
-	else
-		add_to_str(&txt,&l,_(TEXT_(T_DO_YOU_WANT_TO_OPEN_OR_DISPLAY_THIS_FILE),term));
-
-	max_text_width(term, txt, &max, AL_CENTER);
-	min_text_width(term, txt, &min, AL_CENTER);
-	max_buttons_width(term, dlg->items , dlg->n, &max);
-	min_buttons_width(term, dlg->items , dlg->n, &min);
-	w = term->x * 9 / 10 - 2 * DIALOG_LB;
-	if (w > max) w = max;
-	if (w < min) w = min;
-	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
-	if (w < 5) w = 5;
-	rw = 0;
-	dlg_format_text(dlg, NULL, txt, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_CENTER);
-	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
-	dlg_format_buttons(dlg, NULL, dlg->items , dlg->n, 0, &y, w, &rw, AL_CENTER);
-	w = rw;
-	dlg->xw = rw + 2 * DIALOG_LB;
-	dlg->yw = y + 2 * DIALOG_TB;
-	center_dlg(dlg);
-	draw_dlg(dlg);
-	y = dlg->y + DIALOG_TB + gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text(dlg, term, txt, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_CENTER);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_buttons(dlg, term, dlg->items , dlg->n, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
-	mem_free(txt);
-}
-
-
-static void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, int n)
+static void type_query_multiple_programs(struct session *ses, unsigned char *ct, struct assoc *a, int n)
 {
 	int i;
 	struct dialog *d;
 	struct memory_list *ml;
+	unsigned char **text_array;
+
+	text_array = mem_alloc(6 * sizeof(unsigned char *));
+	text_array[0] = TEXT_(T_CONTENT_TYPE_IS);
+	text_array[1] = " ";
+	text_array[2] = ct;
+	text_array[3] = ".\n";
+	text_array[4] = !anonymous ? TEXT_(T_DO_YOU_WANT_TO_OPEN_SAVE_OR_DISPLAY_THIS_FILE) : TEXT_(T_DO_YOU_WANT_TO_OPEN_OR_DISPLAY_THIS_FILE);
+	text_array[5] = NULL;
 
 	if ((unsigned)n > (MAXINT - sizeof(struct dialog)) / sizeof(struct dialog_item) - 4) overalloc();
-	d = mem_calloc(sizeof(struct dialog) + (n+3+(!anonymous)) * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + (n + 2 + (!anonymous)) * sizeof(struct dialog_item));
 	d->title = TEXT_(T_WHAT_TO_DO);
-	d->fn = vysad_dvere;
-	d->udata = ct;
-	d->udata2=ses;
-	ml=getml(d,a,ct,NULL);
+	d->fn = msg_box_fn;
+	d->udata = text_array;
+	d->udata2 = ses;
+	d->align = AL_CENTER;
+	ml = getml(d, a, ct, text_array, NULL);
 
-	for (i=0;i<n;i++)
-	{
-		unsigned char *bla=stracpy(_(TEXT_(T_OPEN_WITH),ses->term));
-		add_to_strn(&bla," ");
-		add_to_strn(&bla,_(a[i].label,ses->term));
+	for (i = 0; i < n; i++) {
+		unsigned char *bla = stracpy(_(TEXT_(T_OPEN_WITH),ses->term));
+		add_to_strn(&bla, " ");
+		add_to_strn(&bla, a[i].label);
 		
 		d->items[i].type = D_BUTTON;
 		d->items[i].fn = prog_sel_open;
-		d->items[i].udata = a+i;
+		d->items[i].udata = a + i;
 		d->items[i].text = bla;
-		add_to_ml(&ml,bla,NULL);
+		a[i].prog = stracpy(a[i].prog);
+		add_to_ml(&ml, bla, a[i].prog, NULL);
 	}
-	if (!anonymous)
-	{
+	if (!anonymous) {
 		d->items[i].type = D_BUTTON;
 		d->items[i].fn = prog_sel_save;
 		d->items[i].text = TEXT_(T_SAVE);
@@ -2703,7 +2284,8 @@ static void vysad_okno(struct session *ses, unsigned char *ct, struct assoc *a, 
 	d->items[i].fn = prog_sel_cancel;
 	d->items[i].gid = B_ESC;
 	d->items[i].text = TEXT_(T_CANCEL);
-	d->items[i+1].type = D_END;
+	i++;
+	d->items[i].type = D_END;
 	do_dialog(ses->term, d, ml);
 }
 
@@ -2714,28 +2296,32 @@ static void type_query(struct session *ses, unsigned char *ct, struct assoc *a, 
 {
 	unsigned char *m1;
 	unsigned char *m2;
+	if (!ct) ct = stracpy("unknown");
 	if (ses->tq_prog) mem_free(ses->tq_prog), ses->tq_prog = NULL;
 
-	if (n>1){vysad_okno(ses,ct,a,n);return;}
+	if (n > 1) {
+		type_query_multiple_programs(ses, ct, a, n);
+		return;
+	}
 	
 	if (a) ses->tq_prog = stracpy(a[0].prog), ses->tq_prog_flag_block = a[0].block, ses->tq_prog_flag_direct = direct_download_possible(ses->tq, a);
 	if (a && !a[0].ask) {
 		tp_open(ses);
 		if (n) mem_free(a);
-		if (ct) mem_free(ct);
+		mem_free(ct);
 		return;
 	}
 	m1 = stracpy(ct);
 	if (!a) {
-		if (!anonymous) msg_box(ses->term, getml(m1, NULL), TEXT_(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 3, TEXT_(T_SAVE), tp_save, B_ENTER, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
-		else msg_box(ses->term, getml(m1, NULL), TEXT_(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 2, TEXT_(T_DISPLAY), tp_display, B_ENTER, TEXT_(T_CANCEL), tp_cancel, B_ESC);
+		if (!anonymous) msg_box(ses->term, getml(m1, NULL), TEXT_(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTENT_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 3, TEXT_(T_SAVE), tp_save, B_ENTER, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
+		else msg_box(ses->term, getml(m1, NULL), TEXT_(T_UNKNOWN_TYPE), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTENT_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_SAVE_OR_DISLPAY_THIS_FILE), NULL, ses, 2, TEXT_(T_DISPLAY), tp_display, B_ENTER, TEXT_(T_CANCEL), tp_cancel, B_ESC);
 	} else {
 		m2 = stracpy(a[0].label ? a[0].label : (unsigned char *)"");
-		if (!anonymous) msg_box(ses->term, getml(m1, m2, NULL), TEXT_(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT_(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 4, TEXT_(T_OPEN), tp_open, B_ENTER, TEXT_(T_SAVE), tp_save, 0, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
-		else msg_box(ses->term, getml(m1, m2, NULL), TEXT_(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTEN_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT_(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 3, TEXT_(T_OPEN), tp_open, B_ENTER, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
+		if (!anonymous) msg_box(ses->term, getml(m1, m2, NULL), TEXT_(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTENT_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT_(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 4, TEXT_(T_OPEN), tp_open, B_ENTER, TEXT_(T_SAVE), tp_save, 0, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
+		else msg_box(ses->term, getml(m1, m2, NULL), TEXT_(T_WHAT_TO_DO), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_CONTENT_TYPE_IS), " ", m1, ".\n", TEXT_(T_DO_YOU_WANT_TO_OPEN_FILE_WITH), " ", m2, ", ", TEXT_(T_SAVE_IT_OR_DISPLAY_IT), NULL, ses, 3, TEXT_(T_OPEN), tp_open, B_ENTER, TEXT_(T_DISPLAY), tp_display, 0, TEXT_(T_CANCEL), tp_cancel, B_ESC);
 	}
-	if (n)mem_free(a);
-	if (ct)mem_free(ct);
+	if (n) mem_free(a);
+	mem_free(ct);
 }
 
 static void ses_go_to_2nd_state(struct session *ses)
@@ -2745,7 +2331,7 @@ static void ses_go_to_2nd_state(struct session *ses)
 	unsigned char *ct = NULL;
 	int r = plain_type(ses, ses->rq, &ct);
 	if (r == 0 || r == 1 || r == 2 || r == 3) goto go;
-	if (!(a = get_type_assoc(ses->term, ct, &n)) && strlen(ct) >= 4 && !casecmp(ct, "text/", 4)) {
+	if (!(a = get_type_assoc(ses->term, ct, &n)) && strlen(ct) >= 4 && !casecmp(ct, "text", 4)) {
 		r = 1;
 		goto go;
 	}
@@ -2758,6 +2344,17 @@ static void ses_go_to_2nd_state(struct session *ses)
 	(ses->tq = ses->rq)->upcall = NULL;
 	ses->rq = NULL;
 	ses_abort_1st_state_loading(ses);
+	if (!n && ses->tq->ce && ses->tq->ce->head) {
+		unsigned char *file = get_filename_from_header(ses->tq->ce->head);
+		if (file) {
+			unsigned char *new_ct = get_content_type_by_extension(file);
+			mem_free(file);
+			if (new_ct) {
+				a = get_type_assoc(ses->term, new_ct, &n);
+				mem_free(new_ct);
+			}
+		}
+	}
 	type_query(ses, ct, a, n);
 	return;
 	go:
@@ -2798,9 +2395,11 @@ static void ses_finished_1st_state(struct object_request *rq, struct session *se
 
 void ses_destroy_defered_jump(struct session *ses)
 {
+#ifdef JS
 	if (ses->defered_url) mem_free(ses->defered_url), ses->defered_url = NULL;
 	if (ses->defered_target) mem_free(ses->defered_target), ses->defered_target = NULL;
 	ses->defered_target_base = NULL;
+#endif
 }
 
 #ifdef JS
@@ -2824,7 +2423,9 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	unsigned char *prev_url;
 	void (*fn)(struct session *, unsigned char *);
 	if (!state2) state2 = ses_go_to_2nd_state;
+#ifdef JS
 	if (ses->defered_url && defer && any_running_scripts(ses->screen)) return;
+#endif
 	ses_destroy_defered_jump(ses);
 	if ((fn = get_external_protocol_function(url))) {
 		if (proxies.only_proxies && url_bypasses_socks(url)) {
@@ -2840,6 +2441,7 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 		print_error_dialog(ses, &stat, url);
 		return;
 	}
+#ifdef JS
 	if (defer && any_running_scripts(ses->screen)) {
 		ses->defered_url = u;
 		ses->defered_target = stracpy(target);
@@ -2848,6 +2450,7 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 		ses->defered_seq = jsint_execute_seq++;
 		return;
 	}
+#endif
 	pos = extract_position(u);
 	if (ses->wtd == state2 && !strcmp(ses->rq->orig_url, u) && !xstrcmp(ses->wtd_target, target) && ses->wtd_target_base == df) {
 		mem_free(u);
@@ -2963,12 +2566,14 @@ static void reload_frame(struct f_data_c *fd, int no_cache)
 		}
 		return;
 	}
-	if (!fd->f_data || !f_is_finished(fd->f_data)) return;
+	if (!fd->rq) return;
+	if (fd->f_data && !f_is_finished(fd->f_data)) return;
 	u = stracpy(fd->rq->url);
 	release_object(&fd->rq);
-	release_object(&fd->f_data->rq);
+	if (fd->f_data) release_object(&fd->f_data->rq);
 	request_object(fd->ses->term, u, NULL, PRI_MAIN, no_cache, (void (*)(struct object_request *, void *))fd_loaded, fd, &fd->rq);
-	clone_object(fd->rq, &fd->f_data->rq);
+	if (fd->f_data) clone_object(fd->rq, &fd->f_data->rq);
+	fd->next_update = get_time();
 	fd->done = 0;
 	fd->parsed_done = 0;
 	mem_free(u);
@@ -3029,10 +2634,10 @@ static struct session *create_session(struct window *win)
 void *create_session_info(int cp, unsigned char *url, unsigned char *framename, int *ll)
 {
 	size_t l = strlen(url);
-	size_t l1 = framename?strlen(framename):0;
+	size_t l1 = framename ? strlen(framename) : 0;
 	int *i;
 	if (l > MAXINT || l1 > MAXINT) overalloc();
-	if (framename&&!strcmp(framename,"_blank")) l1=0;
+	if (framename && !strcmp(framename, "_blank")) l1 = 0;
 	*ll = 3 * sizeof(int) + l + l1;
 	i = mem_alloc(3 * sizeof(int) + l + l1);
 	i[0] = cp;
@@ -3056,11 +2661,16 @@ static int read_session_info(struct session *ses, void *data, int len)
 	sz = *((int *)data + 1);
 	sz1= *((int *)data + 2);
 	foreach(s, sessions) if (s->id == cpfrom) {
-		if (!list_empty(s->history)) {
-			struct location *loc = s->history.next;
-			if (loc->url) goto_url(ses, loc->url);
+		memcpy(&ses->ds, &s->ds, sizeof(struct document_setup));
+		if (!sz) {
+			if (!list_empty(s->history)) {
+				struct location *loc = s->history.next;
+				if (loc->url) goto_url(ses, loc->url);
+			}
+			return 0;
+		} else {
+			break;
 		}
-		return 0;
 	}
 	if (sz1) {
 		unsigned char *tgt;

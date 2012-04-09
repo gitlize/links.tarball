@@ -61,14 +61,10 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 	unsigned char **current_tra;
 	struct conv_table *conv_table;
 	unsigned char *trn;
-	static int utf8_charset = -1;
 	int charset;
 	if (!term) charset = 0;
 	else if (term->spec) charset = term->spec->charset;
-	else {
-		if (utf8_charset == -1) utf8_charset = get_cp_index("UTF-8");
-		charset = utf8_charset;
-	}
+	else charset = utf8_table;
 	if (is_direct_text(text)) return text;
 	if ((current_tra = translation_array[current_language][charset])) {
 		unsigned char *tt;

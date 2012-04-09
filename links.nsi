@@ -73,10 +73,10 @@ File KEYS
 File README
 File links.exe
 File c:\cygwin\bin\cygbz2-1.dll
-File c:\cygwin\bin\cygcrypto-0.9.8.dll
+File c:\cygwin\bin\cygcrypto-1.0.0.dll
 File c:\cygwin\bin\cyggcc_s-1.dll
 File c:\cygwin\bin\cyglzma-5.dll
-File c:\cygwin\bin\cygssl-0.9.8.dll
+File c:\cygwin\bin\cygssl-1.0.0.dll
 File c:\cygwin\bin\cygwin1.dll
 File c:\cygwin\bin\cygz.dll
   
@@ -107,10 +107,10 @@ Delete "$INSTDIR\KEYS"
 Delete "$INSTDIR\README"
 Delete "$INSTDIR\Links.exe"
 Delete "$INSTDIR\cygbz2-1.dll"
-Delete "$INSTDIR\cygcrypto-0.9.8.dll"
+Delete "$INSTDIR\cygcrypto-1.0.0.dll"
 Delete "$INSTDIR\cyggcc_s-1.dll"
 Delete "$INSTDIR\cyglzma-5.dll"
-Delete "$INSTDIR\cygssl-0.9.8.dll"
+Delete "$INSTDIR\cygssl-1.0.0.dll"
 Delete "$INSTDIR\cygwin1.dll"
 Delete "$INSTDIR\cygz.dll"
 Delete "$INSTDIR\.links\*"

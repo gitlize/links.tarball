@@ -14,10 +14,9 @@ int hard_write(int fd, unsigned char *p, int l)
 	int w = 1;
 	int t = 0;
 	while (l > 0 && w) {
-		if ((w = write(fd, p, l)) < 0) {
-			if (errno == EINTR) continue;
+		EINTRLOOP(w, write(fd, p, l));
+		if (w < 0)
 			return -1;
-		}
 		t += w;
 		p += w;
 		l -= w;
@@ -30,11 +29,9 @@ int hard_read(int fd, unsigned char *p, int l)
 	int r = 1;
 	int t = 0;
 	while (l > 0 && r) {
-		if ((r = read(fd, p, l)) < 0) {
-			if (errno == EINTR) continue;
+		EINTRLOOP(r, read(fd, p, l));
+		if (r < 0)
 			return -1;
-		}
-		/*{int ww;for(ww=0;ww<r;ww++)fprintf(stderr," %02x",(int)p[ww]);fflush(stderr);}*/
 		t += r;
 		p += r;
 		l -= r;
@@ -46,11 +43,12 @@ unsigned char *get_cwd(void)
 {
 	int bufsize = 128;
 	unsigned char *buf;
+	unsigned char *gcr;
 	while (1) {
 		buf = mem_alloc(bufsize);
-		if (getcwd(buf, bufsize)) return buf;
+		ENULLLOOP(gcr, getcwd(buf, bufsize));
+		if (gcr) return buf;
 		mem_free(buf);
-		if (errno == EINTR) continue;
 		if (errno != ERANGE) return NULL;
 		if ((unsigned)bufsize > MAXINT - 128) overalloc();
 		bufsize += 128;
@@ -60,10 +58,9 @@ unsigned char *get_cwd(void)
 
 void set_cwd(unsigned char *path)
 {
-	if (path) {
-		while (chdir(path) && errno == EINTR)
-			;
-	}
+	int rs;
+	if (path)
+		EINTRLOOP(rs, chdir(path));
 }
 
 struct list_head terminals = {&terminals, &terminals};
@@ -613,7 +610,7 @@ struct terminal *init_gfx_term(void (*root_window)(struct window *, struct event
 		safe_strncpy(term->cwd, cwd, MAX_CWD_LEN);
 		mem_free(cwd);
 	}
-	gfx_term.charset = get_cp_index("utf-8");
+	gfx_term.charset = utf8_table;
 	if (gfx_term.charset == -1) gfx_term.charset = 0;
 	init_list(term->windows);
 	win = mem_calloc(sizeof (struct window));
@@ -726,7 +723,8 @@ static void in_term(struct terminal *term)
 	if ((unsigned)term->qlen + ALLOC_GR > MAXINT) overalloc();
 	iq = mem_realloc(term->input_queue, term->qlen + ALLOC_GR);
 	term->input_queue = iq;
-	if ((r = read(term->fdin, iq + term->qlen, ALLOC_GR)) <= 0) {
+	EINTRLOOP(r, read(term->fdin, iq + term->qlen, ALLOC_GR));
+	if (r <= 0) {
 		if (r == -1 && errno != ECONNRESET) error("ERROR: error %d on terminal: could not read event", errno);
 		destroy_terminal(term);
 		return;
@@ -898,7 +896,7 @@ static inline char_t utf8_hack(char_t c)
 		add_to_str(&a, &l, "m");				\
 	}								\
 	if (c >= ' ' && c != 127/* && c != 155*/) {			\
-		if (c < 128 || frm || !is_cp_special(term->spec->charset)) {\
+		if (c < 128 || frm || term->spec->charset != utf8_table) {\
 			add_chr_to_str(&a, &l, c);			\
 		} else {						\
 		/*							\
@@ -949,7 +947,7 @@ void redraw_screen(struct terminal *term)
 			int i;
 			if (y == term->y - 1 && x == term->x - 1) break;
 			if (!memcmp(&term->screen[p], &term->last_screen[p], sizeof(chr))) continue;
-			if ((term->screen[p].at & 0x38) == (term->last_screen[p].at & 0x38) && (term->screen[p].ch == 0 || term->screen[p].ch == 1 || term->screen[p].ch == ' ') && (term->last_screen[p].ch == 0 || term->last_screen[p].ch == 1 || term->last_screen[p].ch == ' ') && (x != term->cx || y != term->cy)) continue;
+			/*if ((term->screen[p].at & 0x38) == (term->last_screen[p].at & 0x38) && (term->screen[p].ch == 0 || term->screen[p].ch == 1 || term->screen[p].ch == ' ') && (term->last_screen[p].ch == 0 || term->last_screen[p].ch == 1 || term->last_screen[p].ch == ' ') && (x != term->cx || y != term->cy)) continue;*/
 			memcpy(&term->last_screen[p], &term->screen[p], sizeof(chr));
 			if (cx == x && cy == y) goto pc;/*PRINT_CHAR(p)*/
 			else if (cy == y && x - cx < 10 && x - cx > 0) {
@@ -991,11 +989,13 @@ void redraw_screen(struct terminal *term)
 
 void destroy_terminal(struct terminal *term)
 {
+	int rs;
+	unregister_bottom_half((void (*)(void *))destroy_terminal, term);
 	while ((term->windows.next) != &term->windows) delete_window(term->windows.next);
 	/*if (term->cwd) mem_free(term->cwd);*/
 	del_from_list(term);
 	if (term->blocked != -1) {
-		close(term->blocked);
+		EINTRLOOP(rs, close(term->blocked));
 		set_handlers(term->blocked, NULL, NULL, NULL, NULL);
 	}
 	if (term->title) mem_free(term->title);
@@ -1004,15 +1004,18 @@ void destroy_terminal(struct terminal *term)
 		mem_free(term->last_screen);
 		set_handlers(term->fdin, NULL, NULL, NULL, NULL);
 		mem_free(term->input_queue);
-		close(term->fdin);
+		EINTRLOOP(rs, close(term->fdin));
 		if (!term->master) {
-			if (term->fdout != term->fdin) close(term->fdout);
+			if (term->fdout != term->fdin)
+				EINTRLOOP(rs, close(term->fdout));
 		} else {
 			unhandle_terminal_signals(term);
 			free_all_itrms();
 #ifndef NO_FORK_ON_EXIT
 			if (!list_empty(terminals)) {
-				if (fork() > 0) _exit(0);
+				pid_t rp;
+				EINTRLOOP(rp, fork());
+				if (rp > 0) _exit(0);
 			}
 #endif
 		}
@@ -1160,18 +1163,21 @@ void set_cursor(struct terminal *term, int x, int y, int altx, int alty)
 
 void exec_thread(unsigned char *path, int p)
 {
+	int rs;
 #if defined(HAVE_SETPGID) && !defined(BEOS) && !defined(HAVE_BEGINTHREAD)
-	if (path[0] == 2) setpgid(0, 0);
+	if (path[0] == 2)
+		EINTRLOOP(rs, setpgid(0, 0));
 #endif
 	exe(path + 1, path[0]);
-	/*close(p);*/
-	if (path[1 + strlen(path + 1) + 1]) unlink(path + 1 + strlen(path + 1) + 1);
+	if (path[1 + strlen(path + 1) + 1])
+		EINTRLOOP(rs, unlink(path + 1 + strlen(path + 1) + 1));
 }
 
 void close_handle(void *p)
 {
 	long h = (my_intptr_t)p;
-	close(h);
+	int rs;
+	EINTRLOOP(rs, close(h));
 	set_handlers(h, NULL, NULL, NULL, NULL);
 }
 
@@ -1192,6 +1198,7 @@ static void unblock_terminal(struct terminal *term)
 
 void exec_on_terminal(struct terminal *term, unsigned char *path, unsigned char *delete, int fg)
 {
+	int rs;
 	if (path && !*path) return;
 	if (!path) path="";
 #ifdef NO_FG_EXEC
@@ -1204,7 +1211,7 @@ void exec_on_terminal(struct terminal *term, unsigned char *path, unsigned char 
 			long blockh;
 			unsigned char *param;
 			if ((!F ? is_blocked() : term->blocked != -1) && fg) {
-				unlink(delete);
+				EINTRLOOP(rs, unlink(delete));
 				return;
 			}
 			param = mem_alloc(strlen(path) + strlen(delete) + 3);
@@ -1216,7 +1223,7 @@ void exec_on_terminal(struct terminal *term, unsigned char *path, unsigned char 
 #ifdef G
 				else if (drv->block(term->dev)) {
 					mem_free(param);
-					unlink(delete);
+					EINTRLOOP(rs, unlink(delete));
 					return;
 				}
 #endif
@@ -1250,12 +1257,6 @@ void exec_on_terminal(struct terminal *term, unsigned char *path, unsigned char 
 		strcpy(data + 3 + strlen(path), delete);
 		hard_write(term->fdout, data, strlen(path) + strlen(delete) + 4);
 		mem_free(data);
-		/*char x = 0;
-		hard_write(term->fdout, &x, 1);
-		x = fg;
-		hard_write(term->fdout, &x, 1);
-		hard_write(term->fdout, path, strlen(path) + 1);
-		hard_write(term->fdout, delete, strlen(delete) + 1);*/
 	}
 }
 
@@ -1288,7 +1289,7 @@ void set_terminal_title(struct terminal *term, unsigned char *title)
 	{
 		struct conv_table *table;
 		mem_free(title);
-		table = get_translation_table(term->spec->charset, get_cp_index("utf-8"));
+		table = get_translation_table(term->spec->charset, utf8_table);
 		title = convert_string(table, term->title, strlen(term->title), NULL);
 	}
 #endif

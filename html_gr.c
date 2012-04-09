@@ -37,9 +37,7 @@ struct background *get_background(unsigned char *bg, unsigned char *bgcolor)
 	struct background *b;
 	struct rgb r;
 	b = mem_alloc(sizeof(struct background));
-	/* !!! FIXME: background image */
 	{
-		b->img = 0;
 		if (bgcolor && !decode_color(bgcolor, &r)) {
 			b->u.sRGB=(r.r << 16) + (r.g << 8) + r.b;
 		} else {
@@ -61,30 +59,25 @@ static int gray (int r, int g, int b)
 /* 1=too near 0=not too near */
 static int too_near(int r1, int g1, int b1, int r2, int g2, int b2)
 {
-	int gray1,gray2;
+	int diff = abs(r1-r2) * 3 + abs(g1-g2) * 6 + abs(b1-b2);
 
-	gray1=gray(r1, g1, b1);
-	gray2=gray(r2, g2, b2);
-	if (gray1<=gray2)
-		return gray2-gray1<=400;
-	else
-		return gray1-gray2<=400;
+	return diff < 0x17f;
 }
 
 /* Fixes foreground based on background */
 static void separate_fg_bg(int *fgr, int *fgg, int *fgb
 	, int bgr, int bgg, int bgb)
 {
-	if (too_near(*fgr, *fgg, *fgb, bgr, bgg, bgb)){
-		*fgr=255-bgr;
-		*fgg=255-bgg;
-		*fgb=255-bgb;
-	}else return;
-	if (too_near(*fgr, *fgg, *fgb, bgr, bgg, bgb)){
-		if (gray(bgr, bgg, bgb)<=1275)
-			*fgr=*fgg=*fgb=255;
+	if (too_near(*fgr, *fgg, *fgb, bgr, bgg, bgb)) {
+		*fgr = 255 - bgr;
+		*fgg = 255 - bgg;
+		*fgb = 255 - bgb;
+	} else return;
+	if (too_near(*fgr, *fgg, *fgb, bgr, bgg, bgb)) {
+		if (gray(bgr, bgg, bgb) <= 1275)
+			*fgr = *fgg = *fgb = 255;
 		else
-			*fgr=*fgg=*fgb=0;
+			*fgr = *fgg = *fgb = 0;
 	}
 }
 
@@ -270,6 +263,10 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		t2 = NULL;
 		goto nt2;
 	}
+#ifdef DEBUG
+	if (ptr < text->text || ptr >= text->text + strlen(text->text))
+		internal("split_line_object: split point (%p) pointing out of object (%p,%lx)", ptr, text->text, (unsigned long)strlen(text->text));
+#endif
 	t2 = mem_calloc(sizeof(struct g_object_text) + strlen(ptr));
 	t2->mouse_event = g_text_mouse;
 	t2->draw = g_text_draw;
@@ -286,7 +283,6 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 	}
 	t2->y = text->y;
 	t2->style = g_clone_style(text->style);
-	t2->bg = text->bg;
 	t2->link_num = text->link_num;
 	t2->link_order = text->link_order;
 	text->xw = g_text_width(text->style, text->text);
@@ -340,9 +336,15 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 	p->w.last_wrap = NULL;
 	p->w.last_wrap_obj = NULL;
 	t2 = p->text;
-	if (t2 && *t2->text && t2->text[strlen(t2->text) - 1] == ' ') {
-		p->w.last_wrap = &t2->text[strlen(t2->text) - 1];
-		p->w.last_wrap_obj = t2;
+	if (t2) {
+		int sl = strlen(t2->text);
+		if (sl >= 1 && t2->text[sl - 1] == ' ') {
+			p->w.last_wrap = &t2->text[sl - 1];
+			p->w.last_wrap_obj = t2;
+		} else if (sl >= 2 && t2->text[sl - 2] == 0xc2 && t2->text[sl - 1] == 0xad) {
+			p->w.last_wrap = &t2->text[sl - 2];
+			p->w.last_wrap_obj = t2;
+		}
 	}
 }
 
@@ -356,11 +358,6 @@ void add_object(struct g_part *p, struct g_object *o)
 	p->w.last_wrap = NULL;
 	p->w.last_wrap_obj = o;
 	p->w.pos += o->xw;
-	/*
-	if (p->w.pos > p->w.width && p->w.last_wrap_obj) {
-		split_line_object(p, p->w.last_wrap_obj, p->w.last_wrap);
-	}
-	*/
 }
 
 static void g_line_break(void *p_)
@@ -371,10 +368,19 @@ static void g_line_break(void *p_)
 		return;
 	}
 	flush_pending_text_to_line(p);
-	if (!p->line) {
+	if (!p->line || par_format.align == AL_NO) {
 		add_object_to_line(p, &p->line, NULL);
+		empty_line:
 		flush_pending_line_to_obj(p, get_real_font_size(format.fontsize));
-	} else /*if (p->w.pos || par_format.align == AL_NO)*/ {
+	} else {
+		int i;
+		for (i = 0; i < p->line->n_entries; i++) {
+			struct g_object *go = p->line->entries[i];
+			if (go->destruct != g_tag_destruct)
+				goto flush;
+		}
+		goto empty_line;
+		flush:
 		flush_pending_line_to_obj(p, 0);
 	}
 	if (p->cx > p->xmax) p->xmax = p->cx;
@@ -617,7 +623,7 @@ static void *g_html_special(void *p_, int c, ...)
 			t = va_arg(l, unsigned char *);
 			va_end(l);
 			/* not needed to convert %AB here because html_tag will be called anyway */
-			tag = mem_calloc(sizeof(struct g_object_tag) + strlen(t) + 1);
+			tag = mem_calloc(sizeof(struct g_object_tag) + strlen(t));
 			tag->mouse_event = g_dummy_mouse;
 			tag->draw = g_dummy_draw;
 			tag->destruct = g_tag_destruct;
@@ -688,9 +694,26 @@ static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 
 static void g_put_chars(void *p_, unsigned char *s, int l)
 {
 	struct g_part *p = p_;
-	struct g_object_text *t = NULL;
+	struct g_object_text *t;
 	struct link *link;
 	int ptl;
+	unsigned char *sh;
+
+	if (l < 0) overalloc();
+
+again:
+	if (l > 2 && (sh = memchr(s + 1, 0xad, l - 2)) && sh[-1] == 0xc2) {
+		sh++;
+		g_put_chars(p_, s, sh - s);
+		l -= (sh - s);
+		s = sh;
+		goto again;
+	}
+
+	/*fprintf(stderr, "%d: '%.*s'\n", l, l, s);*/
+
+	t = NULL;
+
 	if (putchars_link_ptr) {
 		link = NULL;
 		goto check_link;
@@ -724,9 +747,7 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 		t->draw = g_text_draw;
 		t->destruct = g_text_destruct;
 		t->get_list = NULL;
-		/*t->style = get_style_by_ta(format);*/
 		t->style = g_clone_style(p->current_style);
-		t->bg = NULL; /* FIXME!!! */
 		t->yw = t->style->height;
 		/*t->xw = 0;
 		t->y = 0;*/
@@ -778,6 +799,7 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 		p->w.style = p->text->style;
 		p->w.obj = p->text;
 		p->w.width = rm(par_format) - par_format.leftmargin * G_HTML_MARGIN;
+		p->w.force_break = 0;
 		if (p->w.width < 0) p->w.width = 0;
 		if (!g_wrap_text(&p->w)) {
 			split_line_object(p, p->w.last_wrap_obj, p->w.last_wrap);
@@ -854,7 +876,7 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 	goto back_link;
 }
 
-static void g_do_format(char *start, char *end, struct g_part *part, unsigned char *head)
+static void g_do_format(unsigned char *start, unsigned char *end, struct g_part *part, unsigned char *head)
 {
 	pr(
 	parse_html(start, end, (void (*)(void *, unsigned char *, int))g_put_chars, g_line_break, (void *(*)(void *, int, ...))g_html_special, part, head);
@@ -924,9 +946,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 		a->draw = g_area_draw;
 		a->destruct = g_area_destruct;
 		a->get_list = g_area_get_list;
-		a->lfo = DUMMY;
-		a->rfo = DUMMY;
-		a->n_lines = 0;
+		/*a->n_lines = 0;*/
 		p->root = a;
 		init_list(p->uf);
 	}
@@ -946,7 +966,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	par_format.dd_margin = 0;
 	p->cx = -1;
 	p->cx_w = 0;
-	g_nobreak = 1;
+	g_nobreak = align != AL_NO;
 	g_do_format(start, end, p, head);
 	g_nobreak = 0;
 	line_breax = 1;
@@ -961,7 +981,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 
 	wa = g_get_area_width(p->root);
 	if (wa > p->x) p->x = wa;
-	g_x_extend_area(p->root, p->x, 0);
+	g_x_extend_area(p->root, p->x, 0, align);
 	if (p->x > p->xmax) p->xmax = p->x;
 	p->y = p->root->yw;
 	/*debug("WIDTH: obj (%d, %d), p (%d %d)", p->root->xw, p->root->yw, p->x, p->y);*/
@@ -1007,14 +1027,6 @@ void g_release_part(struct g_part *p)
 	if (p->current_style) g_free_style(p->current_style);
 }
 
-static void g_scan_width(struct g_object **o, int n, int *w)
-{
-	while (n--) {
-		if ((*o)->x + (*o)->xw > *w) *w = (*o)->x + (*o)->xw;
-		o++;
-	}
-}
-
 static void g_scan_lines(struct g_object_line **o, int n, int *w)
 {
 	while (n--) {
@@ -1029,13 +1041,11 @@ static void g_scan_lines(struct g_object_line **o, int n, int *w)
 int g_get_area_width(struct g_object_area *a)
 {
 	int w = 0;
-	g_scan_width(a->lfo, a->n_lfo, &w);
-	g_scan_width(a->rfo, a->n_rfo, &w);
 	g_scan_lines(a->lines, a->n_lines, &w);
 	return w;
 }
 
-void g_x_extend_area(struct g_object_area *a, int width, int height)
+void g_x_extend_area(struct g_object_area *a, int width, int height, int align)
 {
 	struct g_object_line *l;
 	int i;
@@ -1043,7 +1053,7 @@ void g_x_extend_area(struct g_object_area *a, int width, int height)
 	for (i = 0; i < a->n_lines; i++) {
 		a->lines[i]->xw = width;
 	}
-	for (i = a->n_lines - 1; i >= 0; i--) {
+	if (align != AL_NO) for (i = a->n_lines - 1; i >= 0; i--) {
 		l = a->lines[i];
 		if (!l->n_entries) {
 			a->yw -= l->yw;

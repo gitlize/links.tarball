@@ -15,7 +15,7 @@ static struct list_description blocks_ld={
 	&blocks,	/*list head*/
 	block_new_item, /*ext_new_item,*/
 	block_edit_item, /*ext_edit_item,*/
-	assoc_default_value, /*assoc_default_value,*/
+	NULL, /*default_value,*/
 	block_delete_item, /*ext_delete_item,*/
 	block_copy_item, /*ext_copy_item,*/
 	block_type_item, /*ext_type_item,*/
@@ -23,7 +23,7 @@ static struct list_description blocks_ld={
 	&block_search_histroy, /*&ext_search_history,*/
 	0,		/* this is set in init_assoc function */
 	15,  /* # of items in main window */
-	T_BLOCK_LIST, /*item title*/
+	T_BLOCKED_IMAGE, /*item title*/
 	T_BLOCK_LIST_IN_USE, /*Already open message*/
 	T_BLOCK_LIST_MANAGER, /*Window title*/
 	T_BLOCK_DELETE,
@@ -44,7 +44,7 @@ static void* block_new_item(void* ignore)
 	/*Default constructor*/
 	struct block *new; 
 
-	if (!(new = mem_alloc(sizeof(struct block)))) return NULL;
+	new = mem_alloc(sizeof(struct block));
 	new->url = stracpy("");
 	return new;
 }
@@ -127,7 +127,7 @@ static void block_edit_done(void *data)
 	mem_free(item->url); item->url=txt;
 
 	s->fn(s->dlg,s->data,item,&blocks_ld);
-	d->udata=0;  /* for abort function */
+	d->udata=NULL;  /* for abort function */
 }
 
 static void block_edit_item_fn(struct dialog_data *dlg)
@@ -138,11 +138,12 @@ static void block_edit_item_fn(struct dialog_data *dlg)
 	int max = 0, min = 0;
 	int w, rw;
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
+	unsigned char *text = TEXT_(T_ENTER_URL);
 
 
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	max_text_width(term, dlg->dlg->udata, &max, AL_LEFT);
-	min_text_width(term, dlg->dlg->udata, &min, AL_LEFT);
+	max_text_width(term, text, &max, AL_LEFT);
+	min_text_width(term, text, &min, AL_LEFT);
 	max_buttons_width(term, dlg->items + 1, 2, &max);
 	min_buttons_width(term, dlg->items + 1, 2, &min);
 	if (max < dlg->dlg->items->dlen) max = dlg->dlg->items->dlen;
@@ -150,7 +151,7 @@ static void block_edit_item_fn(struct dialog_data *dlg)
 	if (w > max) w = max;
 	if (w < min) w = min;
 	rw = w;
-	dlg_format_text_and_field(dlg, NULL, dlg->dlg->udata, dlg->items, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, text, dlg->items, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
 	dlg_format_buttons(dlg, NULL, dlg->items + 1, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
@@ -160,7 +161,7 @@ static void block_edit_item_fn(struct dialog_data *dlg)
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
 	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_text_and_field(dlg, term, dlg->dlg->udata, dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, term, text, dlg->items, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += LL;
 	dlg_format_buttons(dlg, term, dlg->items + 1, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
@@ -179,7 +180,7 @@ static void block_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 
 
 	/*Allocate space for dialog, 4 items followed by 1 string*/
-	if (!(d = mem_alloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item) + 1 * MAX_STR_LEN))) return;
+	d = mem_alloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item) + 1 * MAX_STR_LEN);
 	memset(d, 0, sizeof(struct dialog) + 4 * sizeof(struct dialog_item) + 1 * MAX_STR_LEN);
 
 	/*Set up this string */
@@ -187,11 +188,7 @@ static void block_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	if (new->url)safe_strncpy(url,new->url,MAX_STR_LEN);
 	
 	/* Create the dialog */
-	if (!(s=mem_alloc(sizeof(struct assoc_ok_struct))))
-	{
-		mem_free(d);
-		return;
-	}
+	s = mem_alloc(sizeof(struct assoc_ok_struct));
 
 	s->fn=ok_fn;
 	s->data=ok_arg;
@@ -266,25 +263,25 @@ void block_manager(struct terminal *term,void *fcp,struct session *ses)
 }
 
 
-void* block_add_URL_fn(void* garbage, unsigned char* url)
+void *block_add_URL_fn(struct session *ses, unsigned char *url)
 {
 	/*Callback from the dialog box created from the link menu*/
-	struct block* new_b, *here;
+	struct block* new_b;
+	struct terminal *term = ses ? ses->term : NULL;
+
+	if (test_list_window_in_use(&blocks_ld, term))
+		return NULL;
 
 	new_b = block_new_item(0);
 
-	if(!new_b)
-		return 0;
-	if(new_b->url) 
+	if (new_b->url) 
 		mem_free(new_b->url);
 	
 	new_b->url = stracpy(url);
 	new_b->type = 0;
 	
-	here = (struct block*)next_in_tree(&blocks_ld, &blocks);
-
-	add_at_pos(here, new_b);
-	return 0;
+	add_at_pos((struct block *)blocks_ld.list->prev, new_b);
+	return NULL;
 }
 
 void block_add_URL(struct terminal *term, void *xxx, struct session *ses)
@@ -297,6 +294,8 @@ void block_add_URL(struct terminal *term, void *xxx, struct session *ses)
 	if (fd->vs->current_link == -1) return;
 	if (!(u = fd->f_data->links[fd->vs->current_link].where_img)) return;
 
+	if (test_list_window_in_use(&blocks_ld, term))
+		return;
 
 	input_field(ses->term, NULL, TEXT_(T_BLOCK_URL) , TEXT_(T_BLOCK_ADD), ses, 0, MAX_INPUT_URL_LEN, u, 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) block_add_URL_fn, TEXT_(T_CANCEL), NULL, NULL);
 

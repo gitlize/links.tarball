@@ -16,7 +16,7 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 	switch(fb_pixelsize)
 	{
 		case 1:
-		memset(dest,*(char *)pattern,n);
+		memset(dest,*(unsigned char *)pattern,n);
 		break;
 
 		case 2:
@@ -66,8 +66,8 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 			unsigned char a,b;
 			int i;
 
-			a=*(char*)pattern;
-			b=((char*)pattern)[1];
+			a=*(unsigned char*)pattern;
+			b=((unsigned char*)pattern)[1];
 			if (a == b) memset(dest, a, n);
 			else for (i=0;i<=n-2;i+=2){
 				dest[i]=a;
@@ -82,9 +82,9 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 			unsigned char a,b,c;
 			int i;
 
-			a=*(char*)pattern;
-			b=((char*)pattern)[1];
-			c=((char*)pattern)[2];
+			a=*(unsigned char*)pattern;
+			b=((unsigned char*)pattern)[1];
+			c=((unsigned char*)pattern)[2];
 			if (a == b && b == c) memset(dest, a, n);
 			else for (i=0;i<=n-3;i+=3){
 				dest[i]=a;
@@ -129,10 +129,10 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 			unsigned char a,b,c,d;
 			int i;
 
-			a=*(char*)pattern;
-			b=((char*)pattern)[1];
-			c=((char*)pattern)[2];
-			d=((char*)pattern)[3];
+			a=*(unsigned char*)pattern;
+			b=((unsigned char*)pattern)[1];
+			c=((unsigned char*)pattern)[2];
+			d=((unsigned char*)pattern)[3];
 			for (i=0;i<=n-4;i+=4){
 				dest[i]=a;
 				dest[i+1]=b;

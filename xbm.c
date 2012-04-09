@@ -84,7 +84,7 @@ void xbm_start(struct cached_image *cimg)
 }
 
 /* vrati cislo, nebo -1, kdyz to neni cislo, a nastavi p a l na posledni necislici */
-static inline int __read_num(unsigned char **p,int *l,int *partnum,int *digits, int *base)
+static inline int xbm_read_num(unsigned char **p,int *l,int *partnum,int *digits, int *base)
 {
 	static int a=-1;
 	static int b=10;
@@ -109,14 +109,14 @@ static inline int __read_num(unsigned char **p,int *l,int *partnum,int *digits, 
 }
 
 
-static inline void __skip_space_tab(unsigned char **p, int *l)
+static inline void xbm_skip_space_tab(unsigned char **p, int *l)
 {
 	for (;*l&&(**p==' '||**p==9);(*l)--,(*p)++)
 		;
 }
 
 
-static inline void __skip_whitespace(unsigned char **p, int *l)
+static inline void xbm_skip_whitespace(unsigned char **p, int *l)
 {
 	for (;*l&&((**p)>'9'||(**p)<'0');(*l)--,(*p)++)
 		;
@@ -141,7 +141,7 @@ static inline void put_eight(struct cached_image *cimg,int bits)
 
 /* opravdovy dekoder xbm, data jsou bez komentaru */
 /* length is always !=NULL */
-static void xbm_decode(struct cached_image *cimg, unsigned char *data, int length)
+static int xbm_decode(struct cached_image *cimg, unsigned char *data, int length)
 {
 	struct xbm_decoder *deco=(struct xbm_decoder *)cimg->decoder;
 	/* okurky v decu ;-) */
@@ -149,13 +149,13 @@ static void xbm_decode(struct cached_image *cimg, unsigned char *data, int lengt
 	int must_return=0;
 
 restart_again:
-	if (must_return&&!length)return;
+	if (must_return&&!length)return 0;
 	must_return=0;
 	a=min(length,XBM_BUFFER_LEN-deco->buffer_pos);
 	memcpy(deco->buffer+deco->buffer_pos,data,a);
 	length-=a;
 	deco->buffer_pos+=a;
-	if (!deco->buffer_pos)return; 	/* z toho nic plodnyho nevznikne */
+	if (!deco->buffer_pos)return 0; 	/* z toho nic plodnyho nevznikne */
 	data+=a;
 	if (!deco->in_data_block&&deco->partnum)
 	{
@@ -164,7 +164,7 @@ restart_again:
 		int b,d;
 		p=deco->buffer;
 		a=deco->buffer_pos;
-		*(deco->numdest)=__read_num(&p,&a,&(deco->partnum),&d,&b);
+		*(deco->numdest)=xbm_read_num(&p,&a,&(deco->partnum),&d,&b);
 		/* p i a ukazuje na 1. neciselnej znak (at uz za mezerama bylo cislo nebo nebylo) */
 		memmove(deco->buffer,p,a);
 		deco->buffer_pos=a;
@@ -197,9 +197,9 @@ restart_again:
 		else {p=deco->buffer+6;d=&(deco->height);}
 
 		a=deco->buffer_pos+deco->buffer-p;
-		__skip_space_tab(&p,&a);
+		xbm_skip_space_tab(&p,&a);
 		if (!a){must_return=1;goto restart_again;}	/* v bufferu je: width/height, whitespace, konec */
-		*d=__read_num(&p,&a,&(deco->partnum),&digits, &base);
+		*d=xbm_read_num(&p,&a,&(deco->partnum),&digits, &base);
 		if (deco->partnum)deco->numdest=d,must_return=1;
 		/* p i a ukazuje na 1. neciselnej znak (at uz za mezerama bylo cislo nebo nebylo) */
 		memmove(deco->buffer,p,a);
@@ -223,7 +223,7 @@ restart_again:
 			cimg->green_gamma=display_green_gamma;
 			cimg->blue_gamma=display_blue_gamma;
 			cimg->strip_optimized=0;
-			if (header_dimensions_known(cimg)) {img_end(cimg);return;}
+			if (header_dimensions_known(cimg)) {img_end(cimg);return 1;}
 			
 			deco->in_data_block=1;
 			p++;
@@ -235,14 +235,14 @@ restart_again:
 		}
 		p=deco->buffer;
 		a=deco->buffer_pos;
-		if (!deco->partnum) __skip_whitespace(&p,&a);
+		if (!deco->partnum) xbm_skip_whitespace(&p,&a);
 		if (!a){must_return=1; goto restart_again;}
-		deco->actual_eight=__read_num(&p,&a,&(deco->partnum),&d,&b);
+		deco->actual_eight=xbm_read_num(&p,&a,&(deco->partnum),&d,&b);
 		memmove(deco->buffer,p,a);
 		deco->buffer_pos=a;
 		if (deco->partnum)must_return=1;
 		else put_eight(cimg,(b==16&&d>2)||(b==10&&deco->actual_eight>255)?16:8);
-		if (deco->image_pos>=deco->pixels) {img_end(cimg);return;}
+		if (deco->image_pos>=deco->pixels) {img_end(cimg);return 1;}
 		goto restart_again;
 		
 	}
@@ -264,9 +264,9 @@ cycle_again:
 			unsigned char *p;
 			p=memchr(data,'/',length);
 			if (!p){xbm_decode(cimg, data, length);return;}
-			xbm_decode(cimg, data, p-data);
-			data=p+1;	/* preskocim lomitko */
+			if (xbm_decode(cimg, data, p-data)) return;
 			length-=p-data+1;
+			data=p+1;	/* preskocim lomitko */
 			deco->state=1;
 			goto cycle_again;
 		}
@@ -274,7 +274,7 @@ cycle_again:
 		case 1: /* za 1. lomitkem */
 		{
 			if (*data=='*'){deco->state=2;data++;length--;goto cycle_again;}	/* zacal komentar */
-			xbm_decode(cimg, "/", 1);
+			if (xbm_decode(cimg, "/", 1)) return;
 			deco->state=0;	/* to nebyl komentar */
 			goto cycle_again;
 		}
@@ -284,8 +284,8 @@ cycle_again:
 			unsigned char *p;
 			p=memchr(data,'*',length);
 			if (!p)return;	/* furt komentar */
-			data=p+1;	/* preskocim hvezdicku */
 			length-=p-data+1;
+			data=p+1;	/* preskocim hvezdicku */
 			deco->state=3;
 			goto cycle_again;
 		}

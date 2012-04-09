@@ -60,7 +60,8 @@ static void write_ev_queue(struct itrm *itrm)
 {
 	int l;
 	if (!itrm->eqlen) internal("event queue empty");
-	if ((l = write(itrm->sock_out, itrm->ev_queue, itrm->eqlen > 128 ? 128 : itrm->eqlen)) == -1) {
+	EINTRLOOP(l, write(itrm->sock_out, itrm->ev_queue, itrm->eqlen > 128 ? 128 : itrm->eqlen));
+	if (l == -1) {
 		itrm_error(itrm);
 		return;
 	}
@@ -80,9 +81,12 @@ static void queue_event(struct itrm *itrm, unsigned char *data, int len)
 {
 	int w = 0;
 	if (!len) return;
-	if (!itrm->eqlen && can_write(itrm->sock_out) && (w = write(itrm->sock_out, data, len)) <= 0) {
-		register_bottom_half((void (*)(void *))itrm_error, itrm);
-		return;
+	if (!itrm->eqlen && can_write(itrm->sock_out)) {
+		EINTRLOOP(w, write(itrm->sock_out, data, len));
+		if (w <= 0) {
+			register_bottom_half((void (*)(void *))itrm_error, itrm);
+			return;
+		}
 	}
 	if (w < len) {
 		if ((unsigned)itrm->eqlen + (unsigned)(len - w) > MAXINT) overalloc();
@@ -150,6 +154,18 @@ void resize_terminal(void)
 static int ttcgetattr(int fd, struct termios *t)
 {
 	int r;
+#ifdef HAVE_SIGDELSET
+	int rs;
+	sigset_t set, old_set;
+	sigfillset(&set);
+#ifdef SIGTTOU
+	sigdelset(&set, SIGTTOU);
+#endif
+#ifdef SIGTTIN
+	sigdelset(&set, SIGTTIN);
+#endif
+	EINTRLOOP(rs, sigprocmask(SIG_BLOCK, &set, &old_set));
+#endif
 #ifdef SIGTTOU
 	interruptible_signal(SIGTTOU, 1);
 #endif
@@ -163,12 +179,27 @@ static int ttcgetattr(int fd, struct termios *t)
 #ifdef SIGTTIN
 	interruptible_signal(SIGTTIN, 0);
 #endif
+#ifdef HAVE_SIGDELSET
+	if (!rs) EINTRLOOP(rs, sigprocmask(SIG_SETMASK, &old_set, NULL));
+#endif
 	return r;
 }
 
 static int ttcsetattr(int fd, int a, struct termios *t)
 {
 	int r;
+#ifdef HAVE_SIGDELSET
+	int rs;
+	sigset_t set, old_set;
+	sigfillset(&set);
+#ifdef SIGTTOU
+	sigdelset(&set, SIGTTOU);
+#endif
+#ifdef SIGTTIN
+	sigdelset(&set, SIGTTIN);
+#endif
+	EINTRLOOP(rs, sigprocmask(SIG_BLOCK, &set, &old_set));
+#endif
 #ifdef SIGTTOU
 	interruptible_signal(SIGTTOU, 1);
 #endif
@@ -181,6 +212,9 @@ static int ttcsetattr(int fd, int a, struct termios *t)
 #endif
 #ifdef SIGTTIN
 	interruptible_signal(SIGTTIN, 0);
+#endif
+#ifdef HAVE_SIGDELSET
+	if (!rs) EINTRLOOP(rs, sigprocmask(SIG_SETMASK, &old_set, NULL));
 #endif
 	return r;
 }
@@ -388,7 +422,9 @@ static void in_sock(struct itrm *itrm)
 	unsigned char ch;
 	int fg;
 	int c, i, p;
-	if ((c = read(itrm->sock_in, buf, OUT_BUF_SIZE)) <= 0) {
+	int rs;
+	EINTRLOOP(c, read(itrm->sock_in, buf, OUT_BUF_SIZE));
+	if (c <= 0) {
 		fr:
 		itrm_error(itrm);
 		return;
@@ -431,7 +467,8 @@ static void in_sock(struct itrm *itrm)
 		long blockh;
 		unsigned char *param;
 		if (is_blocked() && fg) {
-			if (*delete) unlink(delete);
+			if (*delete)
+				EINTRLOOP(rs, unlink(delete));
 			goto to_je_ale_hnus;
 		}
 		param = mem_alloc(strlen(path) + strlen(delete) + 3);
@@ -804,6 +841,15 @@ static int is_interix(void)
 #endif
 }
 
+static int is_uwin(void)
+{
+#ifdef _UWIN
+	return 1;
+#else
+	return 0;
+#endif
+}
+
 static int is_ibm(void)
 {
 	unsigned char *term = getenv("TERM");
@@ -875,7 +921,12 @@ static int process_queue(struct itrm *itrm)
 					ev.x = KBD_F5; break;
 				case 'W': ev.x = KBD_F8; break;
 				case 'X': ev.x = KBD_F9; break;
-				case 'Y': ev.x = KBD_F11; break;
+				case 'Y':
+					if (is_uwin())
+						ev.x = itrm->kqueue[1] == '[' ? KBD_END : KBD_F10;
+					else
+						ev.x = KBD_F11;
+					break;
 
 				case 'q': switch (v) {
 					case 139: ev.x = KBD_INS; break;
@@ -1062,7 +1113,8 @@ static void in_kbd(struct itrm *itrm)
 			;
 		return;
 	}
-	if ((r = read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen)) <= 0) {
+	EINTRLOOP(r, read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen));
+	if (r <= 0) {
 		struct event ev = { EV_ABORT, 0, 0, 0 };
 		set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm_error, itrm);
 		itrm->queue_event(itrm, (unsigned char *)&ev, sizeof(struct event));

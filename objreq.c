@@ -106,7 +106,7 @@ static int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 		mem_free(uid);
 		mem_free(passwd);
 		change_connection(&rq->stat, NULL, PRI_CANCEL);
-		load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD);
+		load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD, 0, 0);
 	}
 	cancel_dialog(dlg, item);
 	return 0;
@@ -194,7 +194,7 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 	rq->upcall = upcall;
 	rq->data = data;
 	rq->timer = -1;
-	rq->z = get_time() - STAT_UPDATE_MAX;
+	rq->z = (uttime)get_time() - STAT_UPDATE_MAX;
 	rq->last_update = rq->z;
 	rq->last_bytes = 0;
 	if (rq->prev_url) mem_free(rq->prev_url);
@@ -202,7 +202,7 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 	if (rqp) *rqp = rq;
 	rq->count = obj_req_count++;
 	add_to_list(requests, rq);
-	load_url(url, prev_url, &rq->stat, pri, cache);
+	load_url(url, prev_url, &rq->stat, pri, cache, 0, 0);
 }
 
 static void set_ce_internal(struct object_request *rq)
@@ -231,16 +231,17 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 				unsigned char *u, *p, *pos;
 				change_connection(stat, NULL, PRI_CANCEL);
 				u = join_urls(rq->url, stat->ce->redirect);
+				u = translate_hashbang(u);
 				if ((pos = extract_position(u))) {
 					if (rq->goto_position) mem_free(rq->goto_position);
 					rq->goto_position = pos;
 				}
 				if (!http_options.bug_302_redirect && !stat->ce->redirect_get && (p = strchr(u, POST_CHAR))) add_to_strn(&u, p);
 				cache = rq->cache;
-				if (cache < NC_RELOAD && (!strcmp(u, rq->url) || rq->redirect_cnt >= MAX_CACHED_REDIRECTS)) cache = NC_RELOAD;
+				if (cache < NC_RELOAD && (!strcmp(u, rq->url) || !strcmp(u, rq->orig_url) || rq->redirect_cnt >= MAX_CACHED_REDIRECTS)) cache = NC_RELOAD;
 				mem_free(rq->url);
 				rq->url = u;
-				load_url(u, rq->prev_url, &rq->stat, rq->pri, cache);
+				load_url(u, rq->prev_url, &rq->stat, rq->pri, cache, 0, 0);
 				return;
 			} else {
 				maxrd:
@@ -255,7 +256,7 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 				mem_free(realm);
 				if (rq->redirect_cnt++ >= MAX_REDIRECTS) goto maxrd;
 				change_connection(stat, NULL, PRI_CANCEL);
-				load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD);
+				load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD, 0, 0);
 				return;
 			}
 			user = get_user_name(rq->url);
@@ -298,7 +299,7 @@ static void object_timer(struct object_request *rq)
 	rq->timer = -1;
 	if (rq->stat.state < 0 && (!rq->ce_internal || (!rq->ce_internal->redirect && rq->ce_internal->http_code != 401 && rq->ce_internal->http_code != 407) || rq->stat.state == S_CYCLIC_REDIRECT)) {
 		if (rq->ce_internal && rq->stat.state != S_CYCLIC_REDIRECT) {
-			rq->state = rq->stat.state != S_OK ? O_INCOMPLETE : O_OK;
+			rq->state = rq->stat.state != S__OK ? O_INCOMPLETE : O_OK;
 		} else rq->state = O_FAILED;
 	}
 	if (rq->stat.state != S_TRANS) {
@@ -308,7 +309,7 @@ static void object_timer(struct object_request *rq)
 		if (rq->upcall) rq->upcall(rq, rq->data);
 	} else {
 		ttime ct = get_time();
-		ttime t = ct - rq->last_update;
+		ttime t = (uttime)ct - (uttime)rq->last_update;
 		rq->timer = install_timer(STAT_UPDATE_MIN, (void (*)(void *))object_timer, rq);
 		if (t >= STAT_UPDATE_MAX || (t >= STAT_UPDATE_MIN && rq->ce && rq->last_bytes > last)) {
 			rq->last_update = ct;

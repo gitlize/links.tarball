@@ -31,9 +31,9 @@ SSL *getSSL(void)
 {
 	if (!context) {
 		const SSL_METHOD *m;
-		char f_randfile[PATH_MAX];
+		unsigned char f_randfile[PATH_MAX];
 
-		const char *f = RAND_file_name(f_randfile, sizeof(f_randfile));
+		const unsigned char *f = RAND_file_name(f_randfile, sizeof(f_randfile));
 		if (f && RAND_egd(f)<0) {
 			/* Not an EGD, so read and write to it */
 			if (RAND_load_file(f_randfile, -1))
@@ -48,10 +48,11 @@ SSL *getSSL(void)
 		SSL_CTX_set_default_verify_paths(context);
 /* needed for systems without /dev/random, but obviously kills security. */
 		/*{
-			char pool[32768];
+			unsigned char pool[32768];
 			int i;
+			int rs;
 			struct timeval tv;
-			gettimeofday(&tv, NULL);
+			EINTRLOOP(rs, gettimeofday(&tv, NULL));
 			for (i = 0; i < sizeof pool; i++) pool[i] = random() ^ tv.tv_sec ^ tv.tv_usec;
 			RAND_add(pool, sizeof pool, sizeof pool);
 		}*/

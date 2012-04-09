@@ -276,7 +276,7 @@ static struct {
 	{0,	NULL}
 };
 
-static void roman(char *p, unsigned n)
+static void roman(unsigned char *p, unsigned n)
 {
 	int i = 0;
 	if (n >= 4000) {
@@ -465,10 +465,11 @@ int decode_color(unsigned char *str, struct rgb *col)
 	}
 	str++;
 	if (strlen(str) == 6) {
-		char *end;
-		ch = strtoul(str, &end, 16);
+		unsigned char *end;
+		ch = strtoul(str, (char **)(void *)&end, 16);
 		if (!*end && ch < 0x1000000) {
 found:
+			memset(col, 0, sizeof(struct rgb));
 			col->r = ch / 0x10000;
 			col->g = ch / 0x100 % 0x100;
 			col->b = ch % 0x100;
@@ -482,7 +483,7 @@ int get_color(unsigned char *a, unsigned char *c, struct rgb *rgb)
 {
 	unsigned char *at;
 	int r = -1;
-	if (d_opt->col >= 1 || F) if ((at = get_attr_val(a, c))) {
+	if (d_opt->col >= 1) if ((at = get_attr_val(a, c))) {
 		r = decode_color(at, rgb);
 		mem_free(at);
 	}
@@ -491,7 +492,7 @@ int get_color(unsigned char *a, unsigned char *c, struct rgb *rgb)
 
 int get_bgcolor(unsigned char *a, struct rgb *rgb)
 {
-	if (d_opt->col < 2 && !F) return -1;
+	if (d_opt->col < 2) return -1;
 	return get_color(a, "bgcolor", rgb);
 }
 
@@ -526,7 +527,7 @@ void kill_html_stack_item(struct html_element *e)
 	}*/
 }
 
-static inline void kill_elem(char *e)
+static inline void kill_elem(unsigned char *e)
 {
 	if ((size_t)html_top.namelen == strlen(e) && !casecmp(html_top.name, e, html_top.namelen))
 		kill_html_stack_item(&html_top);
@@ -653,11 +654,12 @@ static void ln_break(int n)
 	putsp = -1;
 }
 
-#define CH_BUF	256
+#define CH_BUF		256
+#define BUF_RESERVE	6
 
 static int put_chars_conv(unsigned char *c, int l)
 {
-	static char buffer[CH_BUF];
+	static unsigned char buffer[CH_BUF];
 	int bp = 0;
 	int pp = 0;
 	int total = 0;
@@ -667,25 +669,23 @@ static int put_chars_conv(unsigned char *c, int l)
 	}
 	if (!l) put_chars_f(ff, NULL, 0);
 	while (pp < l) {
+		int sl;
 		unsigned char *e = NULL;	/* against warning */
 		if (c[pp] < 128 && c[pp] != '&') {
 			put_c:
+			if (bp > CH_BUF - BUF_RESERVE && c[pp] >= 0xc0) goto flush;
 			if (!(buffer[bp++] = c[pp++])) buffer[bp - 1] = ' ';
-			if (bp < CH_BUF) continue;
+			if (buffer[bp - 1] != ' ' && bp < CH_BUF) continue;
 			goto flush;
 		}
 		if (c[pp] != '&') {
 			struct conv_table *t;
 			int i;
-			if (pp + 2 <= l && c[pp] == 0xc2 && c[pp + 1] == 0xad && is_cp_special(d_opt->real_cp)) {
-				pp += 2;
-				continue;
-			}
-			if (pp + 3 <= l && c[pp] == 0xef && c[pp + 1] == 0xbb && c[pp + 2] == 0xbf && is_cp_special(d_opt->real_cp)) {
+			if (pp + 3 <= l && c[pp] == 0xef && c[pp + 1] == 0xbb && c[pp + 2] == 0xbf && d_opt->real_cp == utf8_table) {
 				pp += 3;
 				continue;
 			}
-			if (!convert_table) goto put_c;
+			if ((d_opt->real_cp == d_opt->cp && d_opt->real_cp == utf8_table) || !convert_table) goto put_c;
 			t = convert_table;
 			i = pp;
 			decode:
@@ -712,21 +712,28 @@ static int put_chars_conv(unsigned char *c, int l)
 			e = "";
 			goto flush1;
 		}
-		while (*e) {
-			buffer[bp++] = *(e++);
-			if (bp < CH_BUF) continue;
+		sl = strlen(e);
+		if (sl > BUF_RESERVE) {
+			e = "";
+			sl = 0;
+		}
+		if (bp + sl > CH_BUF) {
 			flush1:
 			put_chars_f(ff, buffer, bp);
-			if (is_cp_special(d_opt->cp)) {
+			if (d_opt->cp == utf8_table) {
 				while (bp) if ((buffer[--bp] & 0xc0) != 0x80) total++;
 			} else {
 				total += bp;
 				bp = 0;
 			}
 		}
+		while (*e) {
+			buffer[bp++] = *(e++);
+		}
+		if (bp == CH_BUF) goto flush;
 	}
 	if (bp) put_chars_f(ff, buffer, bp);
-	if (is_cp_special(d_opt->cp)) {
+	if (d_opt->cp == utf8_table) {
 		while (bp) if ((buffer[--bp] & 0xc0) != 0x80) total++;
 	} else {
 		total += bp;
@@ -803,8 +810,8 @@ int get_num(unsigned char *a, unsigned char *n)
 {
 	unsigned char *al;
 	if ((al = get_attr_val(a, n))) {
-		char *end;
-		unsigned long s = strtoul(al, &end, 10);
+		unsigned char *end;
+		unsigned long s = strtoul(al, (char **)(void *)&end, 10);
 		if (!*al || *end || s > 10000) s = -1;
 		mem_free(al);
 		return s;
@@ -828,7 +835,7 @@ static int parse_width(unsigned char *w, int trunc)
 	if (w[l - 1] == '%') l--, p = 1;
 	while (l && WHITECHAR(w[l - 1])) l--;
 	if (!l) return -1;
-	s = strtoul((char *)w, (char **)(void *)&end, 10);
+	s = strtoul(w, (char **)(void *)&end, 10);
 	if (end - w < l || s < 0 || s > 10000) return -1;
 	if (p) {
 		if (trunc) {
@@ -993,10 +1000,10 @@ static void html_font(unsigned char *a)
 		int p = 0;
 		unsigned long s;
 		unsigned char *nn = al;
-		char *end;
+		unsigned char *end;
 		if (*al == '+') p = 1, nn++;
 		if (*al == '-') p = -1, nn++;
-		s = strtoul(nn, &end, 10);
+		s = strtoul(nn, (char **)(void *)&end, 10);
 		if (*nn && !*end) {
 			if (s > 7) s = 7;
 			if (!p) format.fontsize = s;
@@ -1198,7 +1205,6 @@ static void html_body(unsigned char *a)
 {
 	get_color(a, "text", &format.fg);
 	get_color(a, "link", &format.clink);
-	get_color(a, "vlink", &format.vlink);
 	if (has_attr(a, "onload")) special_f(ff, SP_SCRIPT, NULL);
 	/*
 	get_bgcolor(a, &format.bg);
@@ -1248,8 +1254,10 @@ static void html_linebrk(unsigned char *a)
 static void html_br(unsigned char *a)
 {
 	html_linebrk(a);
-	if (was_br) ln_break(2);
-	was_br = 1;
+	if (par_format.align != AL_NO) {
+		if (was_br) ln_break(2);
+		was_br = 1;
+	}
 }
 
 static void html_form(unsigned char *a)
@@ -1277,7 +1285,7 @@ static void html_blockquote(unsigned char *a)
 	par_format.align = AL_LEFT;
 }
 
-static void html_h(int h, char *a)
+static void html_h(int h, unsigned char *a)
 {
 #ifdef G
 	if (F) {
@@ -1328,7 +1336,7 @@ static void html_pre(unsigned char *a)
 
 static void html_hr(unsigned char *a)
 {
-	int i/* = par_format.width - 10*/;
+	int i;
 	int q = get_num(a, "size");
 	html_stack_dup();
 	par_format.align = AL_CENTER;
@@ -1664,9 +1672,36 @@ static void html_button(unsigned char *a)
 	put_chrs(" ", 1);*/
 }
 
+static void set_max_textarea_width(int *w)
+{
+	int limit;
+	if (!table_level) {
+		limit = par_format.width - (par_format.leftmargin + par_format.rightmargin) * gf_val(1, G_HTML_MARGIN);
+	} else {
+		limit = gf_val(d_opt->xw - 2, d_opt->xw - G_SCROLL_BAR_WIDTH - 2 * G_HTML_MARGIN * d_opt->margin);
+	}
+	if (!F) {
+		if (*w > limit) {
+			*w = limit;
+			if (*w < HTML_MINIMAL_TEXTAREA_WIDTH) *w = HTML_MINIMAL_TEXTAREA_WIDTH;
+		}
+#ifdef G
+	} else {
+		struct style *st = g_get_style(0, 0, d_opt->font_size, G_HTML_DEFAULT_FAMILY "-medium-roman-serif-mono", 0);
+		int uw = g_char_width(st, '_');
+		g_free_style(st);
+		if (uw && *w > limit / uw) {
+			*w = limit / uw;
+			if (*w < HTML_MINIMAL_TEXTAREA_WIDTH) *w = HTML_MINIMAL_TEXTAREA_WIDTH;
+		}
+#endif
+	}
+}
+
 static void html_input(unsigned char *a)
 {
 	int i;
+	int size;
 	unsigned char *al;
 	struct form_control *fc;
 	find_form_for_input(a);
@@ -1701,9 +1736,12 @@ static void html_input(unsigned char *a)
 	if (fc->type == FC_TEXT || fc->type == FC_PASSWORD) fc->default_value = get_attr_val(a, "value");
 	else if (fc->type != FC_FILE) fc->default_value = get_exact_attr_val(a, "value");
 	if (fc->type == FC_CHECKBOX && !fc->default_value) fc->default_value = stracpy("on");
-	if ((fc->size = get_num(a, "size")) <= 0) fc->size = HTML_DEFAULT_INPUT_SIZE;
-	fc->size++;
-	if (fc->size > d_opt->xw) fc->size = d_opt->xw;
+	if ((size = get_num(a, "size")) <= 0) size = HTML_DEFAULT_INPUT_SIZE;
+	size++;
+	if (size > HTML_MINIMAL_TEXTAREA_WIDTH) {
+		set_max_textarea_width(&size);
+	}
+	fc->size = size;
 	if ((fc->maxlength = get_num(a, "maxlength")) == -1) fc->maxlength = MAXINT / 4;
 	if (fc->type == FC_CHECKBOX || fc->type == FC_RADIO) fc->default_state = has_attr(a, "checked");
 	fc->ro = has_attr(a, "disabled") ? 2 : has_attr(a, "readonly") ? 1 : 0;
@@ -1893,8 +1931,8 @@ static void new_menu_item(unsigned char *name, long data, int fullname)
 	if (menu_stack_size && name) {
 		top = item = menu_stack[menu_stack_size - 1];
 		while (item->text) item++;
-		if ((size_t)((char *)(item + 2) - (char *)top) > MAXINT) overalloc();
-		top = mem_realloc(top, (char *)(item + 2) - (char *)top);
+		if ((size_t)((unsigned char *)(item + 2) - (unsigned char *)top) > MAXINT) overalloc();
+		top = mem_realloc(top, (unsigned char *)(item + 2) - (unsigned char *)top);
 		item = item - menu_stack[menu_stack_size - 1] + top;
 		menu_stack[menu_stack_size - 1] = top;
 		if (menu_stack_size >= 2) {
@@ -2077,7 +2115,7 @@ static int do_html_select(unsigned char *attr, unsigned char *html, unsigned cha
 		v = get_exact_attr_val(t_attr, "value");
 		if (!(order & (ALLOC_GR - 1))) {
 			if ((unsigned)order > MAXINT / sizeof(unsigned char *) - ALLOC_GR) overalloc();
-			if ((unsigned)order > MAXINT / sizeof(char *) - ALLOC_GR) overalloc();
+			if ((unsigned)order > MAXINT / sizeof(unsigned char *) - ALLOC_GR) overalloc();
 			val = mem_realloc(val, (order + ALLOC_GR) * sizeof(unsigned char *));
 		}
 		val[order++] = v;
@@ -2114,7 +2152,7 @@ static int do_html_select(unsigned char *attr, unsigned char *html, unsigned cha
 	*end = en;
 	if (!order) goto abort;
 	fc = mem_calloc(sizeof(struct form_control));
-	lbls = mem_calloc(order * sizeof(char *));
+	lbls = mem_calloc(order * sizeof(unsigned char *));
 	fc->form_num = last_form_tag ? last_form_tag - startf : 0;
 	fc->ctrl_num = last_form_tag ? attr - last_form_tag : attr - startf;
 	fc->position = attr - startf;
@@ -2188,19 +2226,21 @@ static void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned 
 	fc->type = FC_TEXTAREA;;
 	fc->ro = has_attr(attr, "disabled") ? 2 : has_attr(attr, "readonly") ? 1 : 0;
 	fc->default_value = memacpy(html, p - html);
-	if ((cols = get_num(attr, "cols")) <= 5) cols = HTML_DEFAULT_TEXTAREA_WIDTH;
+	if ((cols = get_num(attr, "cols")) < HTML_MINIMAL_TEXTAREA_WIDTH) cols = HTML_DEFAULT_TEXTAREA_WIDTH;
 	cols++;
+	set_max_textarea_width(&cols);
 	if ((rows = get_num(attr, "rows")) <= 0) rows = HTML_DEFAULT_TEXTAREA_HEIGHT;
 	if (!F) {
-		if (d_opt->xw && cols > d_opt->xw) cols = d_opt->xw;
-		if (d_opt->yw && rows > d_opt->yw) rows = d_opt->yw;
+		if (rows > d_opt->yw) {
+			rows = d_opt->yw;
+			if (rows <= 0) rows = 1;
+		}
 #ifdef G
 	} else {
-		struct style *st = g_get_style(0, 0, d_opt->font_size, G_HTML_DEFAULT_FAMILY "-medium-roman-serif-mono", 0);
-		int uw = g_char_width(st, '_');
-		g_free_style(st);
-		if (uw && d_opt->xw >= uw + G_SCROLL_BAR_WIDTH && cols > (d_opt->xw - G_SCROLL_BAR_WIDTH) / uw) cols = (d_opt->xw - G_SCROLL_BAR_WIDTH) / uw;
-		if (d_opt->font_size && d_opt->yw >= d_opt->font_size + G_SCROLL_BAR_WIDTH && rows > (d_opt->yw - G_SCROLL_BAR_WIDTH) / d_opt->font_size) rows = (d_opt->yw - G_SCROLL_BAR_WIDTH) / d_opt->font_size;
+		if (d_opt->font_size && rows > (int)(d_opt->yw - G_SCROLL_BAR_WIDTH) / (int)d_opt->font_size) {
+			rows = (int)(d_opt->yw - G_SCROLL_BAR_WIDTH) / (int)d_opt->font_size;
+			if (rows <= 0) rows = 1;
+		}
 #endif
 	}
 	fc->cols = cols;
@@ -2479,7 +2519,7 @@ static void html_link(unsigned char *a)
 	if (!strcasecmp(name, "prefetch") ||
 	    !strcasecmp(name, "dns-prefetch")) {
 		unsigned char *pre_url = join_urls(format.href_base, url);
-		if (!dmp) load_url(pre_url, format.href_base, NULL, PRI_PRELOAD, NC_ALWAYS_CACHE);
+		if (!dmp) load_url(pre_url, format.href_base, NULL, PRI_PRELOAD, NC_ALWAYS_CACHE, 0, 0);
 		mem_free(pre_url);
 		goto skip;
 	}
@@ -2582,8 +2622,6 @@ static struct element_info elements[] = {
 	{"FRAME",	html_frame,	1, 1},
 	{"FRAMESET",	html_frameset,	1, 0},
 	{"NOFRAMES",	html_noframes,	0, 0},
-
-	{NULL,		NULL, 0, 0},
 };
 
 unsigned char *skip_comment(unsigned char *html, unsigned char *eof)
@@ -2778,12 +2816,21 @@ do {					\
 			ng:;
 		}
 		html = end;
-		for (ei = elements; ei->name; ei++) {
+		for (ei = elements; ei != &elements[sizeof(elements) / sizeof(*elements)]; ei++) {
 			if (strlen(ei->name) != (size_t)namelen || casecmp(ei->name, name, namelen))
 				continue;
+			if (ei - elements > 4) {
+				struct element_info e = *ei;
+				memmove(elements + 1, elements, (ei - elements) * sizeof(struct element_info));
+				elements[0] = e;
+				ei = &elements[0];
+			}
 			if (!inv) {
 				int display_none = 0;
 				int noskip = 0;
+	/* treat <br> literally in <pre> (fixes source code viewer on github) */
+				if (par_format.align == AL_NO && !strcasecmp(ei->name, "BR"))
+					line_breax = 0;
 				ln_break(ei->linebreak);
 				if ((a = get_attr_val(attr, "id"))) {
 					special(f, SP_TAG, a);
@@ -2979,6 +3026,7 @@ int get_image_map(unsigned char *head, unsigned char *s, unsigned char *eof, uns
 		lblen = 0;
 		se3:
 		ss = s;
+		se4:
 		while (ss < eof && *ss != '<') ss++;
 		if (ss >= eof) {
 			mem_free(label);
@@ -2992,7 +3040,10 @@ int get_image_map(unsigned char *head, unsigned char *s, unsigned char *eof, uns
 			s = skip_comment(s, eof);
 			goto se3;
 		}
-		if (parse_element(s, eof, NULL, NULL, NULL, &ss)) goto se3;
+		if (parse_element(s, eof, NULL, NULL, NULL, &ss)) {
+			ss = s + 1;
+			goto se4;
+		}
 		if (!((namelen == 1 && !casecmp(name, "A", 1)) ||
 		      (namelen == 2 && !casecmp(name, "/A", 2)) ||
 		      (namelen == 3 && !casecmp(name, "MAP", 3)) ||

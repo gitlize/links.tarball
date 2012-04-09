@@ -54,9 +54,9 @@ void add_image_to_cache(struct cached_image *ci)
 	add_to_list(image_cache, ci);
 }
 
-static int image_size(struct cached_image *cimg)
+static unsigned long image_size(struct cached_image *cimg)
 {
-	int siz = 100;
+	unsigned long siz = sizeof(struct cached_image);
 	switch(cimg->state){
 		case 0:
 		case 1:
@@ -70,11 +70,11 @@ static int image_size(struct cached_image *cimg)
 
 		case 12:
 		case 14:
-		siz+=cimg->width*cimg->height*cimg->buffer_bytes_per_pixel;
+		siz+=(unsigned long)cimg->width*cimg->height*cimg->buffer_bytes_per_pixel;
 		if (cimg->bmp.user){
 			case 13:
 			case 15:	
-			siz+=cimg->bmp.x*cimg->bmp.y*(drv->depth&7);
+			siz+=(unsigned long)cimg->bmp.x*cimg->bmp.y*(drv->depth&7);
 		}
 		break;
 
@@ -110,10 +110,10 @@ static int shrink_image_cache(int u)
 	return r | (list_empty(image_cache) ? ST_CACHE_EMPTY : 0);
 }
 
-long imgcache_info(int type)
+unsigned long imgcache_info(int type)
 {
 	struct cached_image *i;
-	long n = 0;
+	unsigned long n = 0;
 	foreach(i, image_cache) {
 		switch (type) {
 			case CI_BYTES:

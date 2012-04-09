@@ -29,6 +29,7 @@ void smb_func(struct connection *c)
 	int datal;
 	unsigned char *p;
 	pid_t r;
+	int rs;
 	struct smb_connection_info *si;
 	si = mem_alloc(sizeof(struct smb_connection_info) + 2);
 	memset(si, 0, sizeof(struct smb_connection_info));
@@ -85,7 +86,7 @@ void smb_func(struct connection *c)
 		mem_free(user);
 		mem_free(pass);
 		mem_free(data);
-		setcstate(c, S_OK);
+		setcstate(c, S__OK);
 		abort_connection(c);
 		return;
 	} else share = stracpy(""), dir = "";
@@ -111,14 +112,14 @@ void smb_func(struct connection *c)
 		mem_free(pass);
 		mem_free(share);
 		mem_free(data);
-		close(po[0]);
-		close(po[1]);
+		EINTRLOOP(rs, close(po[0]));
+		EINTRLOOP(rs, close(po[1]));
 		setcstate(c, get_error_from_errno(err));
 		abort_connection(c);
 		return;
 	}
 	c->from = 0;
-	r = fork();
+	EINTRLOOP(r, fork());
 	if (r == -1) {
 		int err = errno;
 		mem_free(host);
@@ -127,10 +128,10 @@ void smb_func(struct connection *c)
 		mem_free(pass);
 		mem_free(share);
 		mem_free(data);
-		close(po[0]);
-		close(po[1]);
-		close(pe[0]);
-		close(pe[1]);
+		EINTRLOOP(rs, close(po[0]));
+		EINTRLOOP(rs, close(po[1]));
+		EINTRLOOP(rs, close(pe[0]));
+		EINTRLOOP(rs, close(pe[1]));
 		setcstate(c, get_error_from_errno(err));
 		retry_connection(c);
 		return;
@@ -140,17 +141,19 @@ void smb_func(struct connection *c)
 		unsigned char *v[32];
 		unsigned char *uphp;
 		close_fork_tty();
-		close(1);
-		if (si->list) dup2(pe[1], 1);
-		else dup2(po[1], 1);
-		close(2);
-		dup2(pe[1], 2);
-		close(0);
-		open("/dev/null", O_RDONLY);
-		close(po[0]);
-		close(pe[0]);
-		close(po[1]);
-		close(pe[1]);
+		EINTRLOOP(rs, close(1));
+		if (si->list)
+			EINTRLOOP(rs, dup2(pe[1], 1));
+		else
+			EINTRLOOP(rs, dup2(po[1], 1));
+		EINTRLOOP(rs, close(2));
+		EINTRLOOP(rs, dup2(pe[1], 2));
+		EINTRLOOP(rs, close(0));
+		EINTRLOOP(rs, open("/dev/null", O_RDONLY));
+		EINTRLOOP(rs, close(po[0]));
+		EINTRLOOP(rs, close(pe[0]));
+		EINTRLOOP(rs, close(po[1]));
+		EINTRLOOP(rs, close(pe[1]));
 		n = 0;
 		switch (si->client) {
 		case SMBCLIENT:
@@ -252,7 +255,7 @@ void smb_func(struct connection *c)
 			internal("unsuported smb client");
 		}
 		v[n++] = NULL;
-		execvp(v[0], (void *)v);
+		EINTRLOOP(rs, execvp(v[0], (void *)v));
 		fprintf(stderr, "client not found");
 		fflush(stderr);
 		_exit(1);
@@ -266,8 +269,8 @@ void smb_func(struct connection *c)
 	mem_free(data);
 	c->sock1 = po[0];
 	c->sock2 = pe[0];
-	close(po[1]);
-	close(pe[1]);
+	EINTRLOOP(rs, close(po[1]));
+	EINTRLOOP(rs, close(pe[1]));
 	set_handlers(po[0], (void (*)(void *))smb_got_data, NULL, NULL, c);
 	set_handlers(pe[0], (void (*)(void *))smb_got_text, NULL, NULL, c);
 	setcstate(c, S_CONN);
@@ -318,7 +321,7 @@ static void smb_read_text(struct connection *c, int sock)
 	if ((unsigned)sizeof(struct smb_connection_info) + si->ntext + page_size + 2 > MAXINT) overalloc();
 	si = mem_realloc(si, sizeof(struct smb_connection_info) + si->ntext + page_size + 2);
 	c->info = si;
-	r = read(sock, si->text + si->ntext, page_size);
+	EINTRLOOP(r, read(sock, si->text + si->ntext, page_size));
 	if (r == -1) {
 		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
@@ -376,12 +379,13 @@ static void smb_got_data(struct connection *c)
 	struct smb_connection_info *si = c->info;
 	char *buffer = mem_alloc(page_size);
 	int r;
+	int a;
 	if (si->list) {
 		smb_read_text(c, c->sock1);
 		mem_free(buffer);
 		return;
 	}
-	r = read(c->sock1, buffer, page_size);
+	EINTRLOOP(r, read(c->sock1, buffer, page_size));
 	if (r == -1) {
 		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
@@ -415,7 +419,14 @@ static void smb_got_data(struct connection *c)
 		return;
 	}
 	c->received += r;
-	if (add_fragment(c->cache, c->from, buffer, r) == 1) c->tries = 0;
+	a = add_fragment(c->cache, c->from, buffer, r);
+	if (a < 0) {
+		setcstate(c, a);
+		abort_connection(c);
+		mem_free(buffer);
+		return;
+	}
+	if (a == 1) c->tries = 0;
 	c->from += r;
 	mem_free(buffer);
 }
@@ -472,6 +483,7 @@ static void end_smb_connection(struct connection *c)
 			int l = 0;
 			int type = 0;
 			int pos = 0;
+			int a;
 			add_to_str(&t, &l, "<html><head><title>");
 			ud = stracpy(c->url);
 			if (strchr(ud, POST_CHAR)) *strchr(ud, POST_CHAR) = 0;
@@ -624,7 +636,13 @@ static void end_smb_connection(struct connection *c)
 				mem_free(lx);
 			}
 			/*add_to_str(&t, &l, si->text);*/
-			add_fragment(c->cache, 0, t, l);
+			a = add_fragment(c->cache, 0, t, l);
+			if (a < 0) {
+				mem_free(t);
+				setcstate(c, a);
+				abort_connection(c);
+				return;
+			}
 			c->from += l;
 			truncate_entry(c->cache, l, 1);
 			c->cache->incomplete = 0;
@@ -638,7 +656,7 @@ static void end_smb_connection(struct connection *c)
 	}
 	close_socket(&c->sock1);
 	close_socket(&c->sock2);
-	setcstate(c, S_OK);
+	setcstate(c, S__OK);
 	abort_connection(c);
 	return;
 }
