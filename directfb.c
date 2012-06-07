@@ -108,7 +108,7 @@ directfb_fb_init_driver (unsigned char *param, unsigned char *display)
   }
 
   if (!get_color_fn(directfb_driver.depth)) {
-	error = "Unsupported color depth";
+	error = cast_uchar "Unsupported color depth";
 	goto ret_layer;
   }
 
@@ -136,7 +136,7 @@ ret_dfb:
 ret:
   result = init_str();
   add_to_strn(&result, error);
-  add_to_strn(&result, "\n");
+  add_to_strn(&result, cast_uchar "\n");
   return result;
 }
 
@@ -148,7 +148,7 @@ directfb_init_device (void)
   IDirectFBWindow        *window;
   DFBWindowDescription    desc;
 
-  desc.flags  = DWDESC_WIDTH | DWDESC_HEIGHT | DWDESC_POSX | DWDESC_POSY;
+  desc.flags  = (DFBWindowDescriptionFlags)(DWDESC_WIDTH | DWDESC_HEIGHT | DWDESC_POSX | DWDESC_POSY);
   desc.width  = directfb_driver.x;
   desc.height = directfb_driver.y;
   desc.posx   = 0;
@@ -156,7 +156,7 @@ directfb_init_device (void)
 
   retry:
   if (layer->CreateWindow (layer, &desc, &window) != DFB_OK) {
-    if (out_of_memory(NULL, 0))
+    if (out_of_memory(MF_GPI, NULL, 0))
       goto retry;
     return NULL;
   }
@@ -249,53 +249,23 @@ directfb_get_empty_bitmap (struct bitmap *bmp)
 
   bmp->data = bmp->flags = NULL;
 
-  desc.flags = DSDESC_WIDTH | DSDESC_HEIGHT;
+  desc.flags = (DFBSurfaceDescriptionFlags)(DSDESC_WIDTH | DSDESC_HEIGHT);
   desc.width  = bmp->x;
   desc.height = bmp->y;
 
   retry:
   if (dfb->CreateSurface (dfb, &desc, &surface) != DFB_OK) {
-    if (out_of_memory(NULL, 0))
+    if (out_of_memory(MF_GPI, NULL, 0))
     	goto retry;
     return -1;
   }
 
-  surface->Lock (surface, DSLF_READ | DSLF_WRITE, &bmp->data, &bmp->skip);
+  surface->Lock (surface, (DFBSurfaceLockFlags)(DSLF_READ | DSLF_WRITE), &bmp->data, &bmp->skip);
 
   bmp->flags = surface;
 
   return 0;
 }
-
-/*
-static int
-directfb_get_filled_bitmap (struct bitmap *bmp, long color)
-{
-  IDirectFBSurface      *surface;
-  DFBSurfaceDescription  desc;
-
-  bmp->data = bmp->flags = NULL;
-
-  desc.flags = DSDESC_WIDTH | DSDESC_HEIGHT;
-  desc.width  = bmp->x;
-  desc.height = bmp->y;
-
-  retry:
-  if (dfb->CreateSurface (dfb, &desc, &surface) != DFB_OK) {
-    if (out_of_memory(NULL, 0))
-    	goto retry;
-    return 0;
-  }
-
-  directfb_set_color (surface, color);
-  surface->FillRectangle (surface, 0, 0, bmp->x, bmp->y);
-  surface->Lock (surface, DSLF_READ | DSLF_WRITE, &bmp->data, &bmp->skip);
-
-  bmp->flags = surface;
-
-  return 0;
-}
-*/
 
 static void
 directfb_register_bitmap (struct bitmap *bmp)
@@ -313,7 +283,7 @@ directfb_prepare_strip (struct bitmap *bmp, int top, int lines)
   IDirectFBSurface *surface = bmp->flags;
   if (!surface) return NULL;
 
-  surface->Lock (surface, DSLF_READ | DSLF_WRITE, &bmp->data, &bmp->skip);
+  surface->Lock (surface, (DFBSurfaceLockFlags)(DSLF_READ | DSLF_WRITE), &bmp->data, &bmp->skip);
 
   return ((unsigned char *) bmp->data + top * bmp->skip);
 }
@@ -352,38 +322,6 @@ directfb_draw_bitmap (struct graphics_device *gd, struct bitmap *bmp,
 
   directfb_register_flip (data, x, y, bmp->x, bmp->y);
 }
-
-#if 0
-static void
-directfb_draw_bitmaps (struct graphics_device *gd, struct bitmap **bmps,
-                       int n, int x, int y)
-{
-  DFBDeviceData *data = gd->driver_data;
-  struct bitmap *bmp  = *bmps;
-  int x1 = x;
-  int h  = 0;
-
-  if (n < 1)
-    return;
-
-  do
-    {
-      IDirectFBSurface *src = bmp->flags;
-
-      if (src)
-        data->surface->Blit (data->surface, src, NULL, x, y);
-
-      if (h < bmp->y)
-        h = bmp->y;
-
-      x += bmp->x;
-      bmp++;
-    }
-  while (--n);
-
-  directfb_register_flip (data, x1, y, x - x1, h);
-}
-#endif
 
 static long
 directfb_get_color (int rgb)
@@ -501,20 +439,18 @@ directfb_vscroll (struct graphics_device *gd, struct rect_set **set, int sc)
 
 struct graphics_driver directfb_driver =
 {
-  "directfb",
+  cast_uchar "directfb",
   directfb_fb_init_driver,
   directfb_init_device,
   directfb_shutdown_device,
   directfb_shutdown_driver,
   directfb_get_driver_param,
   directfb_get_empty_bitmap,
-  /*directfb_get_filled_bitmap,*/
   directfb_register_bitmap,
   directfb_prepare_strip,
   directfb_commit_strip,
   directfb_unregister_bitmap,
   directfb_draw_bitmap,
-  /*directfb_draw_bitmaps,*/
   directfb_get_color,
   directfb_fill_area,
   directfb_draw_hline,
@@ -582,7 +518,7 @@ directfb_flip_surface (void *pointer)
   if (!data->flip_pending)
     return;
 
-  data->surface->Flip (data->surface, &data->flip_region, 0);
+  data->surface->Flip (data->surface, &data->flip_region, (DFBSurfaceFlipFlags)0);
 
   data->flip_pending = 0;
 }

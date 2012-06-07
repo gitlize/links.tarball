@@ -13,8 +13,8 @@ struct table_entry {
 };
 
 struct codepage_desc {
-	unsigned char *name;
-	unsigned char **aliases;
+	char *name;
+	char **aliases;
 	struct table_entry *table;
 };
 
@@ -65,7 +65,7 @@ static void free_translation_table(struct conv_table *p)
 	mem_free(p);
 }
 
-static unsigned char *no_str = "*";
+static unsigned char *no_str = cast_uchar "*";
 
 static void new_translation_table(struct conv_table *p)
 {
@@ -90,8 +90,8 @@ unsigned char *u2cp(int u, int to, int fallback)
 	int j, s;
 	again:
 	if (u < 128) return strings[u];
-	if (u == 0xa0) return "\001";
-	if (u == 0xad) return "";
+	if (u == 0xa0) return cast_uchar "\001";
+	if (u == 0xad) return cast_uchar "";
 	if (to == utf8_table) return encode_utf_8(u);
 	if (u < 0xa0) {
 		u = strange_chars[u - 0x80];
@@ -103,7 +103,7 @@ unsigned char *u2cp(int u, int to, int fallback)
 			return strings[codepages[to].table[j].c];
 	if (!fallback) return NULL;
 	BIN_SEARCH(N_UNICODE_7B, U_EQUAL, U_ABOVE, u, s);
-	if (s != -1) return unicode_7b[s].s;
+	if (s != -1) return cast_uchar unicode_7b[s].s;
 	return NULL;
 }
 
@@ -314,7 +314,7 @@ struct conv_table *get_translation_table(int from, int to)
 	if (from == utf8_table) {
 		int j;
 		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? (unsigned char *)"\001" : codepages[to].table[j].u == 0xad ? (unsigned char *)"" : strings[codepages[to].table[j].c]);
-		for (i = 0; unicode_7b[i].x != -1; i++) if (unicode_7b[i].x >= 0x80) add_utf_8(table, unicode_7b[i].x, unicode_7b[i].s);
+		for (i = 0; unicode_7b[i].x != -1; i++) if (unicode_7b[i].x >= 0x80) add_utf_8(table, unicode_7b[i].x, cast_uchar unicode_7b[i].s);
 	} else for (i = 128; i < 256; i++) {
 		int j;
 		unsigned char *u;
@@ -377,7 +377,7 @@ unsigned char *get_entity_string(unsigned char *st, int l, int encoding)
 		while (s <= e) {
 			int c;
 			int m = (s + e) / 2;
-			c = xxstrcmp(entities[m].s, st, l);
+			c = xxstrcmp(cast_uchar entities[m].s, st, l);
 			if (!c) {
 				n = entities[m].c;
 				goto f;
@@ -482,8 +482,8 @@ int get_cp_index(unsigned char *n)
 					for (q = 1; codepages[i].aliases[a][q]; q++) {
 						if (upcase(n[p+q]) != upcase(codepages[i].aliases[a][q])) goto fail;
 					}
-					if (strlen(codepages[i].aliases[a]) > (size_t)ll) {
-						ll = strlen(codepages[i].aliases[a]);
+					if (strlen(cast_const_char codepages[i].aliases[a]) > (size_t)ll) {
+						ll = strlen(cast_const_char codepages[i].aliases[a]);
 						ii = i;
 					}
 				}
@@ -496,15 +496,15 @@ int get_cp_index(unsigned char *n)
 
 unsigned char *get_cp_name(int index)
 {
-	if (index < 0) return "none";
-	return codepages[index].name;
+	if (index < 0) return cast_uchar "none";
+	return cast_uchar codepages[index].name;
 }
 
 unsigned char *get_cp_mime_name(int index)
 {
-	if (index < 0) return "none";
+	if (index < 0) return cast_uchar "none";
 	if (!codepages[index].aliases) return NULL;
-	return codepages[index].aliases[0];
+	return cast_uchar codepages[index].aliases[0];
 }
 
 #define UP_EQUAL(a, b) unicode_upcase[a].lo == (b)
@@ -563,7 +563,7 @@ unsigned char *to_utf8_upcase(unsigned char *str, int cp)
 {
 	unsigned char *str1, *str2;
 	struct conv_table *ct = get_translation_table(cp, utf8_table);
-	str1 = convert_string(ct, str, strlen(str), NULL);
+	str1 = convert_string(ct, str, strlen(cast_const_char str), NULL);
 	str2 = unicode_upcase_string(str1);
 	mem_free(str1);
 	return str2;
@@ -610,7 +610,7 @@ int strlen_utf8(unsigned char *s)
 int cp_len(int cp, unsigned char *s)
 {
 	if (cp == utf8_table) return strlen_utf8(s);
-	return strlen(s);
+	return strlen(cast_const_char s);
 }
 
 unsigned char *cp_strchr(int charset, unsigned char *str, unsigned chr)
@@ -618,7 +618,7 @@ unsigned char *cp_strchr(int charset, unsigned char *str, unsigned chr)
 	if (charset != utf8_table) {
 		if (chr >= 0x100)
 			return NULL;
-		return (unsigned char *)strchr(str, chr);
+		return cast_uchar strchr(cast_const_char str, chr);
 	}
 	while (1) {
 		unsigned char *o_str = str;

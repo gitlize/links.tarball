@@ -111,7 +111,7 @@ static int prepare_input_field_char(unsigned char *p, unsigned char tx[7])
 	if (!un) un = '*';
 	if (un == 0xad) un = '-';
 	en = encode_utf_8(un);
-	strcpy(tx, en);
+	strcpy(cast_char tx, cast_const_char en);
 	return p - pp;
 }
 
@@ -147,13 +147,13 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 			case FC_RADIO:
 				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
 				else inv = t->style, in = 0;
-				g_print_text(drv, dev, x, y, inv, fs->state ? "[X]" : "[ ]", NULL);
+				g_print_text(drv, dev, x, y, inv, fs->state ? cast_uchar "[X]" : cast_uchar "[ ]", NULL);
 				if (in) g_free_style(inv);
 				return;
 			case FC_CHECKBOX:
 				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
 				else inv = t->style, in = 0;
-				g_print_text(drv, dev, x, y, inv, fs->state ? "[X]" : "[ ]", NULL);
+				g_print_text(drv, dev, x, y, inv, fs->state ? cast_uchar "[X]" : cast_uchar "[ ]", NULL);
 				if (in) g_free_style(inv);
 				return;
 			case FC_SELECT:
@@ -162,7 +162,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				fixup_select_state(form, fs);
 				l = 0;
 				if (fs->state < form->nvalues) g_print_text(drv, dev, x, y, inv, form->labels[fs->state], &l);
-				while (l < t->xw) g_print_text(drv, dev, x + l, y, inv, "_", &l);
+				while (l < t->xw) g_print_text(drv, dev, x + l, y, inv, cast_uchar "_", &l);
 				if (in) g_free_style(inv);
 				return;
 			case FC_TEXT:
@@ -172,8 +172,8 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				if (fs->state >= fs->vpos + form->size) fs->vpos = fs->state - form->size + 1;
 				if (fs->state < fs->vpos) fs->vpos = fs->state;
 				*/
-				if ((size_t)fs->vpos > strlen(fs->value)) fs->vpos = strlen(fs->value);
-				while ((size_t)fs->vpos < strlen(fs->value) && textptr_diff(fs->value + fs->state, fs->value + fs->vpos, fd->f_data->opt.cp) >= form->size) {
+				if ((size_t)fs->vpos > strlen(cast_const_char fs->value)) fs->vpos = strlen(cast_const_char fs->value);
+				while ((size_t)fs->vpos < strlen(cast_const_char fs->value) && textptr_diff(fs->value + fs->state, fs->value + fs->vpos, fd->f_data->opt.cp) >= form->size) {
 					unsigned char *p = fs->value + fs->vpos;
 					FWD_UTF_8(p);
 					fs->vpos = p - fs->value;
@@ -185,7 +185,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				}
 				l = 0;
 				i = 0;
-				ll = strlen(fs->value);
+				ll = strlen(cast_const_char fs->value);
 				while (l < t->xw) {
 					struct style *st = t->style;
 					int sm = 0;
@@ -244,8 +244,8 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 							unsigned char *a;
 							struct rect old;
 							if (ln->st && pp < ln->en) a = memacpy(pp, ln->en - pp);
-							else a = stracpy("");
-							for (aa = 0; aa < form->cols; aa += 4) add_to_strn(&a, "____");
+							else a = stracpy(cast_uchar "");
+							for (aa = 0; aa < form->cols; aa += 4) add_to_strn(&a, cast_uchar "____");
 							restrict_clip_area(dev, &old, x, 0, x + t->xw, dev->size.y2);
 							g_print_text(drv, dev, x, yy + j * t->style->height, t->style, a, NULL);
 							drv->set_clip_area(dev, &old);
@@ -268,7 +268,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		prn:
 		g_print_text(drv, dev, x, y, t->style, t->text, NULL);
 	} else {
-		size_t tlen = strlen(t->text);
+		size_t tlen = strlen(cast_const_char t->text);
 		int found;
 		int start = t->srch_pos;
 		int end = t->srch_pos + tlen;
@@ -504,7 +504,7 @@ static void g_get_search(struct f_data *f, unsigned char *s)
 {
 	int i;
 	if (!s || !*s) return;
-	if (f->last_search && !strcmp(f->last_search, s)) return;
+	if (f->last_search && !strcmp(cast_const_char f->last_search, cast_const_char s)) return;
 	mem_free(f->search_positions);
 	mem_free(f->search_lengths);
 	f->search_positions = DUMMY, f->search_lengths = DUMMY, f->n_search_positions = 0;
@@ -828,7 +828,7 @@ static void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int
 			if (g_char_width(a->style,' ')) {
 				xx=x/g_char_width(a->style,' ');
 			} else xx=x;
-			fs->state=textptr_add(fs->value + ((size_t)fs->vpos > strlen(fs->value) ? strlen(fs->value) : (size_t)fs->vpos), (xx<0?0:xx), fd->f_data->opt.cp) - fs->value;
+			fs->state=textptr_add(fs->value + ((size_t)fs->vpos > strlen(cast_const_char fs->value) ? strlen(cast_const_char fs->value) : (size_t)fs->vpos), (xx<0?0:xx), fd->f_data->opt.cp) - fs->value;
 		}
 	}
 }
@@ -846,10 +846,10 @@ void g_text_mouse(struct f_data_c *fd, struct g_object_text *a, int x, int y, in
 		struct link *l=&(fd->f_data->links[fd->vs->current_link]);
 
 		if (l->js_event&&l->js_event->up_code&&(b&BM_ACT)==B_UP)
-			jsint_execute_code(fd,l->js_event->up_code,strlen(l->js_event->up_code),-1,-1,-1, NULL);
+			jsint_execute_code(fd,l->js_event->up_code,strlen(cast_const_char l->js_event->up_code),-1,-1,-1, NULL);
 
 		if (l->js_event&&l->js_event->down_code&&(b&BM_ACT)==B_DOWN)
-			jsint_execute_code(fd,l->js_event->down_code,strlen(l->js_event->down_code),-1,-1,-1, NULL);
+			jsint_execute_code(fd,l->js_event->down_code,strlen(cast_const_char l->js_event->down_code),-1,-1,-1, NULL);
 	}
 #endif
 
@@ -1127,9 +1127,9 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 						unsigned char *m = memacpy(fd->f_data->srch_string + fd->f_data->hlt_pos + (fd->f_data->hlt_len > 0 ? 0 : fd->f_data->hlt_len), fd->f_data->hlt_len > 0 ? fd->f_data->hlt_len : -fd->f_data->hlt_len);
 						if (m) {
 							unsigned char *p = m;
-							while ((p = strchr(p, 1))) *p++ = ' ';
+							while ((p = cast_uchar strchr(cast_const_char p, 1))) *p++ = ' ';
 							p = m;
-							while ((p = strstr(p, "\302\255"))) memmove(p, p + 2, strlen(p + 2) + 1);
+							while ((p = cast_uchar strstr(cast_const_char p, "\302\255"))) memmove(p, p + 2, strlen(cast_const_char(p + 2)) + 1);
 							if (*m) set_clipboard_text(fd->ses->term, m);
 							mem_free(m);
 						}
@@ -1151,11 +1151,11 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 
 			if (previous_link>=0&&previous_link<fd->f_data->nlinks)lnk=&(fd->f_data->links[previous_link]);
 				if (lnk&&lnk->js_event&&lnk->js_event->out_code)
-					jsint_execute_code(fd,lnk->js_event->out_code,strlen(lnk->js_event->out_code),-1,-1,-1, NULL);
+					jsint_execute_code(fd,lnk->js_event->out_code,strlen(cast_const_char lnk->js_event->out_code),-1,-1,-1, NULL);
 				lnk=NULL;
 				if (fd->vs->current_link>=0&&fd->vs->current_link<fd->f_data->nlinks)lnk=&(fd->f_data->links[fd->vs->current_link]);
 				if (lnk&&lnk->js_event&&lnk->js_event->over_code)
-					jsint_execute_code(fd,lnk->js_event->over_code,strlen(lnk->js_event->over_code),-1,-1,-1, NULL);
+					jsint_execute_code(fd,lnk->js_event->over_code,strlen(cast_const_char lnk->js_event->over_code),-1,-1,-1, NULL);
 			}
 #endif
 
@@ -1175,6 +1175,11 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				if (ev->x == KBD_ENTER) {
 					return enter(ses, fd, 0);
 				}
+			}
+			if (ev->x == KBD_ENTER && fd->f_data->opt.plain == 2) {
+				ses->ds.porn_enable ^= 1;
+				html_interpret_recursive(ses->screen);
+				return 1;
 			}
 			if (ev->x == KBD_RIGHT || ev->x == KBD_ENTER) {
 				struct link *l;
@@ -1375,10 +1380,10 @@ void draw_title(struct f_data_c *f)
 	unsigned char *title = stracpy(!drv->set_title ? f->f_data && f->f_data->title ? f->f_data->title : (unsigned char *)"" : f->rq && f->rq->url ? f->rq->url : (unsigned char *)"");
 	int b, z, w;
 	struct graphics_device *dev = f->ses->term->dev;
-	if (drv->set_title && strchr(title, POST_CHAR)) *strchr(title, POST_CHAR) = 0;
+	if (drv->set_title && strchr(cast_const_char title, POST_CHAR)) *cast_uchar strchr(cast_const_char title, POST_CHAR) = 0;
 	w = g_text_width(bfu_style_bw, title);
 	z = 0;
-	g_print_text(drv, dev, 0, 0, bfu_style_bw, " <- ", &z);
+	g_print_text(drv, dev, 0, 0, bfu_style_bw, cast_uchar " <- ", &z);
 	f->ses->back_size = z;
 	b = (dev->size.x2 - w) - 16;
 	if (b < z) b = z;
@@ -1401,7 +1406,7 @@ static void get_searched_sub(struct g_object *p, struct g_object *c)
 	if (c->get_list) c->get_list(c, get_searched_sub);
 	if (c->draw == (void (*)(struct f_data_c *, struct g_object *, int, int))g_line_draw) {
 		if (srch_f_data->srch_string_size && srch_f_data->srch_string[srch_f_data->srch_string_size - 1] != ' ')
-			add_to_str(&srch_f_data->srch_string, &srch_f_data->srch_string_size, " ");
+			add_to_str(&srch_f_data->srch_string, &srch_f_data->srch_string_size, cast_uchar " ");
 	}
 }
 
@@ -1513,7 +1518,7 @@ static void find_next_sub(struct g_object *p, struct g_object *c)
 	if (c->draw == (void (*)(struct f_data_c *, struct g_object *, int, int))g_text_draw && !g_text_no_search(find_opt_f_data, (struct g_object_text *)c)) {
 		struct g_object_text *t = (struct g_object_text *)c;
 		int start = t->srch_pos;
-		int end = t->srch_pos + strlen(t->text);
+		int end = t->srch_pos + strlen(cast_const_char t->text);
 		int found;
 		BIN_SEARCH(n_highlight_positions, B_EQUAL, B_ABOVE, *, found);
 		if (found != -1) {
@@ -1598,7 +1603,7 @@ void g_find_next(struct f_data_c *f, int a)
 
 void init_grview(void)
 {
-	int i, w = g_text_width(bfu_style_wb_mono, " ");
+	int i, w = g_text_width(bfu_style_wb_mono, cast_uchar " ");
 	for (i = 32; i < 128; i++) {
 		unsigned char a[2];
 		a[0] = i, a[1] = 0;

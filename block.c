@@ -45,7 +45,7 @@ static void* block_new_item(void* ignore)
 	struct block *new; 
 
 	new = mem_alloc(sizeof(struct block));
-	new->url = stracpy("");
+	new->url = stracpy(cast_uchar "");
 	return new;
 }
 
@@ -86,7 +86,7 @@ static unsigned char *block_type_item(struct terminal *term, void *data, int x)
 
 	/*I have no idea what this does, but it os copied from working code in types.c*/
 	table=get_translation_table(blocks_ld.codepage,term->spec->charset);
-	txt1=convert_string(table,txt,strlen(txt),NULL);
+	txt1=convert_string(table,txt,strlen(cast_const_char txt),NULL);
 	mem_free(txt);
 			
 	return txt1;
@@ -123,7 +123,7 @@ static void block_edit_done(void *data)
 	url=(unsigned char *)&d->items[4];
 	
 	table=get_translation_table(s->dlg->win->term->spec->charset,blocks_ld.codepage);
-	txt=convert_string(table,url,strlen(url),NULL);
+	txt=convert_string(table,url,strlen(cast_const_char url),NULL);
 	mem_free(item->url); item->url=txt;
 
 	s->fn(s->dlg,s->data,item,&blocks_ld);
@@ -263,7 +263,7 @@ void block_manager(struct terminal *term,void *fcp,struct session *ses)
 }
 
 
-void *block_add_URL_fn(struct session *ses, unsigned char *url)
+void *block_url_add(struct session *ses, unsigned char *url)
 {
 	/*Callback from the dialog box created from the link menu*/
 	struct block* new_b;
@@ -284,20 +284,12 @@ void *block_add_URL_fn(struct session *ses, unsigned char *url)
 	return NULL;
 }
 
-void block_add_URL(struct terminal *term, void *xxx, struct session *ses)
+void block_url_query(struct session *ses, unsigned char *u)
 {
-	/*"Block Image" menu item calls this function*/
-	unsigned char *u;
-	struct f_data_c *fd = current_frame(ses);
-
-	if (!fd) return;
-	if (fd->vs->current_link == -1) return;
-	if (!(u = fd->f_data->links[fd->vs->current_link].where_img)) return;
-
-	if (test_list_window_in_use(&blocks_ld, term))
+	if (test_list_window_in_use(&blocks_ld, ses->term))
 		return;
 
-	input_field(ses->term, NULL, TEXT_(T_BLOCK_URL) , TEXT_(T_BLOCK_ADD), ses, 0, MAX_INPUT_URL_LEN, u, 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) block_add_URL_fn, TEXT_(T_CANCEL), NULL, NULL);
+	input_field(ses->term, NULL, TEXT_(T_BLOCK_URL) , TEXT_(T_BLOCK_ADD), ses, 0, MAX_INPUT_URL_LEN, u, 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) block_url_add, TEXT_(T_CANCEL), NULL, NULL);
 
 }
 
@@ -326,7 +318,7 @@ static int simple_glob_match(unsigned char *s, unsigned char *p)
 		p += i + 1;
 		if (!(s = find_first_match(s, p, &i))) return 0;
 		if (!p[i]) {
-			s += strlen(s) - i;
+			s += strlen(cast_const_char s) - i;
 			return !!find_first_match(s, p, &i);
 		}
 	}

@@ -949,7 +949,7 @@ static int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *use
 				getml(txt,narez,NULL),  /* blocks to free */
 				TEXT_(T_DELETE_FOLDER),  /* title */
 				AL_CENTER|AL_EXTD_TEXT,  /* alignment */
-				TEXT_(T_FOLDER)," \"",txt,"\" ",TEXT_(T_NOT_EMPTY_SURE_DELETE),NULL,  /* text */
+				TEXT_(T_FOLDER),cast_uchar " \"",txt,cast_uchar "\" ",TEXT_(T_NOT_EMPTY_SURE_DELETE),NULL,  /* text */
 				narez,  /* data for ld->delete_item */
 				2,  /* # of buttons */
 				TEXT_(T_NO),NULL,B_ESC,  /* button1 */
@@ -961,7 +961,7 @@ static int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *use
 				getml(txt,narez,NULL),  /* blocks to free */
 				TEXT_(T_DELETE_FOLDER),  /* title */
 				AL_CENTER|AL_EXTD_TEXT,  /* alignment */
-				TEXT_(T_SURE_DELETE)," ",TEXT_(T_fOLDER)," \"",txt,"\"?",NULL,  /* null-terminated text */
+				TEXT_(T_SURE_DELETE),cast_uchar " ",TEXT_(T_fOLDER),cast_uchar " \"",txt,cast_uchar "\"?",NULL,  /* null-terminated text */
 				narez,  /* data for ld->delete_item */
 				2,  /* # of buttons */
 				TEXT_(T_YES),delete_ok,B_ENTER,  /* button1 */
@@ -974,7 +974,7 @@ static int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *use
 			getml(txt,narez,NULL),  /* blocks to free */
 			TEXT_(ld->delete_dialog_title),  /* title */
 			AL_CENTER|AL_EXTD_TEXT,  /* alignment */
-			TEXT_(T_SURE_DELETE)," ",TEXT_(ld->item_description)," \"",txt,"\"?",NULL,  /* null-terminated text */
+			TEXT_(T_SURE_DELETE),cast_uchar " ",TEXT_(ld->item_description),cast_uchar " \"",txt,cast_uchar "\"?",NULL,  /* null-terminated text */
 			narez,  /* data for ld->delete_item */
 			2,  /* # of buttons */
 			TEXT_(T_YES),delete_ok,B_ENTER,  /* button1 */
@@ -1361,7 +1361,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			r->ld=ld;
 			r->dlg=dlg;
 
-			input_field(ses->term, getml(r,NULL), TEXT_(T_SEARCH), TEXT_(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) list_search_for, TEXT_(T_CANCEL), NULL, NULL);
+			input_field(ses->term, getml(r,NULL), TEXT_(T_SEARCH), TEXT_(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) list_search_for, TEXT_(T_CANCEL), NULL, NULL);
 			return EVENT_PROCESSED;
 		}
 		if (ev->x=='?') /* search back */
@@ -1372,7 +1372,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			r->ld=ld;
 			r->dlg=dlg;
 
-			input_field(ses->term, getml(r,NULL), TEXT_(T_SEARCH_BACK), TEXT_(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) list_search_for_back, TEXT_(T_CANCEL), NULL, NULL);
+			input_field(ses->term, getml(r,NULL), TEXT_(T_SEARCH_BACK), TEXT_(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) list_search_for_back, TEXT_(T_CANCEL), NULL, NULL);
 			return EVENT_PROCESSED;
 		}
 		if (ev->x=='n') /* find next */
@@ -1735,7 +1735,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		break;
 
 		default:
-		internal("Unknown event received: %d", ev->ev);
+		internal("Unknown event received: %ld", ev->ev);
 
 	}
 	return EVENT_NOT_PROCESSED;

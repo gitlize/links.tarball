@@ -449,6 +449,9 @@
 /* Define if you have the <values.h> header file.  */
 #undef HAVE_VALUES_H
 
+/* Define if you have the <windowsx.h> header file.  */
+#undef HAVE_WINDOWSX_H
+
 /* Define if you have the <zlib.h> header file.  */
 #undef HAVE_ZLIB_H
 

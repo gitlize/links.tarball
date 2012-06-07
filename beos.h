@@ -18,5 +18,4 @@ int get_input_handle(void);
 void block_stdin(void);
 void unblock_stdin(void);
 
-void error(unsigned char *, ...);
-void fatal_tty_exit(void);
+void fatal_exit(unsigned char *, ...);

@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+cp ../links-current/links.nsi ../links-current/COPYING ../links-current/BRAILLE_HOWTO ../links-current/KEYS ../links-current/README . || exit
+CC=gcc-4
+export CC
+CFLAGS="-O3 -march=pentiumpro -mtune=barcelona -flto -fwhole-program -Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wmissing-declarations -Wstrict-prototypes"
+export CFLAGS
+windres -O coff ../links-current/linkswin.rc linkswin.res
+LIBS=linkswin.res
+export LIBS
+if [ ! -f config.h -o ! -f Makefile ]; then
+	../links-current/configure --enable-utf8 --enable-graphics --without-x --enable-debuglevel=0
+fi
+make -j8
+/cygdrive/c/Program\ Files\ \(x86\)/NSIS/makensis.exe links.nsi

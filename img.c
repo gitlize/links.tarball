@@ -804,7 +804,7 @@ static void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
  */
 static inline int dtest(unsigned char *template, unsigned char *test)
 {
-	if (strcasecmp(template,test)) return 0;
+	if (strcasecmp(cast_const_char template,cast_const_char test)) return 0;
 	else{
 		mem_free(test);
 		return 1;
@@ -822,43 +822,43 @@ static void type(struct cached_image *cimg, unsigned char *content_type)
 	}
 #endif /* #ifdef DEBUG */
 #ifdef HAVE_JPEG
-	if (dtest("image/jpeg",content_type)){
+	if (dtest(cast_uchar "image/jpeg",content_type)){
 		cimg->image_type=IM_JPG;
 		jpeg_start(cimg);
-	}else if (dtest("image/jpg",content_type)){
+	}else if (dtest(cast_uchar "image/jpg",content_type)){
 		cimg->image_type=IM_JPG;
 		jpeg_start(cimg);
-	}else if (dtest("image/jpe",content_type)){
+	}else if (dtest(cast_uchar "image/jpe",content_type)){
 		cimg->image_type=IM_JPG;
 		jpeg_start(cimg);
-	}else if (dtest("image/pjpe",content_type)){
+	}else if (dtest(cast_uchar "image/pjpe",content_type)){
 		cimg->image_type=IM_JPG;
 		jpeg_start(cimg);
-	}else if (dtest("image/pjpeg",content_type)){
+	}else if (dtest(cast_uchar "image/pjpeg",content_type)){
 		cimg->image_type=IM_JPG;
 		jpeg_start(cimg);
-	}else if (dtest("image/pjpg",content_type)){
+	}else if (dtest(cast_uchar "image/pjpg",content_type)){
 		cimg->image_type=IM_JPG;
 		jpeg_start(cimg);
 	}else 
 #endif /* #ifdef HAVE_JPEG */
-		if (dtest("image/png",content_type)){
+		if (dtest(cast_uchar "image/png",content_type)){
 		cimg->image_type=IM_PNG;
 		png_start(cimg);
-	}else if (dtest("image/x-png",content_type)){
+	}else if (dtest(cast_uchar "image/x-png",content_type)){
 		cimg->image_type=IM_PNG;
 		png_start(cimg);
-	}else if (dtest("image/gif",content_type)){
+	}else if (dtest(cast_uchar "image/gif",content_type)){
 		cimg->image_type=IM_GIF;
 		gif_start(cimg);
-	}else if (dtest("image/x-xbitmap",content_type)){
+	}else if (dtest(cast_uchar "image/x-xbitmap",content_type)){
 		cimg->image_type=IM_XBM;
 		xbm_start(cimg);
 #ifdef HAVE_TIFF
-	}else if (dtest("image/tiff",content_type)){
+	}else if (dtest(cast_uchar "image/tiff",content_type)){
 		cimg->image_type=IM_TIFF;
 		tiff_start(cimg);
-	}else if (dtest("image/tif",content_type)){
+	}else if (dtest(cast_uchar "image/tif",content_type)){
 		cimg->image_type=IM_TIFF;
 		tiff_start(cimg);
 #endif /* #ifdef HAVE_TIFF */
@@ -910,7 +910,7 @@ static int img_process_download(struct g_object_image *goi, struct f_data_c *fda
 		/* Type still unknown */
 		ctype=get_content_type(goi->af->rq->ce->head,
 			goi->af->rq->url);
-		if (!ctype) ctype = stracpy("application/octet-stream");
+		if (!ctype) ctype = stracpy(cast_uchar "application/octet-stream");
 		type(cimg,ctype);
 	}
 		
@@ -1345,21 +1345,21 @@ void change_image (struct g_object_image *goi, unsigned char *url, unsigned char
 int known_image_type(unsigned char *type)
 {
 #ifdef G
-	if (!strcasecmp(type, "image/png")) return 1;
-	if (!strcasecmp(type, "image/x-png")) return 1;
-	if (!strcasecmp(type, "image/gif")) return 1;
-	if (!strcasecmp(type, "image/x-xbitmap")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/png")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/x-png")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/gif")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/x-xbitmap")) return 1;
 #ifdef HAVE_JPEG
-	if (!strcasecmp(type, "image/jpeg")) return 1;
-	if (!strcasecmp(type, "image/jpg")) return 1;
-	if (!strcasecmp(type, "image/jpe")) return 1;
-	if (!strcasecmp(type, "image/pjpe")) return 1;
-	if (!strcasecmp(type, "image/pjpeg")) return 1;
-	if (!strcasecmp(type, "image/pjpg")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/jpeg")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/jpg")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/jpe")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/pjpe")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/pjpeg")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/pjpg")) return 1;
 #endif
 #ifdef HAVE_TIFF
-	if (!strcasecmp(type, "image/tiff")) return 1;
-	if (!strcasecmp(type, "image/tif")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/tiff")) return 1;
+	if (!strcasecmp(cast_const_char type, "image/tif")) return 1;
 #endif
 #endif
 	return 0;

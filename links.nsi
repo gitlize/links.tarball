@@ -75,8 +75,12 @@ File links.exe
 File c:\cygwin\bin\cygbz2-1.dll
 File c:\cygwin\bin\cygcrypto-1.0.0.dll
 File c:\cygwin\bin\cyggcc_s-1.dll
+File c:\cygwin\bin\cygjbig-2.dll
+File c:\cygwin\bin\cygjpeg-8.dll
 File c:\cygwin\bin\cyglzma-5.dll
+File c:\cygwin\bin\cygpng14-14.dll
 File c:\cygwin\bin\cygssl-1.0.0.dll
+File c:\cygwin\bin\cygtiff-5.dll
 File c:\cygwin\bin\cygwin1.dll
 File c:\cygwin\bin\cygz.dll
   
@@ -90,6 +94,7 @@ File c:\cygwin\bin\cygz.dll
 
 CreateDirectory "$SMPROGRAMS\$STARTMENU_FOLDER"
 CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\Links.lnk" "$INSTDIR\Links.exe"
+CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\Links Graphics.lnk" "$INSTDIR\Links.exe" "-g"
 CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 !insertmacro MUI_STARTMENU_WRITE_END
 SectionEnd
@@ -109,8 +114,12 @@ Delete "$INSTDIR\Links.exe"
 Delete "$INSTDIR\cygbz2-1.dll"
 Delete "$INSTDIR\cygcrypto-1.0.0.dll"
 Delete "$INSTDIR\cyggcc_s-1.dll"
+Delete "$INSTDIR\cygjbig-2.dll"
+Delete "$INSTDIR\cygjpeg-8.dll"
 Delete "$INSTDIR\cyglzma-5.dll"
+Delete "$INSTDIR\cygpng14-14.dll"
 Delete "$INSTDIR\cygssl-1.0.0.dll"
+Delete "$INSTDIR\cygtiff-5.dll"
 Delete "$INSTDIR\cygwin1.dll"
 Delete "$INSTDIR\cygz.dll"
 Delete "$INSTDIR\.links\*"
@@ -124,6 +133,7 @@ RMDir "$INSTDIR\.links"
 
 Delete "$SMPROGRAMS\$MUI_TEMP\Uninstall.lnk"
 Delete "$SMPROGRAMS\$MUI_TEMP\Links.lnk"
+Delete "$SMPROGRAMS\$MUI_TEMP\Links Graphics.lnk"
 StrCpy $MUI_TEMP "$SMPROGRAMS\$MUI_TEMP"
 
 startMenuDeleteLoop:

@@ -66,7 +66,7 @@ static void write_ev_queue(struct itrm *itrm)
 		return;
 	}
 	memmove(itrm->ev_queue, itrm->ev_queue + l, itrm->eqlen -= l);
-	if (!itrm->eqlen) set_handlers(itrm->sock_out, get_handler(itrm->sock_out, H_READ), NULL, get_handler(itrm->sock_out, H_ERROR), get_handler(itrm->sock_out, H_DATA));
+	if (!itrm->eqlen) set_handlers(itrm->sock_out, (void (*)(void *))get_handler(itrm->sock_out, H_READ), NULL, (void (*)(void *))get_handler(itrm->sock_out, H_ERROR), get_handler(itrm->sock_out, H_DATA));
 }
 
 static void queue_event(struct itrm *itrm, unsigned char *data, int len);
@@ -93,7 +93,7 @@ static void queue_event(struct itrm *itrm, unsigned char *data, int len)
 		itrm->ev_queue = mem_realloc(itrm->ev_queue, itrm->eqlen + len - w);
 		memcpy(itrm->ev_queue + itrm->eqlen, data + w, len - w);
 		itrm->eqlen += len - w;
-		set_handlers(itrm->sock_out, get_handler(itrm->sock_out, H_READ), (void (*)(void *))write_ev_queue, (void (*)(void *))itrm_error, itrm);
+		set_handlers(itrm->sock_out, (void (*)(void *))get_handler(itrm->sock_out, H_READ), (void (*)(void *))write_ev_queue, (void (*)(void *))itrm_error, itrm);
 	}
 }
 
@@ -103,28 +103,21 @@ void kbd_ctrl_c(void)
 	if (ditrm) ditrm->queue_event(ditrm, (unsigned char *)&ev, sizeof(struct event));
 }
 
-/*
-unsigned char *init_seq = "\033[?1000h\033[?47h\0337";
-unsigned char *term_seq = "\033[2J\033[?1000l\033[?47l\0338\b \b";
-*/
-
 unsigned char init_seq[] = "\033)0\0337";
-unsigned char init_seq_x_mouse[] = "\033[?1000h";
+unsigned char init_seq_x_mouse[] = "\033[?1000h\033[?1002h\033[?1005h\033[?1006l\033[?1015l";
 unsigned char init_seq_tw_mouse[] = "\033[?9h";
 unsigned char term_seq[] = "\033[2J\0338\r \b";
-unsigned char term_seq_x_mouse[] = "\033[?1000l\015       \015";
+unsigned char term_seq_x_mouse[] = "\033[?1000l\r       \r\033[?1002l\r       \r\033[?1005l\r       \r";
 unsigned char term_seq_tw_mouse[] = "\033[?9l";
-
-/*unsigned char *term_seq = "\033[2J\033[?1000l\0338\b \b";*/
 
 static void send_init_sequence(int h, int flags)
 {
 	want_draw();
-	hard_write(h, init_seq, strlen(init_seq));
+	hard_write(h, init_seq, strlen(cast_const_char init_seq));
 	if (flags & USE_TWIN_MOUSE) {
-		hard_write(h, init_seq_tw_mouse, strlen(init_seq_tw_mouse));
+		hard_write(h, init_seq_tw_mouse, strlen(cast_const_char init_seq_tw_mouse));
 	} else {
-		hard_write(h, init_seq_x_mouse, strlen(init_seq_x_mouse));
+		hard_write(h, init_seq_x_mouse, strlen(cast_const_char init_seq_x_mouse));
 	}
 	done_draw();
 }
@@ -132,11 +125,11 @@ static void send_init_sequence(int h, int flags)
 static void send_term_sequence(int h, int flags)
 {
 	want_draw();
-	hard_write(h, term_seq, strlen(term_seq));
+	hard_write(h, term_seq, strlen(cast_const_char term_seq));
 	if (flags & USE_TWIN_MOUSE) {
-		hard_write(h, term_seq_tw_mouse, strlen(term_seq_tw_mouse));
+		hard_write(h, term_seq_tw_mouse, strlen(cast_const_char term_seq_tw_mouse));
 	} else {
-		hard_write(h, term_seq_x_mouse, strlen(term_seq_x_mouse));
+		hard_write(h, term_seq_x_mouse, strlen(cast_const_char term_seq_x_mouse));
 	}
 	done_draw();
 }
@@ -148,24 +141,25 @@ void resize_terminal(void)
 	if (get_terminal_size(ditrm->std_out, &x, &y)) return;
 	ev.x = x;
 	ev.y = y;
-	queue_event(ditrm, (char *)&ev, sizeof(struct event));
+	queue_event(ditrm, (unsigned char *)&ev, sizeof(struct event));
 }
 
 static int ttcgetattr(int fd, struct termios *t)
 {
 	int r;
-#ifdef HAVE_SIGDELSET
-	int rs;
-	sigset_t set, old_set;
-	sigfillset(&set);
+	block_signals(
 #ifdef SIGTTOU
-	sigdelset(&set, SIGTTOU);
+		SIGTTOU
+#else
+		0
 #endif
+		,
 #ifdef SIGTTIN
-	sigdelset(&set, SIGTTIN);
+		SIGTTIN
+#else
+		0
 #endif
-	EINTRLOOP(rs, sigprocmask(SIG_BLOCK, &set, &old_set));
-#endif
+		);
 #ifdef SIGTTOU
 	interruptible_signal(SIGTTOU, 1);
 #endif
@@ -179,27 +173,26 @@ static int ttcgetattr(int fd, struct termios *t)
 #ifdef SIGTTIN
 	interruptible_signal(SIGTTIN, 0);
 #endif
-#ifdef HAVE_SIGDELSET
-	if (!rs) EINTRLOOP(rs, sigprocmask(SIG_SETMASK, &old_set, NULL));
-#endif
+	unblock_signals();
 	return r;
 }
 
 static int ttcsetattr(int fd, int a, struct termios *t)
 {
 	int r;
-#ifdef HAVE_SIGDELSET
-	int rs;
-	sigset_t set, old_set;
-	sigfillset(&set);
+	block_signals(
 #ifdef SIGTTOU
-	sigdelset(&set, SIGTTOU);
+		SIGTTOU
+#else
+		0
 #endif
+		,
 #ifdef SIGTTIN
-	sigdelset(&set, SIGTTIN);
+		SIGTTIN
+#else
+		0
 #endif
-	EINTRLOOP(rs, sigprocmask(SIG_BLOCK, &set, &old_set));
-#endif
+		);
 #ifdef SIGTTOU
 	interruptible_signal(SIGTTOU, 1);
 #endif
@@ -213,9 +206,7 @@ static int ttcsetattr(int fd, int a, struct termios *t)
 #ifdef SIGTTIN
 	interruptible_signal(SIGTTIN, 0);
 #endif
-#ifdef HAVE_SIGDELSET
-	if (!rs) EINTRLOOP(rs, sigprocmask(SIG_SETMASK, &old_set, NULL));
-#endif
+	unblock_signals();
 	return r;
 }
 
@@ -280,37 +271,37 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	ev.x = x;
 	ev.y = y;
 	handle_terminal_resize(ctl_in, resize_terminal);
-	queue_event(itrm, (char *)&ev, sizeof(struct event));
+	queue_event(itrm, (unsigned char *)&ev, sizeof(struct event));
 	xwin = is_xterm() * ENV_XWIN + can_twterm() * ENV_TWIN + (!!getenv("STY")) * ENV_SCREEN + get_system_env();
 	itrm->flags = 0;
-	if (!(ts = getenv("TERM"))) ts = "";
-	if ((xwin & ENV_TWIN) && !strcmp(ts, "linux")) itrm->flags |= USE_TWIN_MOUSE;
-	if (strlen(ts) >= MAX_TERM_LEN) queue_event(itrm, ts, MAX_TERM_LEN);
+	if (!(ts = cast_uchar getenv("TERM"))) ts = cast_uchar "";
+	if ((xwin & ENV_TWIN) && !strcmp(cast_const_char ts, "linux")) itrm->flags |= USE_TWIN_MOUSE;
+	if (strlen(cast_const_char ts) >= MAX_TERM_LEN) queue_event(itrm, ts, MAX_TERM_LEN);
 	else {
 		unsigned char *mm;
-		int ll = MAX_TERM_LEN - strlen(ts);
-		queue_event(itrm, ts, strlen(ts));
+		int ll = MAX_TERM_LEN - strlen(cast_const_char ts);
+		queue_event(itrm, ts, strlen(cast_const_char ts));
 		mm = mem_calloc(ll);
 		queue_event(itrm, mm, ll);
 		mem_free(mm);
 	}
-	if (!(ts = get_cwd())) ts = stracpy("");
-	if (strlen(ts) >= MAX_CWD_LEN) queue_event(itrm, ts, MAX_CWD_LEN);
+	if (!(ts = get_cwd())) ts = stracpy(cast_uchar "");
+	if (strlen(cast_const_char ts) >= MAX_CWD_LEN) queue_event(itrm, ts, MAX_CWD_LEN);
 	else {
 		unsigned char *mm;
-		int ll = MAX_CWD_LEN - strlen(ts);
-		queue_event(itrm, ts, strlen(ts));
+		int ll = MAX_CWD_LEN - strlen(cast_const_char ts);
+		queue_event(itrm, ts, strlen(cast_const_char ts));
 		mm = mem_calloc(ll);
 		queue_event(itrm, mm, ll);
 		mem_free(mm);
 	}
 	mem_free(ts);
-	queue_event(itrm, (char *)&xwin, sizeof(int));
-	queue_event(itrm, (char *)&init_len, sizeof(int));
-	queue_event(itrm, (char *)init_string, init_len);
+	queue_event(itrm, (unsigned char *)&xwin, sizeof(int));
+	queue_event(itrm, (unsigned char *)&init_len, sizeof(int));
+	queue_event(itrm, (unsigned char *)init_string, init_len);
 	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))mouse_queue_event, itrm);
 	itrm->orig_title = get_window_title();
-	set_window_title("Links");
+	set_window_title(cast_uchar "Links");
 	send_init_sequence(std_out, itrm->flags);
 }
 
@@ -381,10 +372,10 @@ static void resize_terminal_x(unsigned char *text)
 {
 	int x, y;
 	unsigned char *p;
-	if (!(p = strchr(text, ','))) return;
+	if (!(p = cast_uchar strchr(cast_const_char text, ','))) return;
 	*p++ = 0;
-	x = atoi(text);
-	y = atoi(p);
+	x = atoi(cast_const_char text);
+	y = atoi(cast_const_char p);
 	resize_window(x, y);
 	resize_terminal();
 }
@@ -468,15 +459,15 @@ static void in_sock(struct itrm *itrm)
 		unsigned char *param;
 		if (is_blocked() && fg) {
 			if (*delete)
-				EINTRLOOP(rs, unlink(delete));
+				EINTRLOOP(rs, unlink(cast_const_char delete));
 			goto to_je_ale_hnus;
 		}
-		param = mem_alloc(strlen(path) + strlen(delete) + 3);
+		param = mem_alloc(strlen(cast_const_char path) + strlen(cast_const_char delete) + 3);
 		param[0] = fg;
-		strcpy(param + 1, path);
-		strcpy(param + 1 + strlen(path) + 1, delete);
+		strcpy(cast_char(param + 1), cast_const_char path);
+		strcpy(cast_char(param + 1 + strlen(cast_const_char path) + 1), cast_const_char delete);
 		if (fg == 1) block_itrm(0);
-		if ((blockh = start_thread((void (*)(void *, int))exec_thread, param, strlen(path) + strlen(delete) + 3)) == -1) {
+		if ((blockh = start_thread((void (*)(void *, int))exec_thread, param, strlen(cast_const_char path) + strlen(cast_const_char delete) + 3)) == -1) {
 			if (fg == 1) unblock_itrm(0);
 			mem_free(param);
 			goto to_je_ale_hnus;
@@ -514,7 +505,7 @@ static void kbd_timeout(struct itrm *itrm)
 		internal("timeout on empty queue");
 		return;
 	}
-	itrm->queue_event(itrm, (char *)&ev, sizeof(struct event));
+	itrm->queue_event(itrm, (unsigned char *)&ev, sizeof(struct event));
 	if (get_esc_code(itrm->kqueue, itrm->qlen, &code, &num, &len)) len = 1;
 	itrm->qlen -= len;
 	memmove(itrm->kqueue, itrm->kqueue + len, itrm->qlen);
@@ -836,8 +827,8 @@ static int is_interix(void)
 #ifdef INTERIX
 	return 1;
 #else
-	unsigned char *term = getenv("TERM");
-	return term && !strncmp(term, "interix", 7);
+	unsigned char *term = cast_uchar getenv("TERM");
+	return term && !strncmp(cast_const_char term, "interix", 7);
 #endif
 }
 
@@ -852,8 +843,8 @@ static int is_uwin(void)
 
 static int is_ibm(void)
 {
-	unsigned char *term = getenv("TERM");
-	return term && !strncmp(term, "ibm", 3);
+	unsigned char *term = cast_uchar getenv("TERM");
+	return term && !strncmp(cast_const_char term, "ibm", 3);
 }
 
 static int process_queue(struct itrm *itrm)
@@ -973,7 +964,7 @@ static int process_queue(struct itrm *itrm)
 				case 'R':
 					resize_terminal();
 					break ;
-				case 'M': if (itrm->qlen - el < 3) goto ret;
+				case 'M':
 					if (v == 5) {
 						if (xterm_button == -1) xterm_button = 0; /* */
 						if (itrm->qlen - el < 5) goto ret;
@@ -991,19 +982,59 @@ static int process_queue(struct itrm *itrm)
 						xterm_button = itrm->kqueue[el] - ' ';
 						el += 5;
 					} else {
-						ev.x = itrm->kqueue[el+1] - ' ' - 1;
-						ev.y = itrm->kqueue[el+2] - ' ' - 1;
-						ev.b = B_DOWN;
-						if (itrm->kqueue[el] & 4) ev.b = B_DRAG;
-						if ((ev.b |= (itrm->kqueue[el] & BM_BUTT) | B_DOWN) == 3) {
-							ev.b = B_UP;
-							if (xterm_button != -1) ev.b |= xterm_button;
+						int x, y, button;
+						if (itrm->qlen - el < 3) goto ret;
+						if ((itrm->kqueue[el] & ~0x1f) == 0x20) button = B_DOWN;
+						else if ((itrm->kqueue[el] & ~0x1f) == 0x40) button = B_DRAG;
+						else {
+							button = -1;
+							goto skip_button;
+						}
+						button |= itrm->kqueue[el] & 3;
+						if ((itrm->kqueue[el] & 3) == 3) {
+							if (xterm_button == -1)
+								xterm_button = B_LEFT;
+							button = B_UP;
+							button |= xterm_button;
 						}  
-						/*if ((itrm->kqueue[el] & 4) && ev.b != B_UP) ev.b |= B_DRAG;*/
-						xterm_button = -1;
-						if ((ev.b & BM_ACT) == B_DOWN) xterm_button = ev.b & BM_BUTT;
-						el += 3;
+						xterm_button = button & BM_BUTT;
+						skip_button:
+						el++;
+						if (itrm->kqueue[el] < ' ') {
+							x = -1;
+							el++;
+						} else if (itrm->kqueue[el] >= 0xc2 && itrm->kqueue[el] < 0xe0 && itrm->qlen - el >= 3 && itrm->kqueue[el + 1] >= 0x80 && itrm->kqueue[el + 1] < 0xc0) {
+							x = (((itrm->kqueue[el] & 0x1f) << 6) | (itrm->kqueue[el + 1] & 0x3f)) - ' ' - 1;
+							el += 2;
+						} else {
+							x = itrm->kqueue[el] - ' ' - 1;
+							el++;
+						}
+						if (itrm->kqueue[el] < ' ') {
+							y = -1;
+							el++;
+						} else if (itrm->kqueue[el] >= 0xc2 && itrm->kqueue[el] < 0xe0 && itrm->qlen - el >= 2 && itrm->kqueue[el + 1] >= 0x80 && itrm->kqueue[el + 1] < 0xc0) {
+							y = (((itrm->kqueue[el] & 0x1f) << 6) | (itrm->kqueue[el + 1] & 0x3f)) - ' ' - 1;
+							el += 2;
+						} else {
+							y = itrm->kqueue[el] - ' ' - 1;
+							el++;
+						}
+						if (x < 0 || y < 0 || button < 0)
+							break;
+						ev.b = button;
+						ev.x = x;
+						ev.y = y;
 					}
+					/*{
+						int a;
+						for (a = 0; a < el; a++) {
+							fprintf(stderr, " %02x", itrm->kqueue[a]);
+							if (itrm->kqueue[a] >= ' ') fprintf(stderr, "(%c)", itrm->kqueue[a]);
+						}
+						fprintf(stderr, "\n");
+						fprintf(stderr, "%ld %ld %ld\n", ev.x, ev.y, ev.b);
+					}*/
 					ev.ev = EV_MOUSE;
 					break;
 			}
@@ -1088,7 +1119,7 @@ do_alt:
 		itrm->qlen = el;
 	}
 	if (ev.x != -1) {
-		itrm->queue_event(itrm, (char *)&ev, sizeof(struct event));
+		itrm->queue_event(itrm, (unsigned char *)&ev, sizeof(struct event));
 		memmove(itrm->kqueue, itrm->kqueue + el, itrm->qlen -= el);
 	} else {
 		/*printf("%d %d\n", itrm->qlen, el);fflush(stdout);*/
@@ -1120,9 +1151,14 @@ static void in_kbd(struct itrm *itrm)
 		itrm->queue_event(itrm, (unsigned char *)&ev, sizeof(struct event));
 		return;
 	}
+	more_data:
 	if ((itrm->qlen += r) > IN_BUF_SIZE) {
 		error("ERROR: too many bytes read");
 		itrm->qlen = IN_BUF_SIZE;
+	}
+	if (itrm->qlen < IN_BUF_SIZE && can_read(itrm->std_in)) {
+		EINTRLOOP(r, read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen));
+		if (r > 0) goto more_data;
 	}
 	while (process_queue(itrm))
 		;

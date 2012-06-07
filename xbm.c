@@ -177,8 +177,8 @@ restart_again:
 		int a;
 		int base, digits;
 		
-		p=my_memmem(deco->buffer,deco->buffer_pos,"width",5);
-		q=my_memmem(deco->buffer,deco->buffer_pos,"height",6);
+		p=my_memmem(deco->buffer,deco->buffer_pos,cast_uchar "width",5);
+		q=my_memmem(deco->buffer,deco->buffer_pos,cast_uchar "height",6);
 
 		if (!p&&!q)	/* sezereme zacatek */
 		{
@@ -274,7 +274,7 @@ cycle_again:
 		case 1: /* za 1. lomitkem */
 		{
 			if (*data=='*'){deco->state=2;data++;length--;goto cycle_again;}	/* zacal komentar */
-			if (xbm_decode(cimg, "/", 1)) return;
+			if (xbm_decode(cimg, cast_uchar "/", 1)) return;
 			deco->state=0;	/* to nebyl komentar */
 			goto cycle_again;
 		}

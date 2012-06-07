@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.6)
+AM_INIT_AUTOMAKE(links, 2.7pre1)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -707,6 +707,7 @@ AC_ARG_WITH(fb, [  --without-fb            compile without Linux Framebuffer gra
 AC_ARG_WITH(directfb, [  --without-directfb      compile without DirectFB graphics driver],[if test "$withval" = no; then disable_directfb=yes; else disable_directfb=no; fi])
 dnl AC_ARG_WITH(sdl, [  --without-sdl           compile without SDL graphics driver],[if test "$withval" = no; then disable_sdl=yes; else disable_sdl=no; fi])
 AC_ARG_WITH(pmshell, [  --without-pmshell       compile without PMShell graphics driver],[if test "$withval" = no; then disable_pmshell=yes; else disable_pmshell=no; fi])
+AC_ARG_WITH(windows, [  --without-windows       compile without Windows graphics driver],[if test "$withval" = no; then disable_windows=yes; else disable_windows=no; fi])
 AC_ARG_WITH(atheos, [  --without-atheos        compile without Atheos graphics driver],[if test "$withval" = no; then disable_atheos=yes; else disable_atheos; fi])
 
 	drivers=""
@@ -854,6 +855,52 @@ if test "$disable_pmshell" != yes ; then
 	if test "$ac_cv_have_pmshell" = yes; then
 		AC_DEFINE(GRDRV_PMSHELL)
 		drivers="$drivers PMSHELL"
+	fi
+fi
+
+if test "$disable_windows" != yes ; then
+	LIBS_X="$LIBS"
+	AC_CHECK_HEADERS(windowsx.h)
+	AC_CACHE_CHECK([for ReleaseDC], ac_cv_have_windows11,
+		AC_TRY_LINK([
+			#include <windows.h>
+			#include <pthread.h>],
+			[ReleaseDC(NULL, NULL)],
+		ac_cv_have_windows11=yes, ac_cv_have_windows11=no)
+	)
+	if test "$ac_cv_have_windows11" = no; then
+		LIBS="-luser32 $LIBS"
+		AC_CACHE_CHECK([for ReleaseDC in -luser32], ac_cv_have_windows12,
+			AC_TRY_LINK([
+				#include <windows.h>
+				#include <pthread.h>],
+				[ReleaseDC(NULL, NULL)],
+			ac_cv_have_windows12=yes, ac_cv_have_windows12=no)
+		)
+	fi
+	AC_CACHE_CHECK([for GdiFlush], ac_cv_have_windows21,
+		AC_TRY_LINK([
+			#include <windows.h>
+			#include <pthread.h>],
+			[GdiFlush()],
+		ac_cv_have_windows21=yes, ac_cv_have_windows21=no)
+	)
+	if test "$ac_cv_have_windows21" = no; then
+		LIBS="-lgdi32 $LIBS"
+		AC_CACHE_CHECK([for GdiFlush in -lgdi32], ac_cv_have_windows22,
+			AC_TRY_LINK([
+				#include <windows.h>
+				#include <pthread.h>],
+				[GdiFlush()],
+			ac_cv_have_windows22=yes, ac_cv_have_windows22=no)
+		)
+	fi
+	if test "$ac_cv_have_windows11" = yes -o "$ac_cv_have_windows12" = yes &&
+	   test "$ac_cv_have_windows21" = yes -o "$ac_cv_have_windows22" = yes; then
+		AC_DEFINE(GRDRV_PMSHELL)
+		drivers="$drivers WINDOWS"
+	else
+		LIBS="$LIBS_X"
 	fi
 fi
 
@@ -1017,6 +1064,12 @@ if test "$cf_have_ssl" = "nss"; then
 fi
 if test -n "`echo "$drivers"|grep -w X`" -a "$ac_cv_header_interix_interix_h" = yes; then
 	echo "!!! WARNING !!! Xwindow in Interix is unreliable and"
+	echo "it may cause browser lockup."
+	echo "It is recommended to use Cygwin instead."
+	echo "---------------------------------------------------------"
+fi
+if test -n "`echo "$drivers"|grep -w WINDOWS`" -a "$ac_cv_func_uwin_path" = yes; then
+	echo "!!! WARNING !!! Windows driver in UWIN is unreliable and"
 	echo "it may cause browser lockup."
 	echo "It is recommended to use Cygwin instead."
 	echo "---------------------------------------------------------"

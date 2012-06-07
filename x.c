@@ -199,9 +199,7 @@ static void x_wait_for_event(void)
 	int rs;
 
 	if (x_fd >= (int)FD_SETSIZE) {
-		error("too big handle %d", x_fd);
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		fatal_exit("too big handle %d", x_fd);
 	}
 
 	FD_ZERO(&rfds);
@@ -391,13 +389,13 @@ static int x_translate_key(struct graphics_device *gd, XKeyEvent *e,int *key,int
 			len = XwcLookupString(get_window_info(gd)->xic, e, &wc, 1, &ks, &status);
 			if (len == 1) {
 				strcpy(str, encode_utf_8(wc));
-				len = strlen(str);
+				len = strlen(cast_const_char str);
 			} else
 				len = 0;
 		}
 #else
 		{
-			len = Xutf8LookupString(get_window_info(gd)->xic, e, str, str_size, &ks, &status);
+			len = Xutf8LookupString(get_window_info(gd)->xic, e, cast_char str, str_size, &ks, &status);
 		}
 #endif
 		table = utf8_table;
@@ -406,7 +404,7 @@ static int x_translate_key(struct graphics_device *gd, XKeyEvent *e,int *key,int
 #endif
 
 	{
-		len = XLookupString(e,str,str_size,&ks,&comp);
+		len = XLookupString(e,cast_char str,str_size,&ks,&comp);
 	}
 	str[len>str_size?str_size:len]=0;
 	if (!len) str[0]=ks, str[1]=0;
@@ -609,7 +607,7 @@ static void x_update_driver_param(int w, int h)
 	if (x_driver_param)mem_free(x_driver_param);
 	x_driver_param=init_str();
 	add_num_to_str(&x_driver_param,&l,x_default_window_width);
-	add_to_str(&x_driver_param,&l,"x");
+	add_to_str(&x_driver_param,&l,cast_uchar "x");
 	add_num_to_str(&x_driver_param,&l,x_default_window_height);
 }
 
@@ -1074,7 +1072,7 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 #if defined(HAVE_NL_LANGINFO) && defined(HAVE_LANGINFO_H) && defined(CODESET) && !defined(WIN32) && !defined(INTERIX)
 	{
 		unsigned char *cp;
-		cp=nl_langinfo(CODESET);
+		cp = cast_uchar nl_langinfo(CODESET);
 		x_input_encoding=get_cp_index(cp);
 	}
 #endif
@@ -1092,22 +1090,22 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 	But OS/2 has problems when display_name is NULL ...
 
 */
-	if (!display)display=getenv("DISPLAY");
+	if (!display) display = cast_uchar getenv("DISPLAY");
 #ifndef __linux__
 	/* on Linux, do not assume XWINDOW present if $DISPLAY is not set
 	   --- rather open links on svgalib or framebuffer console */
-	if (!display)display=":0.0";	/* needed for MacOS X */
+	if (!display) display = cast_uchar ":0.0";	/* needed for MacOS X */
 #endif
 
-	x_display=XOpenDisplay(display);
+	x_display = XOpenDisplay(cast_char display);
 	if (!x_display)
 	{
 		unsigned char *err=init_str();
 		int l=0;
 
-		add_to_str(&err,&l,"Can't open display \"");
+		add_to_str(&err,&l,cast_uchar "Can't open display \"");
 		add_to_str(&err,&l,display?display:(unsigned char *)"(null)");
-		add_to_str(&err,&l,"\"\n");
+		add_to_str(&err,&l,cast_uchar "\"\n");
 		x_free_hash_table();
 		return err;
 	}
@@ -1135,8 +1133,8 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 			;
 		if (!(*p))goto done;
 		*p=0;
-		w=strtoul(x_driver_param,(char **)(void *)&e,10);
-		h=strtoul(p+1,(char **)(void *)&f,10);
+		w=strtoul(cast_const_char x_driver_param,(char **)(void *)&e,10);
+		h=strtoul(cast_const_char(p+1),(char **)(void *)&f,10);
 		if (!(*e)&&!(*f)&&w&&h){x_default_window_width=w;x_default_window_height=h;}
 		*p='x';
 		done:;
@@ -1229,7 +1227,7 @@ bytes_per_pixel_found:
 			}
 
 		x_free_hash_table();
-		return stracpy("No supported color depth found.\n");
+		return stracpy(cast_uchar "No supported color depth found.\n");
 visual_found:;
 	}
 
@@ -1260,7 +1258,7 @@ visual_found:;
 		{
 			unsigned char nevidim_te_ani_te_neslysim_ale_smrdis_jako_lejno[MAX_STR_LEN];
 
-			snprintf(nevidim_te_ani_te_neslysim_ale_smrdis_jako_lejno,MAX_STR_LEN,
+			snprintf(cast_char nevidim_te_ani_te_neslysim_ale_smrdis_jako_lejno,MAX_STR_LEN,
 			"Unsupported graphics mode: x_depth=%d, bits_per_pixel=%d, bytes_per_pixel=%d\n",x_driver.depth, x_depth, x_bitmap_bpp);
 			x_free_hash_table();
 			return stracpy(nevidim_te_ani_te_neslysim_ale_smrdis_jako_lejno);
@@ -1328,16 +1326,16 @@ visual_found:;
 	fake_window_initialized = 1;
 
 	x_normal_gc=XCreateGC(x_display,fake_window,GCFillStyle|GCBackground,&gcv);
-	if (!x_normal_gc) {x_free_hash_table(); return stracpy("Cannot create graphic context.\n");}
+	if (!x_normal_gc) {x_free_hash_table(); return stracpy(cast_uchar "Cannot create graphic context.\n");}
 
 	x_copy_gc=XCreateGC(x_display,fake_window,GCFunction,&gcv);
-	if (!x_copy_gc) {x_free_hash_table(); return stracpy("Cannot create graphic context.\n");}
+	if (!x_copy_gc) {x_free_hash_table(); return stracpy(cast_uchar "Cannot create graphic context.\n");}
 
 	x_drawbitmap_gc=XCreateGC(x_display,fake_window,GCFunction,&gcv);
-	if (!x_drawbitmap_gc) {x_free_hash_table(); return stracpy("Cannot create graphic context.\n");}
+	if (!x_drawbitmap_gc) {x_free_hash_table(); return stracpy(cast_uchar "Cannot create graphic context.\n");}
 
 	x_scroll_gc=XCreateGC(x_display,fake_window,GCGraphicsExposures|GCBackground,&gcv);
-	if (!x_scroll_gc) {x_free_hash_table(); return stracpy("Cannot create graphic context.\n");}
+	if (!x_scroll_gc) {x_free_hash_table(); return stracpy(cast_uchar "Cannot create graphic context.\n");}
 
 	XSetLineAttributes(x_display,x_normal_gc,1,LineSolid,CapRound,JoinRound);
 
@@ -1350,17 +1348,17 @@ visual_found:;
 		 * So, try to set locale to utf8 for the input method.
 		 */
 		unsigned char *l, *m, *d;
-		l = setlocale(LC_CTYPE, "");
+		l = cast_uchar setlocale(LC_CTYPE, "");
 		if (l) {
 			m = stracpy(l);
-			d = strchr(m, '.');
+			d = cast_uchar strchr(cast_const_char m, '.');
 			if (d) *d = 0;
-			add_to_strn(&m, ".UTF-8");
-			l = setlocale(LC_CTYPE, m);
+			add_to_strn(&m, cast_uchar ".UTF-8");
+			l = cast_uchar setlocale(LC_CTYPE, cast_const_char m);
 			mem_free(m);
 		}
 		if (!l) {
-			l = setlocale(LC_CTYPE, "en_US.UTF-8");
+			l = cast_uchar setlocale(LC_CTYPE, "en_US.UTF-8");
 		}
 #endif
 		xim = XOpenIM(x_display, NULL, NULL, NULL);
@@ -1413,7 +1411,7 @@ static struct graphics_device* x_init_device(void)
 	XWMHints wm_hints;
 	XClassHint class_hints;
 	XTextProperty windowName;
-	unsigned char *links_name="Links";
+	unsigned char *links_name=cast_uchar "Links";
 	XSetWindowAttributes win_attr;
 	struct window_info *wi;
 
@@ -1451,12 +1449,12 @@ static struct graphics_device* x_init_device(void)
 	{
 		XImage *img;
 		unsigned char *data;
-		int w,h;
-		get_links_icon(&data,&w,&h,x_driver.depth);
+		int w,h,skip;
+		get_links_icon(&data,&w,&h,&skip,x_bitmap_scanline_pad);
 
 		img=XCreateImage(x_display,x_default_visual,x_depth,ZPixmap,0,0,w,h,x_bitmap_scanline_pad<<3,w*((x_driver.depth)&7));
 		if (!img){x_icon=0;goto nic_nebude_bobankove;}
-		img->data=data;
+		img->data=cast_char data;
 		x_icon=XCreatePixmap(x_display,wi->window,w,h,x_depth);
 		if (!x_icon){XDestroyImage(img);x_icon=0;goto nic_nebude_bobankove;}
 
@@ -1474,12 +1472,12 @@ nic_nebude_bobankove:;
 	}
 
 	XSetWMHints(x_display, wi->window, &wm_hints);
-	class_hints.res_name = links_name;
-	class_hints.res_class = links_name;
+	class_hints.res_name = cast_char links_name;
+	class_hints.res_class = cast_char links_name;
 	XSetClassHint(x_display, wi->window, &class_hints);
 	XStringListToTextProperty((char **)(void *)&links_name, 1, &windowName);
 	XSetWMName(x_display, wi->window, &windowName);
-	XStoreName(x_display,wi->window,links_name);
+	XStoreName(x_display,wi->window,cast_char links_name);
 	XSetWMIconName(x_display, wi->window, &windowName);
 
 	XMapWindow(x_display,wi->window);
@@ -1545,132 +1543,6 @@ static void x_shutdown_device(struct graphics_device *gd)
 	mem_free(gd);
 }
 
-#if 0
-/* n is in bytes. dest must begin on pixel boundary. If n is not a whole number
- * of pixels, rounding is performed downwards.
- */
-static inline void pixel_set(unsigned char *dest, int n,void * pattern)
-{
-	int a;
-
-	internal("ma to v sobe FIXME, tak jsem to zablokoval, aby to nikdo nepouzival");
-	/* Originally there was vga_bytes here but this function is not
-	 * used in planar modes so that it's OK :-) */
-	switch(x_bitmap_bpp)
-	{
-		case 1:
-		memset(dest,*(unsigned char *)pattern,n);
-		break;
-
-		case 2:
-		{
-			short v=*(short *)pattern;	/* !!! FIXME: nezavislost !!! */
-			int a;
-
-			for (a=0;a<(n>>1);a++) ((short *)dest)[a]=v;
-		}
-		break;
-
-		case 3:
-		{
-			unsigned char a,b,c;
-			int i;
-
-			a=*(unsigned char*)pattern;
-			b=((unsigned char*)pattern)[1];
-			c=((unsigned char*)pattern)[2];
-			i=n/3;
-			for (i=n/3;i;i--){
-				dest[0]=a;
-				dest[1]=b;
-				dest[2]=c;
-				dest+=3;
-			}
-		}
-		break;
-
-		case 4:
-		{
-			long v=*(long *)pattern;	/* !!! FIXME: nezavislost !!! */
-			int a;
-
-			for (a=0;a<(n>>2);a++) ((long *)dest)[a]=v;
-		}
-		break;
-
-		default:
-		for (a=0;a<n/x_bitmap_bpp;a++,dest+=x_bitmap_bpp) memcpy(dest,pattern,x_bitmap_bpp);
-		break;
-	}
-
-}
-
-static int x_get_filled_bitmap(struct bitmap *bmp, long color)
-{
-	struct x_pixmapa *p;
-	XImage *image;
-	Pixmap *pixmap;
-	int pad;
-
-#ifdef X_DEBUG
-	MESSAGE("x_get_filled_bitmap\n");
-#endif
-	if (!bmp||!bmp->x||!bmp->y)internal("x_get_filled_bitmap called with strange arguments.\n");
-
-	p=mem_alloc(sizeof(struct x_pixmapa));
-
-	bmp->flags=p;
-	pad=x_bitmap_scanline_pad-((bmp->x*x_bitmap_bpp)%x_bitmap_scanline_pad);
-	if (pad==x_bitmap_scanline_pad)pad=0;
-	bmp->skip=bmp->x*x_bitmap_bpp+pad;
-
-	pixmap=mem_alloc(sizeof(Pixmap));
-	(*pixmap)=XCreatePixmap(x_display,fake_window,bmp->x,bmp->y,x_depth);
-	if (!(*pixmap))
-	{
-		int a;
-		unsigned char *ptr;
-		int PerM_si_odalokoval_vlastni_pytlik=(bmp->x*x_bitmap_bpp);
-
-		mem_free(pixmap);
-		p->type=X_TYPE_IMAGE;
-		retry:
-		bmp->data=malloc(bmp->skip*bmp->y);
-		if (!bmp->data) {
-			out_of_memory("x bitmap malloc", bmp->skip*bmp->y);
-			goto retry;
-		}
-		retry2:
-		image=XCreateImage(x_display,x_default_visual,x_depth,ZPixmap,0,0,bmp->x,bmp->y,x_bitmap_scanline_pad<<3,bmp->skip);
-		if (!image) {
-			out_of_memory("XCreateImage", bmp->y * bmp->skip);
-			goto retry2;
-		}
-		image->data=bmp->data;
-		for (a=0,ptr=image->data;a<bmp->y;a++,ptr+=bmp->skip)
-			pixel_set(ptr,PerM_si_odalokoval_vlastni_pytlik,(void*)color);
-		p->data.image=image;
-		return 0;
-	}
-	else
-	{
-		XSetForeground(x_display,x_normal_gc,color);
-		XFillRectangle(
-			x_display,
-			*pixmap,
-			x_normal_gc,
-			0,
-			0,
-			bmp->x,
-			bmp->y
-		);
-		p->type=X_TYPE_PIXMAP;
-		p->data.pixmap=pixmap;
-		return 2;
-	}
-}
-#endif
-
 static int x_get_empty_bitmap(struct bitmap *bmp)
 {
 	int pad;
@@ -1683,7 +1555,7 @@ static int x_get_empty_bitmap(struct bitmap *bmp)
 	bmp->flags=NULL;
 	retry:
 	if (!(bmp->data=malloc(bmp->skip*bmp->y))) {
-		if (out_of_memory(NULL, 0))
+		if (out_of_memory(0, NULL, 0))
 			goto retry;
 		return -1;
 	}
@@ -1712,7 +1584,7 @@ static void x_register_bitmap(struct bitmap *bmp)
 	retry:
 	image=XCreateImage(x_display,x_default_visual,x_depth,ZPixmap,0,0,bmp->x,bmp->y,x_bitmap_scanline_pad<<3,bmp->skip);
 	if (!image){
-		if (out_of_memory(NULL, 0))
+		if (out_of_memory(0, NULL, 0))
 			goto retry;
 		mem_free(p);
 		goto cant_create;
@@ -2169,7 +2041,7 @@ static void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 		retry:
 		x_data=malloc(bmp->skip*lines);
 		if (!x_data) {
-			if (out_of_memory(NULL, 0))
+			if (out_of_memory(0, NULL, 0))
 				goto retry;
 			return NULL;
 		}
@@ -2177,7 +2049,7 @@ static void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 		retry2:
 		image=XCreateImage(x_display,x_default_visual,x_depth,ZPixmap,0,0,bmp->x,lines,x_bitmap_scanline_pad<<3,bmp->skip);
 		if (!image) {
-			if (out_of_memory(NULL, 0))
+			if (out_of_memory(0, NULL, 0))
 				goto retry2;
 			free(x_data);
 			return NULL;
@@ -2190,8 +2062,7 @@ static void *x_prepare_strip(struct bitmap *bmp, int top, int lines)
 		return p->data.image->data+(bmp->skip*top);
 	}
 	internal("Unknown pixmap type found in x_prepare_strip. SOMETHING IS REALLY STRANGE!!!!\n");
-	fatal_tty_exit();
-	exit(RET_FATAL);	/* never called */
+	return NULL;
 }
 
 
@@ -2241,7 +2112,7 @@ retry_encode_ascii:
 	ct = get_translation_table(utf8_table,output_encoding);
 
 	if (!gd)internal("x_set_window_title called with NULL graphics_device pointer.\n");
-	t = convert_string(ct, title, strlen(title), NULL);
+	t = convert_string(ct, title, strlen(cast_const_char title), NULL);
 	clr_white(t);
 	/*XStoreName(x_display,get_window_info(gd)->window,"blabla");*/
 
@@ -2321,13 +2192,13 @@ static void selection_request(XEvent *event)
 	if (req->target == XA_STRING) {
 		unsigned char *str, *p;
 		struct conv_table *ct = NULL;
-		int iso1 = get_cp_index("iso-8859-1");
+		int iso1 = get_cp_index(cast_uchar "iso-8859-1");
 		if (iso1 >= 0) ct = get_translation_table(utf8_table, iso1);
-		if (!x_my_clipboard) str = stracpy("");
+		if (!x_my_clipboard) str = stracpy(cast_uchar "");
 		else if (!ct) str = stracpy(x_my_clipboard);
-		else str = convert_string(ct, x_my_clipboard, strlen(x_my_clipboard), NULL);
-		for (p = strchr(str, 1); p; p = strchr(str + 1, 1)) *p = 0xa0;
-		l = strlen(str);
+		else str = convert_string(ct, x_my_clipboard, strlen(cast_const_char x_my_clipboard), NULL);
+		for (p = cast_uchar strchr(cast_const_char str, 1); p; p = cast_uchar strchr(cast_const_char(str + 1), 1)) *p = 0xa0;
+		l = strlen(cast_const_char str);
 		if (l > X_MAX_CLIPBOARD_SIZE) l = X_MAX_CLIPBOARD_SIZE;
 		XChangeProperty (x_display,
 				 sel.requestor,
@@ -2340,7 +2211,7 @@ static void selection_request(XEvent *event)
 		);
 		mem_free(str);
 	} else if (req->target == x_utf8_string_atom) {
-		l = x_my_clipboard ? strlen(x_my_clipboard) : 0;
+		l = x_my_clipboard ? strlen(cast_const_char x_my_clipboard) : 0;
 		if (l > X_MAX_CLIPBOARD_SIZE) l = X_MAX_CLIPBOARD_SIZE;
 		XChangeProperty (x_display,
 				 sel.requestor,
@@ -2362,7 +2233,7 @@ static void selection_request(XEvent *event)
 				 XA_ATOM,
 				 32,
 				 PropModeReplace,
-				 (char*)&tgt_atoms,
+				 (unsigned char*)&tgt_atoms,
 				 3
 		);
 	} else {
@@ -2447,12 +2318,12 @@ static unsigned char *x_get_clipboard_text(void)
 			x_my_clipboard = stracpy(buffer);
 		} else {
 			struct conv_table *ct = NULL;
-			int iso1 = get_cp_index("iso-8859-1");
+			int iso1 = get_cp_index(cast_uchar "iso-8859-1");
 			if (iso1 >= 0) ct = get_translation_table(iso1, utf8_table);
 			if (!ct) {
 				x_my_clipboard = stracpy(buffer);
 			} else {
-				x_my_clipboard = convert_string(ct, buffer, strlen(buffer), NULL);
+				x_my_clipboard = convert_string(ct, buffer, strlen(cast_const_char buffer), NULL);
 			}
 		}
 		XFree(buffer);
@@ -2477,19 +2348,19 @@ static int x_exec(unsigned char *command, int fg)
 
 	if (!fg) {
 		errno = 0;
-		EINTRLOOP(retval, system(command));
+		EINTRLOOP(retval, system(cast_const_char command));
 		return retval;
 	}
 
 	run=subst_file(*x_driver.shell?x_driver.shell:(unsigned char *)"xterm -e %",command, 0);
 	errno = 0;
-	EINTRLOOP(retval, system(run));
+	EINTRLOOP(retval, system(cast_const_char run));
 	mem_free(run);
 	return retval;
 }
 
 struct graphics_driver x_driver={
-	"x",
+	cast_uchar "x",
 	x_init_driver,
 	x_init_device,
 	x_shutdown_device,

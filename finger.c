@@ -28,13 +28,13 @@ static void finger_send_request(struct connection *c)
 	unsigned char *req = init_str();
 	int rl = 0;
 	unsigned char *user;
-	add_to_str(&req, &rl, "/W");
+	add_to_str(&req, &rl, cast_uchar "/W");
 	if ((user = get_user_name(c->url))) {
-		add_to_str(&req, &rl, " ");
+		add_to_str(&req, &rl, cast_uchar " ");
 		add_to_str(&req, &rl, user);
 		mem_free(user);
 	}
-	add_to_str(&req, &rl, "\r\n");
+	add_to_str(&req, &rl, cast_uchar "\r\n");
 	write_to_socket(c, c->sock1, req, rl, finger_sent_request);
 	mem_free(req);
 	setcstate(c, S_SENT);

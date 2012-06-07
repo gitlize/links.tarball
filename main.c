@@ -225,8 +225,11 @@ static void end_dump(struct object_request *r, void *p)
 			struct fragment *frag;
 			nextfrag:
 			foreach(frag, ce->frag) if (frag->offset <= dump_pos && frag->offset + frag->length > dump_pos) {
-				int l = frag->length - (dump_pos - frag->offset);
-				int w = hard_write(oh, frag->data + dump_pos - frag->offset, l);
+				off_t l;
+				int w;
+				l = frag->length - (dump_pos - frag->offset);
+				if (l >= MAXINT) l = MAXINT;
+				w = hard_write(oh, frag->data + dump_pos - frag->offset, (int)l);
 				if (w != l) {
 					detach_object_connection(r, dump_pos);
 					if (w < 0) fprintf(stderr, "Error writing to stdout: %s.\n", strerror(errno));
@@ -255,7 +258,7 @@ static void end_dump(struct object_request *r, void *p)
 		o.plain = 0;
 		o.frames = 0;
 		o.js_enable = 0;
-		o.framename = "";
+		o.framename = cast_uchar "";
 		if (!(fd->f_data = cached_format_html(fd, r, r->url, &o, NULL))) goto term_1;
 		dump_to_file(fd->f_data, oh);
 		term_1:
@@ -292,7 +295,7 @@ static void init(void)
 
 	initialize_all_subsystems();
 
-	utf8_table = get_cp_index("UTF-8");
+	utf8_table = get_cp_index(cast_uchar "UTF-8");
 
 /* OS/2 has some stupid bug and the pipe must be created before socket :-/ */
 	if (c_pipe(terminal_pipe)) {
@@ -323,7 +326,7 @@ static void init(void)
 		mem_free(info);
 		return;
 	}
-	if ((dds.assume_cp = get_cp_index("ISO-8859-1")) == -1) dds.assume_cp = 0;
+	if ((dds.assume_cp = get_cp_index(cast_uchar "ISO-8859-1")) == -1) dds.assume_cp = 0;
 	load_config();
 	init_b = 1;
 	init_bookmarks();

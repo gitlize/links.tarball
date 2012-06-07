@@ -233,6 +233,12 @@ strtoq(const char *, char **, int);
 
 #define my_intptr_t long
 
+#if defined(__GNUC__) && __GNUC__ >= 2
+#define PRINTF_FORMAT(a, b)	__attribute__((__format__(__printf__, a, b)))
+#else
+#define PRINTF_FORMAT(a, b)
+#endif
+
 #include "os_depx.h"
 
 #include "setup.h"
@@ -250,7 +256,7 @@ strtoq(const char *, char **, int);
 #define RET_FATAL	4
 
 #ifndef HAVE_SNPRINTF
-int my_snprintf(char *, int n, char *format, ...);
+int my_snprintf(char *, int n, char *format, ...) PRINTF_FORMAT(3, 4);
 #define snprintf my_snprintf
 #endif
 #ifndef HAVE_RAISE
@@ -373,9 +379,10 @@ extern int F;
 
 void *do_not_optimize_here(void *p);
 void check_memory_leaks(void);
-void error(unsigned char *, ...);
-void debug_msg(unsigned char *, ...);
-void int_error(unsigned char *, ...);
+void error(char *, ...) PRINTF_FORMAT(1, 2);
+void fatal_exit(char *, ...) PRINTF_FORMAT(1, 2);
+void debug_msg(char *, ...) PRINTF_FORMAT(1, 2);
+void int_error(char *, ...) PRINTF_FORMAT(1, 2);
 extern int errline;
 extern unsigned char *errfile;
 
@@ -384,6 +391,16 @@ extern unsigned char *errfile;
 #define debug errfile = (unsigned char *)__FILE__, errline = __LINE__, debug_msg
 
 /* inline */
+
+#if defined(__SUNPRO_C)
+#define not_reached(x)
+#else
+#define not_reached(x)	x
+#endif
+
+#define cast_const_char	(const char *)
+#define cast_char 	(char *)
+#define cast_uchar 	(unsigned char *)
 
 void fatal_tty_exit(void);
 
@@ -400,7 +417,7 @@ static inline void *x_calloc(size_t x)
 
 #define overalloc()							\
 do {									\
-	error((unsigned char *)"ERROR: attempting to allocate too large block at %s:%d", __FILE__, __LINE__);\
+	error("ERROR: attempting to allocate too large block at %s:%d", __FILE__, __LINE__);\
 	fatal_tty_exit();						\
 	exit(RET_FATAL);						\
 } while (1)	/* while (1) is not a typo --- it's here to allow the
@@ -635,6 +652,8 @@ int start_thread(void (*)(void *, int), void *, int);
 unsigned char *get_clipboard_text(struct terminal *);
 void set_clipboard_text(struct terminal *, unsigned char *);
 int clipboard_support(struct terminal *);
+int is_winnt(void);
+int get_windows_cp(int cons);
 void set_window_title(unsigned char *);
 unsigned char *get_window_title(void);
 int is_safe_in_shell(unsigned char);
@@ -673,11 +692,13 @@ extern unsigned char *clipboard;
 #define ST_SOMETHING_FREED	1
 #define ST_CACHE_EMPTY		2
 
-int shrink_memory(int);
-void register_cache_upcall(int (*)(int), unsigned char *);
+#define MF_GPI			1
+
+int shrink_memory(int, int);
+void register_cache_upcall(int (*)(int), int, unsigned char *);
 void free_all_caches(void);
 extern int malloc_try_hard;
-int out_of_memory(unsigned char *msg, size_t size);
+int out_of_memory(int flags, unsigned char *msg, size_t size);
 
 #ifndef DEBUG_TEST_FREE
 #define debug_test_free(file, line)
@@ -723,6 +744,8 @@ void *get_handler(int, int);
 void set_handlers(int, void (*)(void *), void (*)(void *), void (*)(void *), void *);
 void install_signal_handler(int, void (*)(void *), void *, int);
 void interruptible_signal(int sig, int in);
+void block_signals(int except1, int except2);
+void unblock_signals(void);
 void set_sigcld(void);
 
 /* dns.c */
@@ -808,7 +831,7 @@ struct remaining_info {
 	ttime elapsed;
 	ttime last_time;
 	ttime dis_b;
-	int data_in_secs[CURRENT_SPD_SEC];
+	off_t data_in_secs[CURRENT_SPD_SEC];
 	int timer;
 };
 
@@ -868,7 +891,7 @@ static inline int getpri(struct connection *c)
 {
 	int i;
 	for (i = 0; i < N_PRI; i++) if (c->pri[i]) return i;
-	internal((unsigned char *)"connection has no owner");
+	internal("connection has no owner");
 	return N_PRI;
 }
 
@@ -899,17 +922,19 @@ static inline int getpri(struct connection *c)
 #define S_CANT_READ		(-2000000007)
 #define S_MODIFIED		(-2000000008)
 #define S_BAD_URL		(-2000000009)
-#define S_TIMEOUT		(-2000000010)
-#define S_RESTART		(-2000000011)
-#define S_STATE			(-2000000012)
-#define S_CYCLIC_REDIRECT	(-2000000013)
-#define S_LARGE_FILE		(-2000000014)
-#define S_BLOCKED_URL		(-2000000015)
-#define S_NO_PROXY		(-2000000016)
+#define S_BAD_PROXY		(-2000000010)
+#define S_TIMEOUT		(-2000000011)
+#define S_RESTART		(-2000000012)
+#define S_STATE			(-2000000013)
+#define S_CYCLIC_REDIRECT	(-2000000014)
+#define S_LARGE_FILE		(-2000000015)
+#define S_BLOCKED_URL		(-2000000016)
+#define S_NO_PROXY		(-2000000017)
 
 #define S_HTTP_ERROR		(-2000000100)
 #define S_HTTP_100		(-2000000101)
 #define S_HTTP_204		(-2000000102)
+#define S_HTTPS_FWD_ERROR	(-2000000103)
 
 #define S_FILE_TYPE		(-2000000200)
 #define S_FILE_ERROR		(-2000000201)
@@ -957,6 +982,7 @@ struct status {
 	struct remaining_info *prg;
 };
 
+unsigned char *get_proxy_string(unsigned char *url);
 unsigned char *get_proxy(unsigned char *url);
 void check_queue(void *dummy);
 unsigned long connect_info(int);
@@ -1029,6 +1055,7 @@ struct read_buffer {
 int socket_and_bind(unsigned char *address);
 void close_socket(int *);
 void make_connection(struct connection *, int, int *, void (*)(struct connection *));
+void continue_connection(struct connection *, int *, void (*)(struct connection *));
 int get_pasv_socket(struct connection *, int, int *, unsigned char *);
 void write_to_socket(struct connection *, int, unsigned char *, int, void (*)(struct connection *));
 struct read_buffer *alloc_read_buffer(struct connection *c);
@@ -1045,7 +1072,6 @@ struct cookie {
 	unsigned char *path, *domain;
 	time_t expires; /* zero means undefined */
 	int secure;
-	int id;
 };
 
 struct c_domain {
@@ -1070,7 +1096,7 @@ void free_cookie(struct cookie *c);
 /* auth.c */
 
 unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy);
-unsigned char *get_auth_string(unsigned char *url);
+unsigned char *get_auth_string(unsigned char *url, int proxy);
 void cleanup_auth(void);
 void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, unsigned char *password, int proxy);
 int find_auth(unsigned char *url, unsigned char *realm);
@@ -1461,7 +1487,7 @@ struct read_work{
 };
 
 struct letter {
-        int begin; /* Begin in the byte stream (of PNG data) */
+        unsigned char *begin; /* Begin in the byte stream (of PNG data) */
         int length; /* Length (in bytes) of the PNG data in the byte stream */
         int code; /* Unicode code of the character */
         int xsize; /* x size of the PNG image */
@@ -1596,14 +1622,14 @@ static inline long dip_get_color_sRGB(int rgb)
 
 
 void init_dip(void);
-void get_links_icon(unsigned char **data, int *width, int* height, int depth);
+void get_links_icon(unsigned char **data, int *width, int *height, int *skip, int pad);
 
 #endif
 
 /* links_icon.c */
 
 #ifdef G
-extern unsigned char *links_icon;
+extern unsigned char links_icon[];
 #endif /* #ifdef G */
 
 /* dither.c */
@@ -1958,8 +1984,8 @@ struct block {
 };
 extern struct list blocks;
 int is_url_blocked(unsigned char* url);
-void block_add_URL(struct terminal *term, void *xxx, struct session *ses);
-void* block_add_URL_fn(struct session *ses, unsigned char* url);
+void block_url_query(struct session *ses, unsigned char *u);
+void* block_url_add(struct session *ses, unsigned char *url);
 void block_manager(struct terminal *term,void *fcp,struct session *ses);
 void free_blocks(void);
 
@@ -1992,7 +2018,7 @@ struct object_request {
 	int state;
 	int timer;
 
-	int last_bytes;
+	off_t last_bytes;
 
 	ttime last_update;
 	ttime z;
@@ -3958,7 +3984,7 @@ void free_menu(struct menu_item *);
 void do_select_submenu(struct terminal *, struct menu_item *, struct session *);
 
 void clr_white(unsigned char *name);
-void clr_spaces(unsigned char *name);
+void clr_spaces(unsigned char *name, int firstlast);
 
 /* html_r.c */
 
@@ -4156,6 +4182,7 @@ extern int font_cache_size;
 struct proxies {
 	unsigned char http_proxy[MAX_STR_LEN];
 	unsigned char ftp_proxy[MAX_STR_LEN];
+	unsigned char https_proxy[MAX_STR_LEN];
 	unsigned char socks_proxy[MAX_STR_LEN];
 	unsigned char dns_append[MAX_STR_LEN];
 	int only_proxies;

@@ -87,11 +87,10 @@ static unsigned char *make_html_font_name(int attr)
 	int len;
 	
 	str=init_str();len=0;
-	add_to_str(&str, &len, G_HTML_DEFAULT_FAMILY);
-	add_to_str(&str, &len, attr & AT_BOLD ? "-bold" : "-medium");
-	add_to_str(&str, &len, attr & AT_ITALIC ? "-italic-serif" :
-			"-roman-serif");
-	add_to_str(&str, &len, attr & AT_FIXED ? "-mono" : "-vari");
+	add_to_str(&str, &len, cast_uchar G_HTML_DEFAULT_FAMILY);
+	add_to_str(&str, &len, attr & AT_BOLD ? cast_uchar "-bold" : cast_uchar "-medium");
+	add_to_str(&str, &len, attr & AT_ITALIC ? cast_uchar "-italic-serif" : cast_uchar "-roman-serif");
+	add_to_str(&str, &len, attr & AT_FIXED ? cast_uchar "-mono" : cast_uchar "-vari");
 	return str;
 }
 
@@ -145,7 +144,7 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 		struct g_object_text *go = (struct g_object_text *)l->entries[i];
 		if (go->draw == g_text_draw) {
 			int l;
-			while ((l = strlen(go->text)) && go->text[l - 1] == ' ') go->text[l - 1] = 0, go->xw -= g_char_width(go->style, ' ');
+			while ((l = strlen(cast_const_char go->text)) && go->text[l - 1] == ' ') go->text[l - 1] = 0, go->xw -= g_char_width(go->style, ' ');
 			if (go->xw < 0) internal("xw(%d) < 0", go->xw);
 		}
 		if (!go->xw) continue;
@@ -264,20 +263,20 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		goto nt2;
 	}
 #ifdef DEBUG
-	if (ptr < text->text || ptr >= text->text + strlen(text->text))
-		internal("split_line_object: split point (%p) pointing out of object (%p,%lx)", ptr, text->text, (unsigned long)strlen(text->text));
+	if (ptr < text->text || ptr >= text->text + strlen(cast_const_char text->text))
+		internal("split_line_object: split point (%p) pointing out of object (%p,%lx)", ptr, text->text, (unsigned long)strlen(cast_const_char text->text));
 #endif
-	t2 = mem_calloc(sizeof(struct g_object_text) + strlen(ptr));
+	t2 = mem_calloc(sizeof(struct g_object_text) + strlen(cast_const_char ptr));
 	t2->mouse_event = g_text_mouse;
 	t2->draw = g_text_draw;
 	t2->destruct = g_text_destruct;
 	t2->get_list = NULL;
 	if (*ptr == ' ') {
-		strcpy(t2->text, ptr + 1);
+		strcpy(cast_char t2->text, cast_const_char(ptr + 1));
 		*ptr = 0;
 		/*debug("split: (%s)(%s)", text->text, ptr + 1);*/
 	} else {
-		strcpy(t2->text, ptr);
+		strcpy(cast_char t2->text, cast_const_char ptr);
 		ptr[0] = '-';
 		ptr[1] = 0;
 	}
@@ -337,7 +336,7 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 	p->w.last_wrap_obj = NULL;
 	t2 = p->text;
 	if (t2) {
-		int sl = strlen(t2->text);
+		int sl = strlen(cast_const_char t2->text);
 		if (sl >= 1 && t2->text[sl - 1] == ' ') {
 			p->w.last_wrap = &t2->text[sl - 1];
 			p->w.last_wrap_obj = t2;
@@ -399,13 +398,13 @@ static void g_html_form_control(struct g_part *p, struct form_control *fc)
 	}
 	fc->g_ctrl_num = g_ctrl_num++;
 	if (fc->type == FC_TEXT || fc->type == FC_PASSWORD || fc->type == FC_TEXTAREA) {
-		unsigned char *dv = convert_string(convert_table, fc->default_value, strlen(fc->default_value), d_opt);
+		unsigned char *dv = convert_string(convert_table, fc->default_value, strlen(cast_const_char fc->default_value), d_opt);
 		if (dv) {
 			mem_free(fc->default_value);
 			fc->default_value = dv;
 		}
 		/*
-		for (i = 0; i < fc->nvalues; i++) if ((dv = convert_string(convert_table, fc->values[i], strlen(fc->values[i]), d_opt))) {
+		for (i = 0; i < fc->nvalues; i++) if ((dv = convert_string(convert_table, fc->values[i], strlen(cast_const_char fc->values[i]), d_opt))) {
 			mem_free(fc->values[i]);
 			fc->values[i] = dv;
 		}
@@ -414,7 +413,7 @@ static void g_html_form_control(struct g_part *p, struct form_control *fc)
 	if (fc->type == FC_TEXTAREA) {
 		unsigned char *p;
 		for (p = fc->default_value; p[0]; p++) if (p[0] == '\r') {
-			if (p[1] == '\n') memmove(p, p + 1, strlen(p)), p--;
+			if (p[1] == '\n') memmove(p, p + 1, strlen(cast_const_char p)), p--;
 			else p[0] = '\n';
 		}
 	}
@@ -516,7 +515,13 @@ static void do_image(struct g_part *p, struct image_description *im)
 				struct link_def *ld = menu[i].data;
 				struct map_area *a;
 				struct link *link;
-				int shape = !ld->shape || !*ld->shape ? SHAPE_RECT : !strcasecmp(ld->shape, "default") ? SHAPE_DEFAULT : !strcasecmp(ld->shape, "rect") ? SHAPE_RECT : !strcasecmp(ld->shape, "circle") ? SHAPE_CIRCLE : !strcasecmp(ld->shape, "poly") || !strcasecmp(ld->shape, "polygon") ? SHAPE_POLY : -1;
+				int shape =
+	!ld->shape || !*ld->shape ? SHAPE_RECT :
+	!strcasecmp(cast_const_char ld->shape, "default") ? SHAPE_DEFAULT :
+	!strcasecmp(cast_const_char ld->shape, "rect") ? SHAPE_RECT :
+	!strcasecmp(cast_const_char ld->shape, "circle") ? SHAPE_CIRCLE :
+	!strcasecmp(cast_const_char ld->shape, "poly") ||
+	!strcasecmp(cast_const_char ld->shape, "polygon") ? SHAPE_POLY : -1;
 				if (shape == -1) continue;
 				if ((unsigned)map->n_areas > (MAXINT - sizeof(struct image_map)) / sizeof(struct map_area) - 1) overalloc();
 				map = mem_realloc(map, sizeof(struct image_map) + (map->n_areas + 1) * sizeof(struct map_area));
@@ -623,11 +628,11 @@ static void *g_html_special(void *p_, int c, ...)
 			t = va_arg(l, unsigned char *);
 			va_end(l);
 			/* not needed to convert %AB here because html_tag will be called anyway */
-			tag = mem_calloc(sizeof(struct g_object_tag) + strlen(t));
+			tag = mem_calloc(sizeof(struct g_object_tag) + strlen(cast_const_char t));
 			tag->mouse_event = g_dummy_mouse;
 			tag->draw = g_dummy_draw;
 			tag->destruct = g_tag_destruct;
-			strcpy(tag->name, t);
+			strcpy(cast_char tag->name, cast_const_char t);
 			flush_pending_text_to_line(p);
 			add_object_to_line(p, &p->line, (struct g_object *)tag);
 			break;
@@ -776,7 +781,7 @@ again:
 		p->text = t;
 	}
 	if (p->pending_text_len == -1) {
-		p->pending_text_len = strlen(p->text->text);
+		p->pending_text_len = strlen(cast_const_char p->text->text);
 		ptl = p->pending_text_len;
 		if (!ptl) ptl = 1;
 		goto a1;
@@ -841,8 +846,8 @@ again:
 			format.js_event = NULL;
 			s[0] = '[';
 			snzprint(s + 1, 62, p->link_num);
-			strcat(s, "]");
-			g_put_chars(p, s, strlen(s));
+			strcat(cast_char s, "]");
+			g_put_chars(p, s, strlen(cast_const_char s));
 			if (ff && ff->type == FC_TEXTAREA) g_line_break(p);
 			if (p->cx < par_format.leftmargin * G_HTML_MARGIN) p->cx = par_format.leftmargin * G_HTML_MARGIN;
 			format.link = fl, format.target = ft, format.image = fi;

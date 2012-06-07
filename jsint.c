@@ -131,7 +131,7 @@ a_znova:
 		goto a_znova;
 	}
 
-	next=semic1?semic1+1:str+strlen(str);
+	next=semic1?semic1+1:str+strlen(cast_const_char str);
 	if (!eq1)	/* neni tam '=', takze to preskocime */
 	{
 		str=next;
@@ -171,7 +171,7 @@ a_znova:
 		if (!p)p=strstr(semic1+1,"VERSION");
 		if (p&&p>semic1&&p<eq2)  /* za 1. prirazenim nasleduje "expires=", takze to je porad jedna susenka */
 			{
-				next=semic2?semic2+1:str+strlen(str);
+				next=semic2?semic2+1:str+strlen(cast_const_char str);
 				semic1=semic2;
 				goto next_par;
 			}
@@ -229,7 +229,7 @@ void javascript_func(struct session *ses, unsigned char *hlavne_ze_je_vecirek)
 {
 	unsigned char *code=get_url_data(hlavne_ze_je_vecirek);
 
-	jsint_execute_code(current_frame(ses),code,strlen(code),-1,-1,-1, NULL);
+	jsint_execute_code(current_frame(ses),code,strlen(cast_const_char code),-1,-1,-1, NULL);
 }
 
 void jsint_send_event(struct f_data_c *fd, struct event *ev)
@@ -252,7 +252,7 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 	
 	/*
 	FUJ !!!!
-	if (!strncasecmp(code,"javascript:",strlen("javascript:")))code+=strlen("javascript:");
+	if (!strncasecmp(cast_const_char code,"javascript:",strlen(cast_const_char "javascript:")))code+=strlen(cast_const_char "javascript:");
 	*/
 
 	if (len >= 11 && !casecmp(code, "javascript:", 11)) code += 11, len -= 11;
@@ -413,7 +413,7 @@ int jsint_can_access(struct f_data_c *running, struct f_data_c *accessed)
 
 	h1 = get_host_name(running->rq->url);
 	h2 = get_host_name(accessed->rq->url);
-	a = !strcasecmp(h1, h2);
+	a = !strcasecmp(cast_const_char h1, cast_const_char h2);
 	mem_free(h1);
 	mem_free(h2);
 	return a;
@@ -489,7 +489,7 @@ void jsint_scan_script_tags(struct f_data_c *fd)
 	{
 		if (onload_code && fd->script_t != -1)
 		{
-			jsint_execute_code(fd,onload_code,strlen(onload_code),-1,-1,-1, NULL);
+			jsint_execute_code(fd,onload_code,strlen(cast_const_char onload_code),-1,-1,-1, NULL);
 		}
 		fd->script_t = -1;
 		goto ret;
@@ -753,7 +753,7 @@ static long *find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, lon
 
 	/* search frame */
 	foreach(ff,fd->subframes)
-		if (ff->loc&&ff->loc->name&&!strcmp(ff->loc->name,takhle_tomu_u_nas_nadavame)&&jsint_can_access(js_ctx,ff))	/* to je on! */
+		if (ff->loc&&ff->loc->name&&!strcmp(cast_const_char ff->loc->name,cast_const_char takhle_tomu_u_nas_nadavame)&&jsint_can_access(js_ctx,ff))	/* to je on! */
 			if (!(pole_vole=add_id(pole_vole,n_items,js_upcall_get_frame_id(ff))))return NULL;
 
 	if (!(fd->f_data))goto a_je_po_ptakach;
@@ -767,18 +767,18 @@ static long *find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, lon
 		struct g_object_image goi;
 
 		gi = (struct g_object_image *)((char *)fi + ((char *)(&goi) - (char *)(&(goi.image_list))));
-		if (gi->name&&!strcmp(gi->name, takhle_tomu_u_nas_nadavame))
+		if (gi->name&&!strcmp(cast_const_char gi->name, cast_const_char takhle_tomu_u_nas_nadavame))
 			if (!(pole_vole=add_id(pole_vole,n_items,JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE))))return NULL;
 	}
 #endif
 	/* search forms */
 	foreachback(f,fd->f_data->forms)
-		if (f->form_name&&!strcmp(f->form_name,takhle_tomu_u_nas_nadavame))   /* tak tohle JE Jim Beam */
+		if (f->form_name&&!strcmp(cast_const_char f->form_name,cast_const_char takhle_tomu_u_nas_nadavame))   /* tak tohle JE Jim Beam */
 			if (!(pole_vole=add_id(pole_vole,n_items,((f->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM)))return NULL;
 
 	/* search form elements */
 	foreachback(f,fd->f_data->forms)
-		if (f->name&&!strcmp(f->name,takhle_tomu_u_nas_nadavame))   /* tak tohle JE Jim Beam */
+		if (f->name&&!strcmp(cast_const_char f->name,cast_const_char takhle_tomu_u_nas_nadavame))   /* tak tohle JE Jim Beam */
 		{
 			long tak_mu_to_ukaz=0;
 			tak_mu_to_ukaz=(f->g_ctrl_num)<<JS_OBJ_MASK_SIZE;
@@ -849,7 +849,7 @@ long *jsint_resolve(void *context, long obj_id, char *takhle_tomu_u_nas_nadavame
 			foreachback(f,js_ctx->f_data->forms)
 			{
 				if (f->form_num==fc->form_num)	/* this form */
-					if (f->name&&!strcmp(f->name,takhle_tomu_u_nas_nadavame))   /* this IS Jim Beam */
+					if (f->name&&!strcmp(cast_const_char f->name,cast_const_char takhle_tomu_u_nas_nadavame))   /* this IS Jim Beam */
 					{
 						long tak_mu_to_ukaz=0;
 						tak_mu_to_ukaz=(f->g_ctrl_num)<<JS_OBJ_MASK_SIZE;
@@ -1001,7 +1001,7 @@ unsigned char *js_upcall_get_title(void *data)
 	if (fd->f_data)
 	{
 		ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-		t = convert_string(ct, title, strlen(title), NULL);
+		t = convert_string(ct, title, strlen(cast_const_char title), NULL);
 		mem_free(title);
 		title=t;
 	}
@@ -1028,7 +1028,7 @@ void js_upcall_set_title(void *data, unsigned char *title)
 	fd->f_data->title=init_str();
 	fd->f_data->uncacheable=1;
 	ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-	t = convert_string(ct, title, strlen(title), NULL);
+	t = convert_string(ct, title, strlen(cast_const_char title), NULL);
 	add_to_str(&(fd->f_data->title),&l,t);
 	mem_free(t);
 
@@ -1259,7 +1259,7 @@ void js_upcall_confirm(void *data)
 		struct conv_table* ct;
 		
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		txt=convert_string(ct,s->string,strlen(s->string),NULL);
+		txt=convert_string(ct,s->string,strlen(cast_const_char s->string),NULL);
 	}
 	else
 		txt=stracpy(s->string);
@@ -1329,7 +1329,7 @@ void js_upcall_alert(void * data)
 		struct conv_table* ct;
 		
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		txt=convert_string(ct,s->string,strlen(s->string),NULL);
+		txt=convert_string(ct,s->string,strlen(cast_const_char s->string),NULL);
 	}
 	else
 		txt=stracpy(s->string);
@@ -2231,7 +2231,7 @@ void js_upcall_set_form_element_name(void *bidak, long document_id, long ksunt_i
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla){if (name)mem_free(name);return;}
 	
-	if ((name||(hopla->fc->name))&&strcmp(name,hopla->fc->name))
+	if ((name||(hopla->fc->name))&&strcmp(cast_const_char name,cast_const_char hopla->fc->name))
 	{
 		mem_free(hopla->fc->name);
 		hopla->fc->name=stracpy(name);
@@ -2279,7 +2279,7 @@ unsigned char *js_upcall_get_form_element_default_value(void *bidak, long docume
 	if (!hopla)return NULL;
 	
 	ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-	hele_ho_bidaka=convert_string(ct,hopla->fc->default_value,strlen(hopla->fc->default_value),NULL);
+	hele_ho_bidaka=convert_string(ct,hopla->fc->default_value,strlen(cast_const_char hopla->fc->default_value),NULL);
 
 	mem_free(hopla);
 	return hele_ho_bidaka;
@@ -2321,13 +2321,13 @@ void js_upcall_set_form_element_default_value(void *bidak, long document_id, lon
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla){if (name)mem_free(name);return;}
 	
-	if ((name||(hopla->fc->default_value))&&strcmp(name,hopla->fc->default_value))
+	if ((name||(hopla->fc->default_value))&&strcmp(cast_const_char name,cast_const_char hopla->fc->default_value))
 	{
 		struct conv_table *ct;
 		
 		mem_free(hopla->fc->default_value);
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		hopla->fc->default_value=convert_string(ct,name,strlen(name),NULL);
+		hopla->fc->default_value=convert_string(ct,name,strlen(cast_const_char name),NULL);
 		fd->f_data->uncacheable=1;
 	}
 	mem_free(hopla);
@@ -2417,7 +2417,7 @@ unsigned char *js_upcall_get_form_element_value(void *bidak, long document_id, l
 	if (!hopla)return NULL;
 	
 	ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-	hele_ho_bidaka=convert_string(ct,hopla->fs->value,strlen(hopla->fs->value),NULL);
+	hele_ho_bidaka=convert_string(ct,hopla->fs->value,strlen(cast_const_char hopla->fs->value),NULL);
 
 	mem_free(hopla);
 	return hele_ho_bidaka;
@@ -2458,13 +2458,13 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 	
 	mem_free(hopla->fs->value);
 	ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-	hopla->fs->value=convert_string(ct,name,strlen(name),NULL);
+	hopla->fs->value=convert_string(ct,name,strlen(cast_const_char name),NULL);
 
-	if ((size_t)hopla->fs->state > strlen(hopla->fs->value))
-		hopla->fs->state = strlen(hopla->fs->value);
+	if ((size_t)hopla->fs->state > strlen(cast_const_char hopla->fs->value))
+		hopla->fs->state = strlen(cast_const_char hopla->fs->value);
 	if ((ksunt_id&JS_OBJ_MASK) != JS_OBJ_T_TEXTAREA) {
-		if ((size_t)hopla->fs->vpos > strlen(hopla->fs->value))
-			hopla->fs->vpos = strlen(hopla->fs->value);
+		if ((size_t)hopla->fs->vpos > strlen(cast_const_char hopla->fs->value))
+			hopla->fs->vpos = strlen(cast_const_char hopla->fs->value);
 	}
 	mem_free(hopla);
 	if (name)mem_free(name);
@@ -2586,7 +2586,7 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 					}
 #endif
 					if (l->js_event&&l->js_event->focus_code)
-						jsint_execute_code(fd,l->js_event->focus_code,strlen(l->js_event->focus_code),-1,-1,-1, NULL);
+						jsint_execute_code(fd,l->js_event->focus_code,strlen(cast_const_char l->js_event->focus_code),-1,-1,-1, NULL);
 
 					/*draw_fd(fd);*/
 					draw_formatted(ses);
@@ -2635,7 +2635,7 @@ void js_upcall_blur(void *bidak, long document_id, long elem_id)
 					{
 						fd->ses->locked_link=0;
 						if (l->js_event&&l->js_event->blur_code)
-							jsint_execute_code(fd,l->js_event->blur_code,strlen(l->js_event->blur_code),-1,-1,-1, NULL);
+							jsint_execute_code(fd,l->js_event->blur_code,strlen(cast_const_char l->js_event->blur_code),-1,-1,-1, NULL);
 
 						/* pro jistotu */
 						draw_fd(fd);
@@ -2722,7 +2722,7 @@ int js_upcall_get_radio_length(void *p, long document_id, long radio_id)
 
 	/* find form elements with the same type, form_num (belonging to the same form) and name */
 	foreachback(f,fd->f_data->forms)
-		if (f->type==radio->type&&f->form_num==radio->form_num&&!strcmp(radio->name,f->name))count++;
+		if (f->type==radio->type&&f->form_num==radio->form_num&&!strcmp(cast_const_char radio->name,cast_const_char f->name))count++;
 	mem_free(hopla);
 	return count;
 }
@@ -2908,7 +2908,7 @@ void js_upcall_goto_url(void * data)
 			void *p;
 	
 			p=get_current_url(fd->ses,txt,MAX_STR_LEN);
-			if (p&&fd->loc&&fd->loc->url&&!strcmp(txt,dest_url))
+			if (p&&fd->loc&&fd->loc->url&&!strcmp(cast_const_char txt,cast_const_char dest_url))
 			{
 				mem_free(dest_url);
 				js_mem_free(data);
@@ -3058,7 +3058,7 @@ void js_upcall_goto_history(void * data)
 
 		foreach(loc,fd->ses->history)
 		{
-			if (!strcmp(s->string,loc->url)){url=stracpy(s->string);history_num=a;break;}
+			if (!strcmp(cast_const_char s->string,cast_const_char loc->url)){url=stracpy(s->string);history_num=a;break;}
 			a++;
 		}
 	}
@@ -3127,7 +3127,7 @@ void js_upcall_set_default_status(void *context, unsigned char *tak_se_ukaz_Kolb
 		struct conv_table* ct; /* ... a ted ty pochybne reci o majetku ... */
 		
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		trouba=convert_string(ct,tak_se_ukaz_Kolbene,strlen(tak_se_ukaz_Kolbene),NULL); /* Taky to mate levnejsi - jinak by to stalo deset! */
+		trouba=convert_string(ct,tak_se_ukaz_Kolbene,strlen(cast_const_char tak_se_ukaz_Kolbene),NULL); /* Taky to mate levnejsi - jinak by to stalo deset! */
 		mem_free(tak_se_ukaz_Kolbene);
 		/* a je to v troube... */
 	}
@@ -3159,7 +3159,7 @@ unsigned char* js_upcall_get_default_status(void *context)
 		struct conv_table* ct;
 		
 		ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-		trouba=convert_string(ct,tak_se_ukaz_Danku,strlen(tak_se_ukaz_Danku),NULL);
+		trouba=convert_string(ct,tak_se_ukaz_Danku,strlen(cast_const_char tak_se_ukaz_Danku),NULL);
 		mem_free(tak_se_ukaz_Danku);
 	}
 	else
@@ -3192,7 +3192,7 @@ void js_upcall_set_status(void *context, unsigned char *tak_se_ukaz_Kolbene)
 		struct conv_table* ct;
 		
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		trouba=convert_string(ct,tak_se_ukaz_Kolbene,strlen(tak_se_ukaz_Kolbene),NULL);
+		trouba=convert_string(ct,tak_se_ukaz_Kolbene,strlen(cast_const_char tak_se_ukaz_Kolbene),NULL);
 		mem_free(tak_se_ukaz_Kolbene);
 		/* a je to v troube... */
 	}
@@ -3223,7 +3223,7 @@ unsigned char* js_upcall_get_status(void *context)
 		struct conv_table* ct;
 		
 		ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-		trouba=convert_string(ct,tak_se_ukaz_Danku,strlen(tak_se_ukaz_Danku),NULL);
+		trouba=convert_string(ct,tak_se_ukaz_Danku,strlen(cast_const_char tak_se_ukaz_Danku),NULL);
 		mem_free(tak_se_ukaz_Danku);
 	}
 	else

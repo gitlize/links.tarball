@@ -11,8 +11,6 @@
 
 static int accept_cookies = ACCEPT_ALL;
 
-static tcount cookie_id = 0;
-
 struct list_head cookies = { &cookies, &cookies };
 
 struct list_head c_domains = { &c_domains, &c_domains };
@@ -39,22 +37,30 @@ static int check_domain_security(unsigned char *server, unsigned char *domain)
 {
 	size_t i, j, dl;
 	int nd;
-	unsigned char *tld[] = { ".com", ".edu", ".net", ".org", ".gov", ".mil", ".int", NULL };
+	char *tld[] = {
+		".com",
+		".edu",
+		".net",
+		".org",
+		".gov",
+		".mil",
+		".int",
+		NULL };
 	if (domain[0] == '.') domain++;
-	dl = strlen(domain);
-	if (dl > strlen(server)) return 1;
-	for (i = strlen(server) - dl, j = 0; server[i]; i++, j++)
+	dl = strlen(cast_const_char domain);
+	if (dl > strlen(cast_const_char server)) return 1;
+	for (i = strlen(cast_const_char server) - dl, j = 0; server[i]; i++, j++)
 		if (upcase(server[i]) != upcase(domain[j])) return 1;
 	nd = 2;
 	for (i = 0; tld[i]; i++) {
-		size_t tl = strlen(tld[i]);
-		if (dl > tl && !casecmp(tld[i], &domain[dl - tl], tl)) {
+		size_t tl = strlen(cast_const_char tld[i]);
+		if (dl > tl && !casecmp(cast_uchar tld[i], &domain[dl - tl], tl)) {
 			nd = 1;
 			break;
 		}
 	}
 	if (nd == 2) {
-		unsigned char *last_dot = strrchr(domain, '.');
+		unsigned char *last_dot = cast_uchar strrchr(cast_const_char domain, '.');
 		i = 0;
 		if (last_dot) {
 			while (last_dot > domain) {
@@ -95,7 +101,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	cookie->name = memacpy(str, q - str);
 	cookie->value = !noval ? memacpy(q + 1, p - q - 1) : NULL;
 	cookie->server = stracpy(server);
-	date = parse_header_param(str, "expires", 0);
+	date = parse_header_param(str, cast_uchar "expires", 0);
 	if (date) {
 		cookie->expires = parse_http_date(date);
 		/* kdo tohle napsal a proc ?? */
@@ -103,16 +109,16 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 		mem_free(date);
 	} else
 		cookie->expires = 0;
-	if (!(cookie->path = parse_header_param(str, "path", 0))) {
+	if (!(cookie->path = parse_header_param(str, cast_uchar "path", 0))) {
 		/*unsigned char *w;*/
-		cookie->path = stracpy("/");
+		cookie->path = stracpy(cast_uchar "/");
 		/*
 		add_to_strn(&cookie->path, document);
 		for (w = cookie->path; *w; w++) if (end_of_dir(cookie->path, *w)) {
 			*w = 0;
 			break;
 		}
-		for (w = cookie->path + strlen(cookie->path) - 1; w >= cookie->path; w--)
+		for (w = cookie->path + strlen(cast_const_char cookie->path) - 1; w >= cookie->path; w--)
 			if (*w == '/') {
 				w[1] = 0;
 				break;
@@ -120,14 +126,14 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 		*/
 	} else {
 		if (cookie->path[0] != '/') {
-			add_to_strn(&cookie->path, "x");
-			memmove(cookie->path + 1, cookie->path, strlen(cookie->path) - 1);
+			add_to_strn(&cookie->path, cast_uchar "x");
+			memmove(cookie->path + 1, cookie->path, strlen(cast_const_char cookie->path) - 1);
 			cookie->path[0] = '/';
 		}
 	}
-	if (!(cookie->domain = parse_header_param(str, "domain", 0))) cookie->domain = stracpy(server);
-	if (cookie->domain[0] == '.') memmove(cookie->domain, cookie->domain + 1, strlen(cookie->domain));
-	if ((s = parse_header_param(str, "secure", 0))) {
+	if (!(cookie->domain = parse_header_param(str, cast_uchar "domain", 0))) cookie->domain = stracpy(server);
+	if (cookie->domain[0] == '.') memmove(cookie->domain, cookie->domain + 1, strlen(cast_const_char cookie->domain));
+	if ((s = parse_header_param(str, cast_uchar "secure", 0))) {
 		cookie->secure = 1;
 		mem_free(s);
 	} else cookie->secure = 0;
@@ -135,8 +141,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 		mem_free(cookie->domain);
 		cookie->domain = stracpy(server);
 	}
-	cookie->id = cookie_id++;
-	foreach (cs, c_servers) if (!strcasecmp(cs->server, server)) {
+	foreach (cs, c_servers) if (!strcasecmp(cast_const_char cs->server, cast_const_char server)) {
 		if (cs->accpt) goto ok;
 		else {
 			free_cookie(cookie);
@@ -161,96 +166,39 @@ static void accept_cookie(struct cookie *c)
 {
 	struct c_domain *cd;
 	struct cookie *d, *e;
-	foreach(d, cookies) if (!strcasecmp(d->name, c->name) && !strcasecmp(d->domain, c->domain)) {
+	foreach(d, cookies) if (!strcasecmp(cast_const_char d->name, cast_const_char c->name) && !strcasecmp(cast_const_char d->domain, cast_const_char c->domain)) {
 		e = d;
 		d = d->prev;
 		del_from_list(e);
 		free_cookie(e);
 		mem_free(e);
 	}
-	if (c->value && !strcasecmp(c->value, "deleted")) {
+	if (c->value && !strcasecmp(cast_const_char c->value, "deleted")) {
 		free_cookie(c);
 		mem_free(c);
 		return;
 	}
 	add_to_list(cookies, c);
-	foreach(cd, c_domains) if (!strcasecmp(cd->domain, c->domain)) return;
-	cd = mem_alloc(sizeof(struct c_domain) + strlen(c->domain) + 1);
-	strcpy(cd->domain, c->domain);
+	foreach(cd, c_domains) if (!strcasecmp(cast_const_char cd->domain, cast_const_char c->domain)) return;
+	cd = mem_alloc(sizeof(struct c_domain) + strlen(cast_const_char c->domain) + 1);
+	strcpy(cast_char cd->domain, cast_const_char c->domain);
 	add_to_list(c_domains, cd);
 }
 
-#if 0
-static void delete_cookie(struct cookie *c)
-{
-	struct c_domain *cd;
-	struct cookie *d;
-	foreach(d, cookies) if (!strcasecmp(d->domain, c->domain)) goto x;
-	foreach(cd, c_domains) if (!strcasecmp(cd->domain, c->domain)) {
-		del_from_list(cd);
-		mem_free(cd);
-		break;
-	}
-	x:
-	del_from_list(c);
-	free_cookie(c);
-	mem_free(c);
-}
-
-static struct cookie *find_cookie_id(void *idp)
-{
-	long id = (my_intptr_t)idp;
-	struct cookie *c;
-	foreach(c, cookies) if (c->id == id) return c;
-	return NULL;
-}
-
-static void reject_cookie(void *idp)
-{
-	struct cookie *c;
-	if (!(c = find_cookie_id(idp))) return;
-	delete_cookie(c);
-}
-
-static void cookie_default(void *idp, int a)
-{
-	struct cookie *c;
-	struct c_server *s;
-	if (!(c = find_cookie_id(idp))) return;
-	foreach(s, c_servers) if (!strcasecmp(s->server, c->server)) goto found;
-	s = mem_alloc(sizeof(struct c_server) + strlen(c->server) + 1);
-	strcpy(s->server, c->server);
-	add_to_list(c_servers, s);
-	found:
-	s->accpt = a;
-}
-
-static void accept_cookie_always(void *idp)
-{
-	cookie_default(idp, 1);
-}
-
-static void accept_cookie_never(void *idp)
-{
-	cookie_default(idp, 0);
-	reject_cookie(idp);
-}
-#endif
-
 int is_in_domain(unsigned char *d, unsigned char *s)
 {
-	int dl = strlen(d);
-	int sl = strlen(s);
+	int dl = strlen(cast_const_char d);
+	int sl = strlen(cast_const_char s);
 	if (dl > sl) return 0;
-	if (dl == sl) return !strcasecmp(d, s);
+	if (dl == sl) return !strcasecmp(cast_const_char d, cast_const_char s);
 	if (s[sl - dl - 1] != '.') return 0;
 	return !casecmp(d, s + sl - dl, dl);
 }
 
 int is_path_prefix(unsigned char *d, unsigned char *s)
 {
-	int dl = strlen(d);
-	int sl = strlen(s);
+	int dl = strlen(cast_const_char d);
+	int sl = strlen(cast_const_char s);
 	if (!dl) return 1;
 	if (dl > sl) return 0;
 	if (memcmp(d, s, dl)) return 0;
@@ -285,16 +233,16 @@ void add_cookies(unsigned char **s, int *l, unsigned char *url)
 			mem_free(d);
 			continue;
 		}
-		if (c->secure && casecmp(url, "https://", 8)) continue;
-		if (!nc) add_to_str(s, l, "Cookie: "), nc = 1;
-		else add_to_str(s, l, "; ");
+		if (c->secure && casecmp(url, cast_uchar "https://", 8)) continue;
+		if (!nc) add_to_str(s, l, cast_uchar "Cookie: "), nc = 1;
+		else add_to_str(s, l, cast_uchar "; ");
 		add_to_str(s, l, c->name);
 		if (c->value) {
-			add_to_str(s, l, "=");
+			add_to_str(s, l, cast_uchar "=");
 			add_to_str(s, l, c->value);
 		}
 	}
-	if (nc) add_to_str(s, l, "\r\n");
+	if (nc) add_to_str(s, l, cast_uchar "\r\n");
 	mem_free(server);
 }
 

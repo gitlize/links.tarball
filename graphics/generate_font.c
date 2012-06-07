@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <ctype.h>
 #include <png.h>
 
 #ifndef PROGNAME
@@ -40,15 +41,15 @@ int stamp;
 int file_select(const struct dirent * entry)
 {
 
-	char *s=entry->d_name;
+	const char *s=entry->d_name;
 	FILE *f;
 
 	if (strlen(s)!=8) return 0;
-	if (!((s[0]>='0'&&s[0]<='9')||(s[0]>='a'&&s[0]<='f'))) return 0;
-	if (!((s[1]>='0'&&s[1]<='9')||(s[1]>='a'&&s[1]<='f'))) return 0;
-	if (!((s[2]>='0'&&s[2]<='9')||(s[2]>='a'&&s[2]<='f'))) return 0;
-	if (!((s[3]>='0'&&s[3]<='9')||(s[3]>='a'&&s[3]<='f'))) return 0;
-	if (s[4]!='.'||s[5]!='p'||s[6]!='n'||s[7]!='g') return 0;
+	if (!((s[0]>='0'&&s[0]<='9')||(tolower(s[0])>='a'&&tolower(s[0])<='f'))) return 0;
+	if (!((s[1]>='0'&&s[1]<='9')||(tolower(s[1])>='a'&&tolower(s[1])<='f'))) return 0;
+	if (!((s[2]>='0'&&s[2]<='9')||(tolower(s[2])>='a'&&tolower(s[2])<='f'))) return 0;
+	if (!((s[3]>='0'&&s[3]<='9')||(tolower(s[3])>='a'&&tolower(s[3])<='f'))) return 0;
+	if (s[4]!='.'||tolower(s[5])!='p'||tolower(s[6])!='n'||tolower(s[7])!='g') return 0;
 	f=fopen(s,"r");
 	if (!f) return 0; /* If it can't be open as a file then it's probably
 		           * a directory
@@ -77,7 +78,7 @@ int parse_font_name(unsigned char *input, unsigned char **family,
 		p++;
 	}
 	if (dashes!=4) return 1; /* Invalid name structure -- ignore this entry */
-	if (chdir(input)){
+	if (chdir((const char *)input)){
 		/* Is a directory and has appropriate name, but can't
 		 * change into.
 		 */
@@ -139,17 +140,17 @@ int parse_font_name(unsigned char *input, unsigned char **family,
 	/* Now let's append the aliases file contents */
 	f=fopen("aliases","r");
 	if (f){
-		while(fgets(alias,sizeof(alias),f)){
-			int length=strlen(alias);
+		while(fgets((char *)alias,sizeof(alias),f)){
+			int length=strlen((const char *)alias);
 
 			while(length>0&&alias[length-1]=='\n')length--;
 			while(length>0&&alias[length-1]==' ')length--;
 			while(length>0&&alias[length-1]=='\t')length--;
 			alias[length]=0;
 			if (!length) continue;
-			*family=realloc(*family,strlen(*family)+2+strlen(alias));
-			strcpy(*family+strlen(*family),"-");
-			strcpy(*family+strlen(*family),alias);
+			*family=realloc(*family,strlen((const char *)*family)+2+strlen((const char *)alias));
+			strcpy((char *)*family+strlen((const char *)*family),"-");
+			strcpy((char *)*family+strlen((const char *)*family),(const char *)alias);
 		}
 		fclose(f);
 	}
@@ -191,11 +192,11 @@ void get_png_dimensions(int *x, int *y, FILE * stream)
 	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 }
 
+int char_pos=0; /* To not makes lines excessively long. */
+
 /* Returns forbidden_0_to_7 for next char. */
 int print_char(FILE *output, int c, int forbidden_0_to_7)
 {
-	static int char_pos=0; /* To not makes lines excessively long. */
-
 	if (char_pos>=70){
 		fputs("\"\n\"",output);
 		char_pos=0;
@@ -250,8 +251,7 @@ two:
  * output:      where to put the C code
  * char_number: number of the char. -1 means do not write anything into the tables.
 */
-static inline void process_file(unsigned char *name,
-		FILE*output, int char_number)
+void process_file(unsigned char *name, FILE *output, int char_number)
 {
 	FILE *f;
 	int c;
@@ -260,7 +260,7 @@ static inline void process_file(unsigned char *name,
 	unsigned char btr[5];
 	int forbidden_0_to_7;
 
-	f=fopen(name,"r");
+	f=fopen((const char *)name,"r");
 	if (!f){
 		fprintf(stderr,"%s can't open file %s.\n",PROGNAME,
 				name);
@@ -270,18 +270,19 @@ static inline void process_file(unsigned char *name,
 	if (char_number>=0){
 		memcpy(btr,name,4);
 		btr[4]=0;
-		letter_code=strtoul(btr,NULL,16);
+		letter_code=strtoul((const char *)btr,NULL,16);
 		fonts[n_fonts-1].letters[char_number].begin=stamp;
 	}
-	fprintf(output,"\"");
+	char_pos = 38;
+	fprintf(output,"static unsigned char letter_%d[] = \"", stamp);
 	forbidden_0_to_7=0;
 
 	while(EOF!=(c=fgetc(f))){
 		forbidden_0_to_7=print_char(output,c,forbidden_0_to_7);
-		stamp++;
 		count++;
 	}
-	fprintf(output,"\"\n");
+	fprintf(output,"\";\n");
+	stamp++;
 	rewind(f);
 	fonts[n_fonts-1].letters[char_number].length=count;
 	fonts[n_fonts-1].letters[char_number].code=letter_code;
@@ -315,7 +316,7 @@ void process_letters(FILE *output)
 	}
 	ptr=namelist;                                    
 	for(a=0;a<nr;a++){
-		process_file((*ptr)->d_name,output,a);
+		process_file((unsigned char *)(*ptr)->d_name,output,a);
 		free(*ptr);
 		ptr++;
 	}	
@@ -340,23 +341,23 @@ void build_font_table(FILE *output)
 	struct stat stat0;
 	unsigned char *family, *weight, *slant, *adstyl, *spacing;
 	
-	directory_name="system_font";
-	if (0>chdir(directory_name)){
+	directory_name=(unsigned char *)"system_font";
+	if (0>chdir((const char *)directory_name)){
 		fprintf(stderr,"%s: can't change into directory %s.\n",
 		PROGNAME,directory_name);
 		perror(PROGNAME);
 		exit(1);
 	}
-	add_font_name("","","","","");
+	add_font_name((unsigned char *)"",(unsigned char *)"",(unsigned char *)"",(unsigned char *)"",(unsigned char *)"");
 	process_letters(output);
 	if (0>chdir("..")){
 		perror(PROGNAME);
 		exit(1);
 	}
 	
-	directory_name="font";
-	dir=opendir(directory_name);
-	if (0>chdir(directory_name)){
+	directory_name=(unsigned char *)"font";
+	dir=opendir((const char *)directory_name);
+	if (0>chdir((const char *)directory_name)){
 		fprintf(stderr,"%s can't change into directory %s.\n",
 				PROGNAME,directory_name);
 		perror(PROGNAME);
@@ -369,16 +370,28 @@ void build_font_table(FILE *output)
 		exit(1);
 	}
 	while((directory_entry=readdir(dir))){
+		unsigned char *name;
+		int i;
 		if (0>stat(directory_entry->d_name,&stat0)) continue; 
 			/* Can't be stated
 			 */
 		if (!S_ISDIR(stat0.st_mode)) continue; /* Is no directory */
 		/* Process the directory */
-		if (parse_font_name(directory_entry->d_name,&family,&weight,&slant,
+		name = malloc(strlen(directory_entry->d_name) + 1);
+		if (!name){
+			fprintf(stderr,"Out of memory.\n");
+			exit(1);
+		}
+		for (i = 0; directory_entry->d_name[i]; i++)
+			name[i] = tolower(directory_entry->d_name[i]);
+		name[i] = 0;
+		if (parse_font_name(name,&family,&weight,&slant,
 			&adstyl,&spacing))
 		{
+			free(name);
 			continue; /* Inappropriate name */
 		}
+		free(name);
 		/* If the directory is name a-... and in a-../aliases there
 		 * is
 		 * b
@@ -393,7 +406,7 @@ void build_font_table(FILE *output)
 			exit(1);
 		}
 	}
-	fprintf(output,"\n};\n");
+	fprintf(output,"\n");
 }
 
 void print_string(unsigned char * ptr, FILE * output)
@@ -402,13 +415,14 @@ void print_string(unsigned char * ptr, FILE * output)
 
 	fprintf(output,"\"");
 	forbidden_0_to_7=0;
+	char_pos = 1;
 	while(*ptr) forbidden_0_to_7=print_char(output,*ptr++,forbidden_0_to_7);
 	fprintf(output,"\"");
 }
 
 void print_letter(struct letter *p, FILE * output)
 {
-	fprintf(output,"{0x%08x,0x%08x,0x%08x,% 5d,% 5d, 0, 0}",p->begin,p->length,
+	fprintf(output,"{letter_%d,0x%08x,0x%08x,% 5d,% 5d, 0, 0}",p->begin,p->length,
 		p->code, p->xsize, p->ysize);
 }
 
@@ -417,15 +431,15 @@ void print_font(int a, FILE * output)
 {
 	struct font *f=fonts+a;
 
-	fprintf(output,"{\n");
+	fprintf(output,"{\n(unsigned char *)");
 	print_string(f->family,output);
-	fprintf(output,",\n");
+	fprintf(output,",\n(unsigned char *)");
 	print_string(f->weight,output);
-	fprintf(output,",\n");
+	fprintf(output,",\n(unsigned char *)");
 	print_string(f->slant,output);
-	fprintf(output,",\n");
+	fprintf(output,",\n(unsigned char *)");
 	print_string(f->adstyl,output);
-	fprintf(output,",\n");
+	fprintf(output,",\n(unsigned char *)");
 	print_string(f->spacing,output);
 	fprintf(output,",\n");
 	fprintf(output,"%d,\n",n_letters);
@@ -439,7 +453,6 @@ void print_font_table(FILE *output)
 	int a;
 	int index;
 
-	fprintf(output,"/* Font data %d bytes */\n\n",stamp);
 	fprintf(output,"struct letter letter_data[%d]={\n",n_letters);
 	for (a=0;a<n_fonts;a++){
 		struct letter *ptr=fonts[a].letters;
@@ -477,10 +490,9 @@ int main(int argc, char **argv)
 	fprintf(output,"#include \"cfg.h\"\n\n");
 	fprintf(output,"#ifdef G\n\n");
 	fprintf(output,"#include \"links.h\"\n\n");
-	fprintf(output,"unsigned char font_data[]={\n");
 	build_font_table(output);
 	print_font_table(output);
-	fprintf(output,"\n\n#endif\n\n");
+	fprintf(output,"\n#endif\n");
 	while ((retval=fclose(output)&&(errno==EAGAIN||errno==EINTR)));
 	if (retval){
 		perror(PROGNAME);

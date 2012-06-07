@@ -41,12 +41,12 @@ void smb_func(struct connection *c)
 		abort_connection(c);
 		return;
 	}
-	if (!(user = get_user_name(c->url))) user = stracpy("");
-	if (!(pass = get_pass(c->url))) pass = stracpy("");
-	if (!(port = get_port_str(c->url))) port = stracpy("");
-	if (!(data1 = get_url_data(c->url))) data1 = "";
+	if (!(user = get_user_name(c->url))) user = stracpy(cast_uchar "");
+	if (!(pass = get_pass(c->url))) pass = stracpy(cast_uchar "");
+	if (!(port = get_port_str(c->url))) port = stracpy(cast_uchar "");
+	if (!(data1 = get_url_data(c->url))) data1 = cast_uchar "";
 	data = init_str(), datal = 0;
-	add_conv_str(&data, &datal, data1, strlen(data1), -2);
+	add_conv_str(&data, &datal, data1, strlen(cast_const_char data1), -2);
 
 	for (i = 0; data[i]; i++) if (data[i] < 32 || data[i] == ';' || (data[i] == '"' && smb_client == SMBCLIENT)) {
 /* ';' shouldn't cause security problems but samba doesn't like it */
@@ -61,7 +61,7 @@ void smb_func(struct connection *c)
 		return;
 	}
 
-	if ((p = strchr(data, '/'))) share = memacpy(data, p - data), dir = p + 1;
+	if ((p = cast_uchar strchr(cast_const_char data, '/'))) share = memacpy(data, p - data), dir = p + 1;
 	else if (*data) {
 		if (!c->cache) {
 			if (get_cache_entry(c->url, &c->cache)) {
@@ -79,7 +79,7 @@ void smb_func(struct connection *c)
 		if (c->cache->redirect) mem_free(c->cache->redirect);
 		c->cache->redirect = stracpy(c->url);
 		c->cache->redirect_get = 1;
-		add_to_strn(&c->cache->redirect, "/");
+		add_to_strn(&c->cache->redirect, cast_uchar "/");
 		c->cache->incomplete = 0;
 		mem_free(host);
 		mem_free(port);
@@ -89,9 +89,9 @@ void smb_func(struct connection *c)
 		setcstate(c, S__OK);
 		abort_connection(c);
 		return;
-	} else share = stracpy(""), dir = "";
+	} else share = stracpy(cast_uchar ""), dir = cast_uchar "";
 	if (!*share) si->list = 1;
-	else if (!*dir || dir[strlen(dir) - 1] == '/' || dir[strlen(dir) - 1] == '\\') si->list = 2;
+	else if (!*dir || dir[strlen(cast_const_char dir) - 1] == '/' || dir[strlen(cast_const_char dir) - 1] == '\\') si->list = 2;
 	if (c_pipe(po)) {
 		int err = errno;
 		mem_free(host);
@@ -157,91 +157,91 @@ void smb_func(struct connection *c)
 		n = 0;
 		switch (si->client) {
 		case SMBCLIENT:
-			v[n++] = "smbclient";
+			v[n++] = cast_uchar "smbclient";
 			if (!*share) {
-				v[n++] = "-L";
+				v[n++] = cast_uchar "-L";
 				v[n++] = host;
 			} else {
-				unsigned char *s = stracpy("//");
+				unsigned char *s = stracpy(cast_uchar "//");
 				add_to_strn(&s, host);
-				add_to_strn(&s, "/");
+				add_to_strn(&s, cast_uchar "/");
 				add_to_strn(&s, share);
 				v[n++] = s;
 				if (*pass && !*user) {
 					v[n++] = pass;
 				}
 			}
-			v[n++] = "-N";
-			v[n++] = "-E";
+			v[n++] = cast_uchar "-N";
+			v[n++] = cast_uchar "-E";
 			if (*port) {
-				v[n++] = "-p";
+				v[n++] = cast_uchar "-p";
 				v[n++] = port;
 			}
 			if (*user) {
-				v[n++] = "-U";
+				v[n++] = cast_uchar "-U";
 				if (!*pass) {
 					v[n++] = user;
 				} else {
 					unsigned char *s = stracpy(user);
-					add_to_strn(&s, "%");
+					add_to_strn(&s, cast_uchar "%");
 					add_to_strn(&s, pass);
 					v[n++] = s;
 				}
 			}
 			if (*share) {
-				if (!*dir || dir[strlen(dir) - 1] == '/' || dir[strlen(dir) - 1] == '\\') {
+				if (!*dir || dir[strlen(cast_const_char dir) - 1] == '/' || dir[strlen(cast_const_char dir) - 1] == '\\') {
 					if (*dir) {
-						v[n++] = "-D";
+						v[n++] = cast_uchar "-D";
 						v[n++] = dir;
 					}
-					v[n++] = "-c";
-					v[n++] = "ls";
+					v[n++] = cast_uchar "-c";
+					v[n++] = cast_uchar "ls";
 				} else {
 					unsigned char *ss;
-					unsigned char *s = stracpy("get \"");
+					unsigned char *s = stracpy(cast_uchar "get \"");
 					add_to_strn(&s, dir);
-					add_to_strn(&s, "\" -");
-					while ((ss = strchr(s, '/'))) *ss = '\\';
-					v[n++] = "-c";
+					add_to_strn(&s, cast_uchar "\" -");
+					while ((ss = cast_uchar strchr(cast_const_char s, '/'))) *ss = '\\';
+					v[n++] = cast_uchar "-c";
 					v[n++] = s;
 				}
 			}
 			break;
 		case SMBC:
-			v[n++] = "smbc";
-			uphp = stracpy("");
+			v[n++] = cast_uchar "smbc";
+			uphp = stracpy(cast_uchar "");
 			if (*user) {
 				add_to_strn(&uphp, user);
 				if (*pass) {
-					add_to_strn(&uphp, ":");
+					add_to_strn(&uphp, cast_uchar ":");
 					add_to_strn(&uphp, pass);
 				}
-				add_to_strn(&uphp, "@");
+				add_to_strn(&uphp, cast_uchar "@");
 			}
 			add_to_strn(&uphp, host);
 			if (*port) {
-				add_to_strn(&uphp, ":");
+				add_to_strn(&uphp, cast_uchar ":");
 				add_to_strn(&uphp, port);
 			}
 			if (!*share) {
-				v[n++] = "-L";
+				v[n++] = cast_uchar "-L";
 				v[n++] = uphp;
 			} else {
-				add_to_strn(&uphp, "/");
+				add_to_strn(&uphp, cast_uchar "/");
 				add_to_strn(&uphp, share);
-				if (!*dir || dir[strlen(dir) - 1] == '/' || dir[strlen(dir) - 1] == '\\') {
-					add_to_strn(&uphp, "/");
+				if (!*dir || dir[strlen(cast_const_char dir) - 1] == '/' || dir[strlen(cast_const_char dir) - 1] == '\\') {
+					add_to_strn(&uphp, cast_uchar "/");
 					add_to_strn(&uphp, dir);
 					v[n++] = uphp;
-					v[n++] = "-c";
-					v[n++] = "ls";
+					v[n++] = cast_uchar "-c";
+					v[n++] = cast_uchar "ls";
 				} else {
 					unsigned char *d = init_str();
 					int dl = 0;
 					unsigned char *dp = dir;
 					v[n++] = uphp;
-					v[n++] = "-c";
-					add_to_str(&d, &dl, "pipe cat ");
+					v[n++] = cast_uchar "-c";
+					add_to_str(&d, &dl, cast_uchar "pipe cat ");
 					while (*dp) {
 						if (*dp <= ' ' || *dp == '\\' || *dp == '"' || *dp == '\'' || *dp == '*' || *dp == '?') add_chr_to_str(&d, &dl, '\\');
 						add_chr_to_str(&d, &dl, *dp);
@@ -255,7 +255,7 @@ void smb_func(struct connection *c)
 			internal("unsuported smb client");
 		}
 		v[n++] = NULL;
-		EINTRLOOP(rs, execvp(v[0], (void *)v));
+		EINTRLOOP(rs, execvp(cast_const_char v[0], (void *)v));
 		fprintf(stderr, "client not found");
 		fflush(stderr);
 		_exit(1);
@@ -377,7 +377,7 @@ static void smb_read_text(struct connection *c, int sock)
 static void smb_got_data(struct connection *c)
 {
 	struct smb_connection_info *si = c->info;
-	char *buffer = mem_alloc(page_size);
+	unsigned char *buffer = mem_alloc(page_size);
 	int r;
 	int a;
 	if (si->list) {
@@ -451,7 +451,7 @@ static void end_smb_connection(struct connection *c)
 		int sdir;
 		if (si->ntext && si->text[si->ntext - 1] != '\n') si->text[si->ntext++] = '\n';
 		si->text[si->ntext] = 0;
-		if (!strcmp(si->text, "client not found\n")) {
+		if (!strcmp(cast_const_char si->text, "client not found\n")) {
 			setcstate(c, S_NO_SMB_CLIENT);
 			if (++si->client < N_CLIENTS) {
 				if (si->client > smb_client) smb_client = si->client;
@@ -466,15 +466,20 @@ static void end_smb_connection(struct connection *c)
 		sdir = 0;
 		if (si->client == SMBC) {
 			unsigned char *st = si->text;
-			if (!memcmp(st, "ServerName", 10) && strchr(st, '\n')) st = strchr(st, '\n') + 1;
-			if (!memcmp(st, "Logged", 6) && strchr(st, '\n')) st = strchr(st, '\n') + 1;
-			if (!strstr(st, "ERR")) sdir = 1;
+			if (!memcmp(st, "ServerName", 10) && strchr(cast_const_char st, '\n')) st = cast_uchar strchr(cast_const_char st, '\n') + 1;
+			if (!memcmp(st, "Logged", 6) && strchr(cast_const_char st, '\n')) st = cast_uchar strchr(cast_const_char st, '\n') + 1;
+			if (!strstr(cast_const_char st, "ERR")) sdir = 1;
 		}
-		if (!si->list && *c->url && c->url[strlen(c->url) - 1] != '/' && c->url[strlen(c->url) - 1] != '\\' && (strstr(si->text, "NT_STATUS_FILE_IS_A_DIRECTORY") || strstr(si->text, "NT_STATUS_ACCESS_DENIED") || strstr(si->text, "ERRbadfile") || sdir)) {
+		if (!si->list && *c->url &&
+		    c->url[strlen(cast_const_char c->url) - 1] != '/' &&
+		    c->url[strlen(cast_const_char c->url) - 1] != '\\' &&
+		    (strstr(cast_const_char si->text, "NT_STATUS_FILE_IS_A_DIRECTORY") ||
+		     strstr(cast_const_char si->text, "NT_STATUS_ACCESS_DENIED") ||
+		     strstr(cast_const_char si->text, "ERRbadfile") || sdir)) {
 			if (c->cache->redirect) mem_free(c->cache->redirect);
 			c->cache->redirect = stracpy(c->url);
 			c->cache->redirect_get = 1;
-			add_to_strn(&c->cache->redirect, "/");
+			add_to_strn(&c->cache->redirect, cast_uchar "/");
 			c->cache->incomplete = 0;
 		} else {
 			unsigned char *ls, *le, *le2;
@@ -484,63 +489,63 @@ static void end_smb_connection(struct connection *c)
 			int type = 0;
 			int pos = 0;
 			int a;
-			add_to_str(&t, &l, "<html><head><title>");
+			add_to_str(&t, &l, cast_uchar "<html><head><title>");
 			ud = stracpy(c->url);
-			if (strchr(ud, POST_CHAR)) *strchr(ud, POST_CHAR) = 0;
-			add_conv_str(&t, &l, ud, strlen(ud), -1);
+			if (strchr(cast_const_char ud, POST_CHAR)) *cast_uchar strchr(cast_const_char ud, POST_CHAR) = 0;
+			add_conv_str(&t, &l, ud, strlen(cast_const_char ud), -1);
 			mem_free(ud);
-			add_to_str(&t, &l, "</title></head><body><pre>");
+			add_to_str(&t, &l, cast_uchar "</title></head><body><pre>");
 			if (si->list == 1 && si->client == SMBC) {
 /* smbc has a nasty bug that it writes field descriptions to stderr and data to
    stdout. Because of stdout buffer, they'll get mixed in the output. Try to
    demix them. */
 #define SERVER	"Server              Comment\n------              -------\n"
 #define WORKGR	"Workgroup           Master\n---------           ------\n"
-				unsigned char *spos = strstr(si->text, SERVER);
+				unsigned char *spos = cast_uchar strstr(cast_const_char si->text, SERVER);
 				unsigned char *gpos;
 				unsigned char *p, *pp, *ppp;
-				if (spos) memmove(spos, spos + strlen(SERVER), strlen(spos) - strlen(SERVER) + 1);
-				gpos = strstr(si->text, WORKGR);
-				if (gpos) memmove(gpos, gpos + strlen(WORKGR), strlen(gpos) - strlen(WORKGR) + 1);
+				if (spos) memmove(spos, spos + strlen(SERVER), strlen(cast_const_char spos) - strlen(SERVER) + 1);
+				gpos = cast_uchar strstr(cast_const_char si->text, WORKGR);
+				if (gpos) memmove(gpos, gpos + strlen(WORKGR), strlen(cast_const_char gpos) - strlen(WORKGR) + 1);
 				if (!spos && !gpos) goto sc;
 				pp = NULL, ppp = NULL, p = si->text;
-				while ((p = strstr(p, "\n\n"))) ppp = pp, pp = p + 2, p++;
+				while ((p = cast_uchar strstr(cast_const_char p, "\n\n"))) ppp = pp, pp = p + 2, p++;
 				if (!pp) goto sc;
 				if (!spos || !gpos) ppp = NULL;
 				if (spos) {
 					if (!ppp) ppp = pp, pp = NULL;
-					memmove(ppp + strlen(SERVER), ppp, strlen(ppp) + 1);
+					memmove(ppp + strlen(SERVER), ppp, strlen(cast_const_char ppp) + 1);
 					memcpy(ppp, SERVER, strlen(SERVER));
 					if (pp) pp += strlen(SERVER);
 				}
 				if (gpos && pp) {
-					memmove(pp + strlen(WORKGR), pp, strlen(pp) + 1);
+					memmove(pp + strlen(WORKGR), pp, strlen(cast_const_char pp) + 1);
 					memcpy(pp, WORKGR, strlen(WORKGR));
 				}
 				goto sc;
 			}
 			sc:
 			ls = si->text;
-			while ((le = strchr(ls, '\n'))) {
+			while ((le = cast_uchar strchr(cast_const_char ls, '\n'))) {
 				unsigned char *lx;
-				le2 = strchr(ls, '\r');
+				le2 = cast_uchar strchr(cast_const_char ls, '\r');
 				if (!le2 || le2 > le) le2 = le;
 				lx = memacpy(ls, le2 - ls);
 				if (si->list == 1) {
 					unsigned char *ll, *lll;
 					if (!*lx) type = 0;
-					if (strstr(lx, "Sharename") && strstr(lx, "Type")) {
-						if (strstr(lx, "Type")) pos = (unsigned char *)strstr(lx, "Type") - lx;
+					if (strstr(cast_const_char lx, "Sharename") && strstr(cast_const_char lx, "Type")) {
+						if (strstr(cast_const_char lx, "Type")) pos = (unsigned char *)strstr(cast_const_char lx, "Type") - lx;
 						else pos = 0;
 						type = 1;
 						goto af;
 					}
-					if (strstr(lx, "Server") && strstr(lx, "Comment")) {
+					if (strstr(cast_const_char lx, "Server") && strstr(cast_const_char lx, "Comment")) {
 						type = 2;
 						goto af;
 					}
-					if (strstr(lx, "Workgroup") && strstr(lx, "Master")) {
-						pos = (unsigned char *)strstr(lx, "Master") - lx;
+					if (strstr(cast_const_char lx, "Workgroup") && strstr(cast_const_char lx, "Master")) {
+						pos = (unsigned char *)strstr(cast_const_char lx, "Master") - lx;
 						type = 3;
 						goto af;
 					}
@@ -552,35 +557,35 @@ static void end_smb_connection(struct connection *c)
 					for (lll = ll; *lll/* && lll[1]*/; lll++) if (WHITECHAR(*lll)/* && WHITECHAR(lll[1])*/) break;
 					if (type == 1) {
 						unsigned char *llll;
-						if (!strstr(lll, "Disk")) goto af;
-						if (pos && (size_t)pos < strlen(lx) && WHITECHAR(*(llll = lx + pos - 1)) && llll > ll) {
+						if (!strstr(cast_const_char lll, "Disk")) goto af;
+						if (pos && (size_t)pos < strlen(cast_const_char lx) && WHITECHAR(*(llll = lx + pos - 1)) && llll > ll) {
 							while (llll > ll && WHITECHAR(*llll)) llll--;
 							if (!WHITECHAR(*llll)) lll = llll + 1;
 						}
 						add_conv_str(&t, &l, lx, ll - lx, 0);
-						add_to_str(&t, &l, "<a href=\"/");
+						add_to_str(&t, &l, cast_uchar "<a href=\"/");
 						add_conv_str(&t, &l, ll, lll - ll, 1);
-						add_to_str(&t, &l, "/\">");
+						add_to_str(&t, &l, cast_uchar "/\">");
 						add_conv_str(&t, &l, ll, lll - ll, 0);
-						add_to_str(&t, &l, "</a>");
-						add_conv_str(&t, &l, lll, strlen(lll), 0);
+						add_to_str(&t, &l, cast_uchar "</a>");
+						add_conv_str(&t, &l, lll, strlen(cast_const_char lll), 0);
 					} else if (type == 2) {
 						sss:
 						add_conv_str(&t, &l, lx, ll - lx, 0);
-						add_to_str(&t, &l, "<a href=\"smb://");
+						add_to_str(&t, &l, cast_uchar "<a href=\"smb://");
 						add_conv_str(&t, &l, ll, lll - ll, 1);
-						add_to_str(&t, &l, "/\">");
+						add_to_str(&t, &l, cast_uchar "/\">");
 						add_conv_str(&t, &l, ll, lll - ll, 0);
-						add_to_str(&t, &l, "</a>");
-						add_conv_str(&t, &l, lll, strlen(lll), 0);
+						add_to_str(&t, &l, cast_uchar "</a>");
+						add_conv_str(&t, &l, lll, strlen(cast_const_char lll), 0);
 					} else if (type == 3) {
-						if ((size_t)pos < strlen(lx) && pos && WHITECHAR(lx[pos - 1]) && !WHITECHAR(lx[pos])) ll = lx + pos;
+						if ((size_t)pos < strlen(cast_const_char lx) && pos && WHITECHAR(lx[pos - 1]) && !WHITECHAR(lx[pos])) ll = lx + pos;
 						else for (ll = lll; *ll; ll++) if (!WHITECHAR(*ll)) break;
 						for (lll = ll; *lll; lll++) if (WHITECHAR(*lll)) break;
 						goto sss;
 					} else goto af;
 				} else if (si->list == 2 && si->client == SMBCLIENT) {
-					if (strstr(lx, "NT_STATUS")) {
+					if (strstr(cast_const_char lx, "NT_STATUS")) {
 						le[1] = 0;
 						goto af;
 					}
@@ -604,12 +609,12 @@ static void end_smb_connection(struct connection *c)
 							}
 							pp++;
 						}
-						add_to_str(&t, &l, "  <a href=\"./");
+						add_to_str(&t, &l, cast_uchar "  <a href=\"./");
 						add_conv_str(&t, &l, ls + 2, p - (ls + 2), 1);
 						if (dir) add_chr_to_str(&t, &l, '/');
-						add_to_str(&t, &l, "\">");
+						add_to_str(&t, &l, cast_uchar "\">");
 						add_conv_str(&t, &l, ls + 2, p - (ls + 2), 0);
-						add_to_str(&t, &l, "</a>");
+						add_to_str(&t, &l, cast_uchar "</a>");
 						add_conv_str(&t, &l, p, le - p, 0);
 					} else goto af;
 				} else if (si->list == 2 && si->client == SMBC) {
@@ -624,12 +629,12 @@ static void end_smb_connection(struct connection *c)
 					}
 					d += 9;
 					add_conv_str(&t, &l, ls, d - ls, 0);
-					add_to_str(&t, &l, "<a href=\"./");
+					add_to_str(&t, &l, cast_uchar "<a href=\"./");
 					add_conv_str(&t, &l, d, le2 - d, 1);
 					if (ls[4] == 'D') add_chr_to_str(&t, &l, '/');
-					add_to_str(&t, &l, "\">");
+					add_to_str(&t, &l, cast_uchar "\">");
 					add_conv_str(&t, &l, d, le2 - d, 0);
-					add_to_str(&t, &l, "</a>");
+					add_to_str(&t, &l, cast_uchar "</a>");
 				} else af: add_conv_str(&t, &l, ls, le2 - ls, 0);
 				add_chr_to_str(&t, &l, '\n');
 				ls = le + 1;
@@ -647,8 +652,8 @@ static void end_smb_connection(struct connection *c)
 			truncate_entry(c->cache, l, 1);
 			c->cache->incomplete = 0;
 			mem_free(t);
-			if (!c->cache->head) c->cache->head = stracpy("\r\n");
-			add_to_strn(&c->cache->head, "Content-Type: text/html\r\n");
+			if (!c->cache->head) c->cache->head = stracpy(cast_uchar "\r\n");
+			add_to_strn(&c->cache->head, cast_uchar "Content-Type: text/html\r\n");
 		}
 	} else {
 		truncate_entry(c->cache, c->from, 1);

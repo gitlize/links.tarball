@@ -6,7 +6,7 @@
 #include "links.h"
 
 static const struct {
-	unsigned char *prot;
+	char *prot;
 	int port;
 	void (*func)(struct connection *);
 	void (*nc_func)(struct session *, unsigned char *);
@@ -42,7 +42,7 @@ static int check_protocol(unsigned char *p, int l)
 {
 	int i;
 	for (i = 0; protocols[i].prot; i++)
-		if (!casecmp(protocols[i].prot, p, l) && strlen(protocols[i].prot) == (size_t)l) {
+		if (!casecmp(cast_uchar protocols[i].prot, p, l) && strlen(cast_const_char protocols[i].prot) == (size_t)l) {
 			return i;
 		}
 	return -1;
@@ -52,7 +52,7 @@ static int get_prot_info(unsigned char *prot, int *port, void (**func)(struct co
 {
 	int i;
 	for (i = 0; protocols[i].prot; i++)
-		if (!strcasecmp(protocols[i].prot, prot)) {
+		if (!strcasecmp(cast_const_char protocols[i].prot, cast_const_char prot)) {
 			if (port) *port = protocols[i].port;
 			if (func) *func = protocols[i].func;
 			if (nc_func) *nc_func = protocols[i].nc_func;
@@ -80,7 +80,7 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 	if (data) *data = NULL;
 	if (dalen) *dalen = 0;
 	if (post) *post = NULL;
-	if (!url || !(p = strchr(url, ':'))) return -1;
+	if (!url || !(p = cast_uchar strchr(cast_const_char url, ':'))) return -1;
 	if (prlen) *prlen = p - url;
 	if ((a = check_protocol(url, p - url)) == -1) return -1;
 	if (p[1] != '/' || p[2] != '/') {
@@ -89,17 +89,17 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 	}
 	if (protocols[a].free_syntax) {
 		if (data) *data = p + 3;
-		if (dalen) *dalen = strlen(p + 3);
+		if (dalen) *dalen = strlen(cast_const_char(p + 3));
 		return 0;
 	}
 	p += 3;
-	q = p + strcspn(p, "@/?");
+	q = p + strcspn(cast_const_char p, "@/?");
 	if (!*q && protocols[a].need_slash_after_host) return -1;
 	if (*q == '@') {
 		unsigned char *pp;
-		while (strcspn(q + 1, "@") < strcspn(q + 1, "/?"))
-			q = q + 1 + strcspn(q + 1, "@");
-		pp = strchr(p, ':');
+		while (strcspn(cast_const_char(q + 1), "@") < strcspn(cast_const_char(q + 1), "/?"))
+			q = q + 1 + strcspn(cast_const_char(q + 1), "@");
+		pp = cast_uchar strchr(cast_const_char p, ':');
 		if (!pp || pp > q) {
 			if (user) *user = p;
 			if (uslen) *uslen = q - p;
@@ -111,12 +111,12 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 		}
 		p = q + 1;
 	} 
-	q = p + strcspn(p, ":/?");
+	q = p + strcspn(cast_const_char p, ":/?");
 	if (!*q && protocols[a].need_slash_after_host) return -1;
 	if (host) *host = p;
 	if (holen) *holen = q - p;
 	if (*q == ':') {
-		unsigned char *pp = q + strcspn(q, "/");
+		unsigned char *pp = q + strcspn(cast_const_char q, "/");
 		int cc;
 		if (*pp != '/' && protocols[a].need_slash_after_host) return -1;
 		if (port) *port = q + 1;
@@ -128,7 +128,7 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 	p = q;
 	p_c[0] = POST_CHAR;
 	p_c[1] = 0;
-	q = p + strcspn(p, p_c);
+	q = p + strcspn(cast_const_char p, cast_const_char p_c);
 	if (data) *data = p;
 	if (dalen) *dalen = q - p;
 	if (post) *post = *q ? q + 1 : NULL;
@@ -156,7 +156,7 @@ unsigned char *get_host_name(unsigned char *url)
 {
 	unsigned char *h;
 	int hl;
-	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, &h, &hl, NULL, NULL, NULL, NULL, NULL)) return stracpy("");
+	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, &h, &hl, NULL, NULL, NULL, NULL, NULL)) return stracpy(cast_uchar "");
 	return memacpy(h, hl);
 }
 
@@ -191,7 +191,7 @@ int get_port(unsigned char *url)
 	long n = -1;
 	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &h, &hl, NULL, NULL, NULL)) return -1;
 	if (h) {
-		n = strtol(h, NULL, 10);
+		n = strtol(cast_const_char h, NULL, 10);
 		if (n && n < MAXINT) return n;
 	}
 	if ((h = get_protocol_name(url))) {
@@ -211,7 +211,7 @@ void (*get_protocol_handle(unsigned char *url))(struct connection *)
 	if (!(p = get_protocol_name(url))) return NULL;
 	get_prot_info(p, NULL, &f, NULL, &post, NULL);
 	mem_free(p);
-	if (!post && strchr(url, POST_CHAR)) return NULL;
+	if (!post && strchr(cast_const_char url, POST_CHAR)) return NULL;
 	return f;
 }
 
@@ -223,7 +223,7 @@ void (*get_external_protocol_function(unsigned char *url))(struct session *, uns
 	if (!(p = get_protocol_name(url))) return NULL;
 	get_prot_info(p, NULL, NULL, &f, &post, NULL);
 	mem_free(p);
-	if (!post && strchr(url, POST_CHAR)) return NULL;
+	if (!post && strchr(cast_const_char url, POST_CHAR)) return NULL;
 	return f;
 }
 
@@ -250,15 +250,15 @@ static void translate_directories(unsigned char *url)
 {
 	unsigned char *dd = get_url_data(url);
 	unsigned char *s, *d;
-	int lo = !casecmp(url, "file://", 7);
-	if (!casecmp(url, "javascript:", 11)) return;
-	if (!casecmp(url, "magnet:", 7)) return;
+	int lo = !casecmp(url, cast_uchar "file://", 7);
+	if (!casecmp(url, cast_uchar "javascript:", 11)) return;
+	if (!casecmp(url, cast_uchar "magnet:", 7)) return;
 	if (!dd || dd == url/* || *--dd != '/'*/) return;
 	if (!dsep(*dd)) {
 		dd--;
 		if (!dsep(*dd)) {
 			dd++;
-			memmove(dd + 1, dd, strlen(dd) + 1);
+			memmove(dd + 1, dd, strlen(cast_const_char dd) + 1);
 			*dd = '/';
 		}
 	}
@@ -266,7 +266,7 @@ static void translate_directories(unsigned char *url)
 	d = dd;
 	r:
 	if (end_of_dir(url, s[0])) {
-		memmove(d, s, strlen(s) + 1);
+		memmove(d, s, strlen(cast_const_char s) + 1);
 		return;
 	}
 	if (dsep(s[0]) && s[1] == '.' && dsep(s[2])) {
@@ -295,7 +295,7 @@ unsigned char *translate_hashbang(unsigned char *up)
 	int q;
 	unsigned char *r;
 	int rl;
-	if (!strstr(up, "#!") && !strstr(up, "#%21")) return up;
+	if (!strstr(cast_const_char up, "#!") && !strstr(cast_const_char up, "#%21")) return up;
 	u = stracpy(up);
 	p = extract_position(u);
 	if (!p) {
@@ -304,28 +304,28 @@ unsigned char *translate_hashbang(unsigned char *up)
 		return up;
 	}
 	if (p[0] == '!') dp = p + 1;
-	else if (!casecmp(p, "%21", 3)) dp = p + 3;
+	else if (!casecmp(p, cast_uchar "%21", 3)) dp = p + 3;
 	else {
 		mem_free(p);
 		goto free_u_ret_up;
 	}
-	if (!(post_seq = strchr(u, POST_CHAR))) post_seq = strchr(u, 0);
+	if (!(post_seq = cast_uchar strchr(cast_const_char u, POST_CHAR))) post_seq = cast_uchar strchr(cast_const_char u, 0);
 	data = get_url_data(u);
 	if (!data) data = u;
 	r = init_str();
 	rl = 0;
 	add_bytes_to_str(&r, &rl, u, post_seq - u);
-	q = strlen(data);
+	q = strlen(cast_const_char data);
 	if (q && (data[q - 1] == '&' || data[q - 1] == '?'))
 		;
-	else if (strchr(data, '?')) add_chr_to_str(&r, &rl, '&');
+	else if (strchr(cast_const_char data, '?')) add_chr_to_str(&r, &rl, '&');
 	else add_chr_to_str(&r, &rl, '?');
-	add_to_str(&r, &rl, "_escaped_fragment_=");
+	add_to_str(&r, &rl, cast_uchar "_escaped_fragment_=");
 	for (; *dp; dp++) {
 		unsigned char c = *dp;
 		if (c <= 0x20 || c == 0x23 || c == 0x25 || c == 0x26 || c == 0x2b || c >= 0x7f) {
 			unsigned char h[4];
-			sprintf(h, "%%%02X", c);
+			sprintf(cast_char h, "%%%02X", c);
 			add_to_str(&r, &rl, h);
 		} else {
 			add_chr_to_str(&r, &rl, c);
@@ -342,19 +342,19 @@ static void insert_wd(unsigned char **up, unsigned char *cwd)
 {
 	unsigned char *url = *up;
 	if (!url || !cwd || !*cwd) return;
-	if (casecmp(url, "file://", 7)) return;
+	if (casecmp(url, cast_uchar "file://", 7)) return;
 	if (dir_sep(url[7])) return;
 #ifdef DOS_FS
 	if (upcase(url[7]) >= 'A' && upcase(url[7]) <= 'Z' && url[8] == ':' && dir_sep(url[9])) return;
 #endif
 #ifdef SPAD
-	if (_is_absolute(url + 7) != _ABS_NO) return;
+	if (_is_absolute(cast_const_char(url + 7)) != _ABS_NO) return;
 #endif
-	url = mem_alloc(strlen(*up) + strlen(cwd) + 2);
+	url = mem_alloc(strlen(cast_const_char *up) + strlen(cast_const_char cwd) + 2);
 	memcpy(url, *up, 7);
-	strcpy(url + 7, cwd);
-	if (!dir_sep(cwd[strlen(cwd) - 1])) strcat(url, "/");
-	strcat(url, *up + 7);
+	strcpy(cast_char(url + 7), cast_const_char cwd);
+	if (!dir_sep(cwd[strlen(cast_const_char cwd) - 1])) strcat(cast_char url, "/");
+	strcat(cast_char url, cast_const_char(*up + 7));
 	mem_free(*up);
 	*up = url;
 }
@@ -370,7 +370,7 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 {
 	unsigned char *p, *n, *pp, *ch;
 	int l;
-	int lo = !casecmp(base, "file://", 7);
+	int lo = !casecmp(base, cast_uchar "file://", 7);
 	if (rel[0] == '#' || !rel[0]) {
 		n = stracpy(base);
 		for (p = n; *p && *p != POST_CHAR && *p != '#'; p++)
@@ -386,15 +386,15 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		rj[0] = rel[0];
 		rj[1] = POST_CHAR;
 		rj[2] = 0;
-		d += strcspn(d, rj);
+		d += strcspn(cast_const_char d, cast_const_char rj);
 		n = memacpy(base, d - base);
 		add_to_strn(&n, rel);
 		goto return_n;
 	}
 	if (rel[0] == '/' && rel[1] == '/') {
 		unsigned char *s;
-		if (!(s = strstr(base, "//"))) {
-			if (!(s = strchr(base, ':'))) {
+		if (!(s = cast_uchar strstr(cast_const_char base, "//"))) {
+			if (!(s = cast_uchar strchr(cast_const_char base, ':'))) {
 				bad_base:
 				internal("bad base url: %s", base);
 				return NULL;
@@ -406,17 +406,17 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_n;
 		mem_free(n);
 	}
-	if (!casecmp("proxy://", rel, 8)) goto prx;
+	if (!casecmp(cast_uchar "proxy://", rel, 8)) goto prx;
 	if (!parse_url(rel, &l, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
 		n = stracpy(rel);
 		goto return_n;
 	}
 	n = stracpy(rel);
-	while (n[0] && n[strlen(n) - 1] <= ' ') n[strlen(n) - 1] = 0;
+	while (n[0] && n[strlen(cast_const_char n) - 1] <= ' ') n[strlen(cast_const_char n) - 1] = 0;
 	extend_str(&n, 1);
-	ch = strrchr(n, '#');
-	if (!ch || strchr(ch, '/')) ch = n + strlen(n);
-	memmove(ch + 1, ch, strlen(ch) + 1);
+	ch = cast_uchar strrchr(cast_const_char n, '#');
+	if (!ch || strchr(cast_const_char ch, '/')) ch = n + strlen(cast_const_char n);
+	memmove(ch + 1, ch, strlen(cast_const_char ch) + 1);
 	*ch = '/';
 	if (!parse_url(n, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_n;
 	mem_free(n);
@@ -448,58 +448,81 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	unsigned char *prefix;
 	int sl;
 	while (*url == ' ') url++;
-	if (*url && url[strlen(url) - 1] == ' ') {
+	if (*url && url[strlen(cast_const_char url) - 1] == ' ') {
 		nu = stracpy(url);
-		while (*nu && nu[strlen(nu) - 1] == ' ') nu[strlen(nu) - 1] = 0;
+		while (*nu && nu[strlen(cast_const_char nu) - 1] == ' ') nu[strlen(cast_const_char nu) - 1] = 0;
 		ch = translate_url(nu, cwd);
 		mem_free(nu);
 		return ch;
 	}
-	if (!casecmp("proxy://", url, 8)) return NULL;
+	if (!casecmp(cast_uchar "proxy://", url, 8)) return NULL;
 	if (!parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &da, NULL, NULL)) {
 		nu = stracpy(url);
 		goto return_nu;
 	}
-	if (strchr(url, POST_CHAR)) return NULL;
-	if (strstr(url, "://")) {
+	if (strchr(cast_const_char url, POST_CHAR)) return NULL;
+	if (strstr(cast_const_char url, "://")) {
 		nu = stracpy(url);
 		extend_str(&nu, 1);
-		ch = strrchr(nu, '#');
-		if (!ch || strchr(ch, '/')) ch = nu + strlen(nu);
-		memmove(ch + 1, ch, strlen(ch) + 1);
+		ch = cast_uchar strrchr(cast_const_char nu, '#');
+		if (!ch || strchr(cast_const_char ch, '/')) ch = nu + strlen(cast_const_char nu);
+		memmove(ch + 1, ch, strlen(cast_const_char ch) + 1);
 		*ch = '/';
 		if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_nu;
 		mem_free(nu);
 	}
-	ch = url + strcspn(url, ".:/@");
-	prefix = "file://";
+	ch = url + strcspn(cast_const_char url, ".:/@");
+	prefix = cast_uchar "file://";
 	sl = 0;
 #ifdef SPAD
-	if (strchr(url, ':') && _is_local(url)) goto set_prefix;
+	if (strchr(cast_const_char url, ':') && _is_local(cast_const_char url)) goto set_prefix;
 #endif
-	if (*ch != ':' || *(url + strcspn(url, "/@")) == '@') {
+	if (*ch != ':' || *(url + strcspn(cast_const_char url, "/@")) == '@') {
 		if (*url != '.' && *ch == '.') {
 			unsigned char *f, *e;
 			int i;
-			for (e = ch + 1; *(f = e + strcspn(e, ".:/")) == '.'; e = f + 1)
+			for (e = ch + 1; *(f = e + strcspn(cast_const_char e, ".:/")) == '.'; e = f + 1)
 				;
 			for (i = 0; i < f - e; i++) if (e[i] < '0' || e[i] > '9') goto noip;
 			goto http;
 			noip:
-			if (f - e == 2 && casecmp(e, "gz", 2)) {
+			if (f - e == 2 && casecmp(e, cast_uchar "gz", 2)) {
 				http:
-				prefix = "http://", sl = 1;
+				prefix = cast_uchar "http://", sl = 1;
 			} else {
-				unsigned char *tld[] = { "com", "edu", "net", "org", "gov", "mil", "int", "arpa", "aero", "biz", "coop", "info", "museum", "name", "pro", "cat", "jobs", "mobi", "travel", "tel", "onion", "exit", NULL };
-				for (i = 0; tld[i]; i++) if ((size_t)(f - e) == strlen(tld[i]) && !casecmp(tld[i], e, f - e)) goto http;
+				char *tld[] = {
+					"com",
+					"edu",
+					"net",
+					"org",
+					"gov",
+					"mil",
+					"int",
+					"arpa",
+					"aero",
+					"biz",
+					"coop",
+					"info",
+					"museum",
+					"name",
+					"pro",
+					"cat",
+					"jobs",
+					"mobi",
+					"travel",
+					"tel",
+					"onion",
+					"exit",
+					NULL };
+				for (i = 0; tld[i]; i++) if ((size_t)(f - e) == strlen(cast_const_char tld[i]) && !casecmp(cast_uchar tld[i], e, f - e)) goto http;
 			}
 		}
-		if (*ch == '@' || *ch == ':' || !cmpbeg(url, "ftp.")) prefix = "ftp://", sl = 1;
+		if (*ch == '@' || *ch == ':' || !cmpbeg(url, cast_uchar "ftp.")) prefix = cast_uchar "ftp://", sl = 1;
 		goto set_prefix;
 		set_prefix:
 		nu = stracpy(prefix);
 		add_to_strn(&nu, url);
-		if (sl && !strchr(url, '/')) add_to_strn(&nu, "/");
+		if (sl && !strchr(cast_const_char url, '/')) add_to_strn(&nu, cast_uchar "/");
 		if (parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
 			mem_free(nu);
 			return NULL;
@@ -510,10 +533,10 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 	if (ch == url + 1) goto set_prefix;
 #endif
 	if (!(nu = memacpy(url, ch - url + 1))) return NULL;
-	add_to_strn(&nu, "//");
+	add_to_strn(&nu, cast_uchar "//");
 	add_to_strn(&nu, ch + 1);
 	if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_nu;
-	add_to_strn(&nu, "/");
+	add_to_strn(&nu, cast_uchar "/");
 	if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_nu;
 	mem_free(nu);
 	return NULL;
@@ -530,12 +553,12 @@ unsigned char *extract_position(unsigned char *url)
 {
 	unsigned char *u, *uu, *r;
 	if ((u = get_url_data(url))) url = u;
-	if (!(u = strchr(url, POST_CHAR))) u = strchr(url, 0);
+	if (!(u = cast_uchar strchr(cast_const_char url, POST_CHAR))) u = cast_uchar strchr(cast_const_char url, 0);
 	if (!(uu = memchr(url, '#', u - url))) return NULL;
 	r = mem_alloc(u - uu);
 	memcpy(r, uu + 1, u - uu - 1);
 	r[u - uu - 1] = 0;
-	memmove(uu, u, strlen(u) + 1);
+	memmove(uu, u, strlen(cast_const_char u) + 1);
 	return r;
 }
 
@@ -548,7 +571,7 @@ void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encod
 		if ((unsigned char)*b < ' ') continue;
 		if (special_char(*b) && encode_special == 1) {
 			unsigned char h[4];
-			sprintf(h, "%%%02X", (unsigned)*b & 0xff);
+			sprintf(cast_char h, "%%%02X", (unsigned)*b & 0xff);
 			add_to_str(s, l, h);
 		} else if (*b == '%' && encode_special <= -1 && ll > 2 && ((b[1] >= '0' && b[1] <= '9') || (b[1] >= 'A' && b[1] <= 'F') || (b[1] >= 'a' && b[1] <= 'f'))) {
 			unsigned char h = 0;
@@ -562,11 +585,11 @@ void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encod
 			ll -= 2;
 			b += 2;
 		} else if (*b == ' ' && (!encode_special || encode_special == -1)) {
-			add_to_str(s, l, "&nbsp;");
+			add_to_str(s, l, cast_uchar "&nbsp;");
 		} else if (accept_char(*b) || encode_special == -2) {
 			add_chr_to_str(s, l, *b);
 		} else {
-			add_to_str(s, l, "&#");
+			add_to_str(s, l, cast_uchar "&#");
 			add_num_to_str(s, l, (int)*b);
 			add_chr_to_str(s, l, ';');
 		}

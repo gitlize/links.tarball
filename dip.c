@@ -1320,7 +1320,6 @@ unsigned short apply_gamma_single_16_to_16(unsigned short input, float gamma)
 }
 
 /* Points to the next unread byte from png data block */
-extern unsigned char font_data[];
 extern struct letter letter_data[];
 extern struct font font_table[];
 extern int n_fonts; /* Number of fonts. font number 0 is system_font (it's
@@ -1427,18 +1426,14 @@ unsigned char *png_data, int png_length, struct style *style)
 	png_ptr=png_create_read_struct(PNG_LIBPNG_VER_STRING,
 			NULL, my_png_error, my_png_warning);
 	if (!png_ptr) {
-		if (out_of_memory(NULL, 0)) goto retry1;
-		error("png_create_read_struct failed");
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		if (out_of_memory(0, NULL, 0)) goto retry1;
+		fatal_exit("png_create_read_struct failed");
 	}
 	retry2:
 	info_ptr=png_create_info_struct(png_ptr);
 	if (!info_ptr) {
-		if (out_of_memory(NULL, 0)) goto retry2;
-		error("png_create_info_struct failed");
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		if (out_of_memory(0, NULL, 0)) goto retry2;
+		fatal_exit("png_create_info_struct failed");
 	}
 	png_set_read_fn(png_ptr,&work,(png_rw_ptr)&read_stored_data);
 	png_read_info(png_ptr, info_ptr);
@@ -1597,7 +1592,7 @@ static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 		found=mem_alloc(sizeof(*found));
 		found->bitmap.y=style->height;
 		load_scaled_char(&(found->bitmap.data),&(found->bitmap.x),
-			found->bitmap.y, font_data+letter->begin,
+			found->bitmap.y, letter->begin,
 			letter->length, style);
 		do_free=1;
 	} else {
@@ -1984,7 +1979,7 @@ void init_dip(void)
 {
 	init_font_cache();
 	update_aspect();
-	register_cache_upcall(shrink_font_cache, "fontcache");
+	register_cache_upcall(shrink_font_cache, MF_GPI, cast_uchar "fontcache");
 }
 
 static void recode_font_name(unsigned char **name)
@@ -1992,15 +1987,15 @@ static void recode_font_name(unsigned char **name)
 	int dashes=0;
 	unsigned char *p;
 
-	if (!strcmp(*name,"monospaced")) *name="courier-medium-roman-serif-mono";
-	if (!strcmp(*name,"monospace")) *name="courier-medium-roman-serif-mono";
-	else if (!strcmp(*name,"")) *name="century_school-medium-roman-serif-vari";
+	if (!strcmp(cast_const_char *name,"monospaced")) *name=cast_uchar "courier-medium-roman-serif-mono";
+	if (!strcmp(cast_const_char *name,"monospace")) *name=cast_uchar "courier-medium-roman-serif-mono";
+	else if (!strcmp(cast_const_char *name,"")) *name=cast_uchar "century_school-medium-roman-serif-vari";
 	p=*name;
 	while(*p){
 		if (*p=='-')dashes++;
 		p++;
 	}
-	if (dashes!=4) *name="century_school-medium-roman-serif-vari";
+	if (dashes!=4) *name=cast_uchar "century_school-medium-roman-serif-vari";
 }
 
 /* Compares single=a multi=b-c-a as matching.
@@ -2010,17 +2005,17 @@ static void recode_font_name(unsigned char **name)
 static int compare_family(unsigned char *single, unsigned char *multi)
 {
 	unsigned char *p,*r;
-	int single_length=strlen(single);
+	int single_length=strlen(cast_const_char single);
 
 	r=multi;
 	while(1){
 		p=r;
 		while (*r&&*r!='-')r++;
-		if ((r-p==single_length)&&!strncmp(single,p,r-p)) return 0;
+		if ((r-p==single_length)&&!strncmp(cast_const_char single,cast_const_char p,r-p)) return 0;
 		if (!*r) return 1;
 		r++;
 	}
-	return 1;
+	not_reached(return 1;)
 }
 
 /* Input name must contain exactly 4 dashes, otherwise the
@@ -2058,20 +2053,20 @@ static int fill_style_table(int * table, unsigned char *name)
 	*p=0;
 	p++;
 	spacing=p;
-	monospaced=!strcmp(spacing,"mono");
+	monospaced=!strcmp(cast_const_char spacing,"mono");
 	
 	for (pass=0;pass<6;pass++){
 		for (f=1;f<n_fonts;f++){
 			/* Font 0 must not be int style_table */
 			result=compare_family(family,font_table[f].family);
 			result<<=1;
-			result|=!!strcmp(weight,font_table[f].weight);
+			result|=!!strcmp(cast_const_char weight,cast_const_char font_table[f].weight);
 			result<<=1;
-			result|=!!strcmp(slant,font_table[f].slant);
+			result|=!!strcmp(cast_const_char slant,cast_const_char font_table[f].slant);
 			result<<=1;
-			result|=!!strcmp(adstyl,font_table[f].adstyl);
+			result|=!!strcmp(cast_const_char adstyl,cast_const_char font_table[f].adstyl);
 			result<<=1;
-			result|=!!strcmp(spacing,font_table[f].spacing);
+			result|=!!strcmp(cast_const_char spacing,cast_const_char font_table[f].spacing);
 			result^=xors[pass];
 			result&=masks[pass];
 			if (!result) /* Fot complies */
@@ -2181,7 +2176,7 @@ long real_dip_get_color_sRGB(int rgb)
 
 /* ATTENTION!!! allocates using malloc. Due to braindead Xlib, which
  * frees it using free and thus it is not possible to use mem_alloc. */
-void get_links_icon(unsigned char **data, int *width, int *height, int depth)
+void get_links_icon(unsigned char **data, int *width, int *height, int *skip, int pad)
 {
 	struct bitmap b;
 	unsigned short *tmp1;
@@ -2191,10 +2186,12 @@ void get_links_icon(unsigned char **data, int *width, int *height, int depth)
 	b.y=48;
 	*width=b.x;
 	*height=b.y;
-	b.skip=b.x*(depth&7);
+	b.skip=b.x*(drv->depth&7);
+	while (b.skip % pad) b.skip++;
+	*skip=b.skip;
 	retry:
 	if (!(b.data=*data=malloc(b.skip*b.y))) {
-		out_of_memory("icon malloc", b.skip*b.y);
+		out_of_memory(0, cast_uchar "icon malloc", b.skip*b.y);
 		goto retry;
 	}
 	tmp1=mem_alloc(6*b.y*b.x);

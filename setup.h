@@ -31,13 +31,13 @@
 #define LEAK_DEBUG
 #endif
 
-#define LINKS_MANUAL_URL		(!strcmp(language_name(current_language),"Czech") || !strcmp(language_name(current_language),"Slovak")?\
+#define LINKS_MANUAL_URL		(!strcmp(cast_const_char language_name(current_language),"Czech") || !strcmp(cast_const_char language_name(current_language),"Slovak")?\
 					"http://links.twibright.com/user.html":\
 					"http://links.twibright.com/user_en.html")
-#define LINKS_HOMEPAGE_URL		(!strcmp(language_name(current_language),"Czech") || !strcmp(language_name(current_language),"Slovak")?\
+#define LINKS_HOMEPAGE_URL		(!strcmp(cast_const_char language_name(current_language),"Czech") || !strcmp(cast_const_char language_name(current_language),"Slovak")?\
 					"http://links.twibright.com/index_cz.php":\
 					"http://links.twibright.com/")
-#define LINKS_CALIBRATION_URL		(!strcmp(language_name(current_language),"Czech") || !strcmp(language_name(current_language),"Slovak")?\
+#define LINKS_CALIBRATION_URL		(!strcmp(cast_const_char language_name(current_language),"Czech") || !strcmp(cast_const_char language_name(current_language),"Slovak")?\
 					"http://links.twibright.com/kalibrace.html":\
 					"http://links.twibright.com/calibration.html")
 

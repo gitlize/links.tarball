@@ -57,8 +57,8 @@ unsigned long decompress_info(int type)
 static unsigned char *extract_proxy(unsigned char *url)
 {
 	unsigned char *a;
-	if (strlen(url) < 8 || casecmp(url, "proxy://", 8)) return url;
-	if (!(a = strchr(url + 8, '/'))) return url;
+	if (strlen(cast_const_char url) < 8 || casecmp(url, cast_uchar "proxy://", 8)) return url;
+	if (!(a = cast_uchar strchr(cast_const_char(url + 8), '/'))) return url;
 	return a + 1;
 }
 
@@ -66,7 +66,7 @@ int find_in_cache(unsigned char *url, struct cache_entry **f)
 {
 	struct cache_entry *e;
 	url = extract_proxy(url);
-	foreach(e, cache) if (!strcmp(e->url, url)) {
+	foreach(e, cache) if (!strcmp(cast_const_char e->url, cast_const_char url)) {
 		e->refcount++;
 		del_from_list(e);
 		add_to_list(cache, e);
@@ -85,11 +85,11 @@ int get_cache_entry(unsigned char *url, struct cache_entry **f)
 int new_cache_entry(unsigned char *url, struct cache_entry **f)
 {
 	struct cache_entry *e;
-	shrink_memory(SH_CHECK_QUOTA);
+	shrink_memory(SH_CHECK_QUOTA, 0);
 	url = extract_proxy(url);
 	e = mem_calloc(sizeof(struct cache_entry));
-	e->url = mem_alloc(strlen(url)+1);
-	strcpy(e->url, url);
+	e->url = mem_alloc(strlen(cast_const_char url)+1);
+	strcpy(cast_char e->url, cast_const_char url);
 	e->length = 0;
 	e->incomplete = 1;
 	e->data_size = 0;
@@ -110,7 +110,7 @@ void detach_cache_entry(struct cache_entry *e)
 	e->url[0] = 0;
 }
 
-#define sf(x) e->data_size += (x), cache_size += (x)
+#define sf(x) e->data_size += (x), cache_size += (unsigned long)(x)
 
 int page_size = 4096;
 
@@ -139,7 +139,7 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 		if (f->offset > offset) break;
 		if (f->offset <= offset && f->offset+f->length >= offset) {
 			if (offset+length > f->offset+f->length) {
-				if (memcmp(f->data+offset-f->offset, data, f->offset+f->length-offset)) trunc = 1;
+				if (memcmp(f->data+offset-f->offset, data, (size_t)(f->offset+f->length-offset))) trunc = 1;
 				a = 1; /* !!! FIXME */
 				if (offset-f->offset+length <= f->real_length) {
 					sf((offset+length) - (f->offset+f->length));
@@ -152,9 +152,9 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 					break;
 				}
 			} else {
-				if (memcmp(f->data+offset-f->offset, data, length)) trunc = 1;
+				if (memcmp(f->data+offset-f->offset, data, (size_t)length)) trunc = 1;
 			}
-			memcpy(f->data+offset-f->offset, data, length);
+			memcpy(f->data+offset-f->offset, data, (size_t)length);
 			goto ch_o;
 		}
 	}
@@ -162,29 +162,29 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 	/*if (C_ALIGN(length) > MAXINT - sizeof(struct fragment) || C_ALIGN(length) < 0) overalloc();*/
 	ca = C_ALIGN(length);
 	if (ca > MAXINT - (int)sizeof(struct fragment) || ca < 0) return S_LARGE_FILE;
-	nf = mem_alloc_mayfail(sizeof(struct fragment) + ca);
+	nf = mem_alloc_mayfail(sizeof(struct fragment) + (size_t)ca);
 	if (!nf) return S_OUT_OF_MEM;
 	a = 1;
 	sf(length);
 	nf->offset = offset;
 	nf->length = length;
 	nf->real_length = C_ALIGN(length);
-	memcpy(nf->data, data, length);
+	memcpy(nf->data, data, (size_t)length);
 	add_at_pos(f->prev, nf);
 	f = nf;
 	ch_o:
 	while ((void *)f->next != &e->frag && f->offset+f->length > f->next->offset) {
 		if (f->offset+f->length < f->next->offset+f->next->length) {
-			nf = mem_realloc(f, sizeof(struct fragment)+f->next->offset-f->offset+f->next->length);
+			nf = mem_realloc(f, sizeof(struct fragment)+(size_t)(f->next->offset-f->offset+f->next->length));
 			nf->prev->next = nf;
 			nf->next->prev = nf;
 			f = nf;
-			if (memcmp(f->data+f->next->offset-f->offset, f->next->data, f->offset+f->length-f->next->offset)) trunc = 1;
-			memcpy(f->data+f->length, f->next->data+f->offset+f->length-f->next->offset, f->next->offset+f->next->length-f->offset-f->length);
+			if (memcmp(f->data+f->next->offset-f->offset, f->next->data, (size_t)(f->offset+f->length-f->next->offset))) trunc = 1;
+			memcpy(f->data+f->length, f->next->data+f->offset+f->length-f->next->offset, (size_t)(f->next->offset+f->next->length-f->offset-f->length));
 			sf(f->next->offset+f->next->length-f->offset-f->length);
 			f->length = f->real_length = f->next->offset+f->next->length-f->offset;
 		} else {
-			if (memcmp(f->data+f->next->offset-f->offset, f->next->data, f->next->length)) trunc = 1;
+			if (memcmp(f->data+f->next->offset-f->offset, f->next->data, (size_t)f->next->length)) trunc = 1;
 		}
 		nf = f->next;
 		del_from_list(nf);
@@ -194,7 +194,7 @@ int add_fragment(struct cache_entry *e, off_t offset, unsigned char *data, off_t
 	if (trunc) truncate_entry(e, offset + length, 0);
 	/*{
 		foreach(f, e->frag) fprintf(stderr, "%d, %d, %d\n", f->offset, f->length, f->real_length);
-		debug("a-");
+		debug(cast_uchar "a-");
 	}*/
 	return a;
 }
@@ -214,10 +214,10 @@ int defrag_entry(struct cache_entry *e)
 		internal("fragments overlay");
 		return S_INTERNAL;
 	}
-	/*debug("%p %p %d %d", g, f->next, f->length, f->real_length);*/
+	/*debug(cast_uchar "%p %p %d %d", g, f->next, f->length, f->real_length);*/
 	if (g == f->next) {
 		if (f->length != f->real_length) {
-			f = mem_realloc_mayfail(f, sizeof(struct fragment) + f->length);
+			f = mem_realloc_mayfail(f, sizeof(struct fragment) + (size_t)f->length);
 			if (f) {
 				f->real_length = f->length;
 				f->next->prev = f;
@@ -231,18 +231,18 @@ int defrag_entry(struct cache_entry *e)
 		l += h->length;
 	}
 	if (l > MAXINT - (int)sizeof(struct fragment)) return S_LARGE_FILE;
-	n = mem_alloc_mayfail(sizeof(struct fragment) + l);
+	n = mem_alloc_mayfail(sizeof(struct fragment) + (size_t)l);
 	if (!n) return S_OUT_OF_MEM;
 	n->offset = 0;
 	n->length = l;
 	n->real_length = l;
 	/*{
 		struct fragment *f;
-		foreach(f, e->frag) fprintf(stderr, "%d, %d, %d\n", f->offset, f->length, f->real_length);
-		debug("d1-");
+		foreach(f, e->frag) fprintf(stderr, cast_uchar "%d, %d, %d\n", f->offset, f->length, f->real_length);
+		debug(cast_uchar "d1-");
 	}*/
 	for (l = 0, h = f; h != g; h = h->next) {
-		memcpy(n->data + l, h->data, h->length);
+		memcpy(n->data + l, h->data, (size_t)h->length);
 		l += h->length;
 		x = h;
 		h = h->prev;
@@ -252,7 +252,7 @@ int defrag_entry(struct cache_entry *e)
 	add_to_list(e->frag, n);
 	/*{
 		foreach(f, e->frag) fprintf(stderr, "%d, %d, %d\n", f->offset, f->length, f->real_length);
-		debug("d-");
+		debug(cast_uchar "d-");
 	}*/
 	return 0;
 }
@@ -280,7 +280,7 @@ void truncate_entry(struct cache_entry *e, off_t off, int final)
 			sf(-(f->offset + f->length - off));
 			f->length = off - f->offset;
 			if (final) {
-				g = mem_realloc(f, sizeof(struct fragment) + f->length);
+				g = mem_realloc(f, sizeof(struct fragment) + (size_t)f->length);
 				g->next->prev = g;
 				g->prev->next = g;
 				f = g;
@@ -312,7 +312,7 @@ void free_entry_to(struct cache_entry *e, off_t off)
 			mem_free(g);
 		} else if (f->offset < off) {
 			sf(f->offset - off);
-			memmove(f->data, f->data + (off - f->offset), f->length -= off - f->offset);
+			memmove(f->data, f->data + (off - f->offset), (size_t)(f->length -= off - f->offset));
 			f->offset = off;
 		} else break;
 	}
@@ -328,7 +328,7 @@ void delete_entry_content(struct cache_entry *e)
 	if (cache_size < (unsigned long)e->data_size) {
 		internal("cache_size underflow: %lu, %lu", cache_size, (unsigned long)e->data_size);
 	}
-	cache_size -= e->data_size;
+	cache_size -= (unsigned long)e->data_size;
 	e->data_size = 0;
 	if (e->last_modified) {
 		mem_free(e->last_modified);
@@ -342,7 +342,7 @@ void trim_cache_entry(struct cache_entry *e)
 	struct fragment *f, *nf;
 	foreach(f, e->frag) {
 		if (f->length != f->real_length) {
-			nf = mem_realloc_mayfail(f, sizeof(struct fragment) + f->length);
+			nf = mem_realloc_mayfail(f, sizeof(struct fragment) + (size_t)f->length);
 			if (nf) {
 				f = nf;
 				f->real_length = f->length;
@@ -384,7 +384,7 @@ static int shrink_file_cache(int u)
 			if (ncs < (unsigned long)e->data_size) {
 				internal("cache_size underflow: %lu, %lu", ncs, (unsigned long)e->data_size);
 			}
-			ncs -= e->data_size;
+			ncs -= (unsigned long)e->data_size;
 		} else if (u == SH_FREE_SOMETHING) {
 			if (e->decompressed_len) free_decompressed_data(e);
 			else delete_cache_entry(e);
@@ -395,7 +395,7 @@ static int shrink_file_cache(int u)
 			free_decompressed_data(e);
 			r |= ST_SOMETHING_FREED;
 		}
-		ccs += e->data_size;
+		ccs += (unsigned long)e->data_size;
 		ccs2 += e->decompressed_len;
 	}
 	if (ccs != cache_size) internal("cache size badly computed: %lu != %lu", cache_size, ccs), cache_size = ccs;
@@ -411,14 +411,14 @@ static int shrink_file_cache(int u)
 		if (ncs < (unsigned long)e->data_size) {
 			internal("cache_size underflow: %lu, %lu", ncs, (unsigned long)e->data_size);
 		}
-		ncs -= e->data_size;
+		ncs -= (unsigned long)e->data_size;
 	}
 	if (ncs) internal("cache_size(%lu) is larger than size of all objects(%lu)", cache_size, cache_size - ncs);
 	g:
 	if ((void *)(e = e->next) == &cache) goto ret;
 	if (u == SH_CHECK_QUOTA) for (f = e; (void *)f != &cache; f = f->next) {
 		if (f->data_size && (longlong)ncs + f->data_size <= (longlong)memory_cache_size * MEMORY_CACHE_GC_PERCENT) {
-			ncs += f->data_size;
+			ncs += (unsigned long)f->data_size;
 			f->tgc = 0;
 		}
 	}
@@ -440,5 +440,5 @@ void init_cache(void)
 	EINTRLOOP(getpg, getpagesize());
 	if (getpg > 0 && getpg < 0x10000 && !(getpg & (getpg - 1))) page_size = getpg;
 #endif
-	register_cache_upcall(shrink_file_cache, "file");
+	register_cache_upcall(shrink_file_cache, 0, cast_uchar "file");
 }

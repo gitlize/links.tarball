@@ -67,15 +67,15 @@ static int get_address(void)
 	unsigned char *path;
 	if (!links_home) return -1;
 	path = stracpy(links_home);
-	add_to_strn(&path, LINKS_SOCK_NAME);
-	s_unix_l = (unsigned char *)&s_unix.sun.sun_path - (unsigned char *)&s_unix.sun + strlen(path) + 1;
-	if (strlen(path) > sizeof(union address) || (size_t)s_unix_l > sizeof(union address)) {
+	add_to_strn(&path, cast_uchar LINKS_SOCK_NAME);
+	s_unix_l = (unsigned char *)&s_unix.sun.sun_path - (unsigned char *)&s_unix.sun + strlen(cast_const_char path) + 1;
+	if (strlen(cast_const_char path) > sizeof(union address) || (size_t)s_unix_l > sizeof(union address)) {
 		mem_free(path);
 		return -1;
 	}
 	memset(&s_unix, 0, sizeof s_unix);
 	s_unix.sun.sun_family = AF_UNIX;
-	strcpy(s_unix.sun.sun_path, path);
+	strcpy(cast_char s_unix.sun.sun_path, cast_const_char path);
 	mem_free(path);
 	return PF_UNIX;
 }
@@ -127,7 +127,7 @@ int bind_to_af_unix(void)
 	int rs;
 	struct links_handshake received_handshake;
 	memset(&links_handshake, 0, sizeof links_handshake);
-	safe_strncpy(links_handshake.version, "Links " VERSION_STRING, sizeof links_handshake.version);
+	safe_strncpy(links_handshake.version, cast_uchar("Links " VERSION_STRING), sizeof links_handshake.version);
 	safe_strncpy(links_handshake.system_name, system_name, sizeof links_handshake.system_name);
 	links_handshake.system_id = SYSTEM_ID;
 	links_handshake.sizeof_long = sizeof(long);

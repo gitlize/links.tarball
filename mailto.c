@@ -11,11 +11,11 @@ static void prog_func(struct terminal *term, struct list_head *list, unsigned ch
 {
 	unsigned char *prog, *cmd;
 	if (!(prog = get_prog(list)) || !*prog) {
-		msg_box(term, NULL, TEXT_(T_NO_PROGRAM), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_NO_PROGRAM_SPECIFIED_FOR), " ", name, ".", NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+		msg_box(term, NULL, TEXT_(T_NO_PROGRAM), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_NO_PROGRAM_SPECIFIED_FOR), cast_uchar " ", name, cast_uchar ".", NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return;
 	}
 	if ((cmd = subst_file(prog, param, 0))) {
-		exec_on_terminal(term, cmd, "", 1);
+		exec_on_terminal(term, cmd, cast_uchar "", 1);
 		mem_free(cmd);
 	}
 }
@@ -26,11 +26,11 @@ void mailto_func(struct session *ses, unsigned char *url)
 	int f = 1;
 	if (!(user = get_user_name(url))) goto fail;
 	if (!(host = get_host_name(url))) goto fail1;
-	m = mem_alloc(strlen(user) + strlen(host) + 2);
+	m = mem_alloc(strlen(cast_const_char user) + strlen(cast_const_char host) + 2);
 	f = 0;
-	strcpy(m, user);
-	strcat(m, "@");
-	strcat(m, host);
+	strcpy(cast_char m, cast_const_char user);
+	strcat(cast_char m, "@");
+	strcat(cast_char m, cast_const_char host);
 	check_shell_security(&m);
 	prog_func(ses->term, &mailto_prog, m, TEXT_(T_MAIL));
 	mem_free(m);
@@ -53,12 +53,12 @@ static void tn_func(struct session *ses, unsigned char *url, struct list_head *p
 	if (pl && !(pp = memacpy(p, pl))) goto fail1;
 	check_shell_security(&hh);
 	if (pl) check_shell_security(&pp);
-	m = mem_alloc(strlen(hh) + (pl ? strlen(pp) : 0) + 2);
+	m = mem_alloc(strlen(cast_const_char hh) + (pl ? strlen(cast_const_char pp) : 0) + 2);
 	f = 0;
-	strcpy(m, hh);
+	strcpy(cast_char m, cast_const_char hh);
 	if (pl) {
-		strcat(m, " ");
-		strcat(m, pp);
+		strcat(cast_char m, " ");
+		strcat(cast_char m, cast_const_char pp);
 		m[hl + 1 + pl] = 0;
 	}
 	prog_func(ses->term, prog, m, t1);

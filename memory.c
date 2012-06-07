@@ -9,16 +9,20 @@ struct cache_upcall {
 	struct cache_upcall *next;
 	struct cache_upcall *prev;
 	int (*upcall)(int);
+	unsigned char flags;
 	unsigned char name[1];
 };
 
 static struct list_head cache_upcalls = { &cache_upcalls, &cache_upcalls }; /* cache_upcall */
 
-int shrink_memory(int type)
+int shrink_memory(int type, int flags)
 {
 	struct cache_upcall *c;
 	int a = 0;
-	foreach(c, cache_upcalls) a |= c->upcall(type);
+	foreach(c, cache_upcalls) {
+		if (flags && !(c->flags & flags)) continue;
+		a |= c->upcall(type);
+	}
 #if defined(HAVE__HEAPMIN)
 	{
 		static time_t last_heapmin = 0;
@@ -31,12 +35,13 @@ int shrink_memory(int type)
 	return a;
 }
 
-void register_cache_upcall(int (*upcall)(int), unsigned char *name)
+void register_cache_upcall(int (*upcall)(int), int flags, unsigned char *name)
 {
 	struct cache_upcall *c;
-	c = mem_alloc(sizeof(struct cache_upcall) + strlen(name) + 1);
+	c = mem_alloc(sizeof(struct cache_upcall) + strlen(cast_const_char name));
 	c->upcall = upcall;
-	strcpy(c->name, name);
+	c->flags = flags;
+	strcpy(cast_char c->name, cast_const_char name);
 	add_to_list(cache_upcalls, c);
 }
 
@@ -57,7 +62,7 @@ void free_all_caches(void)
 		unsigned char *m = init_str();
 		int l = 0;
 		foreach(c, cache_upcalls) if (!(c->upcall(SH_FREE_ALL) & ST_CACHE_EMPTY)) {
-			if (l) add_to_str(&m, &l, ", ");
+			if (l) add_to_str(&m, &l, cast_uchar ", ");
 			add_to_str(&m, &l, c->name);
 		}
 		internal("could not release entries from caches: %s", m);
@@ -68,10 +73,16 @@ void free_all_caches(void)
 
 int malloc_try_hard = 0;
 
-int out_of_memory(unsigned char *msg, size_t size)
+int out_of_memory(int flags, unsigned char *msg, size_t size)
 {
-	int sh = shrink_memory(SH_FREE_SOMETHING);
+	int sh;
+retry:
+	sh = shrink_memory(SH_FREE_SOMETHING, flags);
 	if (sh & ST_SOMETHING_FREED) return 1;
+	if (flags) {
+		flags = 0;
+		goto retry;
+	}
 	if (!malloc_try_hard) {
 		malloc_try_hard = 1;
 		return 1;
@@ -91,9 +102,7 @@ int out_of_memory(unsigned char *msg, size_t size)
 	fprintf(stderr, "Formatted document cache: %lu documents, %lu locked\n", formatted_info(CI_FILES), formatted_info(CI_LOCKED));
 	fprintf(stderr, "DNS cache: %lu servers\n", dns_info(CI_FILES));
 
-	error("ERROR: out of memory (%s(%lu) returned NULL)", msg, (unsigned long)size);
-	fatal_tty_exit();
-	exit(RET_FATAL);
+	fatal_exit("ERROR: out of memory (%s(%lu) returned NULL)", msg, (unsigned long)size);
 	return 0;
 }
 
@@ -121,7 +130,7 @@ void debug_test_free(unsigned char *file, int line)
 		goto fixed_prob;
 	}
 	foreach(sl, debug_test_free_slots) {
-		if (sl->line == line && (sl->file == file || !strcmp(sl->file, file))) {
+		if (sl->line == line && (sl->file == file || !strcmp(cast_const_char sl->file, cast_const_char file))) {
 			del_from_list(sl);
 			goto have_it;
 		}

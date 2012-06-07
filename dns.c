@@ -105,7 +105,7 @@ static int do_external_lookup(unsigned char *name, ip__address *host)
 	if (rd < 0) return -1;
 	/*fprintf(stderr, "query: '%s', result: %s\n", name, buffer);*/
 	while ((n = strstr(buffer, name))) {
-		memset(n, '-', strlen(name));
+		memset(n, '-', strlen(cast_const_char name));
 	}
 	for (n = buffer; n < buffer + rd; n++) {
 		if (*n >= '0' && *n <= '9') {
@@ -131,12 +131,12 @@ int do_real_lookup(unsigned char *name, ip__address *host)
 	for (n = name; *n; n++) if (*n != '.' && (*n < '0' || *n > '9')) goto nogethostbyaddr;
 	if (!numeric_ip_address(name, host)) return 0;
 #ifdef HAVE_GETHOSTBYADDR
-	if (!(hst = gethostbyaddr(name, strlen(name), AF_INET)))
+	if (!(hst = gethostbyaddr(cast_const_char name, strlen(cast_const_char name), AF_INET)))
 #endif
 	{
 		nogethostbyaddr:
 #ifdef HAVE_GETHOSTBYNAME
-		if (!(hst = gethostbyname(name)))
+		if (!(hst = gethostbyname(cast_const_char name)))
 #endif
 		{
 #ifdef EXTERNAL_LOOKUP
@@ -194,7 +194,7 @@ static int do_lookup(struct dnsquery *q, int force_async)
 		return 0;
 #ifndef NO_ASYNC_LOOKUP
 	} else {
-		if ((q->h = start_thread((void (*)(void *, int))lookup_fn, q->name, strlen(q->name) + 1)) == -1) goto sync_lookup;
+		if ((q->h = start_thread((void (*)(void *, int))lookup_fn, q->name, strlen(cast_const_char q->name) + 1)) == -1) goto sync_lookup;
 		set_handlers(q->h, (void (*)(void *))end_real_lookup, NULL, (void (*)(void *))failed_real_lookup, q);
 		return 1;
 	}
@@ -225,7 +225,7 @@ static int find_in_dns_cache(unsigned char *name, struct dnsentry **dnsentry)
 {
 	struct dnsentry *e;
 	foreach(e, dns_cache)
-		if (!strcasecmp(e->name, name)) {
+		if (!strcasecmp(cast_const_char e->name, cast_const_char name)) {
 			del_from_list(e);
 			add_to_list(dns_cache, e);
 			*dnsentry=e;
@@ -260,8 +260,8 @@ static void end_dns_lookup(struct dnsquery *q, int a)
 		mem_free(dnsentry);
 	}
 	if (a) goto e;
-	dnsentry = mem_alloc(sizeof(struct dnsentry) + strlen(q->name) + 1);
-	strcpy(dnsentry->name, q->name);
+	dnsentry = mem_alloc(sizeof(struct dnsentry) + strlen(cast_const_char q->name) + 1);
+	strcpy(cast_char dnsentry->name, cast_const_char q->name);
 	memcpy(&dnsentry->addr, q->addr, sizeof(ip__address));
 	dnsentry->get_time = get_time();
 	add_to_list(dns_cache, dnsentry);
@@ -277,8 +277,8 @@ int find_host_no_cache(unsigned char *name, ip__address *addr, void **qp, void (
 {
 	struct dnsquery *q;
 	retry:
-	if (!(q = (struct dnsquery *)malloc(sizeof(struct dnsquery) + strlen(name) + 1))) {
-		if (out_of_memory(NULL, 0))
+	if (!(q = (struct dnsquery *)malloc(sizeof(struct dnsquery) + strlen(cast_const_char name) + 1))) {
+		if (out_of_memory(0, NULL, 0))
 			goto retry;
 		fn(data, -1);
 		return 0;
@@ -287,7 +287,7 @@ int find_host_no_cache(unsigned char *name, ip__address *addr, void **qp, void (
 	q->data = data;
 	q->s = (struct dnsquery **)qp;
 	q->addr = addr;
-	strcpy(q->name, name);
+	strcpy(cast_char q->name, cast_const_char name);
 	if (qp) *(struct dnsquery **) qp = q;
 	q->xfn = end_dns_lookup;
 	return do_queued_lookup(q);
@@ -351,5 +351,5 @@ static int shrink_dns_cache(int u)
 
 void init_dns(void)
 {
-	register_cache_upcall(shrink_dns_cache, "dns");
+	register_cache_upcall(shrink_dns_cache, 0, cast_uchar "dns");
 }

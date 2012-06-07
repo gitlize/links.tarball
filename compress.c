@@ -20,7 +20,7 @@ static int display_error(struct terminal *term, unsigned char *msg, int *errp)
 
 static void decoder_memory_init(unsigned char **p, size_t *size, off_t init_length)
 {
-	if (init_length > 0 && init_length < MAXINT) *size = init_length;
+	if (init_length > 0 && init_length < MAXINT) *size = (int)init_length;
 	else *size = 4096;
 	*p = mem_alloc(*size);
 }
@@ -46,7 +46,7 @@ static int decoder_memory_expand(unsigned char **p, size_t size, size_t *addsize
 static void decompress_error(struct terminal *term, struct cache_entry *ce, unsigned char *lib, unsigned char *msg, int *errp)
 {
 	unsigned char *u, *uu, *server;
-	if ((u = parse_http_header(ce->head, "Content-Encoding", NULL))) {
+	if ((u = parse_http_header(ce->head, cast_uchar "Content-Encoding", NULL))) {
 		mem_free(u);
 		if ((server = get_host_name(ce->url))) {
 			add_blacklist_entry(server, BL_NO_COMPRESSION);
@@ -55,8 +55,8 @@ static void decompress_error(struct terminal *term, struct cache_entry *ce, unsi
 	}
 	if (!display_error(term, TEXT_(T_DECOMPRESSION_ERROR), errp)) return;
 	u = stracpy(ce->url);
-	if ((uu = strchr(u, POST_CHAR))) *uu = 0;
-	msg_box(term, getml(u, NULL), TEXT_(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DECOMPRESSING_), u, TEXT_(T__wITH_), lib, ": ", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+	if ((uu = cast_uchar strchr(cast_const_char u, POST_CHAR))) *uu = 0;
+	msg_box(term, getml(u, NULL), TEXT_(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DECOMPRESSING_), u, TEXT_(T__wITH_), lib, cast_uchar ": ", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
 #endif
@@ -112,13 +112,13 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 						old_zlib = 1;
 						goto init_failed;
 					}
-					decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Invalid parameter", errp);
+					decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Invalid parameter", errp);
 					err = 1;
 					goto after_inflateend;
-		case Z_VERSION_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Bad zlib version", errp);
+		case Z_VERSION_ERROR:	decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Bad zlib version", errp);
 					err = 1;
 					goto after_inflateend;
-		default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateInit2", errp);
+		default:		decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateInit2", errp);
 					err = 1;
 					goto after_inflateend;
 	}
@@ -126,7 +126,8 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 	foreach(f, ce->frag) {
 		if (f->offset != offset) break;
 		z.next_in = f->data;
-		z.avail_in = f->length;
+		z.avail_in = (unsigned)f->length;
+		if (z.avail_in != f->length) overalloc();
 		if (header && !offset) {
 			z.next_in = (unsigned char *)z.next_in + header;
 			z.avail_in -= header;
@@ -145,12 +146,12 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 			unsigned headlen = 10;
 			if (z.avail_in <= 11) goto finish;
 			if (head[0] != 0x1f || head[1] != 0x8b) {
-				decompress_error(term, ce, "zlib", TEXT_(T_COMPRESSED_ERROR), errp);
+				decompress_error(term, ce, cast_uchar "zlib", TEXT_(T_COMPRESSED_ERROR), errp);
 				err = 1;
 				goto finish;
 			}
 			if (head[2] != 8 || head[3] & 0xe0) {
-				decompress_error(term, ce, "zlib", TEXT_(T_UNKNOWN_COMPRESSION_METHOD), errp);
+				decompress_error(term, ce, cast_uchar "zlib", TEXT_(T_UNKNOWN_COMPRESSION_METHOD), errp);
 				err = 1;
 				goto finish;
 			}
@@ -200,17 +201,17 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 							if (r != Z_OK) goto end_failed;
 							goto init_again;
 						}
-						decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT_(T_COMPRESSED_ERROR), errp);
+						decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : TEXT_(T_COMPRESSED_ERROR), errp);
 						err = 1;
 						goto finish;
-			case Z_STREAM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflate", errp);
+			case Z_STREAM_ERROR:	decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflate", errp);
 						err = 1;
 						goto finish;
 			case Z_MEM_ERROR:
 			mem_error:		memory_error = 1;
 						err = 1;
 						goto finish;
-			default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflate", errp);
+			default:		decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflate", errp);
 						err = 1;
 						break;
 		}
@@ -234,22 +235,22 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 	end_failed:
 	switch (r) {
 		case Z_OK:		break;
-		case Z_STREAM_ERROR:	decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflateEnd", errp);
+		case Z_STREAM_ERROR:	decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Internal error on inflateEnd", errp);
 					err = 1;
 					break;
 		case Z_MEM_ERROR:	memory_error = 1;
 					err = 1;
 					break;
-		default:		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateEnd", errp);
+		default:		decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : (unsigned char *)"Unknown return value on inflateEnd", errp);
 					err = 1;
 					break;
 	}
 	after_inflateend:
 	if (memory_error) {
 		mem_free(p);
-		if (out_of_memory(NULL, 0))
+		if (out_of_memory(0, NULL, 0))
 			goto retry_after_memory_error;
-		decompress_error(term, ce, "zlib", z.msg ? (unsigned char *)z.msg : TEXT_(T_OUT_OF_MEMORY), errp);
+		decompress_error(term, ce, cast_uchar "zlib", z.msg ? (unsigned char *)z.msg : TEXT_(T_OUT_OF_MEMORY), errp);
 		return 1;
 	}
 	if (err && (unsigned char *)z.next_out == p) {
@@ -283,7 +284,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 	memset(&z, 0, sizeof z);
 	z.next_in = NULL;
 	z.avail_in = 0;
-	z.next_out = p;
+	z.next_out = cast_char p;
 	z.avail_out = size;
 	z.bzalloc = NULL;
 	z.bzfree = NULL;
@@ -296,21 +297,22 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 					err = 1;
 					goto after_inflateend;
 		case BZ_PARAM_ERROR:
-					decompress_error(term, ce, "bzip2", "Invalid parameter", errp);
+					decompress_error(term, ce, cast_uchar "bzip2", cast_uchar "Invalid parameter", errp);
 					err = 1;
 					goto after_inflateend;
-		case BZ_CONFIG_ERROR:	decompress_error(term, ce, "bzip2", "Bzlib is miscompiled", errp);
+		case BZ_CONFIG_ERROR:	decompress_error(term, ce, cast_uchar "bzip2", cast_uchar "Bzlib is miscompiled", errp);
 					err = 1;
 					goto after_inflateend;
-		default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompressInit", errp);
+		default:		decompress_error(term, ce, cast_uchar "bzip2", cast_uchar "Unknown return value on BZ2_bzDecompressInit", errp);
 					err = 1;
 					goto after_inflateend;
 	}
 	offset = 0;
 	foreach(f, ce->frag) {
 		if (f->offset != offset) break;
-		z.next_in = f->data;
-		z.avail_in = f->length;
+		z.next_in = cast_char f->data;
+		z.avail_in = (unsigned)f->length;
+		if (z.avail_in != f->length) overalloc();
 		repeat_frag:
 		r = BZ2_bzDecompress(&z);
 		switch (r) {
@@ -322,17 +324,17 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 						if (r != BZ_OK) goto init_failed;
 						break;
 			case BZ_DATA_ERROR_MAGIC:
-			case BZ_DATA_ERROR:	decompress_error(term, ce, "bzip2", TEXT_(T_COMPRESSED_ERROR), errp);
+			case BZ_DATA_ERROR:	decompress_error(term, ce, cast_uchar "bzip2", TEXT_(T_COMPRESSED_ERROR), errp);
 						err = 1;
 						goto finish;
-			case BZ_PARAM_ERROR:	decompress_error(term, ce, "bzip2", "Internal error on BZ2_bzDecompress", errp);
+			case BZ_PARAM_ERROR:	decompress_error(term, ce, cast_uchar "bzip2", cast_uchar "Internal error on BZ2_bzDecompress", errp);
 						err = 1;
 						goto finish;
 			case BZ_MEM_ERROR:
 			mem_error:		memory_error = 1;
 						err = 1;
 						goto finish;
-			default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompress", errp);
+			default:		decompress_error(term, ce, cast_uchar "bzip2", cast_uchar "Unknown return value on BZ2_bzDecompress", errp);
 						err = 1;
 						break;
 		}
@@ -340,7 +342,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 			size_t addsize;
 			if (decoder_memory_expand(&p, size, &addsize) < 0)
 				goto mem_error;
-			z.next_out = p + size;
+			z.next_out = cast_char(p + size);
 			z.avail_out = addsize;
 			size += addsize;
 		}
@@ -352,22 +354,22 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 	end_failed:
 	switch (r) {
 		case BZ_OK:		break;
-		case BZ_PARAM_ERROR:	decompress_error(term, ce, "bzip2", "Internal error on BZ2_bzDecompressEnd", errp);
+		case BZ_PARAM_ERROR:	decompress_error(term, ce, cast_uchar "bzip2", cast_uchar "Internal error on BZ2_bzDecompressEnd", errp);
 					err = 1;
 					break;
 		case BZ_MEM_ERROR:	memory_error = 1;
 					err = 1;
 					break;
-		default:		decompress_error(term, ce, "bzip2", "Unknown return value on BZ2_bzDecompressEnd", errp);
+		default:		decompress_error(term, ce, cast_uchar "bzip2", cast_uchar "Unknown return value on BZ2_bzDecompressEnd", errp);
 					err = 1;
 					break;
 	}
 	after_inflateend:
 	if (memory_error) {
 		mem_free(p);
-		if (out_of_memory(NULL, 0))
+		if (out_of_memory(0, NULL, 0))
 			goto retry_after_memory_error;
-		decompress_error(term, ce, "bzip2", TEXT_(T_OUT_OF_MEMORY), errp);
+		decompress_error(term, ce, cast_uchar "bzip2", TEXT_(T_OUT_OF_MEMORY), errp);
 		return 1;
 	}
 	if (err && (unsigned char *)z.next_out == p) {
@@ -412,13 +414,13 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned c
 					err = 1;
 					goto after_inflateend;
 		case LZMA_OPTIONS_ERROR:
-					decompress_error(term, ce, "lzma", "Invalid parameter", errp);
+					decompress_error(term, ce, cast_uchar "lzma", cast_uchar "Invalid parameter", errp);
 					err = 1;
 					goto after_inflateend;
-		case LZMA_PROG_ERROR:	decompress_error(term, ce, "lzma", "Lzma is miscompiled", errp);
+		case LZMA_PROG_ERROR:	decompress_error(term, ce, cast_uchar "lzma", cast_uchar "Lzma is miscompiled", errp);
 					err = 1;
 					goto after_inflateend;
-		default:		decompress_error(term, ce, "lzma", "Unknown return value on lzma_auto_decoder", errp);
+		default:		decompress_error(term, ce, cast_uchar "lzma", cast_uchar "Unknown return value on lzma_auto_decoder", errp);
 					err = 1;
 					goto after_inflateend;
 	}
@@ -426,7 +428,8 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned c
 	foreach(f, ce->frag) {
 		if (f->offset != offset) break;
 		z.next_in = f->data;
-		z.avail_in = f->length;
+		z.avail_in = (size_t)f->length;
+		if (z.avail_in != (size_t)f->length) overalloc();
 		repeat_frag:
 		r = lzma_code(&z, LZMA_RUN);
 		switch (r) {
@@ -445,22 +448,22 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned c
 						err = 1;
 						goto finish;
 			case LZMA_MEMLIMIT_ERROR:
-						decompress_error(term, ce, "lzma", "Memory limit was exceeded", errp);
+						decompress_error(term, ce, cast_uchar "lzma", cast_uchar "Memory limit was exceeded", errp);
 						err = 1;
 						goto finish;
 			case LZMA_FORMAT_ERROR:
 			case LZMA_DATA_ERROR:
 			case LZMA_BUF_ERROR:
-						decompress_error(term, ce, "lzma", TEXT_(T_COMPRESSED_ERROR), errp);
+						decompress_error(term, ce, cast_uchar "lzma", TEXT_(T_COMPRESSED_ERROR), errp);
 						err = 1;
 						goto finish;
-			case LZMA_OPTIONS_ERROR:decompress_error(term, ce, "lzma", "File contains unsupported options", errp);
+			case LZMA_OPTIONS_ERROR:decompress_error(term, ce, cast_uchar "lzma", cast_uchar "File contains unsupported options", errp);
 						err = 1;
 						goto finish;
-			case LZMA_PROG_ERROR:	decompress_error(term, ce, "lzma", "Lzma is miscompiled", errp);
+			case LZMA_PROG_ERROR:	decompress_error(term, ce, cast_uchar "lzma", cast_uchar "Lzma is miscompiled", errp);
 						err = 1;
 						goto finish;
-			default:		decompress_error(term, ce, "lzma", "Unknown return value on lzma_code", errp);
+			default:		decompress_error(term, ce, cast_uchar "lzma", cast_uchar "Unknown return value on lzma_code", errp);
 						err = 1;
 						break;
 		}
@@ -480,9 +483,9 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned c
 	after_inflateend:
 	if (memory_error) {
 		mem_free(p);
-		if (out_of_memory(NULL, 0))
+		if (out_of_memory(0, NULL, 0))
 			goto retry_after_memory_error;
-		decompress_error(term, ce, "lzma", TEXT_(T_OUT_OF_MEMORY), errp);
+		decompress_error(term, ce, cast_uchar "lzma", TEXT_(T_OUT_OF_MEMORY), errp);
 		return 1;
 	}
 	if (err && (unsigned char *)z.next_out == p) {
@@ -515,8 +518,8 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 	enc = get_content_encoding(ce->head, ce->url);
 	if (enc) {
 #ifdef HAVE_ZLIB
-		if (!strcasecmp(enc, "gzip") || !strcasecmp(enc, "x-gzip") || !strcasecmp(enc, "deflate")) {
-			int defl = !strcasecmp(enc, "deflate");
+		if (!strcasecmp(cast_const_char enc, "gzip") || !strcasecmp(cast_const_char enc, "x-gzip") || !strcasecmp(cast_const_char enc, "deflate")) {
+			int defl = !strcasecmp(cast_const_char enc, "deflate");
 			mem_free(enc);
 			if (decode_gzip(term, ce, &ce->decompressed, &ce->decompressed_len, defl, errp)) goto uncompressed;
 			decompressed_cache_size += ce->decompressed_len;
@@ -524,7 +527,7 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 		}
 #endif
 #ifdef HAVE_BZIP2
-		if (!strcasecmp(enc, "bzip2")) {
+		if (!strcasecmp(cast_const_char enc, "bzip2")) {
 			mem_free(enc);
 			if (decode_bzip2(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
 			decompressed_cache_size += ce->decompressed_len;
@@ -532,7 +535,7 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 		}
 #endif
 #ifdef HAVE_LZMA
-		if (!strcasecmp(enc, "lzma") || !strcasecmp(enc, "lzma2")) {
+		if (!strcasecmp(cast_const_char enc, "lzma") || !strcasecmp(cast_const_char enc, "lzma2")) {
 			mem_free(enc);
 			if (decode_lzma(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
 			decompressed_cache_size += ce->decompressed_len;
@@ -547,8 +550,8 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 		unsigned char *msg = get_err_msg(e);
 		if (display_error(term, TEXT_(T_ERROR), errp)) {
 			unsigned char *u = stracpy(ce->url), *uu;
-			if ((uu = strchr(u, POST_CHAR))) *uu = 0;
-			msg_box(term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), " ", u, ":\n\n", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+			if ((uu = cast_uchar strchr(cast_const_char u, POST_CHAR))) *uu = 0;
+			msg_box(term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), cast_uchar " ", u, cast_uchar ":\n\n", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		}
 	}
 	fr = ce->frag.next;
@@ -587,33 +590,33 @@ void add_compress_methods(unsigned char **s, int *l)
 	int cl = 0;
 #ifdef HAVE_ZLIB
 	{
-		if (!cl) cl = 1; else add_to_str(s, l, ", ");
-		add_to_str(s, l, "ZLIB");
+		if (!cl) cl = 1; else add_to_str(s, l, cast_uchar ", ");
+		add_to_str(s, l, cast_uchar "ZLIB");
 #ifdef zlib_version
-		add_to_str(s, l, " (");
+		add_to_str(s, l, cast_uchar " (");
 		add_to_str(s, l, (unsigned char *)zlib_version);
-		add_to_str(s, l, ")");
+		add_to_str(s, l, cast_uchar ")");
 #endif
 	}
 #endif
 #ifdef HAVE_BZIP2
 	{
 		unsigned char *b = (unsigned char *)BZ2_bzlibVersion();
-		int bl = strcspn(b, ",");
-		if (!cl) cl = 1; else add_to_str(s, l, ", ");
-		add_to_str(s, l, "BZIP2");
-		add_to_str(s, l, " (");
+		int bl = strcspn(cast_const_char b, ",");
+		if (!cl) cl = 1; else add_to_str(s, l, cast_uchar ", ");
+		add_to_str(s, l, cast_uchar "BZIP2");
+		add_to_str(s, l, cast_uchar " (");
 		add_bytes_to_str(s, l, b, bl);
-		add_to_str(s, l, ")");
+		add_to_str(s, l, cast_uchar ")");
 	}
 #endif
 #ifdef HAVE_LZMA
 	{
-		if (!cl) cl = 1; else add_to_str(s, l, ", ");
-		add_to_str(s, l, "LZMA");
-		add_to_str(s, l, " (");
-		add_to_str(s, l, (unsigned char *)lzma_version_string());
-		add_to_str(s, l, ")");
+		if (!cl) cl = 1; else add_to_str(s, l, cast_uchar ", ");
+		add_to_str(s, l, cast_uchar "LZMA");
+		add_to_str(s, l, cast_uchar " (");
+		add_to_str(s, l, cast_uchar lzma_version_string());
+		add_to_str(s, l, cast_uchar ")");
 	}
 #endif
 }

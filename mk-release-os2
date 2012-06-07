@@ -9,9 +9,9 @@ export CC
 CFLAGS="-Wall -W -Wno-unused-parameter -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -O2 -pipe -ansi -U__STRICT_ANSI__ -fno-common"
 export CFLAGS
 rc -r linksos2.rc linksos2.res
+LIBS=linksos2.res
+export LIBS
 if [ ! -f Makefile -o ! -f config.h ]; then
-	LIBS=linksos2.res
-	export LIBS
 	bash ./configure --enable-graphics --without-x --disable-utf8 --disable-debuglevel
 fi
 make

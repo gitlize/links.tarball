@@ -33,11 +33,11 @@ SSL *getSSL(void)
 		const SSL_METHOD *m;
 		unsigned char f_randfile[PATH_MAX];
 
-		const unsigned char *f = RAND_file_name(f_randfile, sizeof(f_randfile));
-		if (f && RAND_egd(f)<0) {
+		const unsigned char *f = (const unsigned char *)RAND_file_name(cast_char f_randfile, sizeof(f_randfile));
+		if (f && RAND_egd(cast_const_char f)<0) {
 			/* Not an EGD, so read and write to it */
-			if (RAND_load_file(f_randfile, -1))
-				RAND_write_file(f_randfile);
+			if (RAND_load_file(cast_const_char f_randfile, -1))
+				RAND_write_file(cast_const_char f_randfile);
 		}
 		SSLeay_add_ssl_algorithms();
 		m = SSLv23_client_method();
@@ -66,7 +66,7 @@ void ssl_finish(void)
 
 void https_func(struct connection *c)
 {
-	c->ssl = (void *)-1;
+	c->ssl = DUMMY;
 	http_func(c);
 }
 

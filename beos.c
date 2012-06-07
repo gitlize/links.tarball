@@ -214,9 +214,7 @@ int get_input_handle(void)
 	if ((inth = start_thr(input_handle_th, NULL, "input_thread")) < 0) {
 		closesocket(ihpipe[0]);
 		closesocket(ihpipe[1]);
-		error("Can't spawn input thread");
-		fatal_tty_exit();
-		exit(4);
+		fatal_exit("Can't spawn input thread");
 	}
 	return h = ihpipe[0];
 }
@@ -253,9 +251,7 @@ int get_output_handle(void)
 	if (start_thr(output_handle_th, NULL, "output_thread") < 0) {
 		closesocket(ohpipe[0]);
 		closesocket(ohpipe[1]);
-		error("Can't spawn output thread");
-		fatal_tty_exit();
-		exit(4);
+		fatal_exit("Can't spawn output thread");
 	}
 	return h = ohpipe[1];
 }*/

@@ -56,7 +56,7 @@ static int svgalib_timer_id;
 
 /*------------------------STRUCTURES-------------------------------------------*/
 struct modeline{
-	unsigned char *name;
+	char *name;
 	int number;
 };
 
@@ -655,9 +655,7 @@ static void svga_shutdown_driver(void)
 	kill_timer(svgalib_timer_id);
 #endif
 	if (vga_setmode(TEXT) < 0) {
-		error("ERROR: vga_setmode failed");
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		fatal_exit("ERROR: vga_setmode failed");
 	}
 	svgalib_free_trm(svgalib_kbd);
 	if (svga_driver_param)mem_free(svga_driver_param);
@@ -2304,7 +2302,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	if (!param || !*param) goto not_found;
 	svga_driver_param=stracpy(param);
 	for (j=0;(size_t)j<sizeof(modes)/sizeof(*modes);j++)
-		if (!strcasecmp(modes[j].name,param)) goto found;
+		if (!strcasecmp(cast_const_char modes[j].name,cast_const_char param)) goto found;
 	j = 1;
 	not_found:
 	{
@@ -2312,21 +2310,21 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 		int l = 0;
 		int f = 0;
 		if (j) {
-			add_to_str(&m, &l, "Video mode ");
+			add_to_str(&m, &l, cast_uchar "Video mode ");
 			add_to_str(&m, &l, param);
 			add_to_str(&m, &l,
-				j == 1 ? " not supported by svgalib" :
-				j == 2 ? " not supported by your video card" :
-				" could not be set");
-			add_to_str(&m, &l, ".\n");
-		} else add_to_str(&m, &l, "There is no default video mode.\n");
+				j == 1 ? cast_uchar " not supported by svgalib" :
+				j == 2 ? cast_uchar " not supported by your video card" :
+				cast_uchar " could not be set");
+			add_to_str(&m, &l, cast_uchar ".\n");
+		} else add_to_str(&m, &l, cast_uchar "There is no default video mode.\n");
 		for (j=0;(size_t)j<sizeof(modes)/sizeof(*modes);j++) if (vga_hasmode(modes[j].number)) {
-			if (f) add_to_str(&m, &l, ", ");
-			else f = 1, add_to_str(&m, &l, "The following modes are supported:\n");
-			add_to_str(&m, &l, modes[j].name);
+			if (f) add_to_str(&m, &l, cast_uchar ", ");
+			else f = 1, add_to_str(&m, &l, cast_uchar "The following modes are supported:\n");
+			add_to_str(&m, &l, cast_uchar modes[j].name);
 		}
-		if (f) add_to_str(&m, &l, "\nUse -mode switch to set video mode.\n");
-		else add_to_str(&m, &l, "There are no supported video modes. Links can't run on svgalib.\n");
+		if (f) add_to_str(&m, &l, cast_uchar "\nUse -mode switch to set video mode.\n");
+		else add_to_str(&m, &l, cast_uchar "There are no supported video modes. Links can't run on svgalib.\n");
 		if(svga_driver_param)mem_free(svga_driver_param),svga_driver_param=NULL;
 		return m;
 		
@@ -2339,7 +2337,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	if (init_virtual_devices(&svga_driver, NUMBER_OF_DEVICES))
 	{
 		if(svga_driver_param)mem_free(svga_driver_param),svga_driver_param=NULL;
-		return stracpy("Allocation of virtual devices failed.\n");
+		return stracpy(cast_uchar "Allocation of virtual devices failed.\n");
 	}
 	if ((vga_getmousetype()&MOUSE_TYPE_MASK)==MOUSE_NONE)
 		{
@@ -2380,7 +2378,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 		background_x=mouse_x=xsize>>1;
 		background_y=mouse_y=ysize>>1;
 		show_mouse();
-		mouse_seteventhandler(mouse_event_handler);
+		mouse_seteventhandler((void *)mouse_event_handler);
 	}else{
 		global_mouse_hidden=1;
 		/* To ensure hide_mouse and show_mouse will do nothing */
@@ -2443,9 +2441,7 @@ static int vga_block(struct graphics_device *dev)
 				handled by vga_setmode(TEXT). */
 		}
 		if (vga_setmode(TEXT) < 0) {
-			error("ERROR: vga_setmode failed");
-			fatal_tty_exit();
-			exit(RET_FATAL);
+			fatal_exit("ERROR: vga_setmode failed");
 		}
 	}
 	flags|=2;
@@ -2464,14 +2460,12 @@ static int vga_unblock(struct graphics_device *dev)
 	if (!flags) current_virtual_device=backup_virtual_device;
 	vga_setmousesupport(1);
 	if (vga_setmode(vga_mode) < 0) {
-		error("ERROR: vga_setmode failed");
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		fatal_exit("ERROR: vga_setmode failed");
 	}
 	setup_mode(vga_mode);
 	if (mouse_works){
 		show_mouse();
-		mouse_seteventhandler(mouse_event_handler);
+		mouse_seteventhandler((void *)mouse_event_handler);
 	}
 	svgalib_unblock_itrm(svgalib_kbd);
 	if (current_virtual_device) current_virtual_device->redraw_handler(current_virtual_device
@@ -2489,9 +2483,6 @@ static void svga_commit_strip(struct bitmap *bmp, int top, int lines)
 {
 	return;
 }
-
-/* This is a nasty hack */
-#undef select
 
 int vga_select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout)
 {
@@ -2535,7 +2526,7 @@ int vga_select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, stru
 }
 
 struct graphics_driver svga_driver={
-	"svgalib",
+	cast_uchar "svgalib",
 	svga_init_driver,
 	init_virtual_device,
 	shutdown_virtual_device,

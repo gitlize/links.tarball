@@ -1,3 +1,26 @@
+=== RELEASE 2.7pre1 ===
+
+Sat Jun  2 13:47:17 MET 2012 mikulas:
+
+	Fixed a bug that blocked URLs didn't work if proxy was used
+
+Sun May 20 01:39:52 CEST 2012 mikulas:
+
+	Support extended coordinates in xterm mouse reporting,
+	avoid previous limit 222 on maximum possible coordinate
+
+Tue May  8 23:13:55 MET 2012 mikulas:
+
+	Use enter to scale image
+
+Sun Apr 22 01:05:32 CEST 2012 mikulas:
+
+	PMshell driver was hacked to support also Win32 api
+
+Wed Apr 18 22:43:37 MET 2012 mikulas:
+
+	HTTPS proxy
+
 === RELEASE 2.6 ===
 
 Sat Apr  7 03:54:41 CEST 2012 mikulas:
@@ -2191,7 +2214,7 @@ Fri Jan 10 12:12:08 CET 2003 Stanson <stanson@btv.ru>
 
 	Clipboard pasting into links (works from all applications).
 
-Thu Jan  9 16:05:11 CET 2003 Mikulas
+Thu Jan  9 16:05:11 CET 2003 mikulas
 
 	Fixed file uploading bug.
 	

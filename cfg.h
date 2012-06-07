@@ -30,6 +30,12 @@
 #endif
 #endif
 
+#if !(defined(__EMX__) || defined(_WIN32) || defined(__CYGWIN__))
+#ifdef GRDRV_PMSHELL
+#undef GRDRV_PMSHELL
+#endif
+#endif
+
 typedef int cfg_h_no_empty_unit;
 
 #endif

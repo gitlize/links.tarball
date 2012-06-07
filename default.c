@@ -24,13 +24,13 @@ static void get_system_name(void)
 		if (!rs) {
 			unsigned char *str = init_str();
 			int l = 0;
-			add_to_str(&str, &l, name.sysname);
-			add_to_str(&str, &l, " ");
-			add_to_str(&str, &l, name.release);
-			add_to_str(&str, &l, " ");
-			add_to_str(&str, &l, name.machine);
+			add_to_str(&str, &l, cast_uchar name.sysname);
+			add_to_str(&str, &l, cast_uchar " ");
+			add_to_str(&str, &l, cast_uchar name.release);
+			add_to_str(&str, &l, cast_uchar " ");
+			add_to_str(&str, &l, cast_uchar name.machine);
 			if (l >= MAX_STR_LEN) str[MAX_STR_LEN - 1] = 0;
-			strcpy(system_name, str);
+			strcpy(cast_char system_name, cast_const_char str);
 			mem_free(str);
 			return;
 		}
@@ -56,7 +56,7 @@ static void get_system_name(void)
 	}
 	fail:
 #endif
-	strcpy(system_name, SYSTEM_NAME);
+	strcpy(cast_char system_name, SYSTEM_NAME);
 }
 
 unsigned char compiler_name[MAX_STR_LEN];
@@ -72,13 +72,13 @@ static void get_compiler_name(void)
 	if (v1 == 4 && v2 < 5) v1 = 3;
 	if (v1 == 4 && v2 == 5) v2 = 0;
 
-	if (!v3) sprintf(compiler_name, "Borland C %d.%d", v1, v2);
-	else sprintf(compiler_name, "Borland C %d.%d.%d", v1, v2, v3);
+	if (!v3) sprintf(cast_char compiler_name, "Borland C %d.%d", v1, v2);
+	else sprintf(cast_char compiler_name, "Borland C %d.%d.%d", v1, v2, v3);
 
 #elif defined(__clang__)
 
 #if !defined(__clang_major__) || !defined(__clang_minor__)
-	sprintf(compiler_name, "LLVM/Clang");
+	sprintf(cast_char compiler_name, "LLVM/Clang");
 #else
 	int v1 = __clang_major__+0;
 	int v2 = __clang_minor__+0;
@@ -87,8 +87,8 @@ static void get_compiler_name(void)
 #else
 	int v3 = 0;
 #endif
-	if (v3 > 0) sprintf(compiler_name, "LLVM/Clang %d.%d.%d", v1, v2, v3);
-	else sprintf(compiler_name, "LLVM/Clang %d.%d", v1, v2);
+	if (v3 > 0) sprintf(cast_char compiler_name, "LLVM/Clang %d.%d.%d", v1, v2, v3);
+	else sprintf(cast_char compiler_name, "LLVM/Clang %d.%d", v1, v2);
 #endif
 
 #elif defined(__COMO_VERSION__)
@@ -96,33 +96,33 @@ static void get_compiler_name(void)
 	int w = __COMO_VERSION__+0;
 	int v1 = w / 100;
 	int v2 = w % 100;
-	if (!(v2 % 10)) sprintf(compiler_name, "Comeau C %d.%d", v1, v2 / 10);
-	else sprintf(compiler_name, "Comeau C %d.%02d", v1, v2);
+	if (!(v2 % 10)) sprintf(cast_char compiler_name, "Comeau C %d.%d", v1, v2 / 10);
+	else sprintf(cast_char compiler_name, "Comeau C %d.%02d", v1, v2);
 
 #elif defined(__convexc__)
 
-	sprintf(compiler_name, "Convex C");
+	sprintf(cast_char compiler_name, "Convex C");
 
 #elif defined(_CRAYC)
 
 #if !defined(_RELEASE) || !defined(_RELEASE_MINOR)
-	sprintf(compiler_name, "Cray C");
+	sprintf(cast_char compiler_name, "Cray C");
 #else
 	int v1 = _RELEASE+0;
 	int v2 = _RELEASE_MINOR+0;
-	sprintf(compiler_name, "Cray C %d.%d", v1, v2);
+	sprintf(cast_char compiler_name, "Cray C %d.%d", v1, v2);
 #endif
 
 #elif defined(__DCC__)
 
 #ifndef __VERSION_NUMBER__
-	sprintf(compiler_name, "Diab C");
+	sprintf(cast_char compiler_name, "Diab C");
 #else
 	int w = __VERSION_NUMBER__+0;
 	int v1 = w / 1000;
 	int v2 = w / 100 % 10;
 	int v3 = w % 100;
-	sprintf(compiler_name, "Diab C %d.%d.%02d", v1, v2, v3);
+	sprintf(cast_char compiler_name, "Diab C %d.%d.%02d", v1, v2, v3);
 #endif
 
 #elif defined(__DMC__)
@@ -131,8 +131,8 @@ static void get_compiler_name(void)
 	int v1 = w / 0x100;
 	int v2 = w / 0x10 % 0x10;
 	int v3 = w % 0x10;
-	if (!v3) sprintf(compiler_name, "Digital Mars C %d.%d", v1, v2);
-	else sprintf(compiler_name, "Digital Mars C %d.%d.%d", v1, v2, v3);
+	if (!v3) sprintf(cast_char compiler_name, "Digital Mars C %d.%d", v1, v2);
+	else sprintf(cast_char compiler_name, "Digital Mars C %d.%d.%d", v1, v2, v3);
 
 #elif defined(__DECC_VER)
 
@@ -140,24 +140,24 @@ static void get_compiler_name(void)
 	int v1 = w / 10000000;
 	int v2 = w / 100000 % 100;
 	int v3 = w % 10000;
-	if (!(v2 % 10)) sprintf(compiler_name, "DEC C %d.%d-%d", v1, v2 / 10, v3);
-	else sprintf(compiler_name, "DEC C %d.%02d-%d", v1, v2, v3);
+	if (!(v2 % 10)) sprintf(cast_char compiler_name, "DEC C %d.%d-%d", v1, v2 / 10, v3);
+	else sprintf(cast_char compiler_name, "DEC C %d.%02d-%d", v1, v2, v3);
 
 #elif defined(__ghs__)
 
 #ifndef __GHS_VERSION_NUMBER__
-	sprintf(compiler_name, "Green Hill C");
+	sprintf(cast_char compiler_name, "Green Hill C");
 #else
 	int w = __GHS_VERSION_NUMBER__+0;
 	int v1 = w / 100;
 	int v2 = w / 10 % 10;
 	int v3 = w % 10;
-	sprintf(compiler_name, "Green Hill C %d.%d.%d", v1, v2, v3);
+	sprintf(cast_char compiler_name, "Green Hill C %d.%d.%d", v1, v2, v3);
 #endif
 
 #elif defined(__HIGHC__)
 
-	sprintf(compiler_name, "MetaWare High C");
+	sprintf(cast_char compiler_name, "MetaWare High C");
 
 #elif defined(__HP_cc)
 
@@ -165,15 +165,15 @@ static void get_compiler_name(void)
 	int v1 = w / 10000;
 	int v2 = w / 100 % 100;
 	int v3 = w % 100;
-	if (w <= 1) sprintf(compiler_name, "HP CC");
-	else sprintf(compiler_name, "HP CC %d.%02d.%02d", v1, v2, v3);
+	if (w <= 1) sprintf(cast_char compiler_name, "HP CC");
+	else sprintf(cast_char compiler_name, "HP CC %d.%02d.%02d", v1, v2, v3);
 
 #elif defined(__xlc__)
 
 	int w = __xlc__+0;
 	int v1 = w / 0x100;
 	int v2 = w % 0x100;
-	sprintf(compiler_name, "IBM XL C %X.%X", v1, v2);
+	sprintf(cast_char compiler_name, "IBM XL C %X.%X", v1, v2);
 
 #elif defined(__IBMC__) && defined(__COMPILER_VER__)
 
@@ -183,37 +183,37 @@ static void get_compiler_name(void)
 	int v2 = w / 0x10000 % 0x100;
 	int v3 = w % 0x10000;
 	unsigned char *os = !v0 ? "S/370" : v0 == 1 ? "OS/390" : v0 == 4 ? "z/OS" : "";
-	sprintf(compiler_name, "IBM%s%s XL C %X.%0X.%X", *os ? " " : "", os, v1, v2, v3);
+	sprintf(cast_char compiler_name, "IBM%s%s XL C %X.%0X.%X", *os ? " " : "", os, v1, v2, v3);
 
 #elif defined(__ICC)
 
 	int w = __ICC+0;
 	int v1 = w / 100;
 	int v2 = w % 100;
-	if (!(v2 % 10)) sprintf(compiler_name, "Intel C %d.%d", v1, v2 / 10);
-	else sprintf(compiler_name, "Intel C %d.%02d", v1, v2);
+	if (!(v2 % 10)) sprintf(cast_char compiler_name, "Intel C %d.%d", v1, v2 / 10);
+	else sprintf(cast_char compiler_name, "Intel C %d.%02d", v1, v2);
 
 #elif defined(__LCC__)
 
-	sprintf(compiler_name, "LCC");
+	sprintf(cast_char compiler_name, "LCC");
 
 #elif defined(__NDPC__)
 
-	sprintf(compiler_name, "Microway NDP C");
+	sprintf(cast_char compiler_name, "Microway NDP C");
 
 #elif defined(_MSC_VER)
 
 	int w = _MSC_VER+0;
 	int v1 = w / 100;
 	int v2 = w % 100;
-	unsigned char *visual = "";
+	unsigned char *visual = cast_uchar "";
 	if (v1 >= 8) {
 		v1 -= 6;
 		if (v1 == 2) v1 = 1;
-		visual = "Visual ";
+		visual = cast_uchar "Visual ";
 	}
-	if (!(v2 % 10)) sprintf(compiler_name, "Microsoft %sC %d.%d", visual, v1, v2 / 10);
-	else sprintf(compiler_name, "Microsoft %sC %d.%02d", visual, v1, v2);
+	if (!(v2 % 10)) sprintf(cast_char compiler_name, "Microsoft %sC %d.%d", visual, v1, v2 / 10);
+	else sprintf(cast_char compiler_name, "Microsoft %sC %d.%02d", visual, v1, v2);
 
 #elif defined(__MWERKS__)
 
@@ -221,24 +221,24 @@ static void get_compiler_name(void)
 	int v1 = w / 0x1000;
 	int v2 = w / 0x100 % 0x10;
 	int v3 = w % 0x100;
-	if (w <= 1) sprintf(compiler_name, "Metrowerks CodeWarrior");
-	sprintf(compiler_name, "Metrowerks CodeWarrior %x.%x.%x", v1, v2, v3);
+	if (w <= 1) sprintf(cast_char compiler_name, "Metrowerks CodeWarrior");
+	sprintf(cast_char compiler_name, "Metrowerks CodeWarrior %x.%x.%x", v1, v2, v3);
 
 #elif defined(__NWCC__)
 
-	sprintf(compiler_name, "NWCC");
+	sprintf(cast_char compiler_name, "NWCC");
 
 #elif defined(__OPEN64__)
 
-	unsigned char *n = "Open64 " __OPEN64__;
-	if (strlen(n) >= sizeof(compiler_name)) n = "Open64";
-	strcpy(compiler_name, n);
+	unsigned char *n = cast_uchar "Open64 " __OPEN64__;
+	if (strlen(cast_const_char n) >= sizeof(cast_char compiler_name)) n = cast_uchar "Open64";
+	strcpy(cast_char compiler_name, cast_const_char n);
 
 #elif defined(__PATHSCALE__)
 
-	unsigned char *n = "PathScale " __PATHSCALE__;
-	if (strlen(n) >= sizeof(compiler_name)) n = "PathScale";
-	strcpy(compiler_name, n);
+	unsigned char *n = cast_uchar "PathScale " __PATHSCALE__;
+	if (strlen(cast_const_char n) >= sizeof(cast_char compiler_name)) n = cast_uchar "PathScale";
+	strcpy(cast_char compiler_name, cast_const_char n);
 
 #elif defined(__PCC__)
 
@@ -253,12 +253,12 @@ static void get_compiler_name(void)
 #else
 	int v3 = 0;
 #endif
-	sprintf(compiler_name, "PCC %d.%d.%d", v1, v2, v3);
+	sprintf(cast_char compiler_name, "PCC %d.%d.%d", v1, v2, v3);
 
 #elif defined(__PGI) || defined(__PGIC__)
 
 #if !defined(__PGIC__) || !defined(__PGIC_MINOR__)
-	sprintf(compiler_name, "The Portland Group C");
+	sprintf(cast_char compiler_name, "The Portland Group C");
 #else
 	int v1 = __PGIC__+0;
 	int v2 = __PGIC_MINOR__+0;
@@ -267,8 +267,8 @@ static void get_compiler_name(void)
 #else
 	int v3 = 0;
 #endif
-	if (v3 > 0) sprintf(compiler_name, "The Portland Group C %d.%d.%d", v1, v2, v3);
-	else sprintf(compiler_name, "The Portland Group C %d.%d", v1, v2);
+	if (v3 > 0) sprintf(cast_char compiler_name, "The Portland Group C %d.%d.%d", v1, v2, v3);
+	else sprintf(cast_char compiler_name, "The Portland Group C %d.%d", v1, v2);
 #endif
 
 #elif defined(__SASC__)
@@ -276,7 +276,7 @@ static void get_compiler_name(void)
 	int w = __SASC__+0;
 	int v1 = w / 100;
 	int v2 = w % 100;
-	sprintf(compiler_name, "SAS C %d.%02d", v1, v2);
+	sprintf(cast_char compiler_name, "SAS C %d.%02d", v1, v2);
 
 #elif (defined(__sgi) && defined(_COMPILER_VERSION)) || defined(_SGI_COMPILER_VERSION)
 
@@ -288,7 +288,7 @@ static void get_compiler_name(void)
 	int v1 = w / 100;
 	int v2 = w / 10 % 10;
 	int v3 = w % 10;
-	sprintf(compiler_name, "MIPSpro %d.%d.%d", v1, v2, v3);
+	sprintf(cast_char compiler_name, "MIPSpro %d.%d.%d", v1, v2, v3);
 
 #elif defined(__SUNPRO_C)
 
@@ -298,8 +298,8 @@ static void get_compiler_name(void)
 	int v1 = w / div;
 	int v2 = w % div / 0x10;
 	int v3 = w % 0x10;
-	if (!v3) sprintf(compiler_name, "Sun C %X.%0*X", v1, v2_digits, v2);
-	else sprintf(compiler_name, "Sun C %X.%0*X.%X", v1, v2_digits, v2, v3);
+	if (!v3) sprintf(cast_char compiler_name, "Sun C %X.%0*X", v1, v2_digits, v2);
+	else sprintf(cast_char compiler_name, "Sun C %X.%0*X.%X", v1, v2_digits, v2, v3);
 
 #elif defined(__SYSC__) && defined(__SYSC_VER__)
 
@@ -307,50 +307,50 @@ static void get_compiler_name(void)
 	int v1 = w / 10000;
 	int v2 = w / 100 % 100;
 	int v3 = w % 100;
-	sprintf(compiler_name, "Dignus Systems C %d.%02d.%02d", v1, v2, v3);
+	sprintf(cast_char compiler_name, "Dignus Systems C %d.%02d.%02d", v1, v2, v3);
 
 #elif defined(__TenDRA__)
 
-	sprintf(compiler_name, "TenDRA C");
+	sprintf(cast_char compiler_name, "TenDRA C");
 
 #elif defined(__TINYC__)
 
-	sprintf(compiler_name, "Tiny C");
+	sprintf(cast_char compiler_name, "Tiny C");
 
 #elif defined(_UCC)
 
 #if !defined(_MAJOR_REV) || !defined(_MINOR_REV)
-	sprintf(compiler_name, "Ultimate C");
+	sprintf(cast_char compiler_name, "Ultimate C");
 #else
 	int v1 = _MAJOR_REV+0;
 	int v2 = _MAJOR_REV+0;
-	sprintf(compiler_name, "Ultimate C %d.%d", v1, v2);
+	sprintf(cast_char compiler_name, "Ultimate C %d.%d", v1, v2);
 #endif
 
 #elif defined(__USLC__)
 
-	sprintf(compiler_name, "USL C");
+	sprintf(cast_char compiler_name, "USL C");
 
 #elif defined(__VAXC)
 
-	sprintf(compiler_name, "VAX C");
+	sprintf(cast_char compiler_name, "VAX C");
 
 #elif defined(__VOSC__)
 
-	sprintf(compiler_name, "Stratus VOS C");
+	sprintf(cast_char compiler_name, "Stratus VOS C");
 
 #elif defined(__WATCOMC__)
 
 	int w = __WATCOMC__+0;
 	int v1 = w / 100;
 	int v2 = w % 100;
-	unsigned char *op = "";
+	unsigned char *op = cast_uchar "";
 	if (v1 >= 12) {
 		v1 -= 11;
-		op = "Open";
+		op = cast_uchar "Open";
 	}
-	if (!(v2 % 10)) sprintf(compiler_name, "%sWatcom C %d.%d", op, v1, v2 / 10);
-	else sprintf(compiler_name, "%sWatcom C %d.%02d", op, v1, v2);
+	if (!(v2 % 10)) sprintf(cast_char compiler_name, "%sWatcom C %d.%d", op, v1, v2 / 10);
+	else sprintf(cast_char compiler_name, "%sWatcom C %d.%02d", op, v1, v2);
 
 #elif defined(__GNUC__)
 
@@ -366,17 +366,17 @@ static void get_compiler_name(void)
 	int v3 = 0;
 #endif
 #if defined(__llvm__)
-	unsigned char *prefix = "LLVM/";
+	unsigned char *prefix = cast_uchar "LLVM/";
 #else
-	unsigned char *prefix = "";
+	unsigned char *prefix = cast_uchar "";
 #endif
-	if (v1 == 2 && (v2 >= 90 && v2 <= 91)) sprintf(compiler_name, "%sEGCS 1.%d", prefix, v2 - 90);
-	else if (v3 > 0) sprintf(compiler_name, "%sGNU C %d.%d.%d", prefix, v1, v2, v3);
-	else sprintf(compiler_name, "%sGNU C %d.%d", prefix, v1, v2);
+	if (v1 == 2 && (v2 >= 90 && v2 <= 91)) sprintf(cast_char compiler_name, "%sEGCS 1.%d", prefix, v2 - 90);
+	else if (v3 > 0) sprintf(cast_char compiler_name, "%sGNU C %d.%d.%d", prefix, v1, v2, v3);
+	else sprintf(cast_char compiler_name, "%sGNU C %d.%d", prefix, v1, v2);
 
 #else
 
-	sprintf(compiler_name, "unknown compiler");
+	strcpy(cast_char compiler_name, "unknown compiler");
 
 #endif
 }
@@ -388,8 +388,8 @@ struct option {
 	void (*wr_cfg)(struct option *, unsigned char **, int *);
 	int min, max;	/* for double min and max are in 1/100's (e.g. 0.1 is min==10) */
 	void *ptr;
-	unsigned char *cfg_name;
-	unsigned char *cmd_name;
+	char *cfg_name;
+	char *cmd_name;
 };
 
 static unsigned char *p_arse_options(int argc, unsigned char *argv[], struct option **opt)
@@ -403,7 +403,7 @@ static unsigned char *p_arse_options(int argc, unsigned char *argv[], struct opt
 			struct option **op;
 			for (op = opt; (options = *op); op++) for (i = 0; options[i].p; i++)
 				if (options[i].rd_cmd && options[i].cmd_name &&
-				    !strcasecmp(options[i].cmd_name, &argv[-1][1])) {
+				    !strcasecmp(cast_const_char options[i].cmd_name, cast_const_char &argv[-1][1])) {
 					if ((e = options[i].rd_cmd(&options[i], &argv, &argc))) {
 						if (e[0]) fprintf(stderr, "Error parsing option %s: %s\n", argv[-1], e);
 						return NULL;
@@ -412,7 +412,7 @@ static unsigned char *p_arse_options(int argc, unsigned char *argv[], struct opt
 				}
 			uu:
 #ifdef GRDRV_DIRECTFB
-                        if (!strncmp(argv[-1], "--dfb:", 6))
+                        if (!strncmp(cast_const_char argv[-1], "--dfb:", 6))
                                 goto found;
 #endif
 			fprintf(stderr, "Unknown option %s\n", argv[-1]);
@@ -422,7 +422,7 @@ static unsigned char *p_arse_options(int argc, unsigned char *argv[], struct opt
 		found:;
 	}
 	if (u) return u;
-	return "";
+	return cast_uchar "";
 }
 
 static unsigned char *get_token(unsigned char **line)
@@ -485,9 +485,9 @@ static void parse_config_file(unsigned char *name, unsigned char *file, struct o
 		tok = NULL;
 		if (n[0] == '#') goto f;
 		if (!(tok = get_token(&n))) goto f;
-		nl = strlen(tok);
+		nl = strlen(cast_const_char tok);
 		for (op = opt; (options = *op); op++)
-			for (i = 0; options[i].p; i++) if (options[i].cfg_name && (size_t)nl == strlen(options[i].cfg_name) && !casecmp(tok, options[i].cfg_name, nl)) {
+			for (i = 0; options[i].p; i++) if (options[i].cfg_name && (size_t)nl == strlen(cast_const_char options[i].cfg_name) && !casecmp(tok, cast_uchar options[i].cfg_name, nl)) {
 				unsigned char *o = memacpy(p, pl);
 				if ((e = options[i].rd_cfg(&options[i], o))) {
 					if (e[0]) fprintf(stderr, "Error parsing config file %s, line %d: %s\n", name, line, e), err = 1;
@@ -508,10 +508,10 @@ static unsigned char *create_config_string(struct option *options)
 	unsigned char *s = init_str();
 	int l = 0;
 	int i;
-	add_to_str(&s, &l, "# This file is automatically generated by Links -- please do not edit.");
+	add_to_str(&s, &l, cast_uchar "# This file is automatically generated by Links -- please do not edit.");
 	for (i = 0; options[i].p; i++) if (options[i].wr_cfg)
 		options[i].wr_cfg(&options[i], &s, &l);
-	add_to_str(&s, &l, NEWLINE);
+	add_to_str(&s, &l, cast_uchar NEWLINE);
 	return s;
 }
 
@@ -525,7 +525,7 @@ unsigned char *read_config_file(unsigned char *name)
 	int l = 0;
 	unsigned char *s;
 	int rs;
-	EINTRLOOP(h, open(name, O_RDONLY | O_NOCTTY));
+	EINTRLOOP(h, open(cast_const_char name, O_RDONLY | O_NOCTTY));
 	if (h == -1) return NULL;
 	set_bin(h);
 	s = init_str();
@@ -552,9 +552,9 @@ try_new_count:
 	tmp_namel = 0;
 	tmp_name = init_str();
 	add_to_str(&tmp_name, &tmp_namel, name);
-	add_to_str(&tmp_name, &tmp_namel, ".tmp.");
+	add_to_str(&tmp_name, &tmp_namel, cast_uchar ".tmp.");
 	add_num_to_str(&tmp_name, &tmp_namel, count);
-	EINTRLOOP(h, open(tmp_name, O_WRONLY | O_NOCTTY | O_CREAT | O_TRUNC | O_EXCL, 0600));
+	EINTRLOOP(h, open(cast_const_char tmp_name, O_WRONLY | O_NOCTTY | O_CREAT | O_TRUNC | O_EXCL, 0600));
 	if (h == -1) {
 		if (errno == EEXIST && count < MAXINT) {
 			count++;
@@ -565,13 +565,13 @@ try_new_count:
 		return get_error_from_errno(errno);
 	}
 	set_bin(h);
-	rr = strlen(c);
+	rr = strlen(cast_const_char c);
 	r = rr;
 	while (r > 0) {
 		if ((w = hard_write(h, c + rr - r, r)) <= 0) {
 			int err = !w ? ENOSPC : errno;
 			EINTRLOOP(rs, close(h));
-			EINTRLOOP(rs, unlink(tmp_name));
+			EINTRLOOP(rs, unlink(cast_const_char tmp_name));
 			mem_free(tmp_name);
 			return get_error_from_errno(err);
 		}
@@ -581,10 +581,10 @@ try_new_count:
 #ifndef RENAME_OVER_EXISTING_FILES
 	EINTRLOOP(rs, unlink(name));
 #endif
-	EINTRLOOP(rs, rename(tmp_name, name));
+	EINTRLOOP(rs, rename(cast_const_char tmp_name, cast_const_char name));
 	if (rs) {
 		int err = errno;
-		EINTRLOOP(rs, unlink(tmp_name));
+		EINTRLOOP(rs, unlink(cast_const_char tmp_name));
 		mem_free(tmp_name);
 		return get_error_from_errno(err);
 	}
@@ -598,12 +598,12 @@ static unsigned char *get_home(int *n)
 	int rs;
 	unsigned char *home = NULL;
 	unsigned char *home_links;
-	unsigned char *config_dir = stracpy(getenv("CONFIG_DIR"));
+	unsigned char *config_dir = stracpy(cast_uchar getenv("CONFIG_DIR"));
 
 	if (n) *n = 1;
 #ifdef WIN32
 	if (!home) {
-		home = stracpy(getenv("APPDATA"));
+		home = stracpy(cast_uchar getenv("APPDATA"));
 #ifdef HAVE_CYGWIN_CONV_PATH
 		/*
 		 * Newer Cygwin complains about windows-style path, so
@@ -626,7 +626,7 @@ skip_path_conv:;
 		}
 #endif
 		if (home) {
-			EINTRLOOP(rs, stat(home, &st));
+			EINTRLOOP(rs, stat(cast_const_char home, &st));
 			if (rs || !S_ISDIR(st.st_mode)) {
 				mem_free(home);
 				home = NULL;
@@ -634,11 +634,11 @@ skip_path_conv:;
 		}
 	}
 #endif
-	if (!home) home = stracpy(getenv("HOME"));
+	if (!home) home = stracpy(cast_uchar getenv("HOME"));
 #ifdef WIN32
 /* When we run in Cygwin without Cygwin environment, it reports home "/".
    Unfortunatelly, it can't write anything to that directory */
-	if (home && !strcmp(home, "/")) {
+	if (home && !strcmp(cast_const_char home, "/")) {
 		mem_free(home);
 		home = NULL;
 	}
@@ -650,36 +650,36 @@ skip_path_conv:;
 			if (config_dir) mem_free(config_dir);
 			return NULL;
 		}
-		for (i = strlen(home) - 1; i >= 0; i--) if (dir_sep(home[i])) {
+		for (i = strlen(cast_const_char home) - 1; i >= 0; i--) if (dir_sep(home[i])) {
 			home[i + 1] = 0;
 			goto br;
 		}
 		home[0] = 0;
 		br:;
 	}
-	while (home[0] && dir_sep(home[strlen(home) - 1])) home[strlen(home) - 1] = 0;
-	if (home[0]) add_to_strn(&home, "/");
+	while (home[0] && dir_sep(home[strlen(cast_const_char home) - 1])) home[strlen(cast_const_char home) - 1] = 0;
+	if (home[0]) add_to_strn(&home, cast_uchar "/");
 	home_links = stracpy(home);
 	if (config_dir)
 	{
 		add_to_strn(&home_links, config_dir);
-		while (home_links[0] && dir_sep(home_links[strlen(home_links) - 1])) home_links[strlen(home_links) - 1] = 0;
-		EINTRLOOP(rs, stat(home_links, &st));
+		while (home_links[0] && dir_sep(home_links[strlen(cast_const_char home_links) - 1])) home_links[strlen(cast_const_char home_links) - 1] = 0;
+		EINTRLOOP(rs, stat(cast_const_char home_links, &st));
 		if (!rs && S_ISDIR(st.st_mode)) {
-			add_to_strn(&home_links, "/links");
+			add_to_strn(&home_links, cast_uchar "/links");
 		} else {
 			fprintf(stderr, "CONFIG_DIR set to %s. But directory %s doesn't exist.\n\007", config_dir, home_links);
 			sleep(3);
 			mem_free(home_links);
 			home_links = stracpy(home);
-			add_to_strn(&home_links, ".links");
+			add_to_strn(&home_links, cast_uchar ".links");
 		}
 		mem_free(config_dir);
-	} else add_to_strn(&home_links, ".links");
-	EINTRLOOP(rs, stat(home_links, &st));
+	} else add_to_strn(&home_links, cast_uchar ".links");
+	EINTRLOOP(rs, stat(cast_const_char home_links, &st));
 	if (rs) {
 #ifdef HAVE_MKDIR
-		EINTRLOOP(rs, mkdir(home_links, 0700));
+		EINTRLOOP(rs, mkdir(cast_const_char home_links, 0700));
 		if (!rs) goto home_creat;
 #endif
 		if (config_dir) goto failed;
@@ -690,17 +690,17 @@ skip_path_conv:;
 	   "links" exists and only "links.exe" does. So try to create directory
 	   anyway. */
 #ifdef HAVE_MKDIR
-	EINTRLOOP(rs, mkdir(home_links, 0700));
+	EINTRLOOP(rs, mkdir(cast_const_char home_links, 0700));
 	if (!rs) goto home_creat;
 #endif
 	first_failed:
 	mem_free(home_links);
 	home_links = stracpy(home);
-	add_to_strn(&home_links, "links");
-	EINTRLOOP(rs, stat(home_links, &st));
+	add_to_strn(&home_links, cast_uchar "links");
+	EINTRLOOP(rs, stat(cast_const_char home_links, &st));
 	if (rs) {
 #ifdef HAVE_MKDIR
-		EINTRLOOP(rs, mkdir(home_links, 0700));
+		EINTRLOOP(rs, mkdir(cast_const_char home_links, 0700));
 		if (!rs) goto home_creat;
 #else
 		mem_free(home_links);
@@ -711,7 +711,7 @@ skip_path_conv:;
 	}
 	if (S_ISDIR(st.st_mode)) goto home_ok;
 #ifdef HAVE_MKDIR
-	EINTRLOOP(rs, mkdir(home_links, 0700));
+	EINTRLOOP(rs, mkdir(cast_const_char home_links, 0700));
 	if (!rs) goto home_creat;
 #endif
 	failed:
@@ -723,9 +723,9 @@ skip_path_conv:;
 	if (n) *n = 0;
 	home_creat:
 #ifdef HAVE_CHMOD
-	EINTRLOOP(rs, chmod(home_links, 0700));
+	EINTRLOOP(rs, chmod(cast_const_char home_links, 0700));
 #endif
-	add_to_strn(&home_links, "/");
+	add_to_strn(&home_links, cast_uchar "/");
 	mem_free(home);
 	return home_links;
 }
@@ -757,7 +757,7 @@ static int write_config_data(unsigned char *prefix, unsigned char *name, struct 
 	}
 	add_to_strn(&config_file, name);
 	if ((err = write_to_config_file(config_file, c))) {
-		if (term) msg_box(term, NULL, TEXT_(T_CONFIG_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_UNABLE_TO_WRITE_TO_CONFIG_FILE), ": ", get_err_msg(err), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+		if (term) msg_box(term, NULL, TEXT_(T_CONFIG_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_UNABLE_TO_WRITE_TO_CONFIG_FILE), cast_uchar ": ", get_err_msg(err), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		mem_free(c);
 		mem_free(config_file);
 		return -1;
@@ -769,9 +769,9 @@ static int write_config_data(unsigned char *prefix, unsigned char *name, struct 
 
 static void add_nm(struct option *o, unsigned char **s, int *l)
 {
-	if (*l) add_to_str(s, l, NEWLINE);
-	add_to_str(s, l, o->cfg_name);
-	add_to_str(s, l, " ");
+	if (*l) add_to_str(s, l, cast_uchar NEWLINE);
+	add_to_str(s, l, cast_uchar o->cfg_name);
+	add_to_str(s, l, cast_uchar " ");
 }
 
 static void add_quoted_to_str(unsigned char **s, int *l, unsigned char *q)
@@ -790,15 +790,15 @@ static unsigned char *num_rd(struct option *o, unsigned char *c)
 	unsigned char *tok = get_token(&c);
 	unsigned char *end;
 	long l;
-	if (!tok) return "Missing argument";
+	if (!tok) return cast_uchar "Missing argument";
 	l = strtolx(tok, &end);
 	if (*end) {
 		mem_free(tok);
-		return "Number expected";
+		return cast_uchar "Number expected";
 	}
 	if (l < o->min || l > o->max) {
 		mem_free(tok);
-		return "Out of range";
+		return cast_uchar "Out of range";
 	}
 	*(int *)o->ptr = l;
 	mem_free(tok);
@@ -817,16 +817,16 @@ static unsigned char *dbl_rd(struct option *o, unsigned char *c)
 	unsigned char *end;
 	double d;
 
-	if (!tok) return "Missing argument";
-	d = strtod(tok, (char **)(void *)&end);
+	if (!tok) return cast_uchar "Missing argument";
+	d = strtod(cast_const_char tok, (char **)(void *)&end);
 
 	if (*end) {
 		mem_free(tok);
-		return "Number expected";
+		return cast_uchar "Number expected";
 	}
 	if (100*d < o->min || 100*d > o->max) {
 		mem_free(tok);
-		return "Out of range";
+		return cast_uchar "Out of range";
 	}
 	*(double *)o->ptr = d;
 	mem_free(tok);
@@ -836,7 +836,7 @@ static unsigned char *dbl_rd(struct option *o, unsigned char *c)
 static void dbl_wr(struct option *o, unsigned char **s, int *l)
 {
 	unsigned char number[80];
-	snprintf(number, sizeof number, "%.4f", *(double*)o->ptr);
+	snprintf(cast_char number, sizeof number, "%.4f", *(double*)o->ptr);
 
 	add_nm(o, s, l);
 	add_to_str(s, l, number);
@@ -847,8 +847,8 @@ static unsigned char *str_rd(struct option *o, unsigned char *c)
 	unsigned char *tok = get_token(&c);
 	unsigned char *e = NULL;
 	if (!tok) return NULL;
-	if (strlen(tok) + 1 > (size_t)o->max) e = "String too long";
-	else strcpy(o->ptr, tok);
+	if (strlen(cast_const_char tok) + 1 > (size_t)o->max) e = cast_uchar "String too long";
+	else strcpy(cast_char o->ptr, cast_const_char tok);
 	mem_free(tok);
 	return e;
 }
@@ -856,7 +856,7 @@ static unsigned char *str_rd(struct option *o, unsigned char *c)
 static void str_wr(struct option *o, unsigned char **s, int *l)
 {
 	add_nm(o, s, l);
-	if (strlen(o->ptr) + 1 > (size_t)o->max) {
+	if (strlen(cast_const_char o->ptr) + 1 > (size_t)o->max) {
 		unsigned char *s1 = init_str();
 		int l1 = 0;
 		add_bytes_to_str(&s1, &l1, o->ptr, o->max - 1);
@@ -871,10 +871,10 @@ static unsigned char *cp_rd(struct option *o, unsigned char *c)
 	unsigned char *tok = get_token(&c);
 	unsigned char *e = NULL;
 	int i;
-	if (!tok) return "Missing argument";
-	if ((i = get_cp_index(tok)) == -1) e = "Unknown codepage";
+	if (!tok) return cast_uchar "Missing argument";
+	if ((i = get_cp_index(tok)) == -1) e = cast_uchar "Unknown codepage";
 #ifndef ENABLE_UTF8
-	else if (o->min == 1 && i == utf8_table) e = "UTF-8 can't be here";
+	else if (o->min == 1 && i == utf8_table) e = cast_uchar "UTF-8 can't be here";
 #endif
 	else *(int *)o->ptr = i;
 	mem_free(tok);
@@ -892,15 +892,15 @@ static unsigned char *lang_rd(struct option *o, unsigned char *c)
 {
 	int i;
 	unsigned char *tok = get_token(&c);
-	if (!tok) return "Missing argument";
+	if (!tok) return cast_uchar "Missing argument";
 	for (i = 0; i < n_languages(); i++)
-		if (!(strcasecmp(language_name(i), tok))) {
+		if (!(strcasecmp(cast_const_char language_name(i), cast_const_char tok))) {
 			set_language(i);
 			mem_free(tok);
 			return NULL;
 		}
 	mem_free(tok);
-	return "Unknown language";
+	return cast_uchar "Unknown language";
 }
 
 static void lang_wr(struct option *o, unsigned char **s, int *l)
@@ -912,7 +912,7 @@ static void lang_wr(struct option *o, unsigned char **s, int *l)
 static int getnum(unsigned char *s, int *n, int r1, int r2)
 {
 	unsigned char *e;
-	long l = strtol(s, (char **)(void *)&e, 10);
+	long l = strtol(cast_const_char s, (char **)(void *)&e, 10);
 	if (*e || !*s) return -1;
 	if (l < r1 || l >= r2) return -1;
 	*n = (int)l;
@@ -921,7 +921,7 @@ static int getnum(unsigned char *s, int *n, int r1, int r2)
 
 static unsigned char *type_rd(struct option *o, unsigned char *c)
 {
-	unsigned char *err = "Error reading association specification";
+	unsigned char *err = cast_uchar "Error reading association specification";
 	struct assoc new;
 	unsigned char *w;
 	int n = 0;	/* against warning */
@@ -940,7 +940,7 @@ static unsigned char *type_rd(struct option *o, unsigned char *c)
 	new.accept_http = !!(n & 32);
 	new.accept_ftp = !!(n & 64);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '9') goto err_f;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '9') goto err_f;
 	new.system = w[0] - '0';
 	mem_free(w);
 	update_assoc(&new);
@@ -957,13 +957,13 @@ static unsigned char *type_rd(struct option *o, unsigned char *c)
 
 static unsigned char *block_rd(struct option *o, unsigned char *c)
 {
-	unsigned char *err = "Error reading image block specification";
+	unsigned char *err = cast_uchar "Error reading image block specification";
 	unsigned char* url;
 
 	if(!(url = get_token(&c)))
 		return err;
 
-	block_add_URL_fn(NULL, url);
+	block_url_add(NULL, url);
 
 	mem_free(url);
 
@@ -985,20 +985,20 @@ static void type_wr(struct option *o, unsigned char **s, int *l)
 	foreachback(a, assoc) {
 		add_nm(o, s, l);
 		add_quoted_to_str(s, l, a->label);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_quoted_to_str(s, l, a->ct);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_quoted_to_str(s, l, a->prog);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_num_to_str(s, l, (!!a->cons) + (!!a->xwin) * 2 + (!!a->ask) * 4 + (!a->block) * 8 + (!!a->block) * 16 + (!!a->accept_http) * 32 + (!!a->accept_ftp) * 64);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_num_to_str(s, l, a->system);
 	}
 }
 
 static unsigned char *ext_rd(struct option *o, unsigned char *c)
 {
-	unsigned char *err = "Error reading extension specification";
+	unsigned char *err = cast_uchar "Error reading extension specification";
 	struct extension new;
 	memset(&new, 0, sizeof(struct extension));
 	if (!(new.ext = get_token(&c))) goto err;
@@ -1017,18 +1017,18 @@ static void ext_wr(struct option *o, unsigned char **s, int *l)
 	foreachback(a, extensions) {
 		add_nm(o, s, l);
 		add_quoted_to_str(s, l, a->ext);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_quoted_to_str(s, l, a->ct);
 	}
 }
 
 static unsigned char *prog_rd(struct option *o, unsigned char *c)
 {
-	unsigned char *err = "Error reading program specification";
+	unsigned char *err = cast_uchar "Error reading program specification";
 	unsigned char *prog, *w;
 	if (!(prog = get_token(&c))) goto err_1;
 	if (!(w = get_token(&c))) goto err_2;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '9') goto err_3;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '9') goto err_3;
 	update_prog(o->ptr, prog, w[0] - '0');
 	err = NULL;
 	err_3:
@@ -1046,7 +1046,7 @@ static void prog_wr(struct option *o, unsigned char **s, int *l)
 		if (!*a->prog) continue;
 		add_nm(o, s, l);
 		add_quoted_to_str(s, l, a->prog);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_num_to_str(s, l, a->system);
 	}
 }
@@ -1063,16 +1063,16 @@ static unsigned char *term_rd(struct option *o, unsigned char *c)
 	}
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '4') goto err_f;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '4') goto err_f;
 	ts->mode = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '3') goto err_f;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '3') goto err_f;
 	ts->m11_hack = (w[0] - '0') & 1;
 	ts->braille = !!((w[0] - '0') & 2);
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '7') goto err_f;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '7') goto err_f;
 	ts->col = (w[0] - '0') & 1;
 	ts->restrict_852 = !!((w[0] - '0') & 2);
 	ts->block_cursor = !!((w[0] - '0') & 4);
@@ -1091,7 +1091,7 @@ static unsigned char *term_rd(struct option *o, unsigned char *c)
 	err_f:
 	mem_free(w);
 	err:
-	return "Error reading terminal specification";
+	return cast_uchar "Error reading terminal specification";
 }
 
 static unsigned char *term2_rd(struct option *o, unsigned char *c)
@@ -1106,19 +1106,19 @@ static unsigned char *term2_rd(struct option *o, unsigned char *c)
 	}
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '3') goto err_f;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '3') goto err_f;
 	ts->mode = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '1') goto err_f;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '1') goto err_f;
 	ts->m11_hack = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '1') goto err_f;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '1') goto err_f;
 	ts->restrict_852 = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (strlen(w) != 1 || w[0] < '0' || w[0] > '1') goto err_f;
+	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '1') goto err_f;
 	ts->col = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
@@ -1135,7 +1135,7 @@ static unsigned char *term2_rd(struct option *o, unsigned char *c)
 	err_f:
 	mem_free(w);
 	err:
-	return "Error reading terminal specification";
+	return cast_uchar "Error reading terminal specification";
 }
 
 static void term_wr(struct option *o, unsigned char **s, int *l)
@@ -1144,13 +1144,13 @@ static void term_wr(struct option *o, unsigned char **s, int *l)
 	foreachback(ts, term_specs) {
 		add_nm(o, s, l);
 		add_quoted_to_str(s, l, ts->term);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_num_to_str(s, l, ts->mode);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_num_to_str(s, l, !!ts->m11_hack + !!ts->braille * 2);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_num_to_str(s, l, !!ts->col + !!ts->restrict_852 * 2 + !!ts->block_cursor * 4);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_to_str(s, l, get_cp_mime_name(ts->charset));
 	}
 }
@@ -1160,10 +1160,10 @@ static struct list_head driver_params = { &driver_params, &driver_params };
 struct driver_param *get_driver_param(unsigned char *n)
 {
 	struct driver_param *dp;
-	foreach(dp, driver_params) if (!strcasecmp(dp->name, n)) return dp;
-	dp = mem_calloc(sizeof(struct driver_param) + strlen(n) + 1);
-	dp->codepage = get_cp_index("iso-8859-1");
-	strcpy(dp->name, n);
+	foreach(dp, driver_params) if (!strcasecmp(cast_const_char dp->name, cast_const_char n)) return dp;
+	dp = mem_calloc(sizeof(struct driver_param) + strlen(cast_const_char n) + 1);
+	dp->codepage = get_cp_index(cast_uchar "iso-8859-1");
+	strcpy(cast_char dp->name, cast_const_char n);
 	dp->shell = mem_calloc(1);
 	dp->nosave = 1;
 	add_to_list(driver_params, dp);
@@ -1209,7 +1209,7 @@ static unsigned char *dp_rd(struct option *o, unsigned char *c)
 	mem_free(n);
 	return NULL;
 	err:
-	return "Error reading driver mode specification";
+	return cast_uchar "Error reading driver mode specification";
 }
 
 static void dp_wr(struct option *o, unsigned char **s, int *l)
@@ -1220,11 +1220,11 @@ static void dp_wr(struct option *o, unsigned char **s, int *l)
 		if (dp->nosave) continue;
 		add_nm(o, s, l);
 		add_quoted_to_str(s, l, dp->name);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_quoted_to_str(s, l, dp->param ? dp->param : (unsigned char*)"");
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_quoted_to_str(s, l, dp->shell);
-		add_to_str(s, l, " ");
+		add_to_str(s, l, cast_uchar " ");
 		add_to_str(s, l, get_cp_mime_name(dp->codepage));
 	}
 }
@@ -1234,7 +1234,7 @@ static unsigned char *ip_rd(struct option *o, unsigned char *c)
 	unsigned char *e;
 	e = str_rd(o, c);
 	if (e) return e;
-	if (*(unsigned char *)o->ptr && numeric_ip_address(o->ptr, NULL) == -1) return "Invalid IP address";
+	if (*(unsigned char *)o->ptr && numeric_ip_address(o->ptr, NULL) == -1) return cast_uchar "Invalid IP address";
 	return NULL;
 }
 
@@ -1243,7 +1243,7 @@ static unsigned char *gen_cmd(struct option *o, unsigned char ***argv, int *argc
 	unsigned char *e;
 	int l;
 	unsigned char *r;
-	if (!*argc) return "Parameter expected";
+	if (!*argc) return cast_uchar "Parameter expected";
 	e = init_str();
 	l = 0;
 	add_quoted_to_str(&e, &l, **argv);
@@ -1258,8 +1258,8 @@ static unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *a
 {
 	ip__address addr;
 	unsigned char *p = (unsigned char *)&addr;
-	if (!*argc) return "Parameter expected";
-	if (*argc >= 2) return "Too many parameters";
+	if (!*argc) return cast_uchar "Parameter expected";
+	if (*argc >= 2) return cast_uchar "Too many parameters";
 	(*argv)++; (*argc)--;
 	if (do_real_lookup(*(*argv - 1), &addr)) {
 #if defined(HAVE_GETHOSTBYNAME) && defined(HAVE_HERROR)
@@ -1267,18 +1267,21 @@ static unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *a
 #else
 		fprintf(stderr, "error: host not found\n");
 #endif
-		return "";
+		exit(RET_ERROR);
+		not_reached(return cast_uchar "";)
 	}
 	printf("%d.%d.%d.%d\n", (int)p[0], (int)p[1], (int)p[2], (int)p[3]);
 	fflush(stdout);
-	return "";
+	exit(RET_OK);
+	not_reached(return cast_uchar "";)
 }
 
 static unsigned char *version_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	printf("Links " VERSION_STRING "\n");
 	fflush(stdout);
-	return "";
+	exit(RET_OK);
+	not_reached(return cast_uchar "";)
 }
 
 static unsigned char *set_cmd(struct option *o, unsigned char ***argv, int *argc)
@@ -1295,7 +1298,7 @@ static unsigned char *unset_cmd(struct option *o, unsigned char ***argv, int *ar
 
 static unsigned char *setstr_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
-	if (!*argc) return "Parameter expected";
+	if (!*argc) return cast_uchar "Parameter expected";
 	safe_strncpy(o->ptr, **argv, o->max);
 	(*argv)++; (*argc)--;
 	return NULL;
@@ -1303,7 +1306,7 @@ static unsigned char *setstr_cmd(struct option *o, unsigned char ***argv, int *a
 
 static unsigned char *dump_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
-	if (dmp != o->min && dmp) return "Can't use both -dump and -source";
+	if (dmp != o->min && dmp) return cast_uchar "Can't use both -dump and -source";
 	dmp = o->min;
 	no_connect = 1;
 	return NULL;
@@ -1421,6 +1424,10 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Host and port number of the FTP proxy, or blank.\n"
 "    (default: blank)\n"
 "\n"
+" -https-proxy <host:port>\n"
+"  Host and port number of the HTTPS proxy, or blank.\n"
+"    (default: blank)\n"
+"\n"
 " -socks-proxy <user@host:port>\n"
 "  Userid, host and port of Socks4a, or blank.\n"
 "    (default: blank)\n"
@@ -1485,7 +1492,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Retry on internal server errors (50x).\n"
 "\n"
 " -http.referer <0>/<1>/<2>/<3>/<4>\n"
-"    (default 0)\n"
+"    (default 4)\n"
 "  0 - do not send referer\n"
 "  1 - send the requested URL as referer\n"
 "  2 - send fake referer\n"
@@ -1730,7 +1737,8 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 ));
 
 	fflush(stdout);
-	return "";
+	exit(RET_OK);
+	not_reached(return cast_uchar "";)
 }
 
 void end_config(void)
@@ -1805,7 +1813,7 @@ struct document_setup dds = {
 	0, /* g ignore document color */
 };
 
-struct proxies proxies = { "", "", "", "", 0 };
+struct proxies proxies = { "", "", "", "", "", 0 };
 int js_enable=1;   /* 0=disable javascript */
 int js_verbose_errors=0;   /* 1=create dialog on every javascript error, 0=be quiet and continue */
 int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=be quiet and continue */
@@ -1827,7 +1835,7 @@ int aggressive_cache = 1;
 struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 1 };
 
 /* These are workarounds for some CGI script bugs */
-struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { REFERER_NONE, "", "", "" } };
+struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { REFERER_REAL_SAME_SERVER, "", "", "" } };
 /*int bug_302_redirect = 0;*/
 	/* When got 301 or 302 from POST request, change it to GET
 	   - this violates RFC2068, but some buggy message board scripts rely on it */
@@ -1870,6 +1878,7 @@ static struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &font_cache_size, "font_cache_size", "font-cache-size"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.http_proxy, "http_proxy", "http-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.ftp_proxy, "ftp_proxy", "ftp-proxy"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.https_proxy, "https_proxy", "https-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.socks_proxy, "socks_proxy", "socks-proxy"},
 	{1, gen_cmd, str_rd, NULL, 0, MAX_STR_LEN, proxies.dns_append, "-append_text_to_dns_lookups", NULL}, /* old version incorrectly saved it with '-' */
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.dns_append, "append_text_to_dns_lookups", "append-text-to-dns-lookups"},
@@ -1977,7 +1986,7 @@ static void load_config_file(unsigned char *prefix, unsigned char *name)
 	mem_free(config_file);
 	config_file = stracpy(prefix);
 	if (!config_file) return;
-	add_to_strn(&config_file, ".");
+	add_to_strn(&config_file, cast_uchar ".");
 	add_to_strn(&config_file, name);
 	if ((c = read_config_file(config_file))) goto ok;
 	mem_free(config_file);
@@ -1991,11 +2000,11 @@ static void load_config_file(unsigned char *prefix, unsigned char *name)
 void load_config(void)
 {
 #ifdef SHARED_CONFIG_DIR
-	load_config_file(SHARED_CONFIG_DIR, "links.cfg");
+	load_config_file(cast_uchar SHARED_CONFIG_DIR, cast_uchar "links.cfg");
 #endif
-	load_config_file(links_home, "links.cfg");
-	load_config_file(links_home, "html.cfg");
-	load_config_file(links_home, "user.cfg");
+	load_config_file(links_home, cast_uchar "links.cfg");
+	load_config_file(links_home, cast_uchar "html.cfg");
+	load_config_file(links_home, cast_uchar "user.cfg");
 }
 
 void write_config(struct terminal *term)
@@ -2003,12 +2012,12 @@ void write_config(struct terminal *term)
 #ifdef G
 	if (F) update_driver_param();
 #endif
-	write_config_data(links_home, "links.cfg", links_options, term);
+	write_config_data(links_home, cast_uchar "links.cfg", links_options, term);
 }
 
 void write_html_config(struct terminal *term)
 {
-	write_config_data(links_home, "html.cfg", html_options, term);
+	write_config_data(links_home, cast_uchar "html.cfg", html_options, term);
 }
 
 void load_url_history(void)
@@ -2020,7 +2029,7 @@ void load_url_history(void)
 	/* Must have been called after init_home */
 	if (!links_home) return;
 	history_file = stracpy(links_home);
-	add_to_strn(&history_file, "links.his");
+	add_to_strn(&history_file, cast_uchar "links.his");
 	hs = read_config_file(history_file);
 	mem_free(history_file);
 	if (!hs) return;
@@ -2049,16 +2058,16 @@ void save_url_history(void)
 	/* Must have been called after init_home */
 	if (!links_home) return;
 	history_file = stracpy(links_home);
-	add_to_strn(&history_file, "links.his");
+	add_to_strn(&history_file, cast_uchar "links.his");
 	hs = init_str();
 	hsl = 0;
 	foreachback(hi, goto_url_history.items) {
-		if (!*hi->d || strchr(hi->d, 10) || strchr(hi->d, 13)) continue;
+		if (!*hi->d || strchr(cast_const_char hi->d, 10) || strchr(cast_const_char hi->d, 13)) continue;
 		if (i++ > MAX_HISTORY_ITEMS)
 			break;
 		else {
 			add_to_str(&hs, &hsl, hi->d);
-			add_to_str(&hs, &hsl, NEWLINE);
+			add_to_str(&hs, &hsl, cast_uchar NEWLINE);
 		}
 	}
 	write_to_config_file(history_file, hs);

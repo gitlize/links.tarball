@@ -96,20 +96,20 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 {
 	int real_port = -1;
 	int as;
-	unsigned char *dns_append = "";
+	unsigned char *dns_append = cast_uchar "";
 	unsigned char *host;
 	struct conn_info *b;
 	if (*c->socks_proxy) {
-		unsigned char *p = strchr(c->socks_proxy, '@');
+		unsigned char *p = cast_uchar strchr(cast_const_char c->socks_proxy, '@');
 		if (p) p++;
 		else p = c->socks_proxy;
 		host = stracpy(p);
 		real_port = port;
 		port = 1080;
-		if ((p = strchr(host, ':'))) {
+		if ((p = cast_uchar strchr(cast_const_char host, ':'))) {
 			*p++ = 0;
 			if (!*p) goto badu;
-			port = strtoul(p, (char **)(void *)&p, 10);
+			port = strtoul(cast_const_char p, (char **)(void *)&p, 10);
 			if (*p) {
 				badu:
 				mem_free(host);
@@ -126,17 +126,16 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 	}
 	if (c->newconn)
 		internal("already making a connection");
-	b = mem_alloc(sizeof(struct conn_info) + strlen(dns_append));
+	b = mem_calloc(sizeof(struct conn_info) + strlen(cast_const_char dns_append));
 	b->func = func;
 	b->sock = sock;
 	b->port = port;
 	b->real_port = real_port;
-	b->socks_byte_count = 0;
-	strcpy(b->dns_append, dns_append);
+	strcpy(cast_char b->dns_append, cast_const_char dns_append);
 	c->newconn = b;
-	log_data("\nCONNECTION: ", 13);
-	log_data(host, strlen(host));
-	log_data("\n", 1);
+	log_data(cast_uchar "\nCONNECTION: ", 13);
+	log_data(host, strlen(cast_const_char host));
+	log_data(cast_uchar "\n", 1);
 	if (c->no_cache >= NC_RELOAD) as = find_host_no_cache(host, &b->addr, &c->dnsquery, (void(*)(void *, int))dns_found, c);
 	else as = find_host(host, &b->addr, &c->dnsquery, (void(*)(void *, int))dns_found, c);
 	mem_free(host);
@@ -217,12 +216,12 @@ static void handle_socks(struct connection *c)
 	int wr;
 	setcstate(c, S_SOCKS_NEG);
 	set_timeout(c);
-	add_bytes_to_str(&command, &len, "\004\001", 2);
+	add_bytes_to_str(&command, &len, cast_uchar "\004\001", 2);
 	add_chr_to_str(&command, &len, b->real_port >> 8);
 	add_chr_to_str(&command, &len, b->real_port);
-	add_bytes_to_str(&command, &len, "\000\000\000\001", 4);
-	if (strchr(c->socks_proxy, '@'))
-		add_bytes_to_str(&command, &len, c->socks_proxy, strcspn(c->socks_proxy, "@"));
+	add_bytes_to_str(&command, &len, cast_uchar "\000\000\000\001", 4);
+	if (strchr(cast_const_char c->socks_proxy, '@'))
+		add_bytes_to_str(&command, &len, c->socks_proxy, strcspn(cast_const_char c->socks_proxy, "@"));
 	add_chr_to_str(&command, &len, 0);
 	if (!(host = get_host_name(c->url))) {
 		mem_free(command);
@@ -338,6 +337,20 @@ static void dns_found(struct connection *c, int state)
 	} else {
 		connected(c);
 	}
+}
+
+void continue_connection(struct connection *c, int *sock, void (*func)(struct connection *))
+{
+	struct conn_info *b;
+	if (c->newconn)
+		internal("already making a connection");
+	b = mem_calloc(sizeof(struct conn_info));
+	b->func = func;
+	b->sock = sock;
+	b->real_port = -1;
+	c->newconn = b;
+	log_data(cast_uchar "\nCONTINUE CONNECTION\n", 21);
+	connected(c);
 }
 
 static void connected(struct connection *c)
@@ -532,7 +545,7 @@ static void read_select(struct connection *c)
 */
 				unsigned char *prot, *h;
 				if (is_last_try(c) && (prot = get_protocol_name(c->url))) {
-					if (!strcasecmp(prot, "http")) {
+					if (!strcasecmp(cast_const_char prot, "http")) {
 						if ((h = get_host_name(c->url))) {
 							add_blacklist_entry(h, BL_NO_COMPRESSION);
 							mem_free(h);

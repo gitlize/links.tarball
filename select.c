@@ -60,9 +60,7 @@ int can_write(int fd)
 	if (fd < 0)
 		internal("can_write: handle %d", fd);
 	if (fd >= (int)FD_SETSIZE) {
-		error("too big handle %d", fd);
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		fatal_exit("too big handle %d", fd);
 	}
 	FD_SET(fd, &fds);
 	EINTRLOOP(rs, select(fd + 1, NULL, &fds, NULL, &tv));
@@ -78,9 +76,7 @@ int can_read(int fd)
 	if (fd < 0)
 		internal("can_read: handle %d", fd);
 	if (fd >= (int)FD_SETSIZE) {
-		error("too big handle %d", fd);
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		fatal_exit("too big handle %d", fd);
 	}
 	FD_SET(fd, &fds);
 	EINTRLOOP(rs, select(fd + 1, &fds, NULL, NULL, &tv));
@@ -226,15 +222,13 @@ void *get_handler(int fd, int tp)
 	if (fd < 0)
 		internal("get_handler: handle %d", fd);
 	if (fd >= (int)FD_SETSIZE) {
-		error("too big handle %d", fd);
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		fatal_exit("too big handle %d", fd);
 		return NULL;
 	}
 	switch (tp) {
-		case H_READ:	return threads[fd].read_func;
-		case H_WRITE:	return threads[fd].write_func;
-		case H_ERROR:	return threads[fd].error_func;
+		case H_READ:	return (void *)threads[fd].read_func;
+		case H_WRITE:	return (void *)threads[fd].write_func;
+		case H_ERROR:	return (void *)threads[fd].error_func;
 		case H_DATA:	return threads[fd].data;
 	}
 	internal("get_handler: bad type %d", tp);
@@ -246,9 +240,7 @@ void set_handlers(int fd, void (*read_func)(void *), void (*write_func)(void *),
 	if (fd < 0)
 		internal("set_handlers: handle %d", fd);
 	if (fd >= (int)FD_SETSIZE) {
-		error("too big handle %d", fd);
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		fatal_exit("too big handle %d", fd);
 		return;
 	}
 	threads[fd].read_func = read_func;
@@ -337,7 +329,7 @@ void install_signal_handler(int sig, void (*fn)(void *), void *data, int critica
 		return;
 	}
 	if (!fn) sa.sa_handler = SIG_IGN;
-	else sa.sa_handler = (void *)got_signal;
+	else sa.sa_handler = (void (*)(int))got_signal;
 	sigfillset(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART;
 	if (!fn)
@@ -358,10 +350,37 @@ void interruptible_signal(int sig, int in)
 		return;
 	}
 	if (!signal_handlers[sig].fn) return;
-	sa.sa_handler = (void *)got_signal;
+	sa.sa_handler = (void (*)(int))got_signal;
 	sigfillset(&sa.sa_mask);
 	if (!in) sa.sa_flags = SA_RESTART;
 	EINTRLOOP(rs, sigaction(sig, &sa, NULL));
+}
+
+static sigset_t sig_old_mask;
+static int sig_unblock = 0;
+
+void block_signals(int except1, int except2)
+{
+	int rs;
+	sigset_t mask;
+	sigfillset(&mask);
+#ifdef HAVE_SIGDELSET
+	if (except1) sigdelset(&mask, except1);
+	if (except2) sigdelset(&mask, except2);
+#else
+	if (except1 || except2) return;
+#endif
+	EINTRLOOP(rs, sigprocmask(SIG_BLOCK, &mask, &sig_old_mask));
+	if (!rs) sig_unblock = 1;
+}
+
+void unblock_signals(void)
+{
+	int rs;
+	if (sig_unblock) {
+		EINTRLOOP(rs, sigprocmask(SIG_SETMASK, &sig_old_mask, NULL));
+		sig_unblock = 0;
+	}
 }
 
 static int check_signals(void)
@@ -421,9 +440,7 @@ void select_loop(void (*init)(void))
 	last_time = get_time();
 	ignore_signals();
 	if (c_pipe(signal_pipe)) {
-		error("ERROR: can't create pipe for signal handling");
-		fatal_tty_exit();
-		exit(RET_FATAL);
+		fatal_exit("ERROR: can't create pipe for signal handling");
 	}
 	EINTRLOOP(rs, fcntl(signal_pipe[0], F_SETFL, O_NONBLOCK));
 	EINTRLOOP(rs, fcntl(signal_pipe[1], F_SETFL, O_NONBLOCK));
@@ -453,7 +470,7 @@ void select_loop(void (*init)(void))
 			if (tt < 1000)
 #endif
 			{
-				tv.tv_sec = tt / 1000;
+				tv.tv_sec = tt / 1000 < MAXINT ? (int)(tt / 1000) : MAXINT;
 				tv.tv_usec = (tt % 1000) * 1000;
 				tm = &tv;
 			}
@@ -488,9 +505,7 @@ void select_loop(void (*init)(void))
 			fprintf(stderr, "select intr\n");
 #endif
 			if (errno != EINTR) {
-				error("ERROR: select failed: %s", strerror(errno));
-				fatal_tty_exit();
-				exit(RET_FATAL);
+				fatal_exit("ERROR: select failed: %s", strerror(errno));
 			}
 			continue;
 		}

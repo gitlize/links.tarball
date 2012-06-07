@@ -341,8 +341,8 @@ gif_accept_byte(int c)
 		deco->tbuf[deco->tlen]=c;
 		deco->tlen++;
 		if (deco->tlen>=13){
-			if (strncmp(deco->tbuf,"GIF87a",6)
-				&&strncmp(deco->tbuf,"GIF89a",6)){
+			if (strncmp(cast_const_char deco->tbuf,"GIF87a",6)
+				&&strncmp(cast_const_char deco->tbuf,"GIF89a",6)){
 				bad_file:
 	   			end_callback_hit=1;
 	   			return; /* Invalid GIF header */

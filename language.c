@@ -7,7 +7,7 @@
 
 struct translation {
 	int code;
-	unsigned char *name;
+	char *name;
 };
 
 struct translation_desc {
@@ -41,8 +41,8 @@ void shutdown_trans(void)
 			for (k = 0; k < T__N_TEXTS; k++) {
 				unsigned char *txt = translation_array[i][j][k];
 				if (txt &&
-				    txt != translations[i].t[k].name &&
-				    txt != translations[0].t[k].name)
+				    txt != cast_uchar translations[i].t[k].name &&
+				    txt != cast_uchar translations[0].t[k].name)
 					mem_free(txt);
 			}
 			mem_free(translation_array[i][j]);
@@ -70,16 +70,16 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 		unsigned char *tt;
 		if ((trn = current_tra[text - dummyarray])) return trn;
 		tr:
-		if (!(tt = translations[current_language].t[text - dummyarray].name)) {
-			trn = translation_english[text - dummyarray].name;
+		if (!(tt = cast_uchar translations[current_language].t[text - dummyarray].name)) {
+			trn = cast_uchar translation_english[text - dummyarray].name;
 		} else {
 			struct document_options l_opt;
 			memset(&l_opt, 0, sizeof(l_opt));
 			l_opt.plain = 0;
 			l_opt.cp = charset;
 			conv_table = get_translation_table(current_lang_charset, charset);
-			trn = convert_string(conv_table, tt, strlen(tt), &l_opt);
-			if (!strcmp(trn, tt)) {
+			trn = convert_string(conv_table, tt, strlen(cast_const_char tt), &l_opt);
+			if (!strcmp(cast_const_char trn, cast_const_char tt)) {
 				mem_free(trn);
 				trn = tt;
 			}
@@ -91,8 +91,8 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 			memset(current_tra, 0, sizeof (unsigned char **) * T__N_TEXTS);
 			goto tr;
 		}
-		if (!(trn = translations[current_language].t[text - dummyarray].name)) {
-			trn = translations[current_language].t[text - dummyarray].name = translation_english[text - dummyarray].name;	/* modifying translation structure */
+		if (!(trn = cast_uchar translations[current_language].t[text - dummyarray].name)) {
+			trn = cast_uchar(translations[current_language].t[text - dummyarray].name = translation_english[text - dummyarray].name);	/* modifying translation structure */
 		}
 	}
 	return trn;
@@ -101,7 +101,7 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 unsigned char *get_english_translation(unsigned char *text)
 {
 	if (is_direct_text(text)) return text;
-	return translation_english[text - dummyarray].name;
+	return cast_uchar translation_english[text - dummyarray].name;
 }
 
 int n_languages(void)
@@ -111,7 +111,7 @@ int n_languages(void)
 
 unsigned char *language_name(int l)
 {
-	return translations[l].t[T__LANGUAGE].name;
+	return cast_uchar translations[l].t[T__LANGUAGE].name;
 }
 
 void set_language(int l)
@@ -123,7 +123,7 @@ void set_language(int l)
 		return;
 	}
 	current_language = l;
-	cp = translations[l].t[T__CHAR_SET].name;
+	cp = cast_uchar translations[l].t[T__CHAR_SET].name;
 	i = get_cp_index(cp);
 	if (i == -1) {
 		internal("Unknown charset for language %s.", translations[l].t[T__LANGUAGE].name);

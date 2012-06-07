@@ -4,7 +4,7 @@ static struct table_entry table_7bit [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_7bit [] = {"us-ascii", "ascii", "7bit", "7-bit", "iso-ir-6", "ANSI_X3.4", "646", "it-ascii", NULL };
+static char *aliases_7bit [] = {"us-ascii", "ascii", "7bit", "7-bit", "iso-ir-6", "ANSI_X3.4", "646", "it-ascii", NULL };
 
 static struct table_entry table_8859_1 [] = {
 	{ 0xA0, 0x00A0 },
@@ -106,7 +106,7 @@ static struct table_entry table_8859_1 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_1 [] = {"ISO-8859-1", "8859-1", "iso-ir-100", "latin1", "l1", "819","iso-latin1", NULL };
+static char *aliases_8859_1 [] = {"ISO-8859-1", "8859-1", "iso-ir-100", "latin1", "l1", "819", "iso-latin1", NULL };
 
 static struct table_entry table_8859_2 [] = {
 	{ 0xA0, 0x00A0 },
@@ -208,7 +208,7 @@ static struct table_entry table_8859_2 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_2 [] = {"ISO-8859-2", "8859-2", "iso-ir-101", "latin2", "l2","iso-latin2", "iso8859-2", NULL };
+static char *aliases_8859_2 [] = {"ISO-8859-2", "8859-2", "iso-ir-101", "latin2", "l2","iso-latin2", "iso8859-2", NULL };
 
 static struct table_entry table_8859_3 [] = {
 	{ 0x80, 0x0080 },
@@ -335,7 +335,7 @@ static struct table_entry table_8859_3 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_3 [] = {"ISO-8859-3", "8859-3", NULL };
+static char *aliases_8859_3 [] = {"ISO-8859-3", "8859-3", NULL };
 
 static struct table_entry table_8859_4 [] = {
 	{ 0x80, 0x0080 },
@@ -469,7 +469,7 @@ static struct table_entry table_8859_4 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_4 [] = {"ISO-8859-4", "8859-4", "iso-ir-110", "latin4", "l4","iso-latin4", NULL };
+static char *aliases_8859_4 [] = {"ISO-8859-4", "8859-4", "iso-ir-110", "latin4", "l4","iso-latin4", NULL };
 
 static struct table_entry table_8859_5 [] = {
 	{ 0x80, 0x0080 },
@@ -603,7 +603,7 @@ static struct table_entry table_8859_5 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_5 [] = {"ISO-8859-5", "8859-5" , NULL };
+static char *aliases_8859_5 [] = {"ISO-8859-5", "8859-5" , NULL };
 
 static struct table_entry table_8859_6 [] = {
 	{ 0x80, 0x0080 },
@@ -692,7 +692,7 @@ static struct table_entry table_8859_6 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_6 [] = {"ISO-8859-6", "8859-6", NULL };
+static char *aliases_8859_6 [] = {"ISO-8859-6", "8859-6", NULL };
 
 static struct table_entry table_8859_7 [] = {
 	{ 0x80, 0x0080 },
@@ -820,7 +820,7 @@ static struct table_entry table_8859_7 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_7 [] = {"ISO-8859-7", "8859-7", "iso-ir-126", "elot-928", NULL };
+static char *aliases_8859_7 [] = {"ISO-8859-7", "8859-7", "iso-ir-126", "elot-928", NULL };
 
 static struct table_entry table_8859_8 [] = {
 	{ 0x80, 0x0080 },
@@ -918,7 +918,7 @@ static struct table_entry table_8859_8 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_8 [] = {"ISO-8859-8", "8859-8", NULL };
+static char *aliases_8859_8 [] = {"ISO-8859-8", "8859-8", NULL };
 
 static struct table_entry table_8859_9 [] = {
 	{ 0x80, 0x0080 },
@@ -1052,7 +1052,7 @@ static struct table_entry table_8859_9 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_9 [] = {"ISO-8859-9", "8859-9" , NULL };
+static char *aliases_8859_9 [] = {"ISO-8859-9", "8859-9" , NULL };
 
 static struct table_entry table_8859_10 [] = {
 	{ 0x80, 0x0080 },
@@ -1186,7 +1186,7 @@ static struct table_entry table_8859_10 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_10 [] = {"ISO-8859-10", "8859-10", NULL };
+static char *aliases_8859_10 [] = {"ISO-8859-10", "8859-10", NULL };
 
 static struct table_entry table_8859_13 [] = {
 	{ 0x80, 0x0080 },
@@ -1320,7 +1320,7 @@ static struct table_entry table_8859_13 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_13 [] = {"ISO-8859-13", "8859-13", "iso-ir-179", "latin7", "l7","iso-latin7", NULL };
+static char *aliases_8859_13 [] = {"ISO-8859-13", "8859-13", "iso-ir-179", "latin7", "l7","iso-latin7", NULL };
 
 static struct table_entry table_8859_14 [] = {
 	{ 0x80, 0x0080 },
@@ -1454,7 +1454,7 @@ static struct table_entry table_8859_14 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_14 [] = {"ISO-8859-14", "8859-14", NULL };
+static char *aliases_8859_14 [] = {"ISO-8859-14", "8859-14", NULL };
 
 static struct table_entry table_8859_15 [] = {
 	{ 0x80, 0x0080 },
@@ -1588,7 +1588,7 @@ static struct table_entry table_8859_15 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_15 [] = {"ISO-8859-15", "8859-15", NULL };
+static char *aliases_8859_15 [] = {"ISO-8859-15", "8859-15", NULL };
 
 static struct table_entry table_8859_16 [] = {
 	{ 0x80, 0x0080 },
@@ -1722,7 +1722,7 @@ static struct table_entry table_8859_16 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_8859_16 [] = {"ISO-8859-16", "8859-16", NULL };
+static char *aliases_8859_16 [] = {"ISO-8859-16", "8859-16", NULL };
 
 static struct table_entry table_cp1250 [] = {
 	{ 0x80, 0x20AC },
@@ -1853,7 +1853,7 @@ static struct table_entry table_cp1250 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp1250 [] = {"windows-1250", "1250", NULL };
+static char *aliases_cp1250 [] = {"windows-1250", "1250", NULL };
 
 static struct table_entry table_cp1251 [] = {
 	{ 0x80, 0x0402 },
@@ -1986,7 +1986,7 @@ static struct table_entry table_cp1251 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp1251 [] = {"windows-1251", "1251", "cp1251", NULL };
+static char *aliases_cp1251 [] = {"windows-1251", "1251", "cp1251", NULL };
 
 static struct table_entry table_cp1252 [] = {
 	{ 0x80, 0x20AC },
@@ -2115,7 +2115,7 @@ static struct table_entry table_cp1252 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp1252 [] = {"windows-1252", "1252", NULL };
+static char *aliases_cp1252 [] = {"windows-1252", "1252", NULL };
 
 static struct table_entry table_cp1256 [] = {
 	{ 0x80, 0x20AC },
@@ -2249,7 +2249,7 @@ static struct table_entry table_cp1256 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp1256 [] = {"windows-1256", "1256", "cp1256", NULL };
+static char *aliases_cp1256 [] = {"windows-1256", "1256", "cp1256", NULL };
 
 static struct table_entry table_cp1257 [] = {
 	{ 0x80, 0x20AC },
@@ -2383,7 +2383,7 @@ static struct table_entry table_cp1257 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp1257 [] = {"windows-1257", "1257", "cp1257", NULL };
+static char *aliases_cp1257 [] = {"windows-1257", "1257", "cp1257", NULL };
 
 static struct table_entry table_cp437 [] = {
 	{ 0x80, 0x00c7 },
@@ -2517,7 +2517,7 @@ static struct table_entry table_cp437 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp437 [] = {"cp437", "437", NULL };
+static char *aliases_cp437 [] = {"cp437", "437", NULL };
 
 static struct table_entry table_cp737 [] = {
 	{ 0x80, 0x0391 },
@@ -2651,7 +2651,7 @@ static struct table_entry table_cp737 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp737 [] = {"cp737", "737", NULL };
+static char *aliases_cp737 [] = {"cp737", "737", NULL };
 
 static struct table_entry table_cp850 [] = {
 	{ 0x80, 0x00c7 },
@@ -2785,7 +2785,7 @@ static struct table_entry table_cp850 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp850 [] = {"cp850", "850", NULL };
+static char *aliases_cp850 [] = {"cp850", "850", NULL };
 
 static struct table_entry table_cp852 [] = {
 	{ 0x80, 0x00c7 },
@@ -2919,7 +2919,7 @@ static struct table_entry table_cp852 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp852 [] = {"cp852", "852", NULL };
+static char *aliases_cp852 [] = {"cp852", "852", NULL };
 
 static struct table_entry table_cp866 [] = {
 	{ 0x80, 0x0410 },
@@ -3053,7 +3053,7 @@ static struct table_entry table_cp866 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp866 [] = {"cp866", "866", NULL };
+static char *aliases_cp866 [] = {"cp866", "866", NULL };
 
 static struct table_entry table_cp1125 [] = {
 	{ 0x80, 0x0410 },
@@ -3187,7 +3187,7 @@ static struct table_entry table_cp1125 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_cp1125 [] = {"x-cp866-u", "ruscii", "1125", NULL };
+static char *aliases_cp1125 [] = {"x-cp866-u", "ruscii", "1125", NULL };
 
 static struct table_entry table_macroman [] = {
 	{ 0x80, 0x00C4 },
@@ -3321,7 +3321,7 @@ static struct table_entry table_macroman [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_macroman [] = {"x-mac", "mac", "macroman", NULL };
+static char *aliases_macroman [] = {"x-mac", "mac", "macroman", NULL };
 
 static struct table_entry table_mac_lat2 [] = {
 	{ 0x80, 0x00C4 },
@@ -3455,7 +3455,7 @@ static struct table_entry table_mac_lat2 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_mac_lat2 [] = {"x-mac-ce", "mac-ce", "maclatin2", "10029", NULL };
+static char *aliases_mac_lat2 [] = {"x-mac-ce", "mac-ce", "maclatin2", "10029", NULL };
 
 static struct table_entry table_kamen [] = {
 	{ 0x80, 0x010C },
@@ -3589,7 +3589,7 @@ static struct table_entry table_kamen [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_kamen [] = {"x-kam-cs", "kam", "867", "869", NULL };
+static char *aliases_kamen [] = {"x-kam-cs", "kam", "867", "869", NULL };
 
 static struct table_entry table_koi8_r [] = {
 	{ 0x80, 0x2500 },
@@ -3723,7 +3723,7 @@ static struct table_entry table_koi8_r [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_koi8_r [] = {"koi8-r", NULL };
+static char *aliases_koi8_r [] = {"koi8-r", NULL };
 
 static struct table_entry table_koi8_u [] = {
 	{ 0x80, 0x2500 },
@@ -3857,7 +3857,7 @@ static struct table_entry table_koi8_u [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_koi8_u [] = {"koi8-u", NULL };
+static char *aliases_koi8_u [] = {"koi8-u", NULL };
 
 static struct table_entry table_koi8_ru [] = {
 	{ 0x80, 0x2500 },
@@ -3991,7 +3991,7 @@ static struct table_entry table_koi8_ru [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_koi8_ru [] = {"koi8-ru", NULL };
+static char *aliases_koi8_ru [] = {"koi8-ru", NULL };
 
 static struct table_entry table_tcvn5712 [] = {
 	{ 0x80, 0x00C0 },
@@ -4127,7 +4127,7 @@ static struct table_entry table_tcvn5712 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_tcvn5712 [] = {"TCVN-5712", "TCVN", "TCVN-0", "TCVN-1", NULL };
+static char *aliases_tcvn5712 [] = {"TCVN-5712", "TCVN", "TCVN-0", "TCVN-1", NULL };
 
 static struct table_entry table_viscii [] = {
 	{ 0x80, 0x1EA0 },
@@ -4263,13 +4263,13 @@ static struct table_entry table_viscii [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_viscii [] = {"VISCII", "VISCII-1", "VISCII 1.1", "VISCII-1.1", "VISCII1.1-1", NULL };
+static char *aliases_viscii [] = {"VISCII", "VISCII-1", "VISCII 1.1", "VISCII-1.1", "VISCII1.1-1", NULL };
 
 static struct table_entry table_utf_8 [] = {
 	{ 0, 0 }
 };
 
-static unsigned char *aliases_utf_8 [] = {"utf-8", "utf8", NULL };
+static char *aliases_utf_8 [] = {"utf-8", "utf8", NULL };
 
 static struct codepage_desc codepages [] = {
 	{ "7-bit ASCII", aliases_7bit, table_7bit },

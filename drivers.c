@@ -91,7 +91,7 @@ static unsigned char *list_graphics_drivers(void)
 	int l = 0;
 	struct graphics_driver **gd;
 	for (gd = graphics_drivers; *gd; gd++) {
-		if (l) add_to_str(&d, &l, " ");
+		if (l) add_to_str(&d, &l, cast_uchar " ");
 		add_to_str(&d, &l, (*gd)->name);
 	}
 	return d;
@@ -122,7 +122,7 @@ void add_graphics_drivers(unsigned char **s, int *l)
 {
 	struct graphics_driver **gd;
 	for (gd = graphics_drivers; *gd; gd++) {
-		if (gd != graphics_drivers) add_to_str(s, l, ", ");
+		if (gd != graphics_drivers) add_to_str(s, l, cast_uchar ", ");
 		add_to_str(s, l, (*gd)->name);
 	}
 }
@@ -145,7 +145,7 @@ unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsign
 	}
 #endif
 	for (gd = graphics_drivers; *gd; gd++) {
-		if (!driver || !*driver || !strcasecmp((*gd)->name, driver)) {
+		if (!driver || !*driver || !strcasecmp(cast_const_char (*gd)->name, cast_const_char driver)) {
 			unsigned char *r;
 			if ((!driver || !*driver) && (*gd)->flags & GD_NOAUTO) continue;
 			if (!(r = init_graphics_driver(*gd, param, display))) {
@@ -155,21 +155,21 @@ unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsign
 				return NULL;
 			}
 			if (!l) {
-				if (!driver || !*driver) add_to_str(&s, &l, "Could not initialize any graphics driver. Tried the following drivers:\n");
-				else add_to_str(&s, &l, "Could not initialize graphics driver ");
+				if (!driver || !*driver) add_to_str(&s, &l, cast_uchar "Could not initialize any graphics driver. Tried the following drivers:\n");
+				else add_to_str(&s, &l, cast_uchar "Could not initialize graphics driver ");
 			}
 			add_to_str(&s, &l, (*gd)->name);
-			add_to_str(&s, &l, ":\n");
+			add_to_str(&s, &l, cast_uchar ":\n");
 			add_to_str(&s, &l, r);
 			mem_free(r);
 		}
 	}
 	if (!l) {
-		add_to_str(&s, &l, "Unknown graphics driver ");
+		add_to_str(&s, &l, cast_uchar "Unknown graphics driver ");
 		if (driver) add_to_str(&s, &l, driver);
-		add_to_str(&s, &l, ".\nThe following graphics drivers are supported:\n");
+		add_to_str(&s, &l, cast_uchar ".\nThe following graphics drivers are supported:\n");
 		add_graphics_drivers(&s, &l);
-		add_to_str(&s, &l, "\n");
+		add_to_str(&s, &l, cast_uchar "\n");
 	}
 	return s;
 }

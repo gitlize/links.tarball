@@ -543,11 +543,11 @@ void html_tag(struct f_data *f, unsigned char *t, int x, int y)
 	if (!f) return;
 	tt = init_str();
 	ll = 0;
-	add_conv_str(&tt, &ll, t, strlen(t), -2);
-	tag = mem_alloc(sizeof(struct tag) + strlen(tt) + 1);
+	add_conv_str(&tt, &ll, t, strlen(cast_const_char t), -2);
+	tag = mem_alloc(sizeof(struct tag) + strlen(cast_const_char tt) + 1);
 	tag->x = x;
 	tag->y = y;
-	strcpy(tag->name, tt);
+	strcpy(cast_char tag->name, cast_const_char tt);
 	add_to_list(f->tags, tag);
 	if ((void *)last_tag_for_newline == &f->tags) last_tag_for_newline = tag;
 	mem_free(tt);
@@ -610,7 +610,7 @@ static void put_chars(void *p_, unsigned char *c, int l)
 			}
 			pl = p->utf8_part_len;
 			p->utf8_part_len = 0;
-			strcpy(new_part, p->utf8_part);
+			strcpy(cast_char new_part, cast_const_char p->utf8_part);
 			put_chars(p, new_part, pl);
 		}
 		bad_utf:
@@ -715,17 +715,17 @@ static void put_chars(void *p_, unsigned char *c, int l)
 			if (d_opt->num_links) {
 				s[0] = '[';
 				snzprint(s + 1, 62, p->link_num);
-				strcat(s, "]");
+				strcat(cast_char s, "]");
 			} else {
 				if (ff && (ff->type == FC_TEXT || ff->type == FC_PASSWORD || ff->type == FC_FILE || ff->type == FC_TEXTAREA)) {
-					strcpy(s, ">");
+					strcpy(cast_char s, ">");
 				} else if (ff && (ff->type == FC_CHECKBOX || ff->type == FC_RADIO || ff->type == FC_SELECT)) {
-					strcpy(s, "");
+					strcpy(cast_char s, "");
 				} else {
-					strcpy(s, "~");
+					strcpy(cast_char s, "~");
 				}
 			}
-			put_chars(p, s, strlen(s));
+			put_chars(p, s, strlen(cast_const_char s));
 			if (ff && ff->type == FC_TEXTAREA) line_break(p);
 			if (p->cx < par_format.leftmargin) p->cx = par_format.leftmargin;
 			format.link = fl, format.target = ft, format.image = fi;
@@ -825,7 +825,7 @@ static void html_form_control(struct part *p, struct form_control *fc)
 	}
 	fc->g_ctrl_num = g_ctrl_num++;
 	if (fc->type == FC_TEXT || fc->type == FC_PASSWORD || fc->type == FC_TEXTAREA) {
-		unsigned char *dv = convert_string(convert_table, fc->default_value, strlen(fc->default_value), d_opt);
+		unsigned char *dv = convert_string(convert_table, fc->default_value, strlen(cast_const_char fc->default_value), d_opt);
 		if (dv) {
 			mem_free(fc->default_value);
 			fc->default_value = dv;
@@ -834,7 +834,7 @@ static void html_form_control(struct part *p, struct form_control *fc)
 	if (fc->type == FC_TEXTAREA) {
 		unsigned char *p;
 		for (p = fc->default_value; p[0]; p++) if (p[0] == '\r') {
-			if (p[1] == '\n') memmove(p, p + 1, strlen(p)), p--;
+			if (p[1] == '\n') memmove(p, p + 1, strlen(cast_const_char p)), p--;
 			else p[0] = '\n';
 		}
 	}
@@ -1178,18 +1178,18 @@ struct conv_table *get_convert_table(unsigned char *head, int to, int def, int *
 	int from = -1;
 	unsigned char *a, *b;
 	unsigned char *p = head;
-	while (from == -1 && p && (a = parse_http_header(p, "Content-Type", &p))) {
-		if ((b = parse_header_param(a, "charset", 0))) {
+	while (from == -1 && p && (a = parse_http_header(p, cast_uchar "Content-Type", &p))) {
+		if ((b = parse_header_param(a, cast_uchar "charset", 0))) {
 			from = get_cp_index(b);
 			mem_free(b);
 		}
 		mem_free(a);
 	}
-	if (from == -1 && head && (a = parse_http_header(head, "Content-Charset", NULL))) {
+	if (from == -1 && head && (a = parse_http_header(head, cast_uchar "Content-Charset", NULL))) {
 		from = get_cp_index(a);
 		mem_free(a);
 	}
-	if (from == -1 && head && (a = parse_http_header(head, "Charset", NULL))) {
+	if (from == -1 && head && (a = parse_http_header(head, cast_uchar "Charset", NULL))) {
 		from = get_cp_index(a);
 		mem_free(a);
 	}
@@ -1229,7 +1229,7 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 	convert_table = get_convert_table(head, screen->opt.cp, screen->opt.assume_cp, &screen->cp, &screen->ass, screen->opt.hard_assume);
 	screen->opt.real_cp = screen->cp;
 	i = d_opt->plain; d_opt->plain = 0;
-	screen->title = convert_string(convert_table, t, strlen(t), d_opt);
+	screen->title = convert_string(convert_table, t, strlen(cast_const_char t), d_opt);
 	d_opt->plain = i;
 	mem_free(t);
 	push_base_format(url, &screen->opt, frame);
@@ -1322,7 +1322,7 @@ int compare_opt(struct document_options *o1, struct document_options *o2)
 	    !memcmp(&o1->default_link, &o2->default_link, sizeof(struct rgb)) &&
 	    kdo_si_hraje_nezlobi____a_nebo_to_je_PerM<=0.0001 &&
 	    kdo_si_hraje_nezlobi____a_nebo_to_je_PerM>=-0.0001 &&
-	    ((o1->framename && o2->framename && !strcasecmp(o1->framename, o2->framename)) || (!o1->framename && !o2->framename))) return 0;
+	    ((o1->framename && o2->framename && !strcasecmp(cast_const_char o1->framename, cast_const_char o2->framename)) || (!o1->framename && !o2->framename))) return 0;
 	return 1;
 }
 

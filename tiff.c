@@ -260,15 +260,15 @@ void add_tiff_version(unsigned char **s, int *l)
 {
 	unsigned char *p, *pp;
 	int pl;
-	add_to_str(s, l, "TIFF (");
+	add_to_str(s, l, cast_uchar "TIFF (");
 	p = (unsigned char *)TIFFGetVersion();
-	pp = strstr(p, "LIBTIFF, ");
+	pp = cast_uchar strstr(cast_const_char p, "LIBTIFF, ");
 	if (pp) p = pp + 9;
-	pp = strstr(p, "Version ");
+	pp = cast_uchar strstr(cast_const_char p, "Version ");
 	if (pp) p = pp + 8;
-	pl = strcspn(p, " \n");
+	pl = strcspn(cast_const_char p, " \n");
 	add_bytes_to_str(s, l, p, pl);
-	add_to_str(s, l, ")");
+	add_to_str(s, l, cast_uchar ")");
 }
 
 #endif /* #ifdef HAVE_TIFF */

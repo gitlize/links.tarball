@@ -23,7 +23,7 @@ struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
 		 */
 		foreach (i, image_cache) {
 			if (i->background_color == bg
-				&& !strcmp(i->url, url)
+				&& !strcmp(cast_const_char i->url, cast_const_char url)
 				&& i->wanted_xw==xw
 				&& i->wanted_yw==yw
 				&& i->wanted_xyw_meaning==xyw_meaning
@@ -32,7 +32,7 @@ struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
 	}else{
 		foreach (i, image_cache) {
 			if (i->background_color == bg
-				&& !strcmp(i->url, url)
+				&& !strcmp(cast_const_char i->url, cast_const_char url)
 				&& i->wanted_xw==xw
 				&& i->wanted_yw==yw
 				&& i->wanted_xyw_meaning==xyw_meaning 
@@ -134,7 +134,7 @@ unsigned long imgcache_info(int type)
 
 void init_imgcache(void)
 {
-	register_cache_upcall(shrink_image_cache, "imgcache");
+	register_cache_upcall(shrink_image_cache, MF_GPI, cast_uchar "imgcache");
 }
 
 #endif

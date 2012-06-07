@@ -1,4 +1,6 @@
 #!/bin/sh
+LANG=en_US
+export LANG
 make arrow generate_font &&
 ./arrow &&
 ./generate_font &&

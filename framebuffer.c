@@ -802,7 +802,7 @@ static unsigned char *fb_switch_init(void)
 	install_signal_handler(SIG_ACQ, fb_switch_signal, (void*)SIG_ACQ, 0);
 	EINTRLOOP(rs, ioctl(TTY,VT_GETMODE, &vt_omode));
 	if (rs == -1) {
-		return stracpy("Could not get VT mode.\n");
+		return stracpy(cast_uchar "Could not get VT mode.\n");
 	}
 	memcpy(&vt_mode, &vt_omode, sizeof(vt_mode));
 
@@ -813,7 +813,7 @@ static unsigned char *fb_switch_init(void)
 
 	EINTRLOOP(rs, ioctl(TTY,VT_SETMODE, &vt_mode));
 	if (rs == -1) {
-		return stracpy("Could not set VT mode.\n");
+		return stracpy(cast_uchar "Could not set VT mode.\n");
 	}
 	return NULL;
 }
@@ -976,7 +976,7 @@ static int handle_fb_mouse(void)
 		unhandle_fb_mouse();
 		return -1;
 	}
-	set_handlers(fb_hgpm, fb_gpm_in, NULL, NULL, NULL);
+	set_handlers(fb_hgpm, fb_gpm_in, (void (*)(void *))NULL, (void (*)(void *))NULL, NULL);
 #ifdef SIGTSTP
 	install_signal_handler(SIGTSTP, (void (*)(void *))sig_tstp, NULL, 0);
 #endif
@@ -992,7 +992,7 @@ static int handle_fb_mouse(void)
 
 static void unhandle_fb_mouse(void)
 {
-	if (fb_hgpm >= 0) set_handlers(fb_hgpm, NULL, NULL, NULL, NULL);
+	if (fb_hgpm >= 0) set_handlers(fb_hgpm, (void (*)(void *))NULL, (void (*)(void *))NULL, (void (*)(void *))NULL, NULL);
 #ifndef USE_GPM_DX
 	fb_hgpm = -1;
 	if (fb_old_ws_v) {
@@ -1013,15 +1013,15 @@ static void unhandle_fb_mouse(void)
 #endif
 }
 
-#define seq_hide_cursor	"\033[10000B\033[10000C\033[?25l"
-#define seq_show_cursor "\033[10000D\033[?25h"
+static unsigned char seq_hide_cursor[] = "\033[10000B\033[10000C\033[?25l";
+static unsigned char seq_show_cursor[] = "\033[10000D\033[?25h";
 
 static void fb_print(unsigned char *str)
 {
 	int wr;
-	EINTRLOOP(wr, write(TTY, str, strlen(str)));
+	EINTRLOOP(wr, write(TTY, str, strlen(cast_const_char str)));
 	if (wr <= 0)
-		EINTRLOOP(wr, write(1, str, strlen(str)));
+		EINTRLOOP(wr, write(1, str, strlen(cast_const_char str)));
 }
 
 static void fb_hide_cursor(void)
@@ -1057,13 +1057,13 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_driver_param=stracpy(param);
 
 	border_left = border_right = border_top = border_bottom = 0;
-	if (!param) param="";
+	if (!param) param=cast_uchar "";
 	if (*param) {
 		if (*param < '0' || *param > '9')
 			{ bad_p:
 				if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
-				return stracpy("-mode syntax is left_border[,top_border[,right_border[,bottom_border]]]\n"); }
-		border_left = strtoul(param, (char **)(void *)&param, 10);
+				return stracpy(cast_uchar "-mode syntax is left_border[,top_border[,right_border[,bottom_border]]]\n"); }
+		border_left = strtoul(cast_const_char param, (char **)(void *)&param, 10);
 		if ((unsigned long)border_left > MAXINT / 10) goto bad_p;
 		if (*param == ',') param++;
 	} else {
@@ -1071,7 +1071,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	}
 	if (*param) {
 		if (*param < '0' || *param > '9') goto bad_p;
-		border_top = strtoul(param, (char **)(void *)&param, 10);
+		border_top = strtoul(cast_const_char param, (char **)(void *)&param, 10);
 		if ((unsigned long)border_top > MAXINT / 10) goto bad_p;
 		if (*param == ',') param++;
 	} else {
@@ -1079,7 +1079,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	}
 	if (*param) {
 		if (*param < '0' || *param > '9') goto bad_p;
-		border_right = strtoul(param, (char **)(void *)&param, 10);
+		border_right = strtoul(cast_const_char param, (char **)(void *)&param, 10);
 		if ((unsigned long)border_right > MAXINT / 10) goto bad_p;
 		if (*param == ',') param++;
 	} else {
@@ -1087,7 +1087,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	}
 	if (*param) {
 		if (*param < '0' || *param > '9') goto bad_p;
-		border_bottom = strtoul(param, (char **)(void *)&param, 10);
+		border_bottom = strtoul(cast_const_char param, (char **)(void *)&param, 10);
 		if ((unsigned long)border_bottom > MAXINT / 10) goto bad_p;
 		if (*param == ',') param++;
 	} else {
@@ -1098,7 +1098,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	EINTRLOOP(rs, fstat(TTY, &st));
 	if (rs) {
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
-		return stracpy("Cannon stat stdin.\n");
+		return stracpy(cast_uchar "Cannon stat stdin.\n");
 	}
 
 	fb_console = st.st_rdev & 0xff;
@@ -1116,7 +1116,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Cannot open /dev/fb0.\n");
+		return stracpy(cast_uchar "Cannot open /dev/fb0.\n");
 	}
 
 	EINTRLOOP(rs, ioctl (fb_handler, FBIOGET_VSCREENINFO, &vi));
@@ -1126,7 +1126,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Cannot get FB VSCREENINFO.\n");
+		return stracpy(cast_uchar "Cannot get FB VSCREENINFO.\n");
 	}
 
 	oldmode=vi;
@@ -1138,7 +1138,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Cannot get FB FSCREENINFO.\n");
+		return stracpy(cast_uchar "Cannot get FB FSCREENINFO.\n");
 	}
 
 	fb_xsize=vi.xres;
@@ -1188,7 +1188,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Unknown bit depth");
+		return stracpy(cast_uchar "Unknown bit depth");
 	}
 	fb_colors=1<<fb_bits_pp;
 
@@ -1226,7 +1226,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		/*fb_shutdown_palette();
 		EINTRLOOP(rs, close(fb_handler));
 		fb_show_cursor();
-		return stracpy("Cannot pan display.\n");
+		return stracpy(cast_uchar "Cannot pan display.\n");
 		*/
 	}
 
@@ -1236,7 +1236,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Allocation of virtual devices failed.\n");
+		return stracpy(cast_uchar "Allocation of virtual devices failed.\n");
 	}
 	fb_kbd = handle_svgalib_keyboard((void (*)(void *, unsigned char *, int))fb_key_in);
 
@@ -1250,7 +1250,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Nonlinear mapping of graphics memory not supported.\n");
+		return stracpy(cast_uchar "Nonlinear mapping of graphics memory not supported.\n");
 	}
 
 	if (vi.nonstd) {
@@ -1261,7 +1261,7 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Non-standard pixel format.\n");
+		return stracpy(cast_uchar "Non-standard pixel format.\n");
 	}
 
 	/*
@@ -1286,7 +1286,7 @@ retry2:
 			fb_switch_shutdown();
 			if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 			fb_show_cursor();
-			return stracpy("Cannot mmap graphics memory.\n");
+			return stracpy(cast_uchar "Cannot mmap graphics memory.\n");
 		}
 	}
 	fb_vmem = fb_mem + border_left * fb_pixelsize + border_top * fb_linesize;
@@ -1308,7 +1308,7 @@ retry2:
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Unknown bit format.\n");
+		return stracpy(cast_uchar "Unknown bit format.\n");
 	}
 	/*fb_switch_init();*/
 	install_signal_handler(SIGINT, (void (*)(void *))fb_ctrl_c, fb_kbd, 0);
@@ -1337,7 +1337,7 @@ retry2:
 		fb_switch_shutdown();
 		if(fb_driver_param) { mem_free(fb_driver_param); fb_driver_param=NULL; }
 		fb_show_cursor();
-		return stracpy("Cannot open GPM mouse.\n");
+		return stracpy(cast_uchar "Cannot open GPM mouse.\n");
 	}
 	/* hide cursor */
 	if (border_left | border_top | border_right | border_bottom) fb_clear_videoram();
@@ -1361,7 +1361,7 @@ static void fb_shutdown_driver(void)
 	}
 	END_GR;
 	fb_shutdown_palette();
-	install_signal_handler(SIGINT, NULL, NULL, 0);
+	install_signal_handler(SIGINT, (void (*)(void *))NULL, NULL, 0);
 	EINTRLOOP(rs, close(fb_handler));
 	EINTRLOOP(rs, munmap(fb_mem,fb_mapped_size));
 	shutdown_virtual_devices();
@@ -1619,7 +1619,7 @@ static int fb_block(struct graphics_device *dev)
 	if (have_cmap) set_palette(&old_palette);
 	fb_switch_shutdown();
 	fb_show_cursor();
-	fb_print("\n");
+	fb_print(cast_uchar "\n");
 	return 0;
 }
 
@@ -1648,7 +1648,7 @@ static int fb_unblock(struct graphics_device *dev)
 
 
 struct graphics_driver fb_driver={
-	"fb",
+	cast_uchar "fb",
 	fb_init_driver,
 	init_virtual_device,
 	shutdown_virtual_device,
@@ -1662,7 +1662,7 @@ struct graphics_driver fb_driver={
 	fb_unregister_bitmap,
 	fb_draw_bitmap,
 	/*fb_draw_bitmaps,*/
-	NULL,	/* fb_get_color */
+	(long (*)(int))NULL,	/* fb_get_color */
 	fb_fill_area,
 	fb_draw_hline,
 	fb_draw_vline,
@@ -1671,10 +1671,10 @@ struct graphics_driver fb_driver={
 	fb_set_clip_area,
 	fb_block,
 	fb_unblock,
-	NULL, /* set_title */
-	NULL, /* exec */
-	NULL, /* set_clipboard_text */
-	NULL, /* get_clipboard_text */
+	(void (*)(struct graphics_device *, unsigned char *))NULL, /* set_title */
+	(int (*)(unsigned char *, int))NULL, /* exec */
+	(void (*)(struct graphics_device *, unsigned char *))NULL, /* set_clipboard_text */
+	(unsigned char *(*)(void))NULL, /* get_clipboard_text */
 	0,				/* depth (filled in fb_init_driver function) */
 	0, 0,				/* size (in X is empty) */
 	GD_DONT_USE_SCROLL|GD_NEED_CODEPAGE,		/* flags */

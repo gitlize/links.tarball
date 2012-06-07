@@ -87,7 +87,6 @@ g19_2000:
 	if (setjmp(global_jerr->setjmp_buffer)){
 		jpeg_destroy_decompress(global_cinfo);
 		goto g19_2000;
-		return;
 	}
 	jpeg_stdio_src(global_cinfo,stdin);
 	global_cinfo->src->init_source=&nop;
@@ -379,17 +378,17 @@ decoder_ended:
 
 void add_jpeg_version(unsigned char **s, int *l)
 {
-	add_to_str(s, l, "JPEG (");
+	add_to_str(s, l, cast_uchar "JPEG (");
 #if defined(JPEG_LIB_VERSION_MAJOR) && defined(JPEG_LIB_VERSION_MINOR)
 	add_num_to_str(s, l, JPEG_LIB_VERSION_MAJOR);
-	add_to_str(s, l, ".");
+	add_to_str(s, l, cast_uchar ".");
 	add_num_to_str(s, l, JPEG_LIB_VERSION_MINOR);
 #else
 	add_num_to_str(s, l, JPEG_LIB_VERSION / 10);
-	add_to_str(s, l, ".");
+	add_to_str(s, l, cast_uchar ".");
 	add_num_to_str(s, l, JPEG_LIB_VERSION % 10);
 #endif
-	add_to_str(s, l, ")");
+	add_to_str(s, l, cast_uchar ")");
 }
 
 #endif /* #ifdef HAVE_JPEG */

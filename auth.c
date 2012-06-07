@@ -20,7 +20,7 @@ static unsigned char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmno
 static unsigned char *base64_encode(unsigned char *in)
 {
 	unsigned char *out, *outstr;
-	size_t inlen = strlen(in);
+	size_t inlen = strlen(cast_const_char in);
 	if (inlen > MAXINT / 4) overalloc();
 	outstr = out = mem_alloc(((inlen / 3) + 1) * 4 + 1 );
 	while (inlen >= 3) {
@@ -48,10 +48,10 @@ static unsigned char *base64_encode(unsigned char *in)
 
 static unsigned char *basic_encode(unsigned char *user, unsigned char *password)
 {
-	unsigned char *e, *p = mem_alloc(strlen(user) + strlen(password) + 2);
-	strcpy(p, user);
-	strcat(p, ":");
-	strcat(p, password);
+	unsigned char *e, *p = mem_alloc(strlen(cast_const_char user) + strlen(cast_const_char password) + 2);
+	strcpy(cast_char p, cast_const_char user);
+	strcat(cast_char p, ":");
+	strcat(cast_char p, cast_const_char password);
 	e = base64_encode(p);
 	mem_free(p);
 	return e;
@@ -65,21 +65,26 @@ unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy
 	int unknown = 0;
 	int known = 0;
 	try_next:
-	h = parse_http_header(ch, !proxy ? "WWW-Authenticate" : "Proxy-Authenticate", &ch);
+	h = parse_http_header(ch, !proxy ? (unsigned char *)"WWW-Authenticate" : (unsigned char *)"Proxy-Authenticate", &ch);
 	if (!h) {
 		if (unknown && !known) return NULL;
-		if (proxy) return stracpy(proxies.http_proxy);
-		h = get_host_name(url);
-		if (h) return h;
-		return stracpy("");
+		if (proxy) {
+			unsigned char *p = get_proxy_string(url);
+			if (!p) p = cast_uchar "";
+			return stracpy(p);
+		} else {
+			unsigned char *u = get_host_name(url);
+			if (u) return u;
+			return stracpy(cast_uchar "");
+		}
 	}
-	if (casecmp(h, "Basic", 5)) {
+	if (casecmp(h, cast_uchar "Basic", 5)) {
 		mem_free(h);
 		unknown = 1;
 		goto try_next;
 	}
 	known = 1;
-	q = strchr(h, '"');
+	q = cast_uchar strchr(cast_const_char h, '"');
 	if (!q) {
 		mem_free(h);
 		goto try_next;
@@ -95,62 +100,64 @@ unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy
 	return r;
 }
 
-unsigned char *get_auth_string(unsigned char *url)
+static unsigned char *auth_from_url(unsigned char *url, int proxy)
+{
+	unsigned char *r = NULL;
+	int l = 0;
+	unsigned char *user, *password;
+
+	user = get_user_name(url);
+	password = get_pass(url);
+	if (user && *user && password) {
+		unsigned char *e = basic_encode(user, password);
+		r = init_str();
+		if (proxy) add_to_str(&r, &l, cast_uchar "Proxy-");
+		add_to_str(&r, &l, cast_uchar "Authorization: Basic ");
+		add_to_str(&r, &l, e);
+		add_to_str(&r, &l, cast_uchar "\r\n");
+		mem_free(e);
+		if (user) mem_free(user);
+		if (password) mem_free(password);
+		return r;
+	}
+	if (user) mem_free(user);
+	if (password) mem_free(password);
+	return NULL;
+}
+
+unsigned char *get_auth_string(unsigned char *url, int proxy)
 {
 	struct http_auth *a;
 	unsigned char *host;
 	int port;
 	unsigned char *r = NULL;
 	int l = 0;
-	unsigned char *user, *password;
+	if (proxy && upcase(url[0]) != 'P') return NULL;
 	if (!(host = get_host_name(url))) return NULL;
 	port = get_port(url);
-	if (upcase(url[0]) == 'P') {
-		foreach(a, auth) {
-			if (a->proxy && !strcasecmp(a->host, host) && a->port == port) {
-				if (!r) r = init_str();
-				add_to_str(&r, &l, "Proxy-Authorization: Basic ");
-				add_to_str(&r, &l, a->user_password_encoded);
-				add_to_str(&r, &l, "\r\n");
-				break;
-			}
-		}
-		url = get_url_data(url);
-		mem_free(host);
-		if (!(host = get_host_name(url))) return NULL;
-		port = get_port(url);
-	}
 
-	user = get_user_name(url);
-	password = get_pass(url);
-	if (user && *user && password) {
-		unsigned char *e = basic_encode(user, password);
-		if (!r) r = init_str();
-		add_to_str(&r, &l, "Authorization: Basic ");
-		add_to_str(&r, &l, e);
-		add_to_str(&r, &l, "\r\n");
-		mem_free(e);
-		if (user) mem_free(user);
-		if (password) mem_free(password);
-		goto have_passwd;
-	}
-	if (user) mem_free(user);
-	if (password) mem_free(password);
+	if (!proxy && (r = auth_from_url(url, proxy))) goto have_passwd;
 
-	foreach(a, auth) if (!a->proxy && !strcasecmp(a->host, host) && a->port == port) {
+	foreach(a, auth) if (a->proxy == proxy && !strcasecmp(cast_const_char a->host, cast_const_char host) && a->port == port) {
 		unsigned char *d, *data;
+		if (proxy) goto skip_dir_check;
 		data = get_url_data(url);
-		d = strrchr(data, '/');
+		d = cast_uchar strrchr(cast_const_char data, '/');
 		if (!d) d = data;
 		else d++;
-		if ((size_t)(d - data) >= strlen(a->directory) && !memcmp(data, a->directory, strlen(a->directory))) {
-			if (!r) r = init_str();
-			add_to_str(&r, &l, "Authorization: Basic ");
+		if ((size_t)(d - data) >= strlen(cast_const_char a->directory) && !memcmp(data, a->directory, strlen(cast_const_char a->directory))) {
+			skip_dir_check:
+			r = init_str();
+			if (proxy) add_to_str(&r, &l, cast_uchar "Proxy-");
+			add_to_str(&r, &l, cast_uchar "Authorization: Basic ");
 			add_to_str(&r, &l, a->user_password_encoded);
-			add_to_str(&r, &l, "\r\n");
+			add_to_str(&r, &l, cast_uchar "\r\n");
 			goto have_passwd;
 		}
 	}
+
+	if (proxy && (r = auth_from_url(url, proxy))) goto have_passwd;
+
 	have_passwd:
 	mem_free(host);
 	return r;
@@ -176,19 +183,21 @@ void cleanup_auth(void)
 void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, unsigned char *password, int proxy)
 {
 	struct http_auth *a;
-	unsigned char *host;
-	int port;
+	unsigned char *host = NULL;
+	int port = 0	/* against warning */;
 	if (!proxy) {
 		host = get_host_name(url);
 		port = get_port(url);
 	} else {
 		unsigned char *p = get_proxy(url);
-		host = get_host_name(p);
-		port = get_port(p);
+		if (strcmp(cast_const_char p, cast_const_char url)) {
+			host = get_host_name(p);
+			port = get_port(p);
+		}
 		mem_free(p);
 	}
 	if (!host) return;
-	foreach(a, auth) if (a->proxy == proxy && !strcasecmp(a->host, host) && a->port == port && !strcmp(a->realm, realm)) {
+	foreach(a, auth) if (a->proxy == proxy && !strcasecmp(cast_const_char a->host, cast_const_char host) && a->port == port && !strcmp(cast_const_char a->realm, cast_const_char realm)) {
 		a = a->prev;
 		free_auth_entry(a->next);
 	}
@@ -200,7 +209,7 @@ void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, uns
 	a->password = stracpy(password);
 	if (!proxy) {
 		unsigned char *data = stracpy(get_url_data(url));
-		unsigned char *d = strrchr(data, '/');
+		unsigned char *d = cast_uchar strrchr(cast_const_char data, '/');
 		if (d) d[1] = 0;
 		else data[0] = 0;
 		a->directory = data;
@@ -218,9 +227,9 @@ int find_auth(unsigned char *url, unsigned char *realm)
 	int port = get_port(url);
 	if (!host) return -1;
 	data = stracpy(get_url_data(url));
-	d = strrchr(data, '/');
+	d = cast_uchar strrchr(cast_const_char data, '/');
 	if (d) d[1] = 0;
-	foreach(a, auth) if (!a->proxy && !strcasecmp(a->host, host) && a->port == port && !strcmp(a->realm, realm) && strcmp(a->directory, data)) {
+	foreach(a, auth) if (!a->proxy && !strcasecmp(cast_const_char a->host, cast_const_char host) && a->port == port && !strcmp(cast_const_char a->realm, cast_const_char realm) && strcmp(cast_const_char a->directory, cast_const_char data)) {
 		mem_free(a->directory);
 		a->directory = data;
 		mem_free(host);
