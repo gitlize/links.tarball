@@ -24,6 +24,20 @@ Most options can be set in the user
 interface or config file, so usually you do not need to care about them.
 
 .TP
+\f3-help\f1
+Print a help screen
+
+.TP
+\f3-version\f1
+Prints the 
+.I links
+version number and exit.
+
+.TP
+\f3-lookup \f2<hostname>\f1
+Does name lookup, like command "host".
+
+.TP
 \f3-g\f1
 Run Links in graphics mode. If not given, Links will run in text mode.
 Running in graphics mode means that Links will probe all compiled-in graphics
@@ -33,7 +47,7 @@ to ./configure.
 
 .TP
 \f3-no-g\f1
-Run in text mode (overrides previous -g).
+Run in text mode (overrides previous \-g).
 
 .TP
 \f3-driver \f2<driver name>\f1
@@ -88,6 +102,15 @@ Runs links as a separate instance - instead of connecting to
 existing instance.
 
 .TP
+\f3-download-dir \f2<path>\f1
+Default download directory.
+(default: actual dir)
+
+.TP
+\f3-language \f2<language>\f1
+Set user interface language.
+
+.TP
 \f3-max-connections \f2<max>\f1
 Maximum number of concurrent connections.
 (default: 10)
@@ -117,6 +140,10 @@ Timeout on non restartable connections.
 Use a specific local IP address.
 
 .TP
+\f3-bind-address-ipv6 \f2<ipv6 address>\f1
+Use a specific local IPv6 address.
+
+.TP
 \f3-async-dns \f2<0>/<1>\f1
 Asynchronous DNS resolver on(1)/off(0). 
 
@@ -131,13 +158,33 @@ Number of formatted document pages cached.
 
 .TP
 \f3-memory-cache-size \f2<bytes>\f1
-Cache memory in Kilobytes.
-(default: 1024)
+Cache memory in bytes.
+(default: 1048576)
 
 .TP
 \f3-image-cache-size \f2<bytes>\f1
-Cache memory in Kilobytes.
-(default: 1024)
+Cache memory in bytes.
+(default: 1048576)
+
+.TP
+\f3-font-cache-size \f2<bytes>\f1
+Cache memory in bytes.
+(default: 2097152)
+
+.TP
+\f3-aggressive-cache \f2<0>/<1>\f1
+Always cache everything regardless of server's caching recomendations.
+Many servers deny caching even if their content is not changing
+just to get more hits and more money from ads.
+
+.TP
+\f3-address-preference \f2<0>/<1>/<2>/<3>/<4>\f1
+(default 0)
+0 - use system default.
+1 - prefer IPv4.
+2 - prefer IPv6.
+3 - use only IPv4.
+4 - use only IPv6.
 
 .TP
 \f3-http-proxy \f2<host:port>\f1
@@ -168,21 +215,6 @@ Append text to dns lookups. It is useful for specifying fixed tor exit node.
 \f3-only-proxies \f2<0>/<1>\f1
 "1" causes that Links won't initiate any non-proxy connection.
 It is useful for anonymization with tor or similar networks.
-
-.TP
-\f3-download-dir \f2<path>\f1
-Default download directory.
-(default: actual dir)
-
-.TP
-\f3-aggressive-cache \f2<0>/<1>\f1
-Always cache everything regardless of server's caching recomendations.
-Many servers deny caching even if their content is not changing
-just to get more hits and more money from ads.
-
-.TP
-\f3-language \f2<language>\f1
-Set user interface language.
 
 .TP
 \f3-http-bugs.http10 \f2<0>/<1>\f1
@@ -255,6 +287,10 @@ Password for anonymous ftp access.
 Use ftp PASV command to bypass firewalls.
 
 .TP
+\f3-ftp.use-erpt-epsv \f2<0>/<1>\f1
+Use EPRT and EPSV commands instead of PORT and PASV.
+
+.TP
 \f3-ftp.fast \f2<0>/<1>\f1
 Send more ftp commands simultaneously. Faster response when
 browsing ftp directories, but it is incompatible with RFC
@@ -283,6 +319,14 @@ Set color of scroll bar. RRGGBB are hex.
 .TP
 \f3-scroll-bar-frame-color \f20xRRGGBB\f1
 Set color of scroll bar frame. RRGGBB are hex.
+
+.TP
+\f3-bookmarks-codepage \f2<codepage>\f1
+Character set of bookmarks file.
+
+.TP
+\f3-bookmarks-file \f2<file>\f1
+File to store bookmarks.
 
 .TP
 \f3-display-red-gamma \f2<fp-value>\f1
@@ -328,6 +372,12 @@ Type of gamma correction:
 1 - 16-bit (slow).
 2 - automatically detect according to speed of FPU.
 
+.TP
+\f3-overwrite-instead-of-scroll \f2<0>/<1>\f1
+Overwrite the screen instead of scrolling it
+(valid for svgalib and framebuffer).
+Overwriting may or may not be faster, depending on hardware.
+
 .\".TP
 .\"\f3-enable-javascript \f2<0>/<1>\f1
 .\"Enable javascript.
@@ -362,21 +412,13 @@ Type of gamma correction:
 .\"Amount of kilobytes the javascript may allocate.
 .\"
 .TP
-\f3-bookmarks-codepage \f2<codepage>\f1
-Character set of bookmarks file.
-
-.TP
-\f3-bookmarks-file \f2<file>\f1
-File to store bookmarks.
-
-.TP
 \f3-html-assume-codepage \f2<codepage>\f1
 Use the given codepage when the webpage did not specify
 its codepage. (default: ISO 8859-1)
 
 .TP
 \f3-html-hard-assume \f2<0>/<1>\f1
-Use always character set from "-html-assume-codepage" no matter
+Use always character set from "\-html-assume-codepage" no matter
 what server sent.
 
 .TP
@@ -464,22 +506,8 @@ Background color in graphics mode.
 \f3-html-g-ignore-document-color \f2<0>/<1>\f1
 Ignore colors specified in html document in graphics mode.
 
-.TP
-\f3-lookup \f2<hostname>\f1
-Does name lookup, like command "host".
-
-.TP
-\f3-version\f1
-Prints the 
-.I links
-version number and exit.
-
-.TP
-\f3-help\f1
-Printf a help screen
-
 .PP
-More options can be seen with links -h
+More options can be seen with links \-h
 
 .SH NAVIGATION KEYS
 The keys you may use while navigating are
@@ -508,23 +536,14 @@ page up
 .B b
 page up
 .TP
-.B B
-page up
-.TP
 .B CursorDOWN
-next link/down (text mode), scroll down (graphics mode)
+next link/down
 .TP
 .B CursorUP
-prev link/up (text mode), up (graphics mode)
-.TP
-.B ^INS
-copy to clipboard
-.TP
-.B ^C
-copy to clipboard (OS/2 only)
+prev link/up
 .TP
 .B INS
-scroll up (text mode only)
+scroll up
 .TP
 .B ^P
 scroll up
@@ -548,19 +567,16 @@ home
 end of page
 .TP
 .B CursorRIGHT
-enter link/press button (text mode), scroll right (graphics mode)
+enter link/press button
 .TP
 .B ENTER
 enter link/press button
 .TP
 .B CursorLEFT
-go back (text mode), scroll left (graphics mode)
+go back
 .TP
 .B d
-download link (text mode only)
-.TP
-.B D
-download link (text mode only)
+download link
 .TP
 .B /
 search in the page
@@ -577,9 +593,6 @@ find next match backwards
 .B f
 zoom actual frame
 .TP
-.B F
-zoom actual frame
-.TP
 .B ^R
 reload page
 .TP
@@ -589,20 +602,20 @@ go to URL
 .B G
 edit the current URL and goto the result
 .TP
-.B s
-bookmark manager
+.B ^G
+edit the current link and goto the result
 .TP
-.B S
+.B s
 bookmark manager
 .TP
 .B q
 quit, close window if more windows are open
 .TP
 .B Q
-quit, close window if more windows are open
+quit without asking
 .TP
 .B =
-document informations
+document information
 .TP
 .B \e
 toggle HTML source/rendered view
@@ -630,6 +643,9 @@ jump at the end
 .TP
 .B ^X
 cut to clipboard
+.TP
+.B ^B
+copy to clipboard
 .TP
 .B ^V
 paste from clipboard
@@ -670,8 +686,7 @@ Per-user configfile, automatically created by
 .SH PLATFORMS
 .B links
 is known to work on Linux, FreeBSD, Solaris, IRIX, HPUX, Digital Unix, AIX,
-OS/2 and BeOS.
-Port for Win32 is in state of beta testing.
+OS/2, BeOS and Win32.
 .SH BUGS
 You can't upload large files; it takes _lots_ of memory.
 .PP

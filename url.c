@@ -111,7 +111,15 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 		}
 		p = q + 1;
 	} 
+	if (p[0] == '[') {
+		q = cast_uchar strchr(cast_const_char p, ']');
+		if (q) {
+			q++;
+			goto have_host;
+		}
+	}
 	q = p + strcspn(cast_const_char p, ":/?");
+	have_host:
 	if (!*q && protocols[a].need_slash_after_host) return -1;
 	if (host) *host = p;
 	if (holen) *holen = q - p;
@@ -471,8 +479,12 @@ unsigned char *translate_url(unsigned char *url, unsigned char *cwd)
 		if (!parse_url(nu, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) goto return_nu;
 		mem_free(nu);
 	}
-	ch = url + strcspn(cast_const_char url, ".:/@");
 	prefix = cast_uchar "file://";
+	if (url[0] == '[' && strchr(cast_const_char url, ']')) {
+		ch = url;
+		goto http;
+	}
+	ch = url + strcspn(cast_const_char url, ".:/@");
 	sl = 0;
 #ifdef SPAD
 	if (strchr(cast_const_char url, ':') && _is_local(cast_const_char url)) goto set_prefix;

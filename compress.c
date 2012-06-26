@@ -127,7 +127,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 		if (f->offset != offset) break;
 		z.next_in = f->data;
 		z.avail_in = (unsigned)f->length;
-		if (z.avail_in != f->length) overalloc();
+		if (z.avail_in != (unsigned)f->length) overalloc();
 		if (header && !offset) {
 			z.next_in = (unsigned char *)z.next_in + header;
 			z.avail_in -= header;

@@ -5,14 +5,6 @@
 
 #include "links.h"
 
-int menu_font_size=G_BFU_DEFAULT_FONT_SIZE;
-
-unsigned G_BFU_FG_COLOR;
-unsigned G_BFU_BG_COLOR;
-unsigned G_SCROLL_BAR_AREA_COLOR;
-unsigned G_SCROLL_BAR_BAR_COLOR;
-unsigned G_SCROLL_BAR_FRAME_COLOR;
-
 static void menu_func(struct window *, struct event *, int);
 static void mainmenu_func(struct window *, struct event *, int);
 
@@ -146,11 +138,13 @@ void shutdown_bfu(void) {}
 
 void iinit_bfu(void)
 {
+#if 0
 	G_BFU_FG_COLOR=G_DEFAULT_BFU_FG_COLOR;
 	G_BFU_BG_COLOR=G_DEFAULT_BFU_BG_COLOR;
 	G_SCROLL_BAR_AREA_COLOR=G_DEFAULT_SCROLL_BAR_AREA_COLOR;
 	G_SCROLL_BAR_BAR_COLOR=G_DEFAULT_SCROLL_BAR_BAR_COLOR;
 	G_SCROLL_BAR_FRAME_COLOR=G_DEFAULT_SCROLL_BAR_FRAME_COLOR;
+#endif
 }
 
 unsigned char m_bar = 0;
@@ -1523,7 +1517,7 @@ int check_nonempty(struct dialog_data *dlg, struct dialog_item_data *di)
 	return 1;
 }
 
-int check_local_ip_address(struct dialog_data *dlg, struct dialog_item_data *di)
+static int check_local_ip_address_internal(struct dialog_data *dlg, struct dialog_item_data *di, int pf)
 {
 	int s;
 	int rs;
@@ -1531,11 +1525,16 @@ int check_local_ip_address(struct dialog_data *dlg, struct dialog_item_data *di)
 	if (!*p) {
 		return 0;
 	}
-	if (numeric_ip_address(p, NULL) == -1) {
+#ifdef SUPPORT_IPV6
+	if (pf == PF_INET6) rs = numeric_ipv6_address(p, NULL, NULL);
+	else
+#endif
+		rs = numeric_ip_address(p, NULL);
+	if (rs) {
 		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_IP_ADDRESS), AL_CENTER, TEXT_(T_INVALID_IP_ADDRESS_SYNTAX), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return 1;
 	}
-	s = socket_and_bind(p);
+	s = socket_and_bind(pf, p);
 	if (s != -1) {
 		EINTRLOOP(rs, close(s));
 	} else {
@@ -1560,6 +1559,20 @@ int check_local_ip_address(struct dialog_data *dlg, struct dialog_item_data *di)
 		}
 	}
 	return 0;
+}
+
+int check_local_ip_address(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	return check_local_ip_address_internal(dlg, di, PF_INET);
+}
+
+int check_local_ipv6_address(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+#ifdef SUPPORT_IPV6
+	return check_local_ip_address_internal(dlg, di, PF_INET6);
+#else
+	return 0;
+#endif
 }
 
 int cancel_dialog(struct dialog_data *dlg, struct dialog_item_data *di)

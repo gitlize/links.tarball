@@ -14,9 +14,10 @@ static unsigned char *version_texts[] = {
 	TEXT_(T_COMPILE_TIME),
 	TEXT_(T_WORD_SIZE),
 	TEXT_(T_DEBUGGING_LEVEL),
-	TEXT_(T_UTF8_TERMINAL),
+	TEXT_(T_IPV6),
 	TEXT_(T_COMPRESSION_METHODS),
 	TEXT_(T_ENCRYPTION),
+	TEXT_(T_UTF8_TERMINAL),
 #if defined(__linux__) || defined(__LINUX__) || defined(__SPAD__) || defined(USE_GPM)
 	TEXT_(T_GPM_MOUSE_DRIVER),
 #endif
@@ -93,8 +94,10 @@ static void menu_version(struct terminal *term)
 	add_to_str(&s, &l, cast_uchar "\n");
 
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
-#ifdef ENABLE_UTF8
-	add_to_str(&s, &l, _(TEXT_(T_YES), term));
+#ifdef SUPPORT_IPV6
+	if (!support_ipv6) add_to_str(&s, &l, _(TEXT_(T_NOT_ENABLED_IN_SYSTEM), term));
+	else if (!ipv6_full_access()) add_to_str(&s, &l, _(TEXT_(T_LOCAL_NETWORK_ONLY), term));
+	else add_to_str(&s, &l, _(TEXT_(T_YES), term));
 #else
 	add_to_str(&s, &l, _(TEXT_(T_NO), term));
 #endif
@@ -111,6 +114,14 @@ static void menu_version(struct terminal *term)
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
 #ifdef HAVE_SSL
 	add_to_str(&s, &l, (unsigned char *)SSLeay_version(SSLEAY_VERSION));
+#else
+	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+#endif
+	add_to_str(&s, &l, cast_uchar "\n");
+
+	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
+#ifdef ENABLE_UTF8
+	add_to_str(&s, &l, _(TEXT_(T_YES), term));
 #else
 	add_to_str(&s, &l, _(TEXT_(T_NO), term));
 #endif
@@ -626,15 +637,6 @@ static void display_codepage(struct terminal *term, void *pcp, struct session *s
 	cls_redraw_all_terminals();
 }
 
-#if 0
-static void assumed_codepage(struct terminal *term, void *pcp, struct session *ses)
-{
-	long cp = (my_intptr_t)pcp;
-	ses->ds.assume_cp = cp;
-	redraw_terminal_cls(term);
-}
-#endif
-
 static void charset_list(struct terminal *term, void *xxx, struct session *ses)
 {
 	long i; int sel;
@@ -858,6 +860,58 @@ static void javascript_options(struct terminal *term, void *xxx, struct session 
 
 #endif
 
+#ifdef SUPPORT_IPV6
+
+static unsigned char *ipv6_labels[] = { TEXT_(T_IPV6_DEFAULT), TEXT_(T_IPV6_PREFER_IPV4), TEXT_(T_IPV6_PREFER_IPV6), TEXT_(T_IPV6_USE_ONLY_IPV4), TEXT_(T_IPV6_USE_ONLY_IPV6), NULL };
+
+static int dlg_ipv6_options(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	struct ipv6_options *i6o = (struct ipv6_options *)di->cdata;
+	struct dialog *d;
+	d = mem_calloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
+	d->title = TEXT_(T_IPV6_OPTIONS);
+	d->fn = checkbox_list_fn;
+	d->udata = ipv6_labels;
+	d->items[0].type = D_CHECKBOX;
+	d->items[0].gid = 1;
+	d->items[0].gnum = ADDR_PREFERENCE_DEFAULT;
+	d->items[0].dlen = sizeof(int);
+	d->items[0].data = (void *)&i6o->addr_preference;
+	d->items[1].type = D_CHECKBOX;
+	d->items[1].gid = 1;
+	d->items[1].gnum = ADDR_PREFERENCE_IPV4;
+	d->items[1].dlen = sizeof(int);
+	d->items[1].data = (void *)&i6o->addr_preference;
+	d->items[2].type = D_CHECKBOX;
+	d->items[2].gid = 1;
+	d->items[2].gnum = ADDR_PREFERENCE_IPV6;
+	d->items[2].dlen = sizeof(int);
+	d->items[2].data = (void *)&i6o->addr_preference;
+	d->items[3].type = D_CHECKBOX;
+	d->items[3].gid = 1;
+	d->items[3].gnum = ADDR_PREFERENCE_IPV4_ONLY;
+	d->items[3].dlen = sizeof(int);
+	d->items[3].data = (void *)&i6o->addr_preference;
+	d->items[4].type = D_CHECKBOX;
+	d->items[4].gid = 1;
+	d->items[4].gnum = ADDR_PREFERENCE_IPV6_ONLY;
+	d->items[4].dlen = sizeof(int);
+	d->items[4].data = (void *)&i6o->addr_preference;
+	d->items[5].type = D_BUTTON;
+	d->items[5].gid = B_ENTER;
+	d->items[5].fn = ok_dialog;
+	d->items[5].text = TEXT_(T_OK);
+	d->items[6].type = D_BUTTON;
+	d->items[6].gid = B_ESC;
+	d->items[6].fn = cancel_dialog;
+	d->items[6].text = TEXT_(T_CANCEL);
+	d->items[7].type = D_END;
+	do_dialog(dlg->win->term, d, getml(d, NULL));
+	return 0;
+}
+
+#endif
+
 static unsigned char *http_labels[] = { TEXT_(T_USE_HTTP_10), TEXT_(T_ALLOW_SERVER_BLACKLIST), TEXT_(T_BROKEN_302_REDIRECT), TEXT_(T_NO_KEEPALIVE_AFTER_POST_REQUEST), TEXT_(T_DO_NOT_SEND_ACCEPT_CHARSET),
 #ifdef HAVE_ANY_COMPRESSION
 	TEXT_(T_DO_NOT_ADVERTISE_COMPRESSION_SUPPORT),
@@ -1040,7 +1094,7 @@ static int dlg_http_options(struct dialog_data *dlg, struct dialog_item_data *di
 	return 0;
 }
 
-static unsigned char *ftp_texts[] = { TEXT_(T_PASSWORD_FOR_ANONYMOUS_LOGIN), TEXT_(T_USE_PASSIVE_FTP), TEXT_(T_USE_FAST_FTP), TEXT_(T_SET_TYPE_OF_SERVICE), NULL };
+static unsigned char *ftp_texts[] = { TEXT_(T_PASSWORD_FOR_ANONYMOUS_LOGIN), TEXT_(T_USE_PASSIVE_FTP), TEXT_(T_USE_EPRT_EPSV), TEXT_(T_USE_FAST_FTP), TEXT_(T_SET_TYPE_OF_SERVICE), NULL };
 
 static void ftpopt_fn(struct dialog_data *dlg)
 {
@@ -1085,26 +1139,28 @@ static int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	int a;
 	struct ftp_options *ftp_options = (struct ftp_options *)di->cdata;
 	struct dialog *d;
-	d = mem_calloc(sizeof(struct dialog) + 6 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_FTP_OPTIONS);
 	d->fn = ftpopt_fn;
-	d->items[0].type = D_FIELD;
-	d->items[0].dlen = MAX_STR_LEN;
-	d->items[0].data = ftp_options->anon_pass;
-	d->items[1].type = D_CHECKBOX;
-	d->items[1].dlen = sizeof(int);
-	d->items[1].data = (void*)&ftp_options->passive_ftp;
-	d->items[1].gid = 0;
-	d->items[2].type = D_CHECKBOX;
-	d->items[2].dlen = sizeof(int);
-	d->items[2].data = (void*)&ftp_options->fast_ftp;
+	a=0;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a++].data = ftp_options->anon_pass;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].dlen = sizeof(int);
+	d->items[a].data = (void*)&ftp_options->passive_ftp;
+	d->items[a++].gid = 0;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].dlen = sizeof(int);
+	d->items[a].data = (void*)&ftp_options->eprt_epsv;
+	d->items[a++].gid = 0;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void*)&ftp_options->fast_ftp;
 #ifdef HAVE_IPTOS
-	d->items[3].type = D_CHECKBOX;
-	d->items[3].dlen = sizeof(int);
-	d->items[3].data = (void*)&ftp_options->set_tos;
-	a = 4;
-#else
-	a = 3;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void*)&ftp_options->set_tos;
 #endif
 	d->items[a].type = D_BUTTON;
 	d->items[a].gid = B_ENTER;
@@ -1133,9 +1189,6 @@ tcount gamma_stamp; /* stamp counter for gamma changes */
 
 static void refresh_video(struct session *ses)
 {
-	struct rect r = {0, 0, 0, 0};
-	struct terminal *term;
-
 	display_red_gamma=atof(cast_const_char disp_red_g);
 	display_green_gamma=atof(cast_const_char disp_green_g);
 	display_blue_gamma=atof(cast_const_char disp_blue_g);
@@ -1155,23 +1208,22 @@ static void refresh_video(struct session *ses)
 	init_bfu();
 	init_grview();
 
-	html_interpret_recursive(ses->screen);
-	draw_formatted(ses);
 	/* Redraw all terminals */
-	foreach(term, terminals){
-		memcpy(&r, &term->dev->size, sizeof r);
-		t_redraw(term->dev, &r);
-	}
+	cls_redraw_all_terminals();
 
 }
 
-static unsigned char *video_msg[] = {
-	TEXT_(T_VIDEO_OPTIONS_TEXT),
+#define video_msg_0	TEXT_(T_VIDEO_OPTIONS_TEXT)
+
+static unsigned char *video_msg_1[] = {
 	TEXT_(T_RED_DISPLAY_GAMMA),
 	TEXT_(T_GREEN_DISPLAY_GAMMA),
 	TEXT_(T_BLUE_DISPLAY_GAMMA),
 	TEXT_(T_USER_GAMMA),
 	TEXT_(T_ASPECT_RATIO),
+};
+
+static unsigned char *video_msg_2[] = {
 	TEXT_(T_ASPECT_CORRECTION_ON),
 	TEXT_(T_DISPLAY_OPTIMIZATION_CRT),
 	TEXT_(T_DISPLAY_OPTIMIZATION_LCD_RGB),
@@ -1181,6 +1233,7 @@ static unsigned char *video_msg[] = {
 	TEXT_(T_8_BIT_GAMMA_CORRECTION),
 	TEXT_(T_16_BIT_GAMMA_CORRECTION),
 	TEXT_(T_AUTO_GAMMA_CORRECTION),
+	TEXT_(T_OVERWRITE_SCREEN_INSTEAD_OF_SCROLLING_IT),
 };
 
 static void videoopt_fn(struct dialog_data *dlg)
@@ -1189,38 +1242,40 @@ static void videoopt_fn(struct dialog_data *dlg)
 	int max = 0, min = 0;
 	int w, rw;
 	int y = gf_val(-1, -G_BFU_FONT_SIZE);
-	max_text_width(term, video_msg[0], &max, AL_LEFT);
-	min_text_width(term, video_msg[0], &min, AL_LEFT);
-	max_group_width(term, video_msg + 1, dlg->items, 14, &max);
-	min_group_width(term, video_msg + 1, dlg->items, 14, &min);
-	max_buttons_width(term, dlg->items + 14, 2, &max);
-	min_buttons_width(term, dlg->items + 14, 2, &min);
+	max_text_width(term, video_msg_0, &max, AL_LEFT);
+	min_text_width(term, video_msg_0, &min, AL_LEFT);
+	max_group_width(term, video_msg_1, dlg->items, 5, &max);
+	min_group_width(term, video_msg_1, dlg->items, 5, &min);
+	checkboxes_width(term, video_msg_2, dlg->n-2-5, &max, max_text_width);
+	checkboxes_width(term, video_msg_2, dlg->n-2-5, &min, min_text_width);
+	max_buttons_width(term, dlg->items + dlg->n-2, 2, &max);
+	min_buttons_width(term, dlg->items + dlg->n-2, 2, &min);
 	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
 	if (w > max) w = max;
 	if (w < min) w = min;
 	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
 	rw = 0;
-	dlg_format_text(dlg, NULL, video_msg[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text(dlg, NULL, video_msg_0, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_group(dlg, NULL, video_msg + 1, dlg->items, 5, 0, &y, w, &rw);
+	dlg_format_group(dlg, NULL, video_msg_1, dlg->items, 5, 0, &y, w, &rw);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_checkboxes(dlg, NULL, dlg->items+5, 9, dlg->x + DIALOG_LB, &y, w, &rw, video_msg+6);
+	dlg_format_checkboxes(dlg, NULL, dlg->items+5, dlg->n-2-5, dlg->x + DIALOG_LB, &y, w, &rw, video_msg_2);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_buttons(dlg, NULL, dlg->items + 14, 2, 0, &y, w, &rw, AL_CENTER);
+	dlg_format_buttons(dlg, NULL, dlg->items+dlg->n-2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
 	dlg->xw = w + 2 * DIALOG_LB;
 	dlg->yw = y + 2 * DIALOG_TB;
 	center_dlg(dlg);
 	draw_dlg(dlg);
 	y = dlg->y + DIALOG_TB;
-	dlg_format_text(dlg, term, video_msg[0], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text(dlg, term, video_msg_0, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(2, G_BFU_FONT_SIZE);
-	dlg_format_group(dlg, term, video_msg + 1, dlg->items, 5, dlg->x + DIALOG_LB, &y, w, NULL);
+	dlg_format_group(dlg, term, video_msg_1, dlg->items, 5, dlg->x + DIALOG_LB, &y, w, NULL);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_checkboxes(dlg, term, dlg->items+5, 9, dlg->x + DIALOG_LB, &y, w, NULL, video_msg+6);
+	dlg_format_checkboxes(dlg, term, dlg->items+5, dlg->n-2-5, dlg->x + DIALOG_LB, &y, w, NULL, video_msg_2);
 	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_buttons(dlg, term, &dlg->items[14], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
+	dlg_format_buttons(dlg, term, dlg->items+dlg->n-2, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
 
 static void remove_zeroes(unsigned char *string)
@@ -1236,6 +1291,7 @@ static void remove_zeroes(unsigned char *string)
 static void video_options(struct terminal *term, void *xxx, struct session *ses)
 {
 	struct dialog *d;
+	int a;
 	snprintf(cast_char disp_red_g, VO_GAMMA_LEN, "%f", display_red_gamma);
 	remove_zeroes(disp_red_g);
 	snprintf(cast_char disp_green_g, VO_GAMMA_LEN, "%f", display_green_gamma);
@@ -1246,96 +1302,107 @@ static void video_options(struct terminal *term, void *xxx, struct session *ses)
 	remove_zeroes(user_g);
 	snprintf(cast_char aspect_str, VO_GAMMA_LEN, "%f", bfu_aspect);
 	remove_zeroes(aspect_str);
-	d = mem_calloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 17 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_VIDEO_OPTIONS);
 	d->fn = videoopt_fn;
 	d->refresh = (void (*)(void *))refresh_video;
 	d->refresh_data = ses;
-	d->items[0].type = D_FIELD;
-	d->items[0].dlen = VO_GAMMA_LEN;
-	d->items[0].data = disp_red_g;
-	d->items[0].fn = check_float;
-	d->items[0].gid = 1;
-	d->items[0].gnum = 10000;
-	d->items[1].type = D_FIELD;
-	d->items[1].dlen = VO_GAMMA_LEN;
-	d->items[1].data = disp_green_g;
-	d->items[1].fn = check_float;
-	d->items[1].gid = 1;
-	d->items[1].gnum = 10000;
-	d->items[2].type = D_FIELD;
-	d->items[2].dlen = VO_GAMMA_LEN;
-	d->items[2].data = disp_blue_g;
-	d->items[2].fn = check_float;
-	d->items[2].gid = 1;
-	d->items[2].gnum = 10000;
-	d->items[3].type = D_FIELD;
-	d->items[3].dlen = VO_GAMMA_LEN;
-	d->items[3].data = user_g;
-	d->items[3].fn = check_float;
-	d->items[3].gid = 1;
-	d->items[3].gnum = 10000;
+	a=0;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = disp_red_g;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 10000;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = disp_green_g;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 10000;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = disp_blue_g;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 10000;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = user_g;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 10000;
 
-	d->items[4].type = D_FIELD;
-	d->items[4].dlen = VO_GAMMA_LEN;
-	d->items[4].data = aspect_str;
-	d->items[4].fn = check_float;
-	d->items[4].gid = 25;
-	d->items[4].gnum = 400;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = aspect_str;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 25;
+	d->items[a++].gnum = 400;
 
-	d->items[5].type = D_CHECKBOX;
-	d->items[5].dlen = sizeof(int);
-	d->items[5].data = (void *)&aspect_on;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&aspect_on;
 
-	d->items[6].type = D_CHECKBOX;
-	d->items[6].gid = 1;
-	d->items[6].gnum = 0;	/* CRT */
-	d->items[6].dlen = sizeof(int);
-	d->items[6].data = (void *)&display_optimize;
-	d->items[7].type = D_CHECKBOX;
-	d->items[7].gid = 1;
-	d->items[7].gnum = 1;	/* LCD RGB */
-	d->items[7].dlen = sizeof(int);
-	d->items[7].data = (void *)&display_optimize;
-	d->items[8].type = D_CHECKBOX;
-	d->items[8].gid = 1;
-	d->items[8].gnum = 2;	/* LCD BGR*/
-	d->items[8].dlen = sizeof(int);
-	d->items[8].data = (void *)&display_optimize;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = 0;	/* CRT */
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&display_optimize;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = 1;	/* LCD RGB */
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&display_optimize;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = 2;	/* LCD BGR*/
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&display_optimize;
 
 	
-	d->items[9].type = D_CHECKBOX;
-	d->items[9].gid = 0;
-	d->items[9].dlen = sizeof(int);
-	d->items[9].data = (void *)&dither_letters;
-	d->items[10].type = D_CHECKBOX;
-	d->items[10].gid = 0;
-	d->items[10].dlen = sizeof(int);
-	d->items[10].data = (void *)&dither_images;
-	d->items[11].type = D_CHECKBOX;
-	d->items[11].gid = 2;
-	d->items[11].gnum = 0;
-	d->items[11].dlen = sizeof(int);
-	d->items[11].data = (void *)&gamma_bits;
-	d->items[12].type = D_CHECKBOX;
-	d->items[12].gid = 2;
-	d->items[12].gnum = 1;
-	d->items[12].dlen = sizeof(int);
-	d->items[12].data = (void *)&gamma_bits;
-	d->items[13].type = D_CHECKBOX;
-	d->items[13].gid = 2;
-	d->items[13].gnum = 2;
-	d->items[13].dlen = sizeof(int);
-	d->items[13].data = (void *)&gamma_bits;
-	d->items[14].type = D_BUTTON;
-	d->items[14].gid = B_ENTER;
-	d->items[14].fn = ok_dialog;
-	d->items[14].text = TEXT_(T_OK);
-	d->items[15].type = D_BUTTON;
-	d->items[15].gid = B_ESC;
-	d->items[15].fn = cancel_dialog;
-	d->items[15].text = TEXT_(T_CANCEL);
-	d->items[16].type = D_END;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&dither_letters;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&dither_images;
+	d->items[a].type = D_CHECKBOX;
+
+	d->items[a].gid = 2;
+	d->items[a].gnum = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&gamma_bits;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 2;
+	d->items[a].gnum = 1;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&gamma_bits;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 2;
+	d->items[a].gnum = 2;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&gamma_bits;
+
+	if (drv->flags & GD_DONT_USE_SCROLL) {
+		d->items[a].type = D_CHECKBOX;
+		d->items[a].gid = 0;
+		d->items[a].dlen = sizeof(int);
+		d->items[a++].data = (void *)&overwrite_instead_of_scroll;
+	}
+
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ENTER;
+	d->items[a].fn = ok_dialog;
+	d->items[a++].text = TEXT_(T_OK);
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ESC;
+	d->items[a].fn = cancel_dialog;
+	d->items[a++].text = TEXT_(T_CANCEL);
+	d->items[a].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
 }
 
@@ -1349,12 +1416,12 @@ static unsigned char unrtime_str[5];
 
 static void refresh_net(void *xxx)
 {
+	netcfg_stamp++;
 	max_connections = atoi(cast_const_char max_c_str);
 	max_connections_to_host = atoi(cast_const_char max_cth_str);
 	max_tries = atoi(cast_const_char max_t_str);
 	receive_timeout = atoi(cast_const_char time_str);
 	unrestartable_receive_timeout = atoi(cast_const_char unrtime_str);
-	abort_all_keepalive_connections();
 	abort_background_connections();
 	register_bottom_half(check_queue, NULL);
 }
@@ -1486,86 +1553,128 @@ static unsigned char *net_msg[] = {
 	cast_uchar "",
 };
 
+#ifdef SUPPORT_IPV6
+static unsigned char *net_msg_ipv6[] = {
+	TEXT_(T_MAX_CONNECTIONS),
+	TEXT_(T_MAX_CONNECTIONS_TO_ONE_HOST),
+	TEXT_(T_RETRIES),
+	TEXT_(T_RECEIVE_TIMEOUT_SEC),
+	TEXT_(T_TIMEOUT_WHEN_UNRESTARTABLE),
+	TEXT_(T_BIND_TO_LOCAL_IP_ADDRESS),
+	TEXT_(T_BIND_TO_LOCAL_IPV6_ADDRESS),
+	TEXT_(T_ASYNC_DNS_LOOKUP),
+	TEXT_(T_SET_TIME_OF_DOWNLOADED_FILES),
+	cast_uchar "",
+	cast_uchar "",
+	cast_uchar "",
+	cast_uchar "",
+};
+#endif
+
 static void net_options(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
+	int a;
 	snprint(max_c_str, 3, max_connections);
 	snprint(max_cth_str, 3, max_connections_to_host);
 	snprint(max_t_str, 3, max_tries);
 	snprint(time_str, 5, receive_timeout);
 	snprint(unrtime_str, 5, unrestartable_receive_timeout);
-	d = mem_calloc(sizeof(struct dialog) + 13 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 15 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_NETWORK_OPTIONS);
 	d->fn = group_fn;
-	d->udata = net_msg;
+#ifdef SUPPORT_IPV6
+	if (support_ipv6) d->udata = net_msg_ipv6;
+	else
+#endif
+		d->udata = net_msg;
 	d->refresh = (void (*)(void *))refresh_net;
-	d->items[0].type = D_FIELD;
-	d->items[0].data = max_c_str;
-	d->items[0].dlen = 3;
-	d->items[0].fn = check_number;
-	d->items[0].gid = 1;
-	d->items[0].gnum = 99;
-	d->items[1].type = D_FIELD;
-	d->items[1].data = max_cth_str;
-	d->items[1].dlen = 3;
-	d->items[1].fn = check_number;
-	d->items[1].gid = 1;
-	d->items[1].gnum = 99;
-	d->items[2].type = D_FIELD;
-	d->items[2].data = max_t_str;
-	d->items[2].dlen = 3;
-	d->items[2].fn = check_number;
-	d->items[2].gid = 0;
-	d->items[2].gnum = 16;
-	d->items[3].type = D_FIELD;
-	d->items[3].data = time_str;
-	d->items[3].dlen = 5;
-	d->items[3].fn = check_number;
-	d->items[3].gid = 1;
-	d->items[3].gnum = 9999;
-	d->items[4].type = D_FIELD;
-	d->items[4].data = unrtime_str;
-	d->items[4].dlen = 5;
-	d->items[4].fn = check_number;
-	d->items[4].gid = 1;
-	d->items[4].gnum = 9999;
-	d->items[5].type = D_FIELD;
-	d->items[5].data = bind_ip_address;
-	d->items[5].dlen = sizeof(bind_ip_address);
-	d->items[5].fn = check_local_ip_address;
-	d->items[6].type = D_CHECKBOX;
-	d->items[6].data = (unsigned char *)&async_lookup;
-	d->items[6].dlen = sizeof(int);
-	d->items[7].type = D_CHECKBOX;
-	d->items[7].data = (unsigned char *)&download_utime;
-	d->items[7].dlen = sizeof(int);
-	d->items[8].type = D_BUTTON;
-	d->items[8].gid = 0;
-	d->items[8].fn = dlg_proxy_options;
-	d->items[8].text = TEXT_(T_PROXIES);
-	d->items[8].data = (unsigned char *)&proxies;
-	d->items[8].dlen = sizeof(struct proxies);
-	d->items[9].type = D_BUTTON;
-	d->items[9].gid = 0;
-	d->items[9].fn = dlg_http_options;
-	d->items[9].text = TEXT_(T_HTTP_OPTIONS);
-	d->items[9].data = (unsigned char *)&http_options;
-	d->items[9].dlen = sizeof(struct http_options);
-	d->items[10].type = D_BUTTON;
-	d->items[10].gid = 0;
-	d->items[10].fn = dlg_ftp_options;
-	d->items[10].text = TEXT_(T_FTP_OPTIONS);
-	d->items[10].data = (unsigned char *)&ftp_options;
-	d->items[10].dlen = sizeof(struct ftp_options);
-	d->items[11].type = D_BUTTON;
-	d->items[11].gid = B_ENTER;
-	d->items[11].fn = ok_dialog;
-	d->items[11].text = TEXT_(T_OK);
-	d->items[12].type = D_BUTTON;
-	d->items[12].gid = B_ESC;
-	d->items[12].fn = cancel_dialog;
-	d->items[12].text = TEXT_(T_CANCEL);
-	d->items[13].type = D_END;
+	a=0;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = max_c_str;
+	d->items[a].dlen = 3;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 99;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = max_cth_str;
+	d->items[a].dlen = 3;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 99;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = max_t_str;
+	d->items[a].dlen = 3;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 0;
+	d->items[a++].gnum = 16;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = time_str;
+	d->items[a].dlen = 5;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 9999;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = unrtime_str;
+	d->items[a].dlen = 5;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 9999;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = bind_ip_address;
+	d->items[a].dlen = sizeof(bind_ip_address);
+	d->items[a++].fn = check_local_ip_address;
+#ifdef SUPPORT_IPV6
+	if (support_ipv6) {
+		d->items[a].type = D_FIELD;
+		d->items[a].data = bind_ipv6_address;
+		d->items[a].dlen = sizeof(bind_ipv6_address);
+		d->items[a++].fn = check_local_ipv6_address;
+	}
+#endif
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].data = (unsigned char *)&async_lookup;
+	d->items[a++].dlen = sizeof(int);
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].data = (unsigned char *)&download_utime;
+	d->items[a++].dlen = sizeof(int);
+#ifdef SUPPORT_IPV6
+	if (support_ipv6) {
+		d->items[a].type = D_BUTTON;
+		d->items[a].gid = 0;
+		d->items[a].fn = dlg_ipv6_options;
+		d->items[a].text = TEXT_(T_IPV6_OPTIONS);
+		d->items[a].data = (unsigned char *)&ipv6_options;
+		d->items[a++].dlen = sizeof(struct ipv6_options);
+	}
+#endif
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = 0;
+	d->items[a].fn = dlg_proxy_options;
+	d->items[a].text = TEXT_(T_PROXIES);
+	d->items[a].data = (unsigned char *)&proxies;
+	d->items[a++].dlen = sizeof(struct proxies);
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = 0;
+	d->items[a].fn = dlg_http_options;
+	d->items[a].text = TEXT_(T_HTTP_OPTIONS);
+	d->items[a].data = (unsigned char *)&http_options;
+	d->items[a++].dlen = sizeof(struct http_options);
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = 0;
+	d->items[a].fn = dlg_ftp_options;
+	d->items[a].text = TEXT_(T_FTP_OPTIONS);
+	d->items[a].data = (unsigned char *)&ftp_options;
+	d->items[a++].dlen = sizeof(struct ftp_options);
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ENTER;
+	d->items[a].fn = ok_dialog;
+	d->items[a++].text = TEXT_(T_OK);
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ESC;
+	d->items[a].fn = cancel_dialog;
+	d->items[a++].text = TEXT_(T_CANCEL);
+	d->items[a].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
 }
 
@@ -1683,7 +1792,8 @@ static void net_programs(struct terminal *term, void *xxx, void *yyy)
 		d->title = TEXT_(T_MAIL_AND_TELNET_PROGRAMS);
 
 	d->fn = netprog_fn;
-	d->items[a=0].type = D_FIELD;
+	a=0;
+	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
 	d->items[a++].data = get_prog(&mailto_prog);
 	d->items[a].type = D_FIELD;

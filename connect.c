@@ -35,6 +35,7 @@ static void log_data(unsigned char *data, int len)
 
 static void connected(struct connection *);
 static void dns_found(struct connection *, int);
+static void try_connect(struct connection *);
 static void handle_socks_reply(struct connection *);
 
 static void exception(struct connection *c)
@@ -43,30 +44,68 @@ static void exception(struct connection *c)
 	retry_connection(c);
 }
 
-int socket_and_bind(unsigned char *address)
+int socket_and_bind(int pf, unsigned char *address)
 {
 	int s;
 	int rs;
-	EINTRLOOP(s, socket(PF_INET, SOCK_STREAM, IPPROTO_TCP));
+	EINTRLOOP(s, socket(pf, SOCK_STREAM, IPPROTO_TCP));
 	if (s == -1)
 		return -1;
 	if (address && *address) {
-		struct sockaddr_in sa;
-		ip__address addr;
-		if (numeric_ip_address(address, &addr) == -1) {
+		switch (pf) {
+		case PF_INET: {
+			struct sockaddr_in sa;
+			unsigned char addr[4];
+			if (numeric_ip_address(address, addr) == -1) {
+				EINTRLOOP(rs, close(s));
+				errno = EINVAL;
+				return -1;
+			}
+			memset(&sa, 0, sizeof sa);
+			sa.sin_family = AF_INET;
+			memcpy(&sa.sin_addr.s_addr, addr, 4);
+			sa.sin_port = htons(0);
+			EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sa, sizeof sa));
+			if (rs) {
+				int sv_errno = errno;
+				EINTRLOOP(rs, close(s));
+				errno = sv_errno;
+				return -1;
+			}
+			break;
+		}
+#ifdef SUPPORT_IPV6
+		case PF_INET6: {
+			struct sockaddr_in6 sa;
+			unsigned char addr[16];
+			unsigned scope;
+			if (numeric_ipv6_address(address, addr, &scope) == -1) {
+				EINTRLOOP(rs, close(s));
+				errno = EINVAL;
+				return -1;
+			}
+			memset(&sa, 0, sizeof sa);
+			sa.sin6_family = AF_INET6;
+			memcpy(&sa.sin6_addr, addr, 16);
+			sa.sin6_port = htons(0);
+#ifdef SUPPORT_IPV6_SCOPE
+			sa.sin6_scope_id = scope;
+#endif
+			EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sa, sizeof sa));
+			if (rs) {
+				int sv_errno = errno;
+				EINTRLOOP(rs, close(s));
+				errno = sv_errno;
+				return -1;
+			}
+			break;
+		}
+#endif
+		default: {
+			EINTRLOOP(rs, close(s));
 			errno = EINVAL;
 			return -1;
 		}
-		memset(&sa, 0, sizeof(struct sockaddr_in));
-		sa.sin_family = AF_INET;
-		sa.sin_addr.s_addr = addr;
-		sa.sin_port = htons(0);
-		EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sa, sizeof sa));
-		if (rs) {
-			int sv_errno = errno;
-			EINTRLOOP(rs, close(s));
-			errno = sv_errno;
-			return -1;
 		}
 	}
 	return s;
@@ -83,13 +122,16 @@ void close_socket(int *s)
 
 struct conn_info {
 	void (*func)(struct connection *);
-	ip__address addr;
+	struct lookup_result addr;
+	int addr_index;
+	int first_error;
 	int port;
 	int *sock;
 	int real_port;
 	int socks_byte_count;
 	unsigned char socks_reply[8];
-	unsigned char dns_append[1];
+	unsigned char *host;
+	unsigned char *dns_append;
 };
 
 void make_connection(struct connection *c, int port, int *sock, void (*func)(struct connection *))
@@ -126,11 +168,14 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 	}
 	if (c->newconn)
 		internal("already making a connection");
-	b = mem_calloc(sizeof(struct conn_info) + strlen(cast_const_char dns_append));
+	b = mem_calloc(sizeof(struct conn_info) + strlen(cast_const_char host) + 1 + strlen(cast_const_char dns_append) + 1);
 	b->func = func;
 	b->sock = sock;
 	b->port = port;
 	b->real_port = real_port;
+	b->host = (unsigned char *)(b + 1);
+	strcpy(cast_char b->host, cast_const_char host);
+	b->dns_append = cast_uchar strchr(cast_const_char b->host, 0) + 1;
 	strcpy(cast_char b->dns_append, cast_const_char dns_append);
 	c->newconn = b;
 	log_data(cast_uchar "\nCONNECTION: ", 13);
@@ -140,6 +185,25 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 	else as = find_host(host, &b->addr, &c->dnsquery, (void(*)(void *, int))dns_found, c);
 	mem_free(host);
 	if (as) setcstate(c, S_DNS);
+}
+
+int is_ipv6(int h)
+{
+#ifdef SUPPORT_IPV6
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		struct sockaddr_in6 sin6;
+		char pad[128];
+	} u;
+	socklen_t len = sizeof(u);
+	int rs;
+	EINTRLOOP(rs, getsockname(h, &u.sa, &len));
+	if (rs) return 0;
+	return u.sa.sa_family == AF_INET6;
+#else
+	return 0;
+#endif
 }
 
 int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port)
@@ -152,16 +216,15 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 	memset(&sa, 0, sizeof sa);
 	memset(&sb, 0, sizeof sb);
 	EINTRLOOP(rs, getsockname(cc, (struct sockaddr *)(void *)&sa, &len));
-	if (rs) {
-		e:
-		setcstate(c, get_error_from_errno(errno));
-		retry_connection(c);
-		return -1;
+	if (rs) goto e;
+	if (sa.sin_family != AF_INET) {
+		errno = EINVAL;
+		goto e;
 	}
 	EINTRLOOP(s, socket(PF_INET, SOCK_STREAM, IPPROTO_TCP));
 	if (s == -1) goto e;
-	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
 	*sock = s;
+	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
 	memcpy(&sb, &sa, sizeof(struct sockaddr_in));
 	sb.sin_port = htons(0);
 	EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sb, sizeof sb));
@@ -174,7 +237,70 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 	memcpy(port, &sa.sin_addr.s_addr, 4);
 	memcpy(port + 4, &sa.sin_port, 2);
 	return 0;
+
+	e:
+	setcstate(c, get_error_from_errno(errno));
+	retry_connection(c);
+	return -1;
 }
+
+#ifdef SUPPORT_IPV6
+
+int get_pasv_socket_ipv6(struct connection *c, int cc, int *sock, unsigned char *result)
+{
+	int s;
+	int rs;
+	struct sockaddr_in6 sa;
+	struct sockaddr_in6 sb;
+	socklen_t len = sizeof(sa);
+	memset(&sa, 0, sizeof sa);
+	memset(&sb, 0, sizeof sb);
+	EINTRLOOP(rs, getsockname(cc, (struct sockaddr *)(void *)&sa, &len));
+	if (rs) goto e;
+	if (sa.sin6_family != AF_INET6) {
+		errno = EINVAL;
+		goto e;
+	}
+	EINTRLOOP(s, socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP));
+	if (s == -1) goto e;
+	*sock = s;
+	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
+	memcpy(&sb, &sa, sizeof(struct sockaddr_in6));
+	sb.sin6_port = htons(0);
+	EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sb, sizeof sb));
+	if (rs) goto e;
+	len = sizeof(sa);
+	EINTRLOOP(rs, getsockname(s, (struct sockaddr *)(void *)&sa, &len));
+	if (rs) goto e;
+	EINTRLOOP(rs, listen(s, 1));
+	if (rs) goto e;
+	sprintf(cast_char result, "|2|%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x|%d|",
+		sa.sin6_addr.s6_addr[0],
+		sa.sin6_addr.s6_addr[1],
+		sa.sin6_addr.s6_addr[2],
+		sa.sin6_addr.s6_addr[3],
+		sa.sin6_addr.s6_addr[4],
+		sa.sin6_addr.s6_addr[5],
+		sa.sin6_addr.s6_addr[6],
+		sa.sin6_addr.s6_addr[7],
+		sa.sin6_addr.s6_addr[8],
+		sa.sin6_addr.s6_addr[9],
+		sa.sin6_addr.s6_addr[10],
+		sa.sin6_addr.s6_addr[11],
+		sa.sin6_addr.s6_addr[12],
+		sa.sin6_addr.s6_addr[13],
+		sa.sin6_addr.s6_addr[14],
+		sa.sin6_addr.s6_addr[15],
+		htons(sa.sin6_port) & 0xffff);
+	return 0;
+
+	e:
+	setcstate(c, get_error_from_errno(errno));
+	retry_connection(c);
+	return -1;
+}
+
+#endif
 
 #ifdef HAVE_SSL
 static void ssl_want_read(struct connection *c)
@@ -302,38 +428,81 @@ static void handle_socks_reply(struct connection *c)
 
 static void dns_found(struct connection *c, int state)
 {
-	int s;
-	int rs;
-	struct conn_info *b = c->newconn;
-	struct sockaddr_in sa;
 	if (state) {
 		setcstate(c, S_NO_DNS);
 		abort_connection(c);
 		return;
 	}
-	if ((s = socket_and_bind(bind_ip_address)) == -1) {
-		setcstate(c, get_error_from_errno(errno));
+	try_connect(c);
+}
+
+static void retry_connect(struct connection *c, int err)
+{
+	struct conn_info *b = c->newconn;
+	if (!b->addr_index) b->first_error = err;
+	b->addr_index++;
+	if (b->addr_index < b->addr.n) {
+		close_socket(b->sock);
+		try_connect(c);
+	} else {
+		setcstate(c, b->first_error);
 		retry_connection(c);
+	}
+}
+
+static void try_connect(struct connection *c)
+{
+	int s;
+	int rs;
+	struct conn_info *b = c->newconn;
+	struct host_address *addr = &b->addr.a[b->addr_index];
+	if (addr->af == AF_INET) {
+		s = socket_and_bind(PF_INET, bind_ip_address);
+#ifdef SUPPORT_IPV6
+	} else if (addr->af == AF_INET6) {
+		s = socket_and_bind(PF_INET6, bind_ipv6_address);
+#endif
+	} else {
+		setcstate(c, S_INTERNAL);
+		abort_connection(c);
+		return;
+	}
+	if (s == -1) {
+		retry_connect(c, get_error_from_errno(errno));
 		return;
 	}
 	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
 	*b->sock = s;
-	memset(&sa, 0, sizeof(struct sockaddr_in));
-	sa.sin_family = AF_INET;
-	sa.sin_addr.s_addr = b->addr;
-	sa.sin_port = htons(b->port);
-	EINTRLOOP(rs, connect(s, (struct sockaddr *)(void *)&sa, sizeof sa));
+	if (addr->af == AF_INET) {
+		struct sockaddr_in sa;
+		memset(&sa, 0, sizeof sa);
+		sa.sin_family = AF_INET;
+		memcpy(&sa.sin_addr.s_addr, addr->addr, 4);
+		sa.sin_port = htons(b->port);
+		EINTRLOOP(rs, connect(s, (struct sockaddr *)(void *)&sa, sizeof sa));
+#ifdef SUPPORT_IPV6
+	} else if (addr->af == AF_INET6) {
+		struct sockaddr_in6 sa;
+		memset(&sa, 0, sizeof sa);
+		sa.sin6_family = AF_INET6;
+		memcpy(&sa.sin6_addr, addr->addr, 16);
+#ifdef SUPPORT_IPV6_SCOPE
+		sa.sin6_scope_id = addr->scope_id;
+#endif
+		sa.sin6_port = htons(b->port);
+		EINTRLOOP(rs, connect(s, (struct sockaddr *)(void *)&sa, sizeof sa));
+#endif
+	}
 	if (rs) {
 		if (errno != EALREADY && errno != EINPROGRESS) {
 #ifdef BEOS
 			if (errno == EWOULDBLOCK) errno = ETIMEDOUT;
 #endif
-			setcstate(c, get_error_from_errno(errno));
-			retry_connection(c);
+			retry_connect(c, get_error_from_errno(errno));
 			return;
 		}
 		set_handlers(s, NULL, (void(*)(void *))connected, (void(*)(void *))exception, c);
-		setcstate(c, S_CONN);
+		setcstate(c, !b->addr_index ? S_CONN : S_CONN_ANOTHER);
 	} else {
 		connected(c);
 	}
@@ -365,15 +534,19 @@ static void connected(struct connection *c)
 		if (err >= 10000) err -= 10000;	/* Why does EMX return so large values? */
 	} else {
 		if (!(err = errno)) {
-			setcstate(c, S_STATE);
-			retry_connection(c);
+			retry_connect(c, S_STATE);
 			return;
 		}
 	}
 	if (err > 0) {
-		setcstate(c, get_error_from_errno(err));
-		retry_connection(c);
+		retry_connect(c, get_error_from_errno(err));
 		return;
+	}
+	if (b->addr_index) {
+		int i;
+		for (i = 0; i < b->addr_index; i++)
+			dns_set_priority(b->host, &b->addr.a[i], 0);
+		dns_set_priority(b->host, &b->addr.a[i], 1);
 	}
 	set_timeout(c);
 	if (b->real_port != -1) {

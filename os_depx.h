@@ -63,9 +63,6 @@ int bounced_write(int handle, const void *buf, size_t size);
 #define close be_close
 #define select be_select
 #define getsockopt be_getsockopt
-#ifndef PF_INET
-#define PF_INET AF_INET
-#endif
 #ifndef SO_ERROR
 #define SO_ERROR	10001
 #endif
@@ -73,16 +70,6 @@ int bounced_write(int handle, const void *buf, size_t size);
 
 #if defined(O_SIZE) && defined(__EMX__)
 #define HAVE_OPEN_PREALLOC
-#endif
-
-#if defined(GRDRV_SVGALIB)
-#define loop_select vga_select
-int vga_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);
-#elif defined(GRDRV_ATHEOS)
-#define loop_select ath_select
-int ath_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);
-#else
-#define loop_select select
 #endif
 
 #if defined(__WATCOMC__) && defined(_WCRTLINK)
@@ -104,5 +91,60 @@ int ath_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);
 #ifdef HAVE_MAXINT_CONVERSION_BUG
 #undef MAXINT
 #define MAXINT 0x7FFFF000
+#endif
+
+#if defined(__hpux) && defined(__LP64__)
+#undef HAVE_SOCKLEN_T
+#endif
+
+#ifndef HAVE_SOCKLEN_T
+#define socklen_t int
+#endif
+
+#ifndef PF_INET
+#define PF_INET AF_INET
+#endif
+#ifndef PF_UNIX
+#define PF_UNIX AF_UNIX
+#endif
+
+#define my_intptr_t long
+
+#if defined(__GNUC__) && __GNUC__ >= 2
+#define PRINTF_FORMAT(a, b)	__attribute__((__format__(__printf__, a, b)))
+#else
+#define PRINTF_FORMAT(a, b)
+#endif
+
+#if defined(HAVE_GETADDRINFO) && defined(HAVE_FREEADDRINFO)
+#define USE_GETADDRINFO
+#endif
+
+#ifdef SUPPORT_IPV6
+#ifndef PF_INET6
+#define PF_INET6 AF_INET6
+#endif
+#endif
+
+#if !defined(INET6_ADDRSTRLEN)
+#define INET6_ADDRSTRLEN	46
+#endif
+
+#if defined(BEOS) || (defined(HAVE_BEGINTHREAD) && defined(OS2)) || defined(HAVE_PTHREADS) || (defined(HAVE_ATHEOS_THREADS_H) && defined(HAVE_SPAWN_THREAD) && defined(HAVE_RESUME_THREAD))
+#define EXEC_IN_THREADS
+#endif
+
+#if !defined(EXEC_IN_THREADS) || !defined(HAVE_GETHOSTBYNAME) || defined(USE_GETADDRINFO)
+#define THREAD_SAFE_LOOKUP
+#endif
+
+#if defined(GRDRV_SVGALIB)
+#define loop_select vga_select
+int vga_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);
+#elif defined(GRDRV_ATHEOS)
+#define loop_select ath_select
+int ath_select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *t);
+#else
+#define loop_select select
 #endif
 

@@ -299,6 +299,13 @@ static void http_send_header(struct connection *c)
 	else add_to_str(&hdr, &l, cast_uchar " HTTP/1.0\r\n");
 	if (!info->https_forward && (h = get_host_name(host))) {
 		add_to_str(&hdr, &l, cast_uchar "Host: ");
+		if (h[0] == '[' && h[strlen(cast_const_char h) - 1] == ']') {
+			unsigned char *pc = cast_uchar strchr(cast_const_char h, '%');
+			if (pc) {
+				pc[0] = ']';
+				pc[1] = 0;
+			}
+		}
 		add_to_str(&hdr, &l, h);
 		mem_free(h);
 		if ((h = get_port_str(host))) {

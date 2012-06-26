@@ -579,7 +579,7 @@ try_new_count:
 	}
 	EINTRLOOP(rs, close(h));
 #ifndef RENAME_OVER_EXISTING_FILES
-	EINTRLOOP(rs, unlink(name));
+	EINTRLOOP(rs, unlink(cast_const_char name));
 #endif
 	EINTRLOOP(rs, rename(cast_const_char tmp_name, cast_const_char name));
 	if (rs) {
@@ -1238,6 +1238,17 @@ static unsigned char *ip_rd(struct option *o, unsigned char *c)
 	return NULL;
 }
 
+static unsigned char *ipv6_rd(struct option *o, unsigned char *c)
+{
+	unsigned char *e;
+	e = str_rd(o, c);
+	if (e) return e;
+#ifdef SUPPORT_IPV6
+	if (*(unsigned char *)o->ptr && numeric_ipv6_address(o->ptr, NULL, NULL) == -1) return cast_uchar "Invalid IPv6 address";
+#endif
+	return NULL;
+}
+
 static unsigned char *gen_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
 	unsigned char *e;
@@ -1256,13 +1267,14 @@ static unsigned char *gen_cmd(struct option *o, unsigned char ***argv, int *argc
 
 static unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *argc)
 {
-	ip__address addr;
-	unsigned char *p = (unsigned char *)&addr;
+	int i;
+	struct lookup_result addr;
 	if (!*argc) return cast_uchar "Parameter expected";
 	if (*argc >= 2) return cast_uchar "Too many parameters";
 	(*argv)++; (*argc)--;
-	if (do_real_lookup(*(*argv - 1), &addr)) {
-#if defined(HAVE_GETHOSTBYNAME) && defined(HAVE_HERROR)
+	do_real_lookup(*(*argv - 1), ipv6_options.addr_preference, &addr);
+	if (!addr.n) {
+#if !defined(USE_GETADDRINFO) && defined(HAVE_GETHOSTBYNAME) && defined(HAVE_HERROR)
 		herror("error");
 #else
 		fprintf(stderr, "error: host not found\n");
@@ -1270,7 +1282,32 @@ static unsigned char *lookup_cmd(struct option *o, unsigned char ***argv, int *a
 		exit(RET_ERROR);
 		not_reached(return cast_uchar "";)
 	}
-	printf("%d.%d.%d.%d\n", (int)p[0], (int)p[1], (int)p[2], (int)p[3]);
+	for (i = 0; i < addr.n; i++) {
+		switch (addr.a[i].af) {
+			case AF_INET: {
+				printf("%d.%d.%d.%d", (int)addr.a[i].addr[0], (int)addr.a[i].addr[1], (int)addr.a[i].addr[2], (int)addr.a[i].addr[3]);
+				break;
+			}
+#ifdef SUPPORT_IPV6
+			case AF_INET6: {
+				int j;
+#ifdef HAVE_INET_NTOP
+				unsigned char buffer[INET6_ADDRSTRLEN];
+				struct in6_addr i6a;
+				memcpy(&i6a, addr.a[i].addr, 16);
+				if (inet_ntop(AF_INET6, &i6a, cast_char buffer, sizeof buffer))
+					printf("%s", cast_const_char buffer);
+				else
+#endif
+				for (j = 0; j < 16; j += 2)
+					printf("%x%s", (addr.a[i].addr[j] << 8) + addr.a[i].addr[j + 1], j == 14 ? "" : ":");
+			}
+#endif
+		}
+		if (addr.a[i].scope_id)
+			printf("%%%u", addr.a[i].scope_id);
+		printf("\n");
+	}
 	fflush(stdout);
 	exit(RET_OK);
 	not_reached(return cast_uchar "";)
@@ -1321,7 +1358,17 @@ static unsigned char *printhelp_cmd(struct option *o, unsigned char ***argv, int
 fprintf(stdout, "%s%s%s%s%s%s\n",
 
 ("links [options] URL\n"
+"\n"
 "Options are:\n"
+"\n"
+" -help\n"
+"  Prints this help screen\n"
+"\n"
+" -version\n"
+"  Prints the links version number and exit.\n"
+"\n"
+" -lookup <hostname>\n"
+"  Does name lookup, like command \"host\".\n"
 "\n"
 " -g\n"
 "  Run in graphics mode.\n"
@@ -1375,6 +1422,13 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Runs links as a separate instance - instead of connecting to\n"
 "    existing instance.\n"
 "\n"
+" -download-dir <path>\n"
+"  Default download directory.\n"
+"    (default: actual dir)\n"
+"\n"
+" -language <language>\n"
+"  Set user interface language.\n"
+"\n"
 " -max-connections <max>\n"
 "  Maximum number of concurrent connections.\n"
 "    (default: 10)\n"
@@ -1398,6 +1452,9 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -bind-address <ip address>\n"
 "  Use a specific local IP address.\n"
 "\n"
+" -bind-address-ipv6 <ipv6 address>\n"
+"  Use a specific local IPv6 address.\n"
+"\n"
 " -async-dns <0>/<1>\n"
 "  Asynchronous DNS resolver on(1)/off(0).\n"
 "\n"
@@ -1413,10 +1470,28 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    (default: 1048576)\n"
 "\n"
 " -image-cache-size <bytes>\n"
-"  Cache memory in bytes.\n"
+"  Image cache in bytes.\n"
 "    (default: 1048576)\n"
+"\n"
+" -font-cache-size <bytes>\n"
+"  Font cache in bytes.\n"
+"    (default: 2097152)\n"
+"\n"
+" -aggressive-cache <0>/<1>\n"
+"    (default 1)\n"
+"  Always cache everything regardless of server's caching recomendations.\n"
+"    Many servers deny caching even if their content is not changing\n"
+"    just to get more hits and more money from ads.\n"
 "\n"),
-(" -http-proxy <host:port>\n"
+(" -address-preference <0>/<1>/<2>/<3>/<4>\n"
+"    (default 0)\n"
+"  0 - use system default.\n"
+"  1 - prefer IPv4.\n"
+"  2 - prefer IPv6.\n"
+"  3 - use only IPv4.\n"
+"  4 - use only IPv6.\n"
+"\n"
+" -http-proxy <host:port>\n"
 "  Host and port number of the HTTP proxy, or blank.\n"
 "    (default: blank)\n"
 "\n"
@@ -1441,21 +1516,8 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    (default 0)\n"
 "  \"1\" causes that Links won't initiate any non-proxy connection.\n"
 "    It is useful for anonymization with tor or similar networks.\n"
-"\n"
-" -download-dir <path>\n"
-"  Default download directory.\n"
-"    (default: actual dir)\n"
-"\n"
-" -aggressive-cache <0>/<1>\n"
-"    (default 1)\n"
-"  Always cache everything regardless of server's caching recomendations.\n"
-"    Many servers deny caching even if their content is not changing\n"
-"    just to get more hits and more money from ads.\n"
 "\n"),
-(" -language <language>\n"
-"  Set user interface language.\n"
-"\n"
-" -http-bugs.http10 <0>/<1>\n"
+(" -http-bugs.http10 <0>/<1>\n"
 "    (default 0)\n"
 "  \"1\" forces using only HTTP/1.0 protocol. (useful for buggy servers\n"
 "    that claim to be HTTP/1.1 compliant but are not)\n"
@@ -1493,11 +1555,11 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -http.referer <0>/<1>/<2>/<3>/<4>\n"
 "    (default 4)\n"
-"  0 - do not send referer\n"
-"  1 - send the requested URL as referer\n"
-"  2 - send fake referer\n"
-"  3 - send real referer\n"
-"  4 - send real referer only to the same server\n"
+"  0 - do not send referer.\n"
+"  1 - send the requested URL as referer.\n"
+"  2 - send fake referer.\n"
+"  3 - send real referer.\n"
+"  4 - send real referer only to the same server.\n"
 "\n"
 " -http.fake-referer <string>\n"
 "  Fake referer value.\n"
@@ -1513,6 +1575,9 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -ftp.use-passive <0>/<1>\n"
 "  Use ftp PASV command to bypass firewalls.\n"
+"\n"
+" -ftp.use-eprt-epsv <0>/<1>\n"
+"  Use EPRT and EPSV commands instead of PORT and PASV.\n"
 "\n"
 " -ftp.fast <0>/<1>\n"
 "  Send more ftp commands simultaneously. Faster response when\n"
@@ -1539,6 +1604,12 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -scroll-bar-frame-color 0xRRGGBB\n"
 "  Set color of scroll bar frame.\n"
+"\n"
+" -bookmarks-codepage <codepage>\n"
+"  Character set of bookmarks file.\n"
+"\n"
+" -bookmarks-file <file>\n"
+"  File to store bookmarks.\n"
 "\n"
 " -display-red-gamma <fp-value>\n"
 "  Red gamma of display.\n"
@@ -1571,12 +1642,17 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -display-optimize <0>/<1>/<2>\n"
 "  Optimize for CRT (0), LCD RGB (1), LCD BGR (2).\n"
 "\n"
-" -gamma correction <0>/<1>/<2>\n"
+" -gamma-correction <0>/<1>/<2>\n"
 "  Type of gamma correction:\n"
 "    (default 2)\n"
 "  0 - 8-bit (fast).\n"
 "  1 - 16-bit (slow).\n"
 "  2 - automatically detect according to speed of FPU.\n"
+"\n"
+" -overwrite-instead-of-scroll <0>/<1>\n"
+"  Overwrite the screen instead of scrolling it\n"
+"    (valid for svgalib and framebuffer).\n"
+"    Overwriting may or may not be faster, depending on hardware.\n"
 "\n"
 #ifdef JS
 " -enable-javascript <0>/<1>\n"
@@ -1605,12 +1681,6 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Amount of kilobytes the javascript may allocate.\n"
 "\n"
 #endif
-" -bookmarks-codepage <codepage>\n"
-"  Character set of bookmarks file.\n"
-"\n"
-" -bookmarks-file <file>\n"
-"  File to store bookmarks.\n"
-"\n"
 " -html-assume-codepage <codepage>\n"
 "  If server didn't specify document character set, assume this.\n"
 "\n"
@@ -1681,16 +1751,6 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -html-g-ignore-document-color <0>/<1>\n"
 "  Ignore colors specified in html document in graphics mode.\n"
-"\n"
-" -lookup <hostname>\n"
-"  Does name lookup, like command \"host\".\n"
-"\n"
-" -version\n"
-"  Prints the links version number and exit.\n"
-"\n"
-" -help\n"
-"  Prints this help screen\n"
-"\n"
 "\n"),
 ("Keys:\n"
 "	ESC	  display menu\n"
@@ -1717,6 +1777,7 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "	s	  bookmarks\n"
 "	q	  quit or close current window\n"
 "	^X	  cut to clipboard\n"
+"	^B	  copy to clipboard\n"
 "	^V	  paste from clipboard\n"
 "	^K	  cut line (in textarea) or text to the end (in field)\n"
 "	^U	  cut all text before cursor\n"
@@ -1768,6 +1829,8 @@ int first_use = 0;
 int no_connect = 0;
 int base_session = 0;
 int dmp = 0;
+int screen_width = 80;
+int dump_codepage = -1;
 int force_html = 0;
 
 int max_connections = 10;
@@ -1776,16 +1839,55 @@ int max_tries = 3;
 int receive_timeout = 120;
 int unrestartable_receive_timeout = 600;
 unsigned char bind_ip_address[16] = "";
+unsigned char bind_ipv6_address[INET6_ADDRSTRLEN] = "";
 int async_lookup = 1;
 int download_utime = 0;
-
-int screen_width = 80;
-int dump_codepage = -1;
 
 int max_format_cache_entries = 5;
 int memory_cache_size = 1048576;
 int image_cache_size = 1048576;
 int font_cache_size = 2097152;
+int aggressive_cache = 1;
+
+struct ipv6_options ipv6_options = { ADDR_PREFERENCE_DEFAULT };
+struct proxies proxies = { "", "", "", "", "", 0 };
+struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { REFERER_REAL_SAME_SERVER, "", "", "" } };
+struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 0, 1 };
+
+unsigned char download_dir[MAX_STR_LEN] = "";
+
+int js_enable=1;   /* 0=disable javascript */
+int js_verbose_errors=0;   /* 1=create dialog on every javascript error, 0=be quiet and continue */
+int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=be quiet and continue */
+int js_all_conversions=1;
+int js_global_resolve=1;	/* resolvovani v globalnim adresnim prostoru, kdyz BFU vomitne document */
+int js_manual_confirmation=1; /* !0==annoying dialog on every goto url etc. */
+int js_fun_depth=100;
+int js_memory_limit=5*1024;  /* in kilobytes, should be in range 1M-20M (1MB=1024*1024B) */
+
+double display_red_gamma=2.2; /* Red gamma exponent of the display */
+double display_green_gamma=2.2; /* Green gamma exponent of the display */
+double display_blue_gamma=2.2; /* Blue gamma exponent of the display */
+double user_gamma=1.0; /* 1.0 for 64 lx. This is the number user directly changes in the menu */
+double bfu_aspect=1; /* 0.1 to 10.0, 1.0 default. >1 makes circle wider */
+int aspect_on=1;
+int display_optimize=0;	/*0=CRT, 1=LCD RGB, 2=LCD BGR */
+int dither_letters=1;
+int dither_images=1;
+int gamma_bits=2;	/*0 --- 8, 1 --- 16, 2 --- auto */
+int overwrite_instead_of_scroll = 1;
+
+
+int menu_font_size = G_BFU_DEFAULT_FONT_SIZE;
+
+unsigned G_BFU_FG_COLOR = G_DEFAULT_BFU_FG_COLOR;
+unsigned G_BFU_BG_COLOR = G_DEFAULT_BFU_BG_COLOR;
+unsigned G_SCROLL_BAR_AREA_COLOR = G_DEFAULT_SCROLL_BAR_AREA_COLOR;
+unsigned G_SCROLL_BAR_BAR_COLOR = G_DEFAULT_SCROLL_BAR_BAR_COLOR;
+unsigned G_SCROLL_BAR_FRAME_COLOR = G_DEFAULT_SCROLL_BAR_FRAME_COLOR;
+
+int bookmarks_codepage=0;
+unsigned char bookmarks_file[MAX_STR_LEN]="";
 
 struct document_setup dds = {
 	0, /* assumed codepage */
@@ -1813,43 +1915,13 @@ struct document_setup dds = {
 	0, /* g ignore document color */
 };
 
-struct proxies proxies = { "", "", "", "", "", 0 };
-int js_enable=1;   /* 0=disable javascript */
-int js_verbose_errors=0;   /* 1=create dialog on every javascript error, 0=be quiet and continue */
-int js_verbose_warnings=0;   /* 1=create dialog on every javascript warning, 0=be quiet and continue */
-int js_all_conversions=1;
-int js_global_resolve=1;	/* resolvovani v globalnim adresnim prostoru, kdyz BFU vomitne document */
-int js_manual_confirmation=1; /* !0==annoying dialog on every goto url etc. */
-int js_fun_depth=100;
-int js_memory_limit=5*1024;  /* in kilobytes, should be in range 1M-20M (1MB=1024*1024B) */
-
-int display_optimize=0;	/*0=CRT, 1=LCD RGB, 2=LCD BGR */
-int gamma_bits=2;	/*0 --- 8, 1 --- 16, 2 --- auto */
-double bfu_aspect=1; /* 0.1 to 10.0, 1.0 default. >1 makes circle wider */
-int aspect_on=1;
-
-unsigned char download_dir[MAX_STR_LEN] = "";
-
-int aggressive_cache = 1;
-
-struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 1 };
-
-/* These are workarounds for some CGI script bugs */
-struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { REFERER_REAL_SAME_SERVER, "", "", "" } };
-/*int bug_302_redirect = 0;*/
-	/* When got 301 or 302 from POST request, change it to GET
-	   - this violates RFC2068, but some buggy message board scripts rely on it */
-/*int bug_post_no_keepalive = 0;*/
-	/* No keepalive connection after POST request. Some buggy PHP databases report bad
-	   results if GET wants to retreive data POSTed in the same connection */
-
 static struct option links_options[] = {
 	{1, printhelp_cmd, NULL, NULL, 0, 0, NULL, NULL, "?"},
 	{1, printhelp_cmd, NULL, NULL, 0, 0, NULL, NULL, "h"},
 	{1, printhelp_cmd, NULL, NULL, 0, 0, NULL, NULL, "help"},
 	{1, printhelp_cmd, NULL, NULL, 0, 0, NULL, NULL, "-help"},
-	{1, lookup_cmd, NULL, NULL, 0, 0, NULL, NULL, "lookup"},
 	{1, version_cmd, NULL, NULL, 0, 0, NULL, NULL, "version"},
+	{1, lookup_cmd, NULL, NULL, 0, 0, NULL, NULL, "lookup"},
 	{1, set_cmd, NULL, NULL, 0, 0, &no_connect, NULL, "no-connect"},
 	{1, set_cmd, NULL, NULL, 0, 0, &anonymous, NULL, "anonymous"},
 	{1, set_cmd, NULL, NULL, 0, 0, &ggr, NULL, "g"},
@@ -1864,18 +1936,23 @@ static struct option links_options[] = {
 	{1, dump_cmd, NULL, NULL, D_DUMP, 0, NULL, NULL, "dump"},
 	{1, gen_cmd, num_rd, NULL, 10, 512, &screen_width, "dump_width", "width" },
 	{1, gen_cmd, cp_rd, NULL, 1, 0, &dump_codepage, "dump_codepage", "codepage" },
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, download_dir, "download_dir", "download-dir"},
+	{1, gen_cmd, lang_rd, lang_wr, 0, 0, &current_language, "language", "language"},
 	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections, "max_connections", "max-connections"},
 	{1, gen_cmd, num_rd, num_wr, 1, 99, &max_connections_to_host, "max_connections_to_host", "max-connections-to-host"},
 	{1, gen_cmd, num_rd, num_wr, 0, 16, &max_tries, "retries", "retries"},
 	{1, gen_cmd, num_rd, num_wr, 1, 9999, &receive_timeout, "receive_timeout", "receive-timeout"},
 	{1, gen_cmd, num_rd, num_wr, 1, 9999, &unrestartable_receive_timeout, "unrestartable_receive_timeout", "unrestartable-receive-timeout"},
 	{1, gen_cmd, ip_rd, str_wr, 0, 16, bind_ip_address, "bind_address", "bind-address"},
+	{1, gen_cmd, ipv6_rd, str_wr, 0, INET6_ADDRSTRLEN, bind_ipv6_address, "bind_address_ipv6", "bind-address-ipv6"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &async_lookup, "async_dns", "async-dns"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &download_utime, "download_utime", "download-utime"},
 	{1, gen_cmd, num_rd, num_wr, 0, 999, &max_format_cache_entries, "format_cache_size", "format-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &memory_cache_size, "memory_cache_size", "memory-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &image_cache_size, "image_cache_size", "image-cache-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, MAXINT, &font_cache_size, "font_cache_size", "font-cache-size"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &aggressive_cache, "http_bugs.aggressive_cache", "aggressive-cache"},
+	{1, gen_cmd, num_rd, num_wr, 0, 4, &ipv6_options.addr_preference, "ipv6.address_preference", "address-preference"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.http_proxy, "http_proxy", "http-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.ftp_proxy, "ftp_proxy", "ftp-proxy"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.https_proxy, "https_proxy", "https-proxy"},
@@ -1883,8 +1960,6 @@ static struct option links_options[] = {
 	{1, gen_cmd, str_rd, NULL, 0, MAX_STR_LEN, proxies.dns_append, "-append_text_to_dns_lookups", NULL}, /* old version incorrectly saved it with '-' */
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.dns_append, "append_text_to_dns_lookups", "append-text-to-dns-lookups"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &proxies.only_proxies, "only_proxies", "only-proxies"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, download_dir, "download_dir", "download-dir"},
-	{1, gen_cmd, lang_rd, lang_wr, 0, 0, &current_language, "language", "language"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.http10, "http_bugs.http10", "http-bugs.http10"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.allow_blacklist, "http_bugs.allow_blacklist", "http-bugs.allow-blacklist"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},
@@ -1892,13 +1967,13 @@ static struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.no_compression, "http_bugs.no_compression", "http-bugs.no-compression"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.retry_internal_errors, "http_bugs.retry_internal_errors", "http-bugs.retry-internal-errors"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &aggressive_cache, "http_bugs.aggressive_cache", "aggressive-cache"},
 	{1, gen_cmd, num_rd, num_wr, 0, 4, &http_options.header.referer, "http_referer", "http.referer"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &http_options.header.fake_referer, "fake_referer", "http.fake-referer"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &http_options.header.fake_useragent, "fake_useragent", "http.fake-user-agent"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &http_options.header.extra_header, "http.extra_header", "http.extra-header"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, ftp_options.anon_pass, "ftp.anonymous_password", "ftp.anonymous-password"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.passive_ftp, "ftp.use_passive", "ftp.use-passive"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.eprt_epsv, "ftp.use_eprt_epsv", "ftp.use-eprt-epsv"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.fast_ftp, "ftp.fast", "ftp.fast"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &ftp_options.set_tos, "ftp.set_iptos", "ftp.set-iptos"},
 	{1, gen_cmd, num_rd, num_wr, 1, MAX_FONT_SIZE, &menu_font_size, "menu_font_size", "menu-font-size"},
@@ -1907,27 +1982,28 @@ static struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_SCROLL_BAR_AREA_COLOR, "scroll_bar_area_color", "scroll-bar-area-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_SCROLL_BAR_BAR_COLOR, "scroll_bar_bar_color", "scroll-bar-bar-color"},
 	{1, gen_cmd, num_rd, num_wr, 0, 0xffffff, &G_SCROLL_BAR_FRAME_COLOR, "scroll_bar_frame_color", "scroll-bar-frame-color"},
+	{1, gen_cmd, cp_rd, cp_wr, 0, 0, &bookmarks_codepage, "bookmarks_codepage", "bookmarks-codepage"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, bookmarks_file, "bookmarks_file", "bookmarks-file"},
 	{1, gen_cmd, dbl_rd, dbl_wr, 1, 10000, &display_red_gamma, "display_red_gamma", "display-red-gamma"},
 	{1, gen_cmd, dbl_rd, dbl_wr, 1, 10000, &display_green_gamma, "display_green_gamma", "display-green-gamma"},
 	{1, gen_cmd, dbl_rd, dbl_wr, 1, 10000, &display_blue_gamma, "display_blue_gamma", "display-blue-gamma"},
 	{1, gen_cmd, dbl_rd, dbl_wr, 1, 10000, &user_gamma, "user_gamma", "user-gamma"},
 	{1, gen_cmd, dbl_rd, dbl_wr, 25, 400, &bfu_aspect, "bfu_aspect", "bfu-aspect"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &aspect_on, "aspect_on", "aspect-on"},
+	{1, gen_cmd, num_rd, num_wr, 0, 2, &display_optimize, "display_optimize", "display-optimize"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dither_letters, "dither_letters", "dither-letters"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dither_images, "dither_images", "dither-images"},
-	{1, gen_cmd, num_rd, num_wr, 0, 2, &display_optimize, "display_optimize", "display-optimize"},
 	{1, gen_cmd, num_rd, num_wr, 0, 2, &gamma_bits, "gamma_correction", "gamma-correction"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_enable, "enable_javascript", "enable-javascript"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_verbose_errors, "verbose_javascript_errors", "js.verbose-errors"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_verbose_warnings, "verbose_javascript_warnings", "js.verbose-warnings"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_all_conversions, "enable_all_conversions", "js.enable-all-conversions"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_global_resolve, "enable_global_resolution", "js.enable-global-resolution"},
-	{1, gen_cmd, num_rd, num_wr, 0, 1, &js_manual_confirmation, "javascript_manual_confirmation", "js.manual-confirmation"},
-	{1, gen_cmd, num_rd, num_wr, 0, 999999, &js_fun_depth, "js_recursion_depth", "js.recursion-depth"},
-	{1, gen_cmd, num_rd, num_wr, 1024, 30*1024, &js_memory_limit, "js_memory_limit", "js.memory-limit"},
-	{1, gen_cmd, cp_rd, cp_wr, 0, 0, &bookmarks_codepage, "bookmarks_codepage", "bookmarks-codepage"},
-	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, bookmarks_file, "bookmarks_file", "bookmarks-file"},
-	{1, gen_cmd, cp_rd, NULL, 0, 0, &dds.assume_cp, "assume_codepage", "assume-codepage"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &overwrite_instead_of_scroll, "overwrite_instead_of_scroll", "overwrite-instead-of-scroll"},
+	{1, gen_cmd, num_rd, NULL, 0, 1, &js_enable, "enable_javascript", NULL},
+	{1, gen_cmd, num_rd, NULL, 0, 1, &js_verbose_errors, "verbose_javascript_errors", NULL},
+	{1, gen_cmd, num_rd, NULL, 0, 1, &js_verbose_warnings, "verbose_javascript_warnings", NULL},
+	{1, gen_cmd, num_rd, NULL, 0, 1, &js_all_conversions, "enable_all_conversions", NULL},
+	{1, gen_cmd, num_rd, NULL, 0, 1, &js_global_resolve, "enable_global_resolution", NULL},
+	{1, gen_cmd, num_rd, NULL, 0, 1, &js_manual_confirmation, "javascript_manual_confirmation", NULL},
+	{1, gen_cmd, num_rd, NULL, 0, 999999, &js_fun_depth, "js_recursion_depth", NULL},
+	{1, gen_cmd, num_rd, NULL, 1024, 30*1024, &js_memory_limit, "js_memory_limit", NULL},
+	{1, gen_cmd, cp_rd, NULL, 0, 0, &dds.assume_cp, "assume_codepage", NULL},
 	{1, NULL, term_rd, term_wr, 0, 0, NULL, "terminal", NULL},
 	{1, NULL, term2_rd, NULL, 0, 0, NULL, "terminal2", NULL},
 	{1, NULL, type_rd, type_wr, 0, 0, NULL, "association", NULL},

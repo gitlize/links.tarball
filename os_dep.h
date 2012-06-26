@@ -210,7 +210,4 @@ static inline int dir_sep(unsigned char x) { return x == '/'; }
 #endif
 #endif
 
-#if !defined(HAVE_BEGINTHREAD) && !defined(BEOS) && !defined(ATHEOS) && !defined(HAVE_PTHREADS) && !(defined(HAVE_ATHEOS_THREADS_H) && defined(HAVE_SPAWN_THREAD) && defined(HAVE_RESUME_THREAD))
-#define THREAD_SAFE_LOOKUP
-#endif
 #endif /* #ifndef OS_DEP_H */

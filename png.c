@@ -157,7 +157,7 @@ static void png_row_callback(png_structp png_ptr, png_bytep new_row, png_uint_32
 				*row_num), new_row, cimg->width
 				*channels);
 		}else{
-			if ((unsigned)cimg->width > MAXINT / 2 / channels) overalloc();
+			if ((unsigned)cimg->width > (unsigned)MAXINT / 2 / channels) overalloc();
 			tmp=mem_alloc(cimg->width*2*channels);
 			a2char_from_unsigned_short(tmp, (unsigned short *)(cimg->buffer
 				+cimg->buffer_bytes_per_pixel

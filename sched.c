@@ -10,6 +10,8 @@ static tcount connection_count = 0;
 
 static int active_connections = 0;
 
+tcount netcfg_stamp = 0;
+
 struct list_head queue = {&queue, &queue};
 
 struct h_conn {
@@ -269,10 +271,13 @@ void add_keepalive_socket(struct connection *c, ttime timeout)
 		goto del;
 	}
 	k = mem_alloc(sizeof(struct k_conn));
-	if ((k->port = get_port(c->url)) == -1 || !(k->protocol = get_protocol_handle(c->url)) || !(k->host = get_host_and_pass(c->url))) {
+	if (c->netcfg_stamp != netcfg_stamp ||
+	    (k->port = get_port(c->url)) == -1 ||
+	    !(k->protocol = get_protocol_handle(c->url)) ||
+	    !(k->host = get_host_and_pass(c->url))) {
 		mem_free(k);
 		del_connection(c);
-		goto close;
+		goto clos;
 	}
 	k->conn = c->sock1;
 	k->timeout = timeout;
@@ -285,7 +290,7 @@ void add_keepalive_socket(struct connection *c, ttime timeout)
 #endif
 	register_bottom_half(check_queue, NULL);
 	return;
-	close:
+	clos:
 	EINTRLOOP(rs, close(c->sock1));
 #ifdef DEBUG
 	check_queue_bugs();
@@ -750,12 +755,13 @@ void load_url(unsigned char *url, unsigned char *prev_url, struct status *stat, 
 	c->no_cache = no_cache;
 	c->sock1 = c->sock2 = -1;
 	c->dnsquery = NULL;
+	c->tries = 0;
+	c->netcfg_stamp = netcfg_stamp;
+	init_list(c->statuss);
 	c->info = NULL;
 	c->buffer = NULL;
 	c->newconn = NULL;
 	c->cache = NULL;
-	c->tries = 0;
-	init_list(c->statuss);
 	c->est_length = -1;
 	c->unrestartable = 0;
 #ifdef HAVE_ANY_COMPRESSION
@@ -896,13 +902,6 @@ void set_timeout(struct connection *c)
 	c->timer = install_timer((c->unrestartable ? unrestartable_receive_timeout : receive_timeout) * 500, (void (*)(void *))connection_timeout_1, c);
 }
 
-#if 0
-static void reset_timeout(struct connection *c)
-{
-	if (c->timer != -1) kill_timer(c->timer), c->timer = -1;
-}
-#endif
-
 void abort_all_connections(void)
 {
 	while(queue.next != &queue) {
@@ -986,6 +985,7 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_WAIT,		TEXT_(T_WAITING_IN_QUEUE)},
 	{S_DNS,			TEXT_(T_LOOKING_UP_HOST)},
 	{S_CONN,		TEXT_(T_MAKING_CONNECTION)},
+	{S_CONN_ANOTHER,	TEXT_(T_MAKING_CONNECTION_TO_ANOTHER_ADDRESS)},
 	{S_SOCKS_NEG,		TEXT_(T_SOCKS_NEGOTIATION)},
 	{S_SSL_NEG,		TEXT_(T_SSL_NEGOTIATION)},
 	{S_SENT,		TEXT_(T_REQUEST_SENT)},

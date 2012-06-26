@@ -1,3 +1,33 @@
+=== RELEASE 2.7 ===
+
+Sat Jun 23 23:02:47 CEST 2012 mikulas:
+
+	Fixed a bug that horizontal line <hr> was not displayed when
+	terminal was set to utf-8
+
+Sat Jun 23 22:11:36 CEST 2012 mikulas:
+
+	Fixed bad palette in framebuffer on TGA on Alpha
+
+Sat Jun 23 20:06:38 CEST 2012 mikulas:
+
+	Fixed a bug that \001 was displayed instead of a non-breaking space
+	when converting to ascii
+
+Po Jun 18 03:10:07 CEST 2012 mikulas:
+
+	Support IPv6
+	Support multiple addresses (try to connect to all of them)
+
+Ne Jun 17 22:32:52 CEST 2012 mikulas:
+
+	Fix memory leak in ftp
+
+Tue Jun 12 02:31:05 MET 2012 progman:
+
+	Fixed incorrect display when aspect ratio was changed
+	while multiple windows were open
+
 === RELEASE 2.7pre1 ===
 
 Sat Jun  2 13:47:17 MET 2012 mikulas:

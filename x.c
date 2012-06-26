@@ -388,7 +388,7 @@ static int x_translate_key(struct graphics_device *gd, XKeyEvent *e,int *key,int
 			wchar_t wc;
 			len = XwcLookupString(get_window_info(gd)->xic, e, &wc, 1, &ks, &status);
 			if (len == 1) {
-				strcpy(str, encode_utf_8(wc));
+				strcpy(cast_char str, cast_const_char encode_utf_8(wc));
 				len = strlen(cast_const_char str);
 			} else
 				len = 0;

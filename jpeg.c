@@ -220,7 +220,7 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 
 	/* Update the next input byte pointer for the decoder to continue at
 	 * the right position */
-	global_cinfo->src->next_input_byte=deco->jdata;
+	global_cinfo->src->next_input_byte=(void *)deco->jdata;
 
 	/* ...:::...:..:.:::.:.::::.::.:.:.:.::..::::.::::.:...: */
 	/* Update the length of data in the decoder buffer */

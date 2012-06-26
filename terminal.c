@@ -1164,7 +1164,7 @@ void set_cursor(struct terminal *term, int x, int y, int altx, int alty)
 void exec_thread(unsigned char *path, int p)
 {
 	int rs;
-#if defined(HAVE_SETPGID) && !defined(BEOS) && !defined(HAVE_BEGINTHREAD)
+#if defined(HAVE_SETPGID) && !defined(EXEC_IN_THREADS)
 	if (path[0] == 2)
 		EINTRLOOP(rs, setpgid(0, 0));
 #endif

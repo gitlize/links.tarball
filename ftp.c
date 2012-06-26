@@ -12,6 +12,7 @@ struct ftp_connection_info {
 	int pending_commands;
 	int opc;
 	int pasv;
+	int eprt_epsv;
 	int dir;
 	int rest_sent;
 	int conn_st;
@@ -212,13 +213,32 @@ static void ftp_pass_info(struct connection *c, struct read_buffer *rb)
 	else ftp_send_retr_req(c, S_GETH);
 }
 
+static void add_port_pasv(unsigned char **s, int *l, struct ftp_connection_info *inf, unsigned char *port_string)
+{
+	if (!inf->pasv) {
+		if (inf->eprt_epsv) {
+			add_to_str(s, l, cast_uchar "EPRT ");
+			add_to_str(s, l, port_string);
+		} else {
+			add_to_str(s, l, cast_uchar "PORT ");
+			add_to_str(s, l, port_string);
+		}
+	} else {
+		if (inf->eprt_epsv) {
+			add_to_str(s, l, cast_uchar "EPSV");
+		} else {
+			add_to_str(s, l, cast_uchar "PASV");
+		}
+	}
+	add_to_str(s, l, cast_uchar "\r\n");
+}
+
 static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 {
 	unsigned char *d = get_url_data(c->url);
 	unsigned char *de;
 	int del;
-	unsigned char pc[6];
-	int ps;
+	unsigned char port_string[50];
 	struct ftp_connection_info *inf, *inf2;
 	unsigned char *s;
 	int l;
@@ -228,6 +248,7 @@ static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 		abort_connection(c);
 		return NULL;
 	}
+
 	de = init_str(), del = 0;
 	add_conv_str(&de, &del, d, strlen(cast_const_char d), -2);
 	d = de;
@@ -236,11 +257,39 @@ static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 	l = 0;
 	s = init_str();
 	inf->pasv = ftp_options.passive_ftp;
+#ifdef LINKS_2
 	if (*c->socks_proxy) inf->pasv = 1;
+	if (ftp_options.eprt_epsv || is_ipv6(c->sock1)) inf->eprt_epsv = 1;
+#endif
 	c->info = inf;
-	if (!inf->pasv) if ((ps = get_pasv_socket(c, c->sock1, &c->sock2, pc))) {
-		mem_free(d);
-		return NULL;
+
+	if (!inf->pasv) {
+		int ps;
+#ifdef SUPPORT_IPV6
+		if (is_ipv6(c->sock1)) {
+			ps = get_pasv_socket_ipv6(c, c->sock1, &c->sock2, port_string);
+			if (ps) {
+				mem_free(d);
+				mem_free(s);
+				return NULL;
+			}
+		} else
+#endif
+		{
+			unsigned char pc[6];
+			ps = get_pasv_socket(c, c->sock1, &c->sock2, pc);
+			if (ps) {
+				mem_free(d);
+				mem_free(s);
+				return NULL;
+			}
+			if (inf->eprt_epsv)
+				sprintf(cast_char port_string, "|1|%d.%d.%d.%d|%d|", pc[0], pc[1], pc[2], pc[3], (pc[4] << 8) | pc[5]);
+			else
+				sprintf(cast_char port_string, "%d,%d,%d,%d,%d,%d", pc[0], pc[1], pc[2], pc[3], pc[4], pc[5]);
+		}
+		if (strlen(cast_const_char port_string) >= sizeof(port_string))
+			internal("buffer overflow in get_pasv_socket_ipv6: %d > %d", (int)strlen(cast_const_char port_string), (int)sizeof(port_string));
 	}
 #ifdef HAVE_IPTOS
 	if (ftp_options.set_tos) {
@@ -254,23 +303,7 @@ static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 		inf->dir = 1;
 		inf->pending_commands = 4;
 		add_to_str(&s, &l, cast_uchar "TYPE A\r\n");
-		if (!inf->pasv) {
-			add_to_str(&s, &l, cast_uchar "PORT ");
-			add_num_to_str(&s, &l, pc[0]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[1]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[2]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[3]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[4]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[5]);
-			add_to_str(&s, &l, cast_uchar "\r\n");
-		} else {
-			add_to_str(&s, &l, cast_uchar "PASV\r\n");
-		}
+		add_port_pasv(&s, &l, inf, port_string);
 		add_to_str(&s, &l, cast_uchar "CWD /");
 		add_bytes_to_str(&s, &l, d, de - d);
 		add_to_str(&s, &l, cast_uchar "\r\nLIST\r\n");
@@ -279,23 +312,7 @@ static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c)
 		inf->dir = 0;
 		inf->pending_commands = 3;
 		add_to_str(&s, &l, cast_uchar "TYPE I\r\n");
-		if (!inf->pasv) {
-			add_to_str(&s, &l, cast_uchar "PORT ");
-			add_num_to_str(&s, &l, pc[0]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[1]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[2]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[3]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[4]);
-			add_chr_to_str(&s, &l, ',');
-			add_num_to_str(&s, &l, pc[5]);
-			add_to_str(&s, &l, cast_uchar "\r\n");
-		} else {
-			add_to_str(&s, &l, cast_uchar "PASV\r\n");
-		}
+		add_port_pasv(&s, &l, inf, port_string);
 		if (c->from && c->no_cache < NC_IF_MOD) {
 			add_to_str(&s, &l, cast_uchar "REST ");
 			add_num_to_str(&s, &l, c->from);
@@ -363,8 +380,9 @@ static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 	if (inf->pending_commands > 1) {
 		unsigned char pc[6];
 		if (inf->pasv && inf->opc - (inf->pending_commands - 1) == 2) {
-			int i = 3, j;
-			while (i < rb->len) {
+			int i, j;
+			i = 3;
+			if (!inf->eprt_epsv) while (i < rb->len) {
 				if (rb->data[i] >= '0' && rb->data[i] <= '9') {
 					for (j = 0; j < 6; j++) {
 						int n = 0;
@@ -392,6 +410,26 @@ static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 				i++;
 			}
 			no_pasv:
+			i = 3;
+			while (i < rb->len - 5) {
+				if (rb->data[i] == '(' && (rb->data[i + 1] < '0' || rb->data[i + 1] > '9') && rb->data[i + 1] == rb->data[i + 2] && rb->data[i + 2] == rb->data[i + 3]) {
+					unsigned char delim = rb->data[i + 1];
+					int n = 0;
+					i += 4;
+					while (rb->data[i] >= '0' && rb->data[i] <= '9') {
+						n = n * 10 + rb->data[i] - '0';
+						if (n >= 65536) goto no_epsv;
+						if (++i >= rb->len) goto no_epsv;
+					}
+					if (rb->data[i] != delim) goto no_epsv;
+					pc[4] = n >> 8;
+					pc[5] = n & 0xff;
+					pc[0] = pc[1] = pc[2] = pc[3] = 0;
+					goto pasv_ok;
+				}
+				i++;
+			}
+			no_epsv:
 			memset(pc, 0, sizeof pc);
 			pasv_ok:;
 		}

@@ -1221,7 +1221,7 @@ static void scroll_list(struct terminal *term, void *bla)
 		}
 		
 		restrict_clip_area(term->dev,&old_area,dlg->x+DIALOG_LB,y+top,dlg->x+DIALOG_LB+w,y+bottom+G_BFU_FONT_SIZE*(ld->n_items));
-		if (drv->flags & GD_DONT_USE_SCROLL)
+		if (drv->flags & GD_DONT_USE_SCROLL && overwrite_instead_of_scroll)
 			goto redraw_all;
 		set=NULL;
 		drv->vscroll(dev,&set,top+bottom);

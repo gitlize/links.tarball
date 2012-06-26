@@ -14,10 +14,6 @@
 #define SHOW_URL
 #endif
 
-int bookmarks_codepage=0;
-
-unsigned char bookmarks_file[MAX_STR_LEN]="";
-
 static struct stat bookmarks_st;
 
 static void *bookmark_new_item(void *);

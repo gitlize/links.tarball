@@ -39,9 +39,6 @@ struct decoded_image {
 static struct g_object_image *global_goi;
 struct cached_image *global_cimg;
 int end_callback_hit;
-#endif /* #ifdef G */
-int dither_images=1;
-#ifdef G
 
 static int is_image_size_sane(int x, int y)
 {

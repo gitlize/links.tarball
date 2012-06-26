@@ -216,32 +216,11 @@ __cdecl
 strtoq(const char *, char **, int);
 #endif
 
-#if defined(__hpux) && defined(__LP64__)
-#undef HAVE_SOCKLEN_T
-#endif
-
-#ifndef HAVE_SOCKLEN_T
-#define socklen_t int
-#endif
-
-#ifndef PF_INET
-#define PF_INET AF_INET
-#endif
-#ifndef PF_UNIX
-#define PF_UNIX AF_UNIX
-#endif
-
-#define my_intptr_t long
-
-#if defined(__GNUC__) && __GNUC__ >= 2
-#define PRINTF_FORMAT(a, b)	__attribute__((__format__(__printf__, a, b)))
-#else
-#define PRINTF_FORMAT(a, b)
-#endif
-
 #include "os_depx.h"
 
 #include "setup.h"
+
+#define LINKS_2
 
 #ifdef HAVE_POINTER_COMPARISON_BUG
 #define DUMMY ((void *)1L)
@@ -750,14 +729,36 @@ void set_sigcld(void);
 
 /* dns.c */
 
-typedef unsigned ip__address;
+#define MAX_ADDRESSES		64
 
-int numeric_ip_address(unsigned char *name, ip__address *host);
-int do_real_lookup(unsigned char *, ip__address *);
-int find_host(unsigned char *, ip__address *, void **, void (*)(void *, int), void *);
-int find_host_no_cache(unsigned char *, ip__address *, void **, void (*)(void *, int), void *);
+struct host_address {
+	int af;
+	unsigned char addr[16];
+	unsigned scope_id;
+};
+
+struct lookup_result {
+	int n;
+	struct host_address a[MAX_ADDRESSES];
+};
+
+#ifdef SUPPORT_IPV6
+extern int support_ipv6;
+#else
+#define support_ipv6	0
+#endif
+
+int numeric_ip_address(unsigned char *name, unsigned char *host);
+#ifdef SUPPORT_IPV6
+int numeric_ipv6_address(unsigned char *name, unsigned char *host, unsigned *scope_id);
+#endif
+void do_real_lookup(unsigned char *, int, struct lookup_result *);
+int find_host(unsigned char *, struct lookup_result *, void **, void (*)(void *, int), void *);
+int find_host_no_cache(unsigned char *, struct lookup_result *, void **, void (*)(void *, int), void *);
 void kill_dns_request(void **);
+void dns_set_priority(unsigned char *, struct host_address *, int);
 unsigned long dns_info(int type);
+int ipv6_full_access(void);
 void init_dns(void);
 
 /* cache.c */
@@ -852,6 +853,7 @@ struct connection {
 	void *dnsquery;
 	pid_t pid;
 	int tries;
+	tcount netcfg_stamp;
 	struct list_head statuss;
 	void *info;
 	void *buffer;
@@ -871,6 +873,8 @@ struct connection {
 	int no_tsl;
 #endif
 };
+
+extern tcount netcfg_stamp;
 
 extern struct list_head queue;
 
@@ -904,13 +908,14 @@ static inline int getpri(struct connection *c)
 #define S_WAIT		0
 #define S_DNS		1
 #define S_CONN		2
-#define S_SOCKS_NEG	3
-#define S_SSL_NEG	4
-#define S_SENT		5
-#define S_LOGIN		6
-#define S_GETH		7
-#define S_PROC		8
-#define S_TRANS		9
+#define S_CONN_ANOTHER	3
+#define S_SOCKS_NEG	4
+#define S_SSL_NEG	5
+#define S_SENT		6
+#define S_LOGIN		7
+#define S_GETH		8
+#define S_PROC		9
+#define S_TRANS		10
 
 #define S__OK			(-2000000000)
 #define S_INTERRUPTED		(-2000000001)
@@ -1052,11 +1057,15 @@ struct read_buffer {
 	unsigned char data[1];
 };
 
-int socket_and_bind(unsigned char *address);
+int socket_and_bind(int pf, unsigned char *address);
 void close_socket(int *);
 void make_connection(struct connection *, int, int *, void (*)(struct connection *));
 void continue_connection(struct connection *, int *, void (*)(struct connection *));
+int is_ipv6(int);
 int get_pasv_socket(struct connection *, int, int *, unsigned char *);
+#ifdef SUPPORT_IPV6
+int get_pasv_socket_ipv6(struct connection *, int, int *, unsigned char *);
+#endif
 void write_to_socket(struct connection *, int, unsigned char *, int, void (*)(struct connection *));
 struct read_buffer *alloc_read_buffer(struct connection *c);
 void read_from_socket(struct connection *, int, struct read_buffer *, void (*)(struct connection *, struct read_buffer *));
@@ -1465,19 +1474,9 @@ void shutdown_virtual_devices(void);
 #define FC_COLOR 0
 #define FC_BW 1
 
-extern unsigned long aspect, aspect_native; /* Must hold at least 20 bits */
-extern double bfu_aspect;
-extern int aspect_on;
-unsigned long fontcache_info(int type);
-
-#endif /* #ifdef G */
-
-extern double display_red_gamma,display_green_gamma,display_blue_gamma;
-extern double user_gamma;
-extern int menu_font_size;
 extern double sRGB_gamma;
-
-#ifdef G
+extern unsigned long aspect, aspect_native; /* Must hold at least 20 bits */
+unsigned long fontcache_info(int type);
 
 #define G_BFU_FONT_SIZE menu_font_size
 
@@ -1540,12 +1539,6 @@ struct font_cache_entry{
 	is -1 and mono_height is undefined. */
 };
 
-
-#endif
-
-extern int dither_letters;
-
-#ifdef G
 
 struct cached_image;
 
@@ -1624,17 +1617,11 @@ static inline long dip_get_color_sRGB(int rgb)
 void init_dip(void);
 void get_links_icon(unsigned char **data, int *width, int *height, int *skip, int pad);
 
-#endif
-
 /* links_icon.c */
 
-#ifdef G
 extern unsigned char links_icon[];
-#endif /* #ifdef G */
 
 /* dither.c */
-
-#ifdef G
 
 extern int slow_fpu;	/* -1 --- don't know, 0 --- no, 1 --- yes */
 
@@ -3137,7 +3124,6 @@ void js_downcall_vezmi_string(void *context, unsigned char *string);
 
 /* bfu.c */
 
-extern unsigned G_BFU_FG_COLOR, G_BFU_BG_COLOR, G_SCROLL_BAR_AREA_COLOR, G_SCROLL_BAR_BAR_COLOR, G_SCROLL_BAR_FRAME_COLOR;
 extern struct style *bfu_style_wb, *bfu_style_bw, *bfu_style_wb_b, *bfu_style_bw_u, *bfu_style_bw_mono, *bfu_style_wb_mono, *bfu_style_wb_mono_u;
 extern long bfu_bg_color, bfu_fg_color;
 
@@ -3291,6 +3277,7 @@ int check_hex_number(struct dialog_data *, struct dialog_item_data *);
 int check_float(struct dialog_data *, struct dialog_item_data *);
 int check_nonempty(struct dialog_data *, struct dialog_item_data *);
 int check_local_ip_address(struct dialog_data *, struct dialog_item_data *);
+int check_local_ipv6_address(struct dialog_data *, struct dialog_item_data *);
 void max_text_width(struct terminal *, unsigned char *, int *, int);
 void min_text_width(struct terminal *, unsigned char *, int *, int);
 int dlg_format_text(struct dialog_data *, struct terminal *, unsigned char *, int, int *, int, int *, int, int);
@@ -3378,11 +3365,7 @@ void really_exit_prog(struct session *ses);
 void query_exit(struct session *ses);
 
 #ifdef G
-
 extern tcount gamma_stamp;
-extern int display_optimize;	/*0=CRT, 1=LCD RGB, 2=LCD BGR */
-extern int gamma_bits;
-
 #endif
 
 /* charsets.c */
@@ -3656,9 +3639,6 @@ struct gif_decoder{
 };
 
 struct decoded_image;
-#endif
-extern int dither_images;
-#ifdef G
 extern int end_callback_hit;
 extern struct cached_image *global_cimg;
 
@@ -4148,11 +4128,12 @@ extern int first_use;
 
 extern int no_connect;
 extern int base_session;
-extern int force_html;
-
 #define D_DUMP		1
 #define D_SOURCE	2
 extern int dmp;
+extern int screen_width;
+extern int dump_codepage;
+extern int force_html;
 
 extern int max_connections;
 extern int max_connections_to_host;
@@ -4160,18 +4141,27 @@ extern int max_tries;
 extern int receive_timeout;
 extern int unrestartable_receive_timeout;
 extern unsigned char bind_ip_address[16];
+extern unsigned char bind_ipv6_address[INET6_ADDRSTRLEN];
 extern int async_lookup;
 extern int download_utime;
-
-extern int screen_width;
-extern int dump_codepage;
-
-extern struct document_setup dds;
 
 extern int max_format_cache_entries;
 extern int memory_cache_size;
 extern int image_cache_size;
 extern int font_cache_size;
+extern int aggressive_cache;
+
+struct ipv6_options {
+	int addr_preference;
+};
+
+#define ADDR_PREFERENCE_DEFAULT		0
+#define ADDR_PREFERENCE_IPV4		1
+#define ADDR_PREFERENCE_IPV6		2
+#define ADDR_PREFERENCE_IPV4_ONLY	3
+#define ADDR_PREFERENCE_IPV6_ONLY	4
+
+extern struct ipv6_options ipv6_options;
 
 #define REFERER_NONE			0
 #define REFERER_SAME_URL		1
@@ -4189,17 +4179,6 @@ struct proxies {
 };
 
 extern struct proxies proxies;
-
-#ifdef JS
-extern int js_enable;
-extern int js_verbose_errors;
-extern int js_verbose_warnings;
-extern int js_all_conversions;
-extern int js_global_resolve;
-#endif
-extern unsigned char download_dir[];
-
-extern int aggressive_cache;
 
 struct http_header_options {
 	int referer;
@@ -4223,15 +4202,43 @@ extern struct http_options http_options;
 
 struct ftp_options {
 	unsigned char anon_pass[MAX_STR_LEN];
-	int fast_ftp;
 	int passive_ftp;
+	int eprt_epsv;
+	int fast_ftp;
 	int set_tos;
 };
 
 extern struct ftp_options ftp_options;
 
-/* listedit.c */
+extern unsigned char download_dir[];
 
+#ifdef JS
+extern int js_enable;
+extern int js_verbose_errors;
+extern int js_verbose_warnings;
+extern int js_all_conversions;
+extern int js_global_resolve;
+#endif
+
+extern double display_red_gamma,display_green_gamma,display_blue_gamma;
+extern double user_gamma;
+extern double bfu_aspect;
+extern int aspect_on;
+extern int display_optimize;	/*0=CRT, 1=LCD RGB, 2=LCD BGR */
+extern int dither_letters;
+extern int dither_images;
+extern int gamma_bits;
+extern int overwrite_instead_of_scroll;
+
+extern int menu_font_size;
+extern unsigned G_BFU_FG_COLOR, G_BFU_BG_COLOR, G_SCROLL_BAR_AREA_COLOR, G_SCROLL_BAR_BAR_COLOR, G_SCROLL_BAR_FRAME_COLOR;
+
+extern unsigned char bookmarks_file[MAX_STR_LEN];
+extern int bookmarks_codepage;
+
+extern struct document_setup dds;
+
+/* listedit.c */
 
 #define TITLE_EDIT 0
 #define TITLE_ADD 1
@@ -4296,8 +4303,6 @@ void reinit_list_window(struct list_description *ld);	/* reinitializes list wind
 /* bookmarks.c */
 
 /* Where all bookmarks are kept */
-extern unsigned char bookmarks_file[];
-extern int bookmarks_codepage;
 extern struct list bookmarks;
 
 void finalize_bookmarks(void);   /* called, when exiting links */

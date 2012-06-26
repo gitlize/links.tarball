@@ -1656,7 +1656,7 @@ static void table_get_list(struct g_object_table *o, void (*fn)(struct g_object 
 
 void table_bg(struct text_attrib *ta, unsigned char bgstr[8])
 {
-	if (ta->bg.r + ta->bg.g * 3 + ta->bg.b * 5 > 9 * 128) strcpy(cast_char bgstr, "#000000");
+	if (ta->bg.r + ta->bg.g * 3 + ta->bg.b * 5 >= 9 * 128) strcpy(cast_char bgstr, "#000000");
 	else if (ta->fg.r > G_HTML_TABLE_FRAME_COLOR && ta->fg.g > G_HTML_TABLE_FRAME_COLOR && ta->fg.b > G_HTML_TABLE_FRAME_COLOR) {
 		unsigned char max = ta->fg.r;
 		if (ta->fg.g > max) max = ta->fg.g;

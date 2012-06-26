@@ -588,7 +588,7 @@ static void put_chars(void *p_, unsigned char *c, int l)
 		last_tag_for_newline = (void *)&p->data->tags;
 	}
 #ifdef ENABLE_UTF8
-	if (d_opt->cp == utf8_table) {
+	if (d_opt->cp == utf8_table && !(format.attr & AT_GRAPHICS)) {
 		int pl;
 		unsigned char *cc;
 		if (p->utf8_part_len) {
@@ -659,7 +659,7 @@ static void put_chars(void *p_, unsigned char *c, int l)
 		return;
 	}
 #ifdef ENABLE_UTF8
-	if (d_opt->cp == utf8_table) {
+	if (d_opt->cp == utf8_table && !(format.attr & AT_GRAPHICS)) {
 		set_hline_uni(p, p->cx, p->cy, ll, uni_c, ((fg&0x08)<<3)|(bg<<3)|(fg&0x07));
 	} else
 #endif

@@ -16,16 +16,6 @@
 #include <math.h>
 #endif /* HAVE_MATH_H */
 
-#endif
-int dither_letters=1;
-
-double user_gamma=1.0; /* 1.0 for 64 lx. This is the number user directly changes in the menu */
-			  
-double display_red_gamma=2.2; /* Red gamma exponent of the display */
-double display_green_gamma=2.2; /* Green gamma exponent of the display */
-double display_blue_gamma=2.2; /* Blue gamma exponent of the display */
-#ifdef G
-
 /* #define this if you want to report missing letters to stderr.
  * Leave it commented up for normal operation and releases! */
 /* #define REPORT_UNKNOWN 1 */
@@ -1050,9 +1040,9 @@ void apply_gamma_exponent_and_undercolor_64_to_48(unsigned short *dest,
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		/* To prevent segfaults in case of crappy floating arithmetics
 		 */
-		if (ri>=65536) ri=65535;
-		if (gi>=65536) gi=65535;
-		if (bi>=65536) bi=65535;
+		if (ri>=65535) ri=65535;
+		if (gi>=65535) gi=65535;
+		if (bi>=65535) bi=65535;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		if (((alpha+1U)&255U)>=2U){
 			calpha=65535U-alpha;
@@ -1130,21 +1120,21 @@ void apply_gamma_exponent_48_to_48(unsigned short *dest,
 		a=pow(a,red_gamma);
 		*dest=(a*65535)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (*dest>=0x10000) *dest=0xffff;
+		if (*dest>=0xffff) *dest=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		a=src[1];
 		a*=inv_65535;
 		a=pow(a,green_gamma);
 		dest[1]=(a*65535)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[1]>=0x10000) dest[1]=0xffff;
+		if (dest[1]>=0xffff) dest[1]=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		a=src[2];
 		a*=inv_65535;
 		a=pow(a,blue_gamma);
 		dest[2]=(a*65535)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[2]>=0x10000) dest[2]=0xffff;
+		if (dest[2]>=0xffff) dest[2]=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 	}
 }
@@ -1182,21 +1172,21 @@ void apply_gamma_exponent_24_to_48(unsigned short *dest, unsigned char *src, int
 		a=pow(a,red_gamma);
 		*dest=(a*65535)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (*dest>=0x10000) *dest=0xffff;
+		if (*dest>=0xffff) *dest=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		a=src[1];
 		a*=inv_255;
 		a=pow(a,green_gamma);
 		dest[1]=(a*65535)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[1]>=0x10000) dest[1]=0xffff;
+		if (dest[1]>=0xffff) dest[1]=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		a=src[2];
 		a*=inv_255;
 		a=pow(a,blue_gamma);
 		dest[2]=(a*65535)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[2]>=0x10000) dest[2]=0xffff;
+		if (dest[2]>=0xffff) dest[2]=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 	}
 }
@@ -1222,19 +1212,19 @@ void make_gamma_table(struct cached_image *cimg)
 			*ptr_16=65535*pow(((double)a)*inv,rg)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
 		/* To test against crappy arithmetics */
-			if (*ptr_16>=0x10000) *ptr_16=0xffff;
+			if (*ptr_16>=0xffff) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 		for (a=0;a<256;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,gg)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (*ptr_16>=0x10000) *ptr_16=0xffff;
+			if (*ptr_16>=0xffff) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 		for (a=0;a<256;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,bg)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (*ptr_16>=0x10000) *ptr_16=0xffff;
+			if (*ptr_16>=0xffff) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 	}else{
@@ -1245,19 +1235,19 @@ void make_gamma_table(struct cached_image *cimg)
 		for (a=0;a<0x10000;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,rg)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (*ptr_16>=0x10000) *ptr_16=0xffff;
+			if (*ptr_16>=0xffff) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 		for (a=0;a<0x10000;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,gg)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (*ptr_16>=0x10000) *ptr_16=0xffff;
+			if (*ptr_16>=0xffff) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 		for (a=0;a<0x10000;a++,ptr_16++){
 			*ptr_16=65535*pow(((double)a)*inv,bg)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (*ptr_16>=0x10000) *ptr_16=0xffff;
+			if (*ptr_16>=0xffff) *ptr_16=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 		}
 	}
@@ -1295,7 +1285,7 @@ unsigned short apply_gamma_single_8_to_16(unsigned char input, float gamma)
 	a*=65535;
 	retval = a+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (retval>=0x10000) retval=0xffff;
+			if (retval>=0xffff) retval=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 	return retval;
 }
@@ -1314,7 +1304,7 @@ unsigned short apply_gamma_single_16_to_16(unsigned short input, float gamma)
 	
 	retval = 65535*pow(((float)input)/65535,gamma)+0.5;
 #if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (retval>=0x10000) retval=0xffff;
+			if (retval>=0xffff) retval=0xffff;
 #endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
 	return retval;
 }

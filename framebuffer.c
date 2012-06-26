@@ -1034,6 +1034,15 @@ static void fb_show_cursor(void)
 	fb_print(seq_show_cursor);
 }
 
+static void fb_pan_display(void)
+{
+	int rs;
+	vi.xoffset=0;
+	vi.yoffset=0;
+	EINTRLOOP(rs, ioctl(fb_handler, FBIOPAN_DISPLAY, &vi));
+	/* don't check error */
+}
+
 static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore)
 {
 	unsigned char *e;
@@ -1192,6 +1201,9 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 	}
 	fb_colors=1<<fb_bits_pp;
 
+	/* we must pan before setting palette */
+	fb_pan_display();
+
 	if (fi.visual==FB_VISUAL_PSEUDOCOLOR && fb_colors <= 0x1000000) /* set palette */
 	{
 		have_cmap=1;
@@ -1216,19 +1228,6 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 
 	fb_linesize=fi.line_length;
 	fb_mem_size=fi.smem_len;
-
-	vi.xoffset=0;
-	vi.yoffset=0;
-	EINTRLOOP(rs, ioctl(fb_handler, FBIOPAN_DISPLAY, &vi));
-	if (rs==-1)
-	{
-	/* mikulas : nechodilo mi to, tak jsem tohle vyhodil a ono to chodi */
-		/*fb_shutdown_palette();
-		EINTRLOOP(rs, close(fb_handler));
-		fb_show_cursor();
-		return stracpy(cast_uchar "Cannot pan display.\n");
-		*/
-	}
 
 	if (init_virtual_devices(&fb_driver, NUMBER_OF_DEVICES)){
 		fb_shutdown_palette();
@@ -1625,7 +1624,6 @@ static int fb_block(struct graphics_device *dev)
 
 static int fb_unblock(struct graphics_device *dev)
 {
-	int rs;
 	if (current_virtual_device) {
 		return 0;
 	}
@@ -1633,9 +1631,7 @@ static int fb_unblock(struct graphics_device *dev)
 	if (svgalib_unblock_itrm(fb_kbd)) return -1;
 	fb_switch_init();
 	fb_hide_cursor();
-	vi.xoffset=0;
-	vi.yoffset=0;
-	EINTRLOOP(rs, ioctl(fb_handler, FBIOPAN_DISPLAY, &vi));
+	fb_pan_display();
 	current_virtual_device = fb_old_vd;
 	fb_old_vd = NULL;
 	if (have_cmap) set_palette(&global_pal);

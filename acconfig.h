@@ -68,6 +68,12 @@
 #undef HAVE_GETHOSTBYNAME_BUG
 
 /* */
+#undef SUPPORT_IPV6
+
+/* */
+#undef SUPPORT_IPV6_SCOPE
+
+/* */
 #undef DEBUGLEVEL
 
 /* */

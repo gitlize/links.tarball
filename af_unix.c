@@ -29,7 +29,7 @@ static void af_unix_connection(void *);
 union address {
 	struct sockaddr s;
 #ifdef USE_AF_UNIX
-	struct sockaddr_un sun;
+	struct sockaddr_un suni;
 #endif
 	struct sockaddr_in sin;
 	unsigned char buffer[ADDR_SIZE];
@@ -68,14 +68,14 @@ static int get_address(void)
 	if (!links_home) return -1;
 	path = stracpy(links_home);
 	add_to_strn(&path, cast_uchar LINKS_SOCK_NAME);
-	s_unix_l = (unsigned char *)&s_unix.sun.sun_path - (unsigned char *)&s_unix.sun + strlen(cast_const_char path) + 1;
+	s_unix_l = (unsigned char *)&s_unix.suni.sun_path - (unsigned char *)&s_unix.suni + strlen(cast_const_char path) + 1;
 	if (strlen(cast_const_char path) > sizeof(union address) || (size_t)s_unix_l > sizeof(union address)) {
 		mem_free(path);
 		return -1;
 	}
 	memset(&s_unix, 0, sizeof s_unix);
-	s_unix.sun.sun_family = AF_UNIX;
-	strcpy(cast_char s_unix.sun.sun_path, cast_const_char path);
+	s_unix.suni.sun_family = AF_UNIX;
+	strcpy(cast_char s_unix.suni.sun_path, cast_const_char path);
 	mem_free(path);
 	return PF_UNIX;
 }
@@ -83,8 +83,8 @@ static int get_address(void)
 static void unlink_unix(void)
 {
 	int rs;
-	/*debug("unlink: %s", s_unix.sun.sun_path);*/
-	EINTRLOOP(rs, unlink(s_unix.sun.sun_path));
+	/*debug("unlink: %s", s_unix.suni.sun_path);*/
+	EINTRLOOP(rs, unlink(s_unix.suni.sun_path));
 	if (rs) {
 		/*perror("unlink");*/
 	}

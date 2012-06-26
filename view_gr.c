@@ -569,7 +569,7 @@ void draw_graphical_doc(struct terminal *t, struct f_data_c *scr, int active)
 	if (scr->vsb && scr->hsb) drv->fill_area(t->dev, scr->xp + xw - G_SCROLL_BAR_WIDTH, scr->yp + yw - G_SCROLL_BAR_WIDTH, scr->xp + xw, scr->yp + yw, scroll_bar_frame_color);
 	restrict_clip_area(t->dev, NULL, scr->xp, scr->yp, scr->xp + xw - scr->vsb * G_SCROLL_BAR_WIDTH, scr->yp + yw - scr->hsb * G_SCROLL_BAR_WIDTH);
 	/*debug("buu: %d %d %d, %d %d %d", scr->xl, vx, xw, scr->yl, vy, yw);*/
-	if (drv->flags & GD_DONT_USE_SCROLL) goto rrr;
+	if (drv->flags & GD_DONT_USE_SCROLL && overwrite_instead_of_scroll) goto rrr;
 	if (scr->xl == -1 || scr->yl == -1) goto rrr;
 	if (is_rect_valid(&scr->ses->win->redr)) goto rrr;
 	if (scr->xl - vx > xw || vx - scr->xl > xw ||
