@@ -78,9 +78,9 @@ static void add_xnum_to_str(unsigned char **s, int *l, off_t n)
 {
 	unsigned char suff = 0;
 	int d = -1;
-	if (n >= 1000000000) suff = 'G', d = (n / 100000000) % 10, n /= 1000000000;
-	else if (n >= 1000000) suff = 'M', d = (n / 100000) % 10, n /= 1000000;
-	else if (n >= 1000) suff = 'k', d = (n / 100) % 10, n /= 1000;
+	if (n >= 1000000000) suff = 'G', d = (int)((n / 100000000) % 10), n /= 1000000000;
+	else if (n >= 1000000) suff = 'M', d = (int)((n / 100000) % 10), n /= 1000000;
+	else if (n >= 1000) suff = 'k', d = (int)((n / 100) % 10), n /= 1000;
 	add_num_to_str(s, l, n);
 	if (n < 10 && d != -1) add_chr_to_str(s, l, '.'), add_num_to_str(s, l, d);
 	add_chr_to_str(s, l, ' ');
@@ -131,8 +131,9 @@ void change_screen_status(struct session *ses)
 		struct f_data_c *fd = current_frame(ses);
 		if (fd->rq) stat = &fd->rq->stat;
 		if (stat && stat->state == S__OK && fd->af) {
+			unsigned count = 0;
 			struct additional_file *af;
-			foreach(af, fd->af->af) {
+			foreachback(af, fd->af->af) {
 				if (af->rq && af->rq->stat.state >= 0) {
 					if (af->rq->stat.state > stat->state ||
 					    (af->rq->stat.state == S_TRANS &&
@@ -141,6 +142,10 @@ void change_screen_status(struct session *ses)
 					     stat->prg->pos))
 						stat = &af->rq->stat;
 				}
+				count++;
+				/* avoid too high cpu consumption */
+				if (count >= 100 && stat->state >= 0 && stat->state != S_WAIT)
+					break;
 			}
 		}
 	}
@@ -163,10 +168,10 @@ static void x_print_screen_status(struct terminal *term, struct session *ses)
 {
 	unsigned char *m;
 	if (!F) {
-		int color = (ses->ds.t_background_color << 3) | (ses->ds.t_text_color & 7) | ((ses->ds.t_text_color & 8) << 3);
+		unsigned char color = get_attribute(ses->ds.t_text_color, ses->ds.t_background_color);
 		if (!term->spec->col) color = COLOR_TITLE;
 		fill_area(term, 0, term->y - 1, term->x, 1, ' ', color);
-		if (ses->st) print_text(term, 0, term->y - 1, strlen(cast_const_char ses->st), ses->st, COLOR_STATUS);
+		if (ses->st) print_text(term, 0, term->y - 1, (int)strlen(cast_const_char ses->st), ses->st, COLOR_STATUS);
 		fill_area(term, 0, 0, term->x, 1, ' ', color);
 		if ((m = print_current_title(ses))) {
 			int p = term->x - 1 - cp_len(ses->term->spec->charset, m);
@@ -222,7 +227,7 @@ void print_error_dialog(struct session *ses, struct status *stat, unsigned char 
 	unsigned char *pc;
 	if ((pc = cast_uchar strchr(cast_const_char u, POST_CHAR))) *pc = 0;
 	if (!t) return;
-	msg_box(ses->term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), cast_uchar " ", u, cast_uchar ":\n\n", t, NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC/*, _("Retry"), NULL, 0 !!! FIXME: retry */);
+	msg_box(ses->term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), cast_uchar " ", u, cast_uchar ":\n\n", t, NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC /*, _("Retry"), NULL, 0 !!! FIXME: retry */);
 }
 
 static inline unsigned char hx(int a)
@@ -273,14 +278,20 @@ static struct session *get_download_ses(struct download *down)
 	return NULL;
 }
 
-static void close_download_file(struct download *down)
+static int close_download_file(struct download *down)
 {
 	int rs;
 	if (down->handle != -1) {
+#ifndef OPENVMS
+	/* a bug in OpenVMS ... the process hangs if quota is exceeded
+	   and ftruncate + close is executed */
 		EINTRLOOP(rs, ftruncate(down->handle, down->last_pos - down->file_shift));
+#endif
 		EINTRLOOP(rs, close(down->handle));
 		down->handle = -1;
+		if (rs) return -1;
 	}
+	return 0;
 }
 
 static void delete_download_file(struct download *down)
@@ -505,7 +516,7 @@ void download_window_function(struct dialog_data *dlg)
 			set_only_char(term, x + p + 1, y, ']', 0);
 			fill_area(term, x + 1, y, download_meter(p, stat), 1, CHAR_DIALOG_METER, COLOR_DIALOG_METER);
 			q = download_percentage(down, 1);
-			print_text(term, x + p + 2, y, strlen(cast_const_char q), q, COLOR_DIALOG_TEXT);
+			print_text(term, x + p + 2, y, (int)strlen(cast_const_char q), q, COLOR_DIALOG_TEXT);
 			mem_free(q);
 			y++;
 #ifdef G
@@ -577,6 +588,7 @@ void display_download(struct terminal *term, struct download *down, struct sessi
 
 time_t parse_http_date(unsigned char *date)	/* this functions is bad !!! */
 {
+#ifdef HAVE_MKTIME
 	static unsigned char *months[12] = {
 		cast_uchar "Jan",
 		cast_uchar "Feb", 
@@ -687,6 +699,19 @@ time_t parse_http_date(unsigned char *date)	/* this functions is bad !!! */
 	t = mktime(&tm);
 	if (t == (time_t) -1) return 0;
 	return t;
+#else
+	return 0;
+#endif
+}
+
+
+static void download_file_error(struct download *down, int err)
+{
+	if (get_download_ses(down)) {
+		unsigned char *emsg = stracpy(err ? cast_uchar strerror(err) : cast_uchar "Zero returned");
+		unsigned char *msg = stracpy(down->file);
+		msg_box(get_download_ses(down)->term, getml(msg, emsg, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_COULD_NOT_WRITE_TO_FILE), cast_uchar " ", msg, cast_uchar ": ", emsg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+	}
 }
 
 static int download_write(struct download *down, void *ptr, off_t to_write)
@@ -706,7 +731,10 @@ static int download_write(struct download *down, void *ptr, off_t to_write)
 				goto try_write_again;
 			}
 			if (down->last_pos == down->file_shift) goto no_e2big;
-			close_download_file(down);
+			if (close_download_file(down)) {
+				download_file_error(down, errno);
+				return -1;
+			}
 			increase_download_file(&down->file);
 			if ((down->handle = create_download_file(get_download_ses(down), down->cwd, down->file, 0, down->last_pos - down->file_shift)) < 0) return -1;
 			down->file_shift = down->last_pos;
@@ -714,11 +742,7 @@ static int download_write(struct download *down, void *ptr, off_t to_write)
 			no_e2big:;
 		}
 #endif
-		if (get_download_ses(down)) {
-			unsigned char *emsg = stracpy(err ? cast_uchar strerror(err) : cast_uchar "Zero returned");
-			unsigned char *msg = stracpy(down->file);
-			msg_box(get_download_ses(down)->term, getml(msg, emsg, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_COULD_NOT_WRITE_TO_FILE), cast_uchar " ", msg, cast_uchar ": ", emsg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
-		}
+		download_file_error(down, err);
 		return -1;
 	}
 	down->last_pos += w;
@@ -744,7 +768,7 @@ static void download_data(struct status *stat, struct download *down)
 			if (down->redirect_cnt++ < MAX_REDIRECTS) {
 				unsigned char *u, *p, *pos;
 				unsigned char *prev_down_url;
-				int cache;
+				int cache, allow_flags;
 				if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
 				u = join_urls(down->url, ce->redirect);
 				u = translate_hashbang(u);
@@ -761,8 +785,9 @@ static void download_data(struct status *stat, struct download *down)
 				}
 				cache = NC_CACHE;
 				if (!strcmp(cast_const_char down->url, cast_const_char prev_down_url) || down->redirect_cnt >= MAX_CACHED_REDIRECTS) cache = NC_RELOAD;
+				allow_flags = get_allow_flags(prev_down_url);
 				mem_free(prev_down_url);
-				load_url(down->url, NULL, &down->stat, PRI_DOWNLOAD, cache, 1, down->last_pos);
+				load_url(down->url, NULL, &down->stat, PRI_DOWNLOAD, cache, 1, allow_flags, down->last_pos);
 				return;
 			} else {
 				if (stat->state >= 0) change_connection(&down->stat, NULL, PRI_CANCEL);
@@ -771,24 +796,32 @@ static void download_data(struct status *stat, struct download *down)
 			}
 		}
 	}
-	if (!down->decompress) foreach(frag, ce->frag) while (frag->offset <= down->last_pos && frag->offset + frag->length > down->last_pos) {
+	if (!down->decompress) {
+		foreachback(frag, ce->frag)
+			if (frag->offset <= down->last_pos)
+				goto have_frag;
+		foreach(frag, ce->frag) {
+have_frag:
+			while (frag->offset <= down->last_pos && frag->offset + frag->length > down->last_pos) {
 #ifdef HAVE_OPEN_PREALLOC
-		if (!down->last_pos && !strcmp(cast_const_char down->file, cast_const_char down->orig_file) && (!down->stat.prg || down->stat.prg->size > 0)) {
-			struct stat st;
-			int rs;
-			EINTRLOOP(rs, fstat(down->handle, &st));
-			if (rs || !S_ISREG(st.st_mode)) goto skip_prealloc;
-			close_download_file(down);
-			delete_download_file(down);
-			if ((down->handle = create_download_file(get_download_ses(down), down->cwd, down->file, !down->prog ? CDF_EXCL : CDF_RESTRICT_PERMISSION | CDF_EXCL, down->stat.prg ? down->stat.prg->size : ce->length)) < 0) goto det_abt;
-			skip_prealloc:;
-		}
+				if (!down->last_pos && !strcmp(cast_const_char down->file, cast_const_char down->orig_file) && (!down->stat.prg || down->stat.prg->size > 0)) {
+					struct stat st;
+					int rs;
+					EINTRLOOP(rs, fstat(down->handle, &st));
+					if (rs || !S_ISREG(st.st_mode)) goto skip_prealloc;
+					close_download_file(down);
+					delete_download_file(down);
+					if ((down->handle = create_download_file(get_download_ses(down), down->cwd, down->file, !down->prog ? CDF_EXCL : CDF_RESTRICT_PERMISSION | CDF_EXCL, down->stat.prg ? down->stat.prg->size : ce->length)) < 0) goto det_abt;
+					skip_prealloc:;
+				}
 #endif
-		if (download_write(down, frag->data + (down->last_pos - frag->offset), frag->length - (down->last_pos - frag->offset))) {
-			det_abt:
-			detach_connection(stat, down->last_pos);
-			abort_download(down);
-			return;
+				if (download_write(down, frag->data + (down->last_pos - frag->offset), frag->length - (down->last_pos - frag->offset))) {
+					det_abt:
+					detach_connection(stat, down->last_pos);
+					abort_download(down);
+					return;
+				}
+			}
 		}
 	}
 	if (!down->decompress) detach_connection(stat, down->last_pos);
@@ -809,28 +842,44 @@ static void download_data(struct status *stat, struct download *down)
 			if (t) {
 				unsigned char *tt = stracpy(down->url);
 				if (strchr(cast_const_char tt, POST_CHAR)) *cast_uchar strchr(cast_const_char tt, POST_CHAR) = 0;
-				msg_box(get_download_ses(down)->term, getml(tt, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DOWNLOADING), cast_uchar " ", tt, cast_uchar ":\n\n", t, NULL, get_download_ses(down), 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC/*, TEXT_(T_RETRY), NULL, 0 !!! FIXME: retry */);
+				msg_box(get_download_ses(down)->term, getml(tt, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DOWNLOADING), cast_uchar " ", tt, cast_uchar ":\n\n", t, NULL, get_download_ses(down), 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC /*, TEXT_(T_RETRY), NULL, 0 !!! FIXME: retry */);
 			}
 		} else {
-			if (down->prog) {
-				close_download_file(down);
+			if (close_download_file(down)) {
+				download_file_error(down, errno);
+			} else if (down->prog) {
 				exec_on_terminal(get_download_ses(down)->term, down->prog, down->orig_file, !!down->prog_flag_block);
 				mem_free(down->prog), down->prog = NULL;
 			} else if (down->remotetime && download_utime) {
-				struct utimbuf foo;
+#if defined(HAVE_UTIME) || defined(HAVE_UTIMES)
+#ifdef HAVE_UTIMES
+				struct timeval utv[2];
+#else
+				struct utimbuf ut;
+#endif
 				unsigned char *file = stracpy(down->orig_file);
 				unsigned char *wd = get_cwd();
 				set_cwd(down->cwd);
-				foo.actime = foo.modtime = down->remotetime;
+#ifdef HAVE_UTIMES
+				utv[0].tv_usec = utv[1].tv_usec = 0;
+				utv[0].tv_sec = utv[1].tv_sec = down->remotetime;
+#else
+				ut.actime = ut.modtime = down->remotetime;
+#endif
 				while (1) {
 					unsigned char *f = translate_download_file(file);
-					EINTRLOOP(rs, utime(cast_const_char f, &foo));
+#ifdef HAVE_UTIMES
+					EINTRLOOP(rs, utimes(cast_char f, utv));
+#else
+					EINTRLOOP(rs, utime(cast_const_char f, &ut));
+#endif
 					mem_free(f);
 					if (!strcmp(cast_const_char file, cast_const_char down->file)) break;
 					increase_download_file(&file);
 				}
 				mem_free(file);
 				if (wd) set_cwd(wd), mem_free(wd);
+#endif
 			}
 		}
 		abort_download(down);
@@ -995,7 +1044,7 @@ static unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
 #endif
 	nm = cast_uchar tempnam(cast_const_char directory, "links");
 	if (!nm) return NULL;
-#ifdef OS2
+#ifdef DOS_FS_8_3
 	if (strlen(cast_const_char nm) > 4 && !strcasecmp(cast_const_char(nm + strlen(cast_const_char nm) - 4), ".tmp")) nm[strlen(cast_const_char nm) - 4] = 0;
 #endif
 	name = init_str();
@@ -1003,14 +1052,14 @@ static unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
 	add_to_str(&name, &nl, nm);
 	free(nm);
 	fn = get_filename_from_url(url, head, 1);
-#ifndef OS2
+#ifndef DOS_FS_8_3
 	fnx = cast_uchar strchr(cast_const_char fn, '.');
 #else
 	fnx = cast_uchar strrchr(cast_const_char fn, '.');
 #endif
 	if (fnx) {
 		unsigned char *s;
-#ifdef OS2
+#ifdef DOS_FS_8_3
 		if (strlen(cast_const_char fnx) > 4) fnx[4] = 0;
 #endif
 		s = stracpy(fnx);
@@ -1078,7 +1127,7 @@ void start_download(struct session *ses, unsigned char *file, int mode)
 	down->ses = ses;
 	down->remotetime = 0;
 	add_to_list(downloads, down);
-	load_url(url, NULL, &down->stat, PRI_DOWNLOAD, NC_CACHE, 1, down->last_pos);
+	load_url(url, NULL, &down->stat, PRI_DOWNLOAD, NC_CACHE, 1, ses->dn_allow_flags, down->last_pos);
 	display_download(ses->term, down, ses);
 }
 
@@ -1198,7 +1247,7 @@ static void f_data_attach(struct f_data_c *fd, struct f_data *f)
 				af->rq->upcall = (void (*)(struct object_request *, void *))fd_loaded;
 				af->rq->data = fd;
 			} else {
-				request_object(fd->ses->term, af->url, f->rq->url, PRI_IMG, NC_CACHE, f->rq->upcall, f->rq->data, &af->rq);
+				request_object(fd->ses->term, af->url, f->rq->url, PRI_IMG, NC_CACHE, get_allow_flags(f->rq->url), f->rq->upcall, f->rq->data, &af->rq);
 			}
 		}
 	}
@@ -1254,17 +1303,19 @@ static int shrink_format_cache(int u)
 	static int sc = 0;
 	int scc;
 	int r = 0;
-	struct f_data *f;
 	int c = 0;
 	struct session *ses;
-	foreach(ses, sessions) foreach(f, ses->format_cache) {
-		if (u == SH_FREE_ALL || !is_format_cache_entry_uptodate(f)) {
-			struct f_data *ff = f;
-			f = f->prev;
-			del_from_list(ff);
-			destroy_formatted(ff);
-			r |= ST_SOMETHING_FREED;
-		} else c++;
+	foreach(ses, sessions) {
+		struct f_data *f;
+		foreach(f, ses->format_cache) {
+			if (u == SH_FREE_ALL || !is_format_cache_entry_uptodate(f)) {
+				struct f_data *ff = f;
+				f = f->prev;
+				del_from_list(ff);
+				destroy_formatted(ff);
+				r |= ST_SOMETHING_FREED;
+			} else c++;
+		}
 	}
 	if (c > max_format_cache_entries || (c && u == SH_FREE_SOMETHING)) {
 		int sc_cycle = 0;
@@ -1272,16 +1323,14 @@ static int shrink_format_cache(int u)
 		a:
 		scc = sc++;
 		foreach (ses, sessions) if (!scc--) {
-			foreachback(f, ses->format_cache) {
-				struct f_data *ff = f;
-				f = f->next;
+			if (!list_empty(ses->format_cache)) {
+				struct f_data *ff = ses->format_cache.prev;
 				del_from_list(ff);
 				destroy_formatted(ff);
 				r |= ST_SOMETHING_FREED;
 				if (--c <= max_format_cache_entries ||
 				    u == SH_FREE_SOMETHING) goto ret;
 				freed_in_cycle = 1;
-				goto a;
 			}
 			goto a;
 		}
@@ -1431,8 +1480,11 @@ static void create_new_frames(struct f_data_c *fd, struct frameset_desc *fs, str
 				nfdc->f_data->frame_desc = copy_frameset_desc(frm->subframe);
 				nfdc->f_data->frame_desc_link = 1;
 			} else {
-				if (fd->depth < HTML_MAX_FRAME_DEPTH && loc->url && *loc->url)
-					request_object(fd->ses->term, loc->url, fd->loc->url, PRI_FRAME, NC_CACHE, (void (*)(struct object_request *, void *))fd_loaded, nfdc, &nfdc->rq);
+				if (fd->depth < HTML_MAX_FRAME_DEPTH && loc->url && *loc->url) {
+					struct f_data_c *rel = fd;
+					while (rel->parent && !rel->rq) rel = rel->parent;
+					request_object(fd->ses->term, loc->url, rel->rq ? rel->rq->url : NULL, PRI_FRAME, NC_CACHE, rel->rq ? get_allow_flags(rel->rq->url) : 0, (void (*)(struct object_request *, void *))fd_loaded, nfdc, &nfdc->rq);
+				}
 			}
 			xp += frm->xw + gf_val(1, 0);
 			frm++;
@@ -1450,9 +1502,11 @@ static void html_interpret(struct f_data_c *fd)
 	int cch;
 	/*int first = !fd->f_data;*/
 	struct document_options o;
+#ifdef JS
 	struct js_event_spec *doc_js;
 	struct js_event_spec **link_js;
 	int nlink_js;
+#endif
 	if (!fd->loc) goto d;
 	if (fd->f_data) {
 		oxw = fd->f_data->opt.xw;
@@ -1473,10 +1527,8 @@ static void html_interpret(struct f_data_c *fd)
 	o.js_enable=0;
 #endif
 #ifdef G
-	o.aspect_on=aspect_on;
 	o.bfu_aspect=bfu_aspect;
 #else
-	o.aspect_on=0;
 	o.bfu_aspect=0;
 #endif
 	o.plain = fd->vs->plain;
@@ -1515,6 +1567,7 @@ static void html_interpret(struct f_data_c *fd)
 		o.braille = 0;
 	}
 	if (!(o.framename = fd->loc->name)) o.framename = NULL;
+#ifdef JS
 	doc_js = NULL;
 	link_js = DUMMY;
 	nlink_js = 0;
@@ -1526,12 +1579,16 @@ static void html_interpret(struct f_data_c *fd)
 		for (i = 0; i < fd->f_data->nlinks; i++) copy_js_event_spec(&link_js[i], fd->f_data->links[i].js_event);
 		for (; i < fd->f_data->nlink_events; i++) copy_js_event_spec(&link_js[i], fd->f_data->link_events[i]);
 	}
+#endif
 	if (!(fd->f_data = cached_format_html(fd, fd->rq, fd->rq->url, &o, &cch))) {
+#ifdef JS
 		for (i = 0; i < nlink_js; i++) free_js_event_spec(link_js[i]);
 		mem_free(link_js);
 		free_js_event_spec(doc_js);
+#endif
 		goto d;
 	}
+#ifdef JS
 	if (join_js_event_spec(&fd->f_data->js_event, doc_js)) fd->f_data->uncacheable = 1;
 	for (i = 0; i < fd->f_data->nlink_events; i++) free_js_event_spec(fd->f_data->link_events[i]);
 	mem_free(fd->f_data->link_events);
@@ -1539,6 +1596,7 @@ static void html_interpret(struct f_data_c *fd)
 	fd->f_data->nlink_events = nlink_js;
 	for (i = 0; i < fd->f_data->nlinks && i < nlink_js; i++) if (join_js_event_spec(&fd->f_data->links[i].js_event, link_js[i])) fd->f_data->uncacheable = 1;
 	free_js_event_spec(doc_js);
+#endif
 
 	/* erase frames if changed */
 	i = 0;
@@ -1598,7 +1656,7 @@ struct additional_file *request_additional_file(struct f_data *f, unsigned char 
 	if (!strcmp(cast_const_char url, cast_const_char f->rq->url))
 		clone_object(f->rq, &af->rq);
 	else
-		request_object(f->ses->term, url, f->rq->url, PRI_IMG, NC_CACHE, f->rq->upcall, f->rq->data, &af->rq);
+		request_object(f->ses->term, url, f->rq->url, PRI_IMG, NC_CACHE, get_allow_flags(f->rq->url), f->rq->upcall, f->rq->data, &af->rq);
 	af->need_reparse = 0;
 	af->unknown_image_size = 0;
 	add_to_list(f->af->af, af);
@@ -1629,8 +1687,8 @@ static void copy_additional_files(struct additional_files **a)
 static void image_timer(struct f_data_c *fd)
 {
 	struct image_refresh *ir;
-	struct list_head new;
-	struct list_head *newp = do_not_optimize_here(&new);
+	struct list_head neww;
+	struct list_head *newp = do_not_optimize_here(&neww);
 	init_list(*newp);
 	fd->image_timer = -1;
 	if (!fd->f_data) return;
@@ -1732,6 +1790,12 @@ struct f_data_c *create_f_data_c(struct session *ses, struct f_data_c *parent)
 	return fd;
 }
 
+int f_data_c_allow_flags(struct f_data_c *fd)
+{
+	if (fd->rq) return get_allow_flags(fd->rq->url);
+	return 0;
+}
+
 static int plain_type(struct session *ses, struct object_request *rq, unsigned char **p)
 {
 	struct cache_entry *ce;
@@ -1810,10 +1874,12 @@ void fd_loaded(struct object_request *rq, struct f_data_c *fd)
 		/* it may happen that html_interpret requests load of additional file */
 		if (!f_is_finished(fd->f_data)) goto more_data;
 fn:
+#ifdef JS
 		if (fd->f_data->are_there_scripts) {
 			jsint_scan_script_tags(fd);
 			if (!f_is_finished(fd->f_data)) goto more_data;
 		}
+#endif
 		fd->done = 1;
 		fd->parsed_done = 0;
 		if (fd->f_data->refresh) {
@@ -1891,11 +1957,11 @@ static struct location *alloc_ses_location(struct session *ses)
 	return loc;
 }
 
-static void subst_location(struct f_data_c *fd, struct location *old, struct location *new)
+static void subst_location(struct f_data_c *fd, struct location *old, struct location *neww)
 {
 	struct f_data_c *f;
-	foreach(f, fd->subframes) subst_location(f, old, new);
-	if (fd->loc == old) fd->loc = new;
+	foreach(f, fd->subframes) subst_location(f, old, neww);
+	if (fd->loc == old) fd->loc = neww;
 }
 
 static struct location *copy_sublocations(struct session *ses, struct location *d, struct location *s, struct location *x)
@@ -2424,11 +2490,6 @@ static inline int any_running_scripts(struct f_data_c *fd)
 	if (!fd->js) return 0;
 	return (fd->js->active) || (!list_empty(fd->js->queue));
 }
-#else
-static inline int any_running_scripts(struct f_data_c *fd)
-{
-	return 0;
-}
 #endif
 
 /* if from_goto_dialog is 1, set prev_url to NULL */
@@ -2437,7 +2498,7 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 	unsigned char *u, *pos;
 	unsigned char *prev_url;
 	void (*fn)(struct session *, unsigned char *);
-	int reloadlevel;
+	int reloadlevel, allow_flags;
 	if (!state2) state2 = ses_go_to_2nd_state;
 #ifdef JS
 	if (ses->defered_url && defer && any_running_scripts(ses->screen)) return;
@@ -2494,7 +2555,12 @@ void goto_url_f(struct session *ses, void (*state2)(struct session *), unsigned 
 		if (!fd) fd = ses->screen;
 		if (fd && fd->rq && !strcmp(cast_const_char fd->rq->url, cast_const_char u)) reloadlevel = NC_ALWAYS_CACHE;
 	}
-	request_object(ses->term, u, prev_url, PRI_MAIN, reloadlevel, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);
+
+	if (from_goto_dialog) allow_flags = ALLOW_ALL;
+	else if (df && df->rq) allow_flags = get_allow_flags(df->rq->url);
+	else allow_flags = 0;
+
+	request_object(ses->term, u, prev_url, PRI_MAIN, reloadlevel, allow_flags, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);
 	mem_free(u);
 }
 
@@ -2505,9 +2571,9 @@ void goto_url(struct session *ses, unsigned char *url)
 }
 
 /* this one sends referer */
-void goto_url_not_from_dialog(struct session *ses, unsigned char *url)
+void goto_url_not_from_dialog(struct session *ses, unsigned char *url, struct f_data_c *df)
 {
-	goto_url_f(ses, NULL, url, NULL, NULL, -1, 0, 0, 0);
+	goto_url_f(ses, NULL, url, cast_uchar "_top", df, -1, 0, 0, 0);
 }
 
 static void ses_imgmap(struct session *ses)
@@ -2524,18 +2590,18 @@ static void ses_imgmap(struct session *ses)
 		ses_abort_1st_state_loading(ses);
 		return;
 	}
-	add_empty_window(ses->term, (void (*)(void *))freeml, ml);
-	do_menu(ses->term, menu, ses);
+	/*add_empty_window(ses->term, (void (*)(void *))freeml, ml);*/
+	do_menu_selected(ses->term, menu, ses, 0, (void (*)(void *))freeml, ml);
 	ses_abort_1st_state_loading(ses);
 }
 
-void goto_imgmap(struct session *ses, unsigned char *url, unsigned char *href, unsigned char *target)
+void goto_imgmap(struct session *ses, struct f_data_c *fd, unsigned char *url, unsigned char *href, unsigned char *target)
 {
 	if (ses->imgmap_href_base) mem_free(ses->imgmap_href_base);
 	ses->imgmap_href_base = href;
 	if (ses->imgmap_target_base) mem_free(ses->imgmap_target_base);
 	ses->imgmap_target_base = target;
-	goto_url_f(ses, ses_imgmap, url, NULL, NULL, -1, 0, 0, 0);
+	goto_url_f(ses, ses_imgmap, url, NULL, fd, -1, 0, 0, 0);
 }
 
 void map_selected(struct terminal *term, struct link_def *ld, struct session *ses)
@@ -2543,7 +2609,7 @@ void map_selected(struct terminal *term, struct link_def *ld, struct session *se
 	int x = 0;
 	if (ld->onclick) {
 		struct f_data_c *fd = current_frame(ses);
-		jsint_execute_code(fd, ld->onclick, strlen(cast_const_char ld->onclick), -1, -1, -1, NULL);
+		jsint_execute_code(fd, ld->onclick, (int)strlen(cast_const_char ld->onclick), -1, -1, -1, NULL);
 		x = 1;
 	}
 	if (ld->link) goto_url_f(ses, NULL, ld->link, ld->target, current_frame(ses), -1, x, 0, 0);
@@ -2576,7 +2642,7 @@ void go_back(struct session *ses, int num_steps)
 	have_loc:
 	ses->wtd = ses_go_back_to_2nd_state;
 	ses->wtd_num_steps = num_steps;
-	request_object(ses->term, loc->url, loc->prev_url, PRI_MAIN, NC_ALWAYS_CACHE, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);
+	request_object(ses->term, loc->url, loc->prev_url, PRI_MAIN, NC_ALWAYS_CACHE, ALLOW_ALL, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);
 }
 
 static void reload_frame(struct f_data_c *fd, int no_cache)
@@ -2594,7 +2660,7 @@ static void reload_frame(struct f_data_c *fd, int no_cache)
 	u = stracpy(fd->rq->url);
 	release_object(&fd->rq);
 	if (fd->f_data) release_object(&fd->f_data->rq);
-	request_object(fd->ses->term, u, NULL, PRI_MAIN, no_cache, (void (*)(struct object_request *, void *))fd_loaded, fd, &fd->rq);
+	request_object(fd->ses->term, u, NULL, PRI_MAIN, no_cache, ALLOW_ALL, (void (*)(struct object_request *, void *))fd_loaded, fd, &fd->rq);
 	if (fd->f_data) clone_object(fd->rq, &fd->f_data->rq);
 	fd->next_update = get_time();
 	fd->done = 0;
@@ -2609,7 +2675,6 @@ void reload(struct session *ses, int no_cache)
 	if (no_cache == -1) no_cache = ++ses->reloadlevel;
 	else ses->reloadlevel = no_cache;
 	reload_frame(ses->screen, no_cache);
-	/*request_object(ses->term, cur_loc(ses)->url, cur_loc(ses)->prev_url, PRI_MAIN, no_cache, (void (*)(struct object_request *, void *))ses_finished_1st_state, ses, &ses->rq);*/
 }
 
 static void set_doc_view(struct session *ses)
@@ -2661,11 +2726,11 @@ void *create_session_info(int cp, unsigned char *url, unsigned char *framename, 
 	int *i;
 	if (l > MAXINT || l1 > MAXINT) overalloc();
 	if (framename && !strcmp(cast_const_char framename, "_blank")) l1 = 0;
-	*ll = 3 * sizeof(int) + l + l1;
+	*ll = (int)(3 * sizeof(int) + l + l1);
 	i = mem_alloc(3 * sizeof(int) + l + l1);
 	i[0] = cp;
-	i[1] = l;
-	i[2] = l1;
+	i[1] = (int)l;
+	i[2] = (int)l1;
 	memcpy(i + 3, url, l);
 	if (l1) memcpy((unsigned char*)(i + 3) + l, framename, l1);
 	return i;

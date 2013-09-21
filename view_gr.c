@@ -87,7 +87,7 @@ static int g_find_text_pos(struct g_object_text *t, int x)
 		w=g_char_width(t->style, c);
 		if (x < (p + (w >> 1))) break;
 		p += w;
-		i += text - old_text;
+		i += (int)(text - old_text);
 		if (p >= x) break;
 	}
 	return i;
@@ -112,7 +112,7 @@ static int prepare_input_field_char(unsigned char *p, unsigned char tx[7])
 	if (un == 0xad) un = '-';
 	en = encode_utf_8(un);
 	strcpy(cast_char tx, cast_const_char en);
-	return p - pp;
+	return (int)(p - pp);
 }
 
 void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
@@ -172,20 +172,20 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				if (fs->state >= fs->vpos + form->size) fs->vpos = fs->state - form->size + 1;
 				if (fs->state < fs->vpos) fs->vpos = fs->state;
 				*/
-				if ((size_t)fs->vpos > strlen(cast_const_char fs->value)) fs->vpos = strlen(cast_const_char fs->value);
+				if ((size_t)fs->vpos > strlen(cast_const_char fs->value)) fs->vpos = (int)strlen(cast_const_char fs->value);
 				while ((size_t)fs->vpos < strlen(cast_const_char fs->value) && textptr_diff(fs->value + fs->state, fs->value + fs->vpos, fd->f_data->opt.cp) >= form->size) {
 					unsigned char *p = fs->value + fs->vpos;
 					FWD_UTF_8(p);
-					fs->vpos = p - fs->value;
+					fs->vpos = (int)(p - fs->value);
 				}
 				while (fs->vpos > fs->state) {
 					unsigned char *p = fs->value + fs->vpos;
 					BACK_UTF_8(p, fs->value);
-					fs->vpos = p - fs->value;
+					fs->vpos = (int)(p - fs->value);
 				}
 				l = 0;
 				i = 0;
-				ll = strlen(cast_const_char fs->value);
+				ll = (int)strlen(cast_const_char fs->value);
 				while (l < t->xw) {
 					struct style *st = t->style;
 					int sm = 0;
@@ -268,7 +268,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		prn:
 		g_print_text(drv, dev, x, y, t->style, t->text, NULL);
 	} else {
-		size_t tlen = strlen(cast_const_char t->text);
+		int tlen = (int)strlen(cast_const_char t->text);
 		int found;
 		int start = t->srch_pos;
 		int end = t->srch_pos + tlen;
@@ -277,7 +277,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		unsigned char *tx;
 		int txl;
 		int pmask;
-		size_t ii;
+		int ii;
 		struct style *inv;
 
 		intersect(fd->f_data->hlt_pos, fd->f_data->hlt_len, start, tlen, &hl_start, &hl_len);
@@ -290,9 +290,8 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 			while (found > 0 && B_EQUAL(found - 1, *)) found--;
 			while (found < n_highlight_positions && !B_ABOVE(found, *)) {
 				int pos = highlight_positions[found] - t->srch_pos;
-				int ii = 0;
 				for (ii = 0; ii < highlight_lengths[found]; ii++) {
-					if (pos >= 0 && (size_t)pos < tlen) mask[pos] = 1;
+					if (pos >= 0 && pos < tlen) mask[pos] = 1;
 					pos++;
 				}
 				found++;
@@ -445,13 +444,13 @@ void get_scrollbar_pos(int dsize, int total, int vsize, int vpos, int *start, in
 		*start = *end = 0;
 		return;
 	}
-	ssize = (double)dsize * vsize / total;
+	ssize = (int)((double)dsize * vsize / total);
 	if (ssize < G_SCROLL_BAR_MIN_SIZE) ssize = G_SCROLL_BAR_MIN_SIZE;
 	if (total == vsize) {
 		*start = 0; *end = dsize;
 		return;
 	}
-	*start = (double)(dsize - ssize) * vpos / (total - vsize);
+	*start = (int)((double)(dsize - ssize) * vpos / (total - vsize));
 	*end = *start + ssize;
 	if (*start > dsize) *start = dsize;
 	if (*start < 0) *start = 0;
@@ -816,8 +815,8 @@ static void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int
 					for (a = 0; ln[a].st; a++) if (a==yy){
 						int bla=textptr_diff(ln[a].en,ln[a].st, fd->f_data->opt.cp);
 
-						fs->state=ln[a].st-fs->value;
-						fs->state = textptr_add(fs->value + fs->state, xx<bla?xx:bla, fd->f_data->opt.cp) - fs->value;
+						fs->state=(int)(ln[a].st-fs->value);
+						fs->state = (int)(textptr_add(fs->value + fs->state, xx<bla?xx:bla, fd->f_data->opt.cp) - fs->value);
 						break;
 					}
 					mem_free(ln);
@@ -828,7 +827,7 @@ static void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int
 			if (g_char_width(a->style,' ')) {
 				xx=x/g_char_width(a->style,' ');
 			} else xx=x;
-			fs->state=textptr_add(fs->value + ((size_t)fs->vpos > strlen(cast_const_char fs->value) ? strlen(cast_const_char fs->value) : (size_t)fs->vpos), (xx<0?0:xx), fd->f_data->opt.cp) - fs->value;
+			fs->state=(int)(textptr_add(fs->value + ((size_t)fs->vpos > strlen(cast_const_char fs->value) ? strlen(cast_const_char fs->value) : (size_t)fs->vpos), (xx<0?0:xx), fd->f_data->opt.cp) - fs->value);
 		}
 	}
 }
@@ -913,7 +912,7 @@ static void process_sb_move(struct f_data_c *fd, int off)
 	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = rpos * (h ? fd->f_data->x : fd->f_data->y) / (w - 4);
 	*/
 	if (!(w - 4 - (en - st))) return;
-	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = rpos * (double)(h ? fd->f_data->x - w : fd->f_data->y - w) / (w - 4 - (en - st));
+	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = (int)(rpos * (double)(h ? fd->f_data->x - w : fd->f_data->y - w) / (w - 4 - (en - st)));
 	fd->vs->orig_view_pos = fd->vs->view_pos;
 	fd->vs->orig_view_posx = fd->vs->view_posx;
 	draw_graphical_doc(fd->ses->term, fd, 1);
@@ -1027,6 +1026,30 @@ static void unset_link(struct f_data_c *fd)
 	}
 }
 
+static int scroll_vh(int *vp, int *ovp, int *sc, int d, int limit)
+{
+	int o = *vp;
+	*vp += d;
+	if (*vp > limit)
+		*vp = limit;
+	if (*vp < 0)
+		*vp = 0;
+	*ovp = *vp;
+	o -= *vp;
+	if (sc) *sc -= o;
+	return o ? 3 : 0;
+}
+
+static int scroll_v(struct f_data_c *fd, int y)
+{
+	return scroll_vh(&fd->vs->view_pos, &fd->vs->orig_view_pos, fd->ses->scrolling == 2 ? &fd->ses->scrolloff : NULL, y, fd->f_data->y - fd->yw + fd->hsb * G_SCROLL_BAR_WIDTH);
+}
+
+static int scroll_h(struct f_data_c *fd, int x)
+{
+	return scroll_vh(&fd->vs->view_posx, &fd->vs->orig_view_posx, fd->ses->scrolling == 2 ? &fd->ses->scrolltype : NULL, x, fd->f_data->x - fd->xw + fd->vsb * G_SCROLL_BAR_WIDTH);
+}
+
 int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 {
 	if (!fd->f_data) return 0;
@@ -1087,7 +1110,7 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			if (!(ev->b == (B_LEFT | B_UP) && fd->f_data->hlt_len && fd->f_data->start_highlight_x == -1)) {
 				fd->vs->current_link = -1;
 				fd->vs->orig_link = fd->vs->current_link;
-				fd->f_data->root->mouse_event(fd, fd->f_data->root, ev->x + fd->vs->view_posx, ev->y + fd->vs->view_pos, ev->b);
+				fd->f_data->root->mouse_event(fd, fd->f_data->root, ev->x + fd->vs->view_posx, ev->y + fd->vs->view_pos, (int)ev->b);
 				if (previous_link!=fd->vs->current_link)
 					change_screen_status(ses);
 				print_screen_status(ses);
@@ -1095,11 +1118,12 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 
 			/* highlight text */
 			if ((ev->b & BM_ACT) == B_DOWN && (ev->b & BM_BUTT) == B_LEFT) {   /* start highlighting */
+				int need_redraw = !!fd->f_data->hlt_len;
 				fd->f_data->start_highlight_x = ev->x;
 				fd->f_data->start_highlight_y = ev->y;
 				fd->f_data->hlt_len = 0;
 				fd->f_data->hlt_pos = -1;
-				return 1;
+				return need_redraw;
 			}
 			if (((ev->b & BM_ACT) == B_DRAG || (ev->b & BM_ACT) == B_UP) && (ev->b & BM_BUTT) == B_LEFT) {	/* stop highlighting */
 				struct g_object_text *t;
@@ -1191,88 +1215,40 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 				}
 				return enter(ses, fd, 0);
 			}
-			if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && !(ev->y & KBD_ALT)) || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) {
-				unset_link(fd);
-				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->hsb * G_SCROLL_BAR_WIDTH) {
-					fd->vs->orig_view_pos = fd->vs->view_pos;
-					return 0;
-				}
-				fd->vs->view_pos += fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
-				fd->vs->orig_view_pos = fd->vs->view_pos;
-				return 3;
-			}
 			if (ev->x == '*') {
 				ses->ds.display_images ^= 1;
 				html_interpret_recursive(ses->screen);
 				return 1;
 			}
+			if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && !(ev->y & KBD_ALT)) || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) {
+				unset_link(fd);
+				return scroll_v(fd, fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH);
+			}
 			if (ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && !(ev->y & KBD_ALT))) {
 				unset_link(fd);
-				if (!fd->vs->view_pos) {
-					fd->vs->orig_view_pos = fd->vs->view_pos;
-					return 0;
-				}
-				fd->vs->view_pos -= fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
-				fd->vs->orig_view_pos = fd->vs->view_pos;
-				return 3;
+				return scroll_v(fd, -(fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH));
 			}
 			if (0) {
 				down:
-				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->hsb * G_SCROLL_BAR_WIDTH) {
-					fd->vs->orig_view_pos = fd->vs->view_pos;
-					return 0;
-				}
-				fd->vs->view_pos += 64;
-				fd->vs->orig_view_pos = fd->vs->view_pos;
-				return 3;
+				return scroll_v(fd, 64);
 			}
 			if (0) {
 				up:
-				if (!fd->vs->view_pos) {
-					fd->vs->orig_view_pos = fd->vs->view_pos;
-					return 0;
-				}
-				fd->vs->view_pos -= 64;
-				fd->vs->orig_view_pos = fd->vs->view_pos;
-				return 3;
+				return scroll_v(fd, -64);
 			}
 			if (ev->x == KBD_DEL || (upcase(ev->x) == 'N' && ev->y & KBD_CTRL)) {
-				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->hsb * G_SCROLL_BAR_WIDTH) {
-					fd->vs->orig_view_pos = fd->vs->view_pos;
-					return 0;
-				}
-				fd->vs->view_pos += 32;
-				fd->vs->orig_view_pos = fd->vs->view_pos;
-				return 3;
+				return scroll_v(fd, 32);
 			}
 			if (ev->x == KBD_INS || (upcase(ev->x) == 'P' && ev->y & KBD_CTRL)) {
-				if (!fd->vs->view_pos) {
-					fd->vs->orig_view_pos = fd->vs->view_pos;
-					return 0;
-				}
-				fd->vs->view_pos -= 32;
-				fd->vs->orig_view_pos = fd->vs->view_pos;
-				return 3;
+				return scroll_v(fd, -32);
 			}
 			if (/*ev->x == KBD_DOWN*/ 0) {
 				down1:
-				if (fd->vs->view_pos == fd->f_data->y - fd->yw + fd->hsb * G_SCROLL_BAR_WIDTH) {
-					fd->vs->orig_view_pos = fd->vs->view_pos;
-					return 0;
-				}
-				fd->vs->view_pos += 16;
-				fd->vs->orig_view_pos = fd->vs->view_pos;
-				return 3;
+				return scroll_v(fd, 16);
 			}
 			if (/*ev->x == KBD_UP*/ 0) {
 				up1:
-				if (!fd->vs->view_pos) {
-					fd->vs->orig_view_pos = fd->vs->view_pos;
-					return 0;
-				}
-				fd->vs->view_pos -= 16;
-				fd->vs->orig_view_pos = fd->vs->view_pos;
-				return 3;
+				return scroll_v(fd, -16);
 			}
 			if (ev->x == KBD_DOWN) {
 				return g_next_link(fd, 1);
@@ -1282,43 +1258,19 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct event *ev)
 			}
 			if (ev->x == '[') {
 				left:
-				if (!fd->vs->view_posx) {
-					fd->vs->orig_view_posx = fd->vs->view_posx;
-					return 0;
-				}
-				fd->vs->view_posx -= 64;
-				fd->vs->orig_view_posx = fd->vs->view_posx;
-				return 3;
+				return scroll_h(fd, -64);
 			}
 			if (ev->x == ']') {
 				right:
-				if (fd->vs->view_posx == fd->f_data->x - fd->xw + fd->vsb * G_SCROLL_BAR_WIDTH) {
-					fd->vs->orig_view_posx = fd->vs->view_posx;
-					return 0;
-				}
-				fd->vs->view_posx += 64;
-				fd->vs->orig_view_posx = fd->vs->view_posx;
-				return 3;
+				return scroll_h(fd, 64);
 			}
 			if (/*ev->x == KBD_LEFT*/ 0) {
 				left1:
-				if (!fd->vs->view_posx) {
-					fd->vs->orig_view_posx = fd->vs->view_posx;
-					return 0;
-				}
-				fd->vs->view_posx -= 16;
-				fd->vs->orig_view_posx = fd->vs->view_posx;
-				return 3;
+				return scroll_h(fd, -16);
 			}
 			if (/*ev->x == KBD_RIGHT*/ 0) {
 				right1:
-				if (fd->vs->view_posx == fd->f_data->x - fd->xw + fd->vsb * G_SCROLL_BAR_WIDTH) {
-					fd->vs->orig_view_posx = fd->vs->view_posx;
-					return 0;
-				}
-				fd->vs->view_posx += 16;
-				fd->vs->orig_view_posx = fd->vs->view_posx;
-				return 3;
+				return scroll_h(fd, 16);
 			}
 			if (ev->x == KBD_HOME || (upcase(ev->x) == 'A' && ev->y & KBD_CTRL)) {
 				fd->vs->view_pos = 0;
@@ -1383,7 +1335,7 @@ void draw_title(struct f_data_c *f)
 	if (drv->set_title && strchr(cast_const_char title, POST_CHAR)) *cast_uchar strchr(cast_const_char title, POST_CHAR) = 0;
 	w = g_text_width(bfu_style_bw, title);
 	z = 0;
-	g_print_text(drv, dev, 0, 0, bfu_style_bw, cast_uchar " <- ", &z);
+	g_print_text(drv, dev, 0, 0, bfu_style_bw, cast_uchar G_LEFT_ARROW, &z);
 	f->ses->back_size = z;
 	b = (dev->size.x2 - w) - 16;
 	if (b < z) b = z;
@@ -1471,7 +1423,7 @@ static void find_nearest_sub(struct g_object *p, struct g_object *c)
 			if (fnd_y < ty) ln = &ar->lines[0];
 			else ln = &ar->lines[ar->n_lines - 1];
 		}
-		idx = ln - &ar->lines[0];
+		idx = (int)(ln - &ar->lines[0]);
 		for (i = idx; i < ar->n_lines; i++) {
 			dist = dist_to_rect(0, fnd_y, 0, ty + ar->lines[i]->y, 0, ty + ar->lines[i]->y + ar->lines[i]->yw);
 			if (dist >= fnd_obj_dist) break;
@@ -1518,7 +1470,7 @@ static void find_next_sub(struct g_object *p, struct g_object *c)
 	if (c->draw == (void (*)(struct f_data_c *, struct g_object *, int, int))g_text_draw && !g_text_no_search(find_opt_f_data, (struct g_object_text *)c)) {
 		struct g_object_text *t = (struct g_object_text *)c;
 		int start = t->srch_pos;
-		int end = t->srch_pos + strlen(cast_const_char t->text);
+		int end = t->srch_pos + (int)strlen(cast_const_char t->text);
 		int found;
 		BIN_SEARCH(n_highlight_positions, B_EQUAL, B_ABOVE, *, found);
 		if (found != -1) {
@@ -1603,12 +1555,14 @@ void g_find_next(struct f_data_c *f, int a)
 
 void init_grview(void)
 {
+#ifdef DEBUG
 	int i, w = g_text_width(bfu_style_wb_mono, cast_uchar " ");
 	for (i = 32; i < 128; i++) {
 		unsigned char a[2];
-		a[0] = i, a[1] = 0;
+		a[0] = (unsigned char)i, a[1] = 0;
 		if (g_text_width(bfu_style_wb_mono, a) != w) internal("Monospaced font is not monospaced (error at char %d, width %d, wanted width %d)", i, (int)g_text_width(bfu_style_wb_mono, a), w);
 	}
+#endif
 	scroll_bar_frame_color = dip_get_color_sRGB(G_SCROLL_BAR_FRAME_COLOR);
 	scroll_bar_area_color = dip_get_color_sRGB(G_SCROLL_BAR_AREA_COLOR);
 	scroll_bar_bar_color = dip_get_color_sRGB(G_SCROLL_BAR_BAR_COLOR);

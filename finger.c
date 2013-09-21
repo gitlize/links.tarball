@@ -15,7 +15,7 @@ void finger_func(struct connection *c)
 {
 	int p;
 	if ((p = get_port(c->url)) == -1) {
-		setcstate(c, S_INTERNAL);
+		setcstate(c, S_BAD_URL);
 		abort_connection(c);
 		return;
 	}
@@ -43,7 +43,7 @@ static void finger_send_request(struct connection *c)
 static void finger_sent_request(struct connection *c)
 {
 	struct read_buffer *rb;
-	set_timeout(c);
+	set_connection_timeout(c);
 	if (!(rb = alloc_read_buffer(c))) return;
 	rb->close = 1;
 	read_from_socket(c, c->sock1, rb, finger_get_response);
@@ -53,7 +53,7 @@ static void finger_get_response(struct connection *c, struct read_buffer *rb)
 {
 	int l;
 	int a;
-	set_timeout(c);
+	set_connection_timeout(c);
 	if (!c->cache) {
 		if (get_cache_entry(c->url, &c->cache)) {
 			setcstate(c, S_OUT_OF_MEM);

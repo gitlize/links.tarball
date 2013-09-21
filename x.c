@@ -69,14 +69,14 @@
 /* #define SC_DEBUG */
 
 #if defined(X_DEBUG) || defined(SC_DEBUG)
-	#define MESSAGE(a) fprintf(stderr,"%s",a);
+#define MESSAGE(a) fprintf(stderr,"%s",a);
 #endif
 
 #include "links.h"
 
 /* Mikulas je PRASE: definuje makro "format" a navrch to jeste nechce vopravit */
 #ifdef format
-	#undef format
+#undef format
 #endif
 
 #if defined(HAVE_XOPENIM) && defined(HAVE_XCLOSEIM) && defined(HAVE_XCREATEIC) && defined(HAVE_XDESTROYIC) && (defined(HAVE_XWCLOOKUPSTRING) || defined(HAVE_XUTF8LOOKUPSTRING))
@@ -87,17 +87,21 @@
 #include <X11/X.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
-#ifdef HAVE_X11_XLOCALE_H
+#if defined(HAVE_X11_XLOCALE_H) && defined(HAVE_XSETLOCALE)
 #include <X11/Xlocale.h>
+#else
+#ifdef HAVE_SETLOCALE
+#undef HAVE_SETLOCALE
+#endif
 #endif
 
 
 #ifndef XK_MISCELLANY
-	#define XK_MISCELLANY
+#define XK_MISCELLANY
 #endif
 
 #ifndef XK_LATIN1
-	#define XK_LATIN1
+#define XK_LATIN1
 #endif
 #include <X11/keysymdef.h>
 
@@ -123,7 +127,7 @@ static int x_fd;    /* x socket */
 static Display *x_display = NULL;   /* display */
 static int x_screen;   /* screen */
 static int x_display_height,x_display_width;   /* screen dimensions */
-static int x_black_pixel,x_white_pixel;  /* white and black pixel */
+static unsigned long x_black_pixel,x_white_pixel;  /* white and black pixel */
 static int x_depth,x_bitmap_bpp;   /* bits per pixel and bytes per pixel */
 static int x_bitmap_scanline_pad; /* bitmap scanline_padding in bytes */
 static int x_colors;  /* colors in the palette (undefined when there's no palette) */
@@ -320,24 +324,24 @@ static unsigned char * x_set_palette(void)
 		break;
 
 		case 15:
-                for (a=0;a<32768;a++){
-                       	color.red=((a>>10)&31)*(65535/31);
-                        color.green=((a>>5)&31)*(65535/31);
-       	                color.blue=(a&31)*(65535/31);
+		for (a=0;a<32768;a++){
+		       	color.red=((a>>10)&31)*(65535/31);
+			color.green=((a>>5)&31)*(65535/31);
+       			color.blue=(a&31)*(65535/31);
 			color.pixel=a;
 			color.flags=DoRed|DoGreen|DoBlue;
 			XStoreColor(x_display,x_colormap,&color);
-                }
+		}
 		break;
 		case 16:
-                for (a=0;a<65536;a++){
-                       	color.red=((a>>11)&31)*(65535/31);
-                        color.green=((a>>5)&63)*(65535/63);
-       	                color.blue=(a&31)*(65535/31);
+		for (a=0;a<65536;a++){
+		       	color.red=((a>>11)&31)*(65535/31);
+			color.green=((a>>5)&63)*(65535/63);
+       			color.blue=(a&31)*(65535/31);
 			color.pixel=a;
 			color.flags=DoRed|DoGreen|DoBlue;
 			XStoreColor(x_display,x_colormap,&color);
-                }
+		}
 		break;
 
 		case 24:
@@ -345,13 +349,13 @@ static unsigned char * x_set_palette(void)
 			for (g=0;g<256;g++)
 				for (b=0;b<256;b++)
 				{
-                       			color.red=r<<8;
-		                        color.green=g<<8;
-       			                color.blue=b<<8;
+		       			color.red=r<<8;
+					color.green=g<<8;
+       					color.blue=b<<8;
 					color.pixel=(r<<16)+(g<<8)+(b);
 					color.flags=DoRed|DoGreen|DoBlue;
 					XStoreColor(x_display,x_colormap,&color);
-	       		         }
+	       			 }
 
 		break;
 	}
@@ -407,7 +411,7 @@ static int x_translate_key(struct graphics_device *gd, XKeyEvent *e,int *key,int
 		len = XLookupString(e,cast_char str,str_size,&ks,&comp);
 	}
 	str[len>str_size?str_size:len]=0;
-	if (!len) str[0]=ks, str[1]=0;
+	if (!len) str[0]=(unsigned char)ks, str[1]=0;
 	*flag=0;
 	*key=0;
 
@@ -422,112 +426,120 @@ static int x_translate_key(struct graphics_device *gd, XKeyEvent *e,int *key,int
 	/* ctrl-c */
 	if (((*flag)&KBD_CTRL)&&(ks==XK_c||ks==XK_C)){*key=KBD_CTRL_C;*flag=0;return 1;}
 
-	switch (ks)
-	{
-		case NoSymbol:		return 0;
-		case XK_Return:		*key=KBD_ENTER;break;
-		case XK_BackSpace:	*key=KBD_BS;break;
+	if (ks == NoSymbol) { return 0;
+	} else if (ks == XK_Return) { *key=KBD_ENTER;
+	} else if (ks == XK_BackSpace) { *key=KBD_BS;
+	} else if (ks == XK_Tab
 #ifdef XK_KP_Tab
-		case XK_KP_Tab:
+		|| ks == XK_KP_Tab
 #endif
-		case XK_Tab:		*key=KBD_TAB;break;
-		case XK_Escape:		*key=KBD_ESC;break;
+		) { *key=KBD_TAB;
+	} else if (ks == XK_Escape) {
+		*key=KBD_ESC;
+	} else if (ks == XK_Left
 #ifdef XK_KP_Left
-		case XK_KP_Left:
+		|| ks == XK_KP_Left
 #endif
-		case XK_Left:		*key=KBD_LEFT;break;
+		) { *key=KBD_LEFT;
+	} else if (ks == XK_Right
 #ifdef XK_KP_Right
-		case XK_KP_Right:
+		|| ks == XK_KP_Right
 #endif
-		case XK_Right:		*key=KBD_RIGHT;break;
+		) { *key=KBD_RIGHT;
+	} else if (ks == XK_Up
 #ifdef XK_KP_Up
-		case XK_KP_Up:
+		|| ks == XK_KP_Up
 #endif
-		case XK_Up:		*key=KBD_UP;break;
+		) { *key=KBD_UP;
+	} else if (ks == XK_Down
 #ifdef XK_KP_Down
-		case XK_KP_Down:
+		|| ks == XK_KP_Down
 #endif
-		case XK_Down:		*key=KBD_DOWN;break;
+		) { *key=KBD_DOWN;
+	} else if (ks == XK_Insert
 #ifdef XK_KP_Insert
-		case XK_KP_Insert:
+		|| ks == XK_KP_Insert
 #endif
-		case XK_Insert:		*key=KBD_INS;break;
+		) { *key=KBD_INS;
+	} else if (ks == XK_Delete
 #ifdef XK_KP_Delete
-		case XK_KP_Delete:
+		|| ks == XK_KP_Delete
 #endif
-		case XK_Delete:		*key=KBD_DEL;break;
+		) { *key=KBD_DEL;
+	} else if (ks == XK_Home
 #ifdef XK_KP_Home
-		case XK_KP_Home:
+		|| ks == XK_KP_Home
 #endif
-		case XK_Home:		*key=KBD_HOME;break;
+		) { *key=KBD_HOME;
+	} else if (ks == XK_End
 #ifdef XK_KP_End
-		case XK_KP_End:
+		|| ks == XK_KP_End
 #endif
-		case XK_End:		*key=KBD_END;break;
+		) { *key=KBD_END;
+	} else if (0
 #ifdef XK_KP_Page_Up
-		case XK_KP_Page_Up:
+		|| ks == XK_KP_Page_Up
 #endif
 #ifdef XK_Page_Up
-		case XK_Page_Up:
+		|| ks == XK_Page_Up
 #endif
-					*key=KBD_PAGE_UP;break;
+		) { *key=KBD_PAGE_UP;
+	} else if (0
 #ifdef XK_KP_Page_Down
-		case XK_KP_Page_Down:
+		|| ks == XK_KP_Page_Down
 #endif
 #ifdef XK_Page_Down
-		case XK_Page_Down:
+		|| ks == XK_Page_Down
 #endif
-					*key=KBD_PAGE_DOWN;break;
+		) { *key=KBD_PAGE_DOWN;
+	} else if (ks == XK_F1
 #ifdef XK_KP_F1
-		case XK_KP_F1:
+		|| ks == XK_KP_F1
 #endif
-		case XK_F1:		*key=KBD_F1;break;
+		) { *key=KBD_F1;
+	} else if (ks == XK_F2
 #ifdef XK_KP_F2
-		case XK_KP_F2:
+		|| ks == XK_KP_F2
 #endif
-		case XK_F2:		*key=KBD_F2;break;
+		) { *key=KBD_F2;
+	} else if (ks == XK_F3
 #ifdef XK_KP_F3
-		case XK_KP_F3:
+		|| ks == XK_KP_F3
 #endif
-		case XK_F3:		*key=KBD_F3;break;
+		) { *key=KBD_F3;
+	} else if (ks == XK_F4
 #ifdef XK_KP_F4
-		case XK_KP_F4:
+		|| ks == XK_KP_F4
 #endif
-		case XK_F4:		*key=KBD_F4;break;
-		case XK_F5:		*key=KBD_F5;break;
-		case XK_F6:		*key=KBD_F6;break;
-		case XK_F7:		*key=KBD_F7;break;
-		case XK_F8:		*key=KBD_F8;break;
-		case XK_F9:		*key=KBD_F9;break;
-		case XK_F10:		*key=KBD_F10;break;
-		case XK_F11:		*key=KBD_F11;break;
-		case XK_F12:		*key=KBD_F12;break;
-		case XK_KP_Subtract:	*key='-';break;
-		case XK_KP_Decimal:	*key='.';break;
-		case XK_KP_Divide:	*key='/';break;
-		case XK_KP_Space:	*key=' ';break;
-		case XK_KP_Enter:	*key=KBD_ENTER;break;
-		case XK_KP_Equal:	*key='=';break;
-		case XK_KP_Multiply:	*key='*';break;
-		case XK_KP_Add:		*key='+';break;
-		case XK_KP_0:		*key='0';break;
-		case XK_KP_1:		*key='1';break;
-		case XK_KP_2:		*key='2';break;
-		case XK_KP_3:		*key='3';break;
-		case XK_KP_4:		*key='4';break;
-		case XK_KP_5:		*key='5';break;
-		case XK_KP_6:		*key='6';break;
-		case XK_KP_7:		*key='7';break;
-		case XK_KP_8:		*key='8';break;
-		case XK_KP_9:		*key='9';break;
-
-		default:
-					if (ks&0x8000)return 0;
-					*key=((*flag)&KBD_CTRL)?(int)ks&255:trans_key(str,table);
-					break;
-					/*
-		default:		*key=((*flag)&KBD_CTRL)?(int)ks&255:trans_key(str,table);(*flag)&=~KBD_SHIFT;break;
-		*/
+		) { *key=KBD_F4;
+	} else if (ks == XK_F5) { *key=KBD_F5;
+	} else if (ks == XK_F6) { *key=KBD_F6;
+	} else if (ks == XK_F7) { *key=KBD_F7;
+	} else if (ks == XK_F8) { *key=KBD_F8;
+	} else if (ks == XK_F9) { *key=KBD_F9;
+	} else if (ks == XK_F10) { *key=KBD_F10;
+	} else if (ks == XK_F11) { *key=KBD_F11;
+	} else if (ks == XK_F12) { *key=KBD_F12;
+	} else if (ks == XK_KP_Subtract) { *key='-';
+	} else if (ks == XK_KP_Decimal) { *key='.';
+	} else if (ks == XK_KP_Divide) { *key='/';
+	} else if (ks == XK_KP_Space) { *key=' ';
+	} else if (ks == XK_KP_Enter) { *key=KBD_ENTER;
+	} else if (ks == XK_KP_Equal) { *key='=';
+	} else if (ks == XK_KP_Multiply) { *key='*';
+	} else if (ks == XK_KP_Add) { *key='+';
+	} else if (ks == XK_KP_0) { *key='0';
+	} else if (ks == XK_KP_1) { *key='1';
+	} else if (ks == XK_KP_2) { *key='2';
+	} else if (ks == XK_KP_3) { *key='3';
+	} else if (ks == XK_KP_4) { *key='4';
+	} else if (ks == XK_KP_5) { *key='5';
+	} else if (ks == XK_KP_6) { *key='6';
+	} else if (ks == XK_KP_7) { *key='7';
+	} else if (ks == XK_KP_8) { *key='8';
+	} else if (ks == XK_KP_9) { *key='9';
+	} else if (ks & 0x8000) { return 0;
+	} else { *key=((*flag)&KBD_CTRL)?(int)ks&255:trans_key(str,table);
 	}
 	return 1;
 }
@@ -585,7 +597,7 @@ static struct graphics_device *x_find_gd(Window *win)
 {
 	int a,b;
 
-	a=(*win)&(X_HASH_TABLE_SIZE-1);
+	a=(int)(*win)&(X_HASH_TABLE_SIZE-1);
 	if (!x_hash_table[a].count)return 0;
 	for (b=0;b<x_hash_table[a].count;b++)
 	{
@@ -616,7 +628,7 @@ static void x_update_driver_param(int w, int h)
 /* adds graphics device to hash table */
 static void x_add_to_table(struct graphics_device* gd)
 {
-	int a=get_window_info(gd)->window & (X_HASH_TABLE_SIZE-1);
+	int a=(int)get_window_info(gd)->window & (X_HASH_TABLE_SIZE-1);
 	int c=x_hash_table[a].count;
 
 	if (!c) {
@@ -634,7 +646,7 @@ static void x_add_to_table(struct graphics_device* gd)
 /* removes graphics device from table */
 static void x_remove_from_table(Window *win)
 {
-	int a=(*win)&(X_HASH_TABLE_SIZE-1);
+	int a=(int)(*win)&(X_HASH_TABLE_SIZE-1);
 	int b;
 
 	for (b=0;b<x_hash_table[a].count;b++)
@@ -649,11 +661,10 @@ static void x_remove_from_table(Window *win)
 
 static void x_clear_clipboard(void)
 {
-    if(x_my_clipboard)
-    {
-        mem_free(x_my_clipboard);
-        x_my_clipboard=NULL;
-    }
+	if (x_my_clipboard) {
+		mem_free(x_my_clipboard);
+		x_my_clipboard = NULL;
+	}
 }
 
 
@@ -664,6 +675,10 @@ static void x_process_events(void *data)
 	struct graphics_device *gd;
 	int last_was_mouse;
 	int replay_event = 0;
+
+#ifdef OPENVMS
+	clear_events(x_fd, 0);
+#endif
 
 	process_events_in_progress = 0;
 
@@ -954,17 +969,17 @@ static void x_process_events(void *data)
 			/* read clipboard */
 			case SelectionNotify:
 #ifdef X_DEBUG
-                        MESSAGE("xselectionnotify\n");
+			MESSAGE("xselectionnotify\n");
 #endif
 			/* handled in x_get_clipboard_text */
 			break;
 
 /* This long code must be here in order to implement copying of stuff into the clipboard */
-                        case SelectionRequest:
-                        {
-			    selection_request(&event);
-                        }
-                        break;
+			case SelectionRequest:
+			{
+				selection_request(&event);
+			}
+			break;
 
 			case MapNotify:
 			XFlush (x_display);
@@ -1091,7 +1106,7 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 
 */
 	if (!display) display = cast_uchar getenv("DISPLAY");
-#ifndef __linux__
+#if !defined(__linux__) && !defined(OPENVMS)
 	/* on Linux, do not assume XWINDOW present if $DISPLAY is not set
 	   --- rather open links on svgalib or framebuffer console */
 	if (!display) display = cast_uchar ":0.0";	/* needed for MacOS X */
@@ -1111,7 +1126,6 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 	}
 
 	x_bitmap_bit_order=BitmapBitOrder(x_display);
-	x_fd=XConnectionNumber(x_display);
 	x_screen=DefaultScreen(x_display);
 	x_display_height=DisplayHeight(x_display,x_screen);
 	x_display_width=DisplayWidth(x_display,x_screen);
@@ -1122,22 +1136,28 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 
 	x_driver_param=NULL;
 
-	if (param)
+	if (param && *param)
 	{
-		unsigned char *p, *e, *f;
-		int w,h;
+		unsigned char *e;
+		unsigned long w,h;
 
 		x_driver_param=stracpy(param);
 
-		for (p=x_driver_param;(*p)&&(*p)!='x'&&(*p)!='X';p++)
-			;
-		if (!(*p))goto done;
-		*p=0;
+		if (*x_driver_param < '0' || *x_driver_param > '9') {
+			invalid_param:
+			x_free_hash_table();
+			return stracpy(cast_uchar "Invalid parameter\n");
+		}
 		w=strtoul(cast_const_char x_driver_param,(char **)(void *)&e,10);
-		h=strtoul(cast_const_char(p+1),(char **)(void *)&f,10);
-		if (!(*e)&&!(*f)&&w&&h){x_default_window_width=w;x_default_window_height=h;}
-		*p='x';
-		done:;
+		if (upcase(*e) != 'X') goto invalid_param;
+		e++;
+		if (*e < '0' || *e > '9') goto invalid_param;
+		h=strtoul(cast_const_char e,(char **)(void *)&e,10);
+		if (*e) goto invalid_param;
+		if (w && h && w <= MAXINT && h <= MAXINT) {
+			x_default_window_width=(int)w;
+			x_default_window_height=(int)h;
+		}
 	}
 
 	/* find best visual */
@@ -1295,8 +1315,6 @@ visual_found:;
 	gcv.fill_style=FillSolid;
 	gcv.background=x_black_pixel;
 
-	set_handlers(x_fd,x_process_events,0,0,0);
-
 	x_delete_window_atom = XInternAtom(x_display,"WM_DELETE_WINDOW", False);
 	x_wm_protocols_atom = XInternAtom(x_display,"WM_PROTOCOLS", False);
 	x_sel_atom = XInternAtom(x_display, "SEL_PROP", False);
@@ -1382,6 +1400,11 @@ visual_found:;
 #endif
 		) x_driver.flags|=GD_NEED_CODEPAGE;
 
+	x_fd=XConnectionNumber(x_display);
+#ifdef OPENVMS
+	x_fd=vms_x11_fd(x_fd);
+#endif
+	set_handlers(x_fd,x_process_events,NULL,NULL,NULL);
 	XSync(x_display,False);
 	X_SCHEDULE_PROCESS_EVENTS();
 	return NULL;
@@ -1394,6 +1417,7 @@ static void x_shutdown_driver(void)
 #ifdef X_DEBUG
 	MESSAGE("x_shutdown_driver\n");
 #endif
+	set_handlers(x_fd,NULL,NULL,NULL,NULL);
 	x_free_hash_table();
 }
 
@@ -1594,6 +1618,12 @@ static void x_register_bitmap(struct bitmap *bmp)
 
 	/* try to alloc XPixmap in server's memory */
 	can_create_pixmap=1;
+
+	if (bmp->x >= 32768 || bmp->y >= 32768) {
+		can_create_pixmap = 0;
+		goto no_pixmap;
+	}
+
 	x_prepare_for_failure();
 	pixmap=mem_alloc(sizeof(Pixmap));
 	(*pixmap)=XCreatePixmap(x_display,fake_window,bmp->x,bmp->y,x_depth);
@@ -1605,8 +1635,12 @@ static void x_register_bitmap(struct bitmap *bmp)
 			*pixmap=0;
 		}
 	}
-	if (!(*pixmap)){mem_free(pixmap);can_create_pixmap=0;}
+	if (!(*pixmap)) {
+		mem_free(pixmap);
+		can_create_pixmap=0;
+	}
 
+no_pixmap:
 
 	if (can_create_pixmap)
 	{
@@ -1770,17 +1804,12 @@ static void x_set_clip_area(struct graphics_device *gd, struct rect *r)
 		MESSAGE(txt);
 	}
 #endif
-	gd->clip.x1=r->x1;
-	gd->clip.x2=r->x2;
-	gd->clip.y1=r->y1;
-	gd->clip.y2=r->y2;
+	generic_set_clip_area(gd, r);
 
-	xr.x=r->x1;
-	xr.y=r->y1;
-	if (r->x2<r->x1)xr.width=0;
-	else xr.width=(r->x2)-(r->x1);
-	if (r->y2<r->y1)xr.height=0;
-	else xr.height=(r->y2)-(r->y1);
+	xr.x=gd->clip.x1;
+	xr.y=gd->clip.y1;
+	xr.width=(gd->clip.x2)-(gd->clip.x1);
+	xr.height=(gd->clip.y2)-(gd->clip.y1);
 
 	XSetClipRectangles(x_display,x_normal_gc,0,0,&xr,1,Unsorted);
 	XSetClipRectangles(x_display,x_scroll_gc,0,0,&xr,1,Unsorted);
@@ -2112,7 +2141,7 @@ retry_encode_ascii:
 	ct = get_translation_table(utf8_table,output_encoding);
 
 	if (!gd)internal("x_set_window_title called with NULL graphics_device pointer.\n");
-	t = convert_string(ct, title, strlen(cast_const_char title), NULL);
+	t = convert_string(ct, title, (int)strlen(cast_const_char title), NULL);
 	clr_white(t);
 	/*XStoreName(x_display,get_window_info(gd)->window,"blabla");*/
 
@@ -2180,7 +2209,7 @@ static void selection_request(XEvent *event)
 	sel.property = req->property;
 	sel.time = req->time;
 	sel.display = req->display;
-	#ifdef X_DEBUG
+#ifdef X_DEBUG
 	{
 	unsigned char txt[256];
 	sprintf (txt,"xselectionrequest from %i\n",(int)event.xselection.requestor);
@@ -2188,7 +2217,7 @@ static void selection_request(XEvent *event)
 	sprintf (txt,"property:%i target:%i selection:%i\n", req->property,req->target, req->selection);
 	MESSAGE(txt);
 	}
-	#endif
+#endif
 	if (req->target == XA_STRING) {
 		unsigned char *str, *p;
 		struct conv_table *ct = NULL;
@@ -2196,7 +2225,7 @@ static void selection_request(XEvent *event)
 		if (iso1 >= 0) ct = get_translation_table(utf8_table, iso1);
 		if (!x_my_clipboard) str = stracpy(cast_uchar "");
 		else if (!ct) str = stracpy(x_my_clipboard);
-		else str = convert_string(ct, x_my_clipboard, strlen(cast_const_char x_my_clipboard), NULL);
+		else str = convert_string(ct, x_my_clipboard, (int)strlen(cast_const_char x_my_clipboard), NULL);
 		for (p = cast_uchar strchr(cast_const_char str, 1); p; p = cast_uchar strchr(cast_const_char(str + 1), 1)) *p = 0xa0;
 		l = strlen(cast_const_char str);
 		if (l > X_MAX_CLIPBOARD_SIZE) l = X_MAX_CLIPBOARD_SIZE;
@@ -2207,7 +2236,7 @@ static void selection_request(XEvent *event)
 				 8,
 				 PropModeReplace,
 				 str,
-				 l
+				 (int)l
 		);
 		mem_free(str);
 	} else if (req->target == x_utf8_string_atom) {
@@ -2220,13 +2249,13 @@ static void selection_request(XEvent *event)
 				 8,
 				 PropModeReplace,
 				 x_my_clipboard,
-				 l
+				 (int)l
 		);
 	} else if (req->target == x_targets_atom) {
 		unsigned tgt_atoms[3];
-		tgt_atoms[0] = x_targets_atom;
+		tgt_atoms[0] = (unsigned)x_targets_atom;
 		tgt_atoms[1] = XA_STRING;
-		tgt_atoms[2] = x_utf8_string_atom;
+		tgt_atoms[2] = (unsigned)x_utf8_string_atom;
 		XChangeProperty (x_display,
 				 sel.requestor,
 				 sel.property,
@@ -2237,13 +2266,13 @@ static void selection_request(XEvent *event)
 				 3
 		);
 	} else {
-		#ifdef X_DEBUG
+#ifdef X_DEBUG
 		{
 		    unsigned char txt[256];
 		    sprintf (txt,"Non-String wanted: %i\n",(int)req->target);
 		    MESSAGE(txt);
 		}
-		#endif
+#endif
 		sel.property = None;
 	}
 	XSendEvent(x_display, sel.requestor, 0, 0, (XEvent*)&sel);
@@ -2323,7 +2352,7 @@ static unsigned char *x_get_clipboard_text(void)
 			if (!ct) {
 				x_my_clipboard = stracpy(buffer);
 			} else {
-				x_my_clipboard = convert_string(ct, buffer, strlen(cast_const_char buffer), NULL);
+				x_my_clipboard = convert_string(ct, buffer, (int)strlen(cast_const_char buffer), NULL);
 			}
 		}
 		XFree(buffer);
@@ -2340,22 +2369,63 @@ no_new_sel:
 	return stracpy(x_my_clipboard);
 }
 
+/* This is executed in a helper thread, so we must not use mem_alloc */
+
+static void addchr(unsigned char **str, size_t *l, unsigned char c)
+{
+	unsigned char *s;
+	if (!*str) return;
+	if ((*str)[*l]) *l = strlen(cast_const_char *str);
+	if (*l > MAXINT - 2) overalloc();
+	s = realloc(*str, *l + 2);
+	if (!s) {
+		free(*str);
+		*str = NULL;
+		return;
+	}
+	*str = s;
+	s[(*l)++] = c;
+	s[*l] = 0;
+}
 
 static int x_exec(unsigned char *command, int fg)
 {
-	unsigned char *run;
+	unsigned char *pattern, *final;
+	size_t i, j, l;
 	int retval;
 
 	if (!fg) {
-		errno = 0;
-		EINTRLOOP(retval, system(cast_const_char command));
+		retval = system(cast_const_char command);
 		return retval;
 	}
 
-	run=subst_file(*x_driver.shell?x_driver.shell:(unsigned char *)"xterm -e %",command, 0);
-	errno = 0;
-	EINTRLOOP(retval, system(cast_const_char run));
-	mem_free(run);
+	l = 0;
+	if (*x_driver.shell) {
+		pattern = cast_uchar strdup(cast_const_char x_driver.shell);
+	} else {
+		pattern = cast_uchar strdup(cast_const_char links_xterm());
+		if (*command) {
+			addchr(&pattern, &l, ' ');
+			addchr(&pattern, &l, '%');
+		}
+	}
+	if (!pattern) return -1;
+
+	final = cast_uchar strdup("");
+	l = 0;
+	for (i = 0; pattern[i]; i++) {
+		if (pattern[i] == '%') {
+			for (j = 0; j < strlen(cast_const_char command); j++)
+				addchr(&final, &l, command[j]);
+		} else {
+			addchr(&final, &l, pattern[i]);
+		}
+	}
+	free(pattern);
+	if (!final) return -1;
+
+	retval = system(cast_const_char final);
+	free(final);
 	return retval;
 }
 
@@ -2365,6 +2435,7 @@ struct graphics_driver x_driver={
 	x_init_device,
 	x_shutdown_device,
 	x_shutdown_driver,
+	dummy_emergency_shutdown,
 	x_get_driver_param,
 	x_get_empty_bitmap,
 	/*x_get_filled_bitmap,*/

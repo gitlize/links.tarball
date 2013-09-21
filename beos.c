@@ -5,6 +5,8 @@
 
 #if defined(__BEOS__) || defined(__HAIKU__)
 
+#include "com-defs.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

@@ -107,7 +107,7 @@ static toff_t tiff_seek(thandle_t data, toff_t offset, int whence)
 	}
 	if (pos > deco->tiff_size) pos = deco->tiff_size;
 	if (pos < 0) pos = 0;
-	deco->tiff_pos = pos;
+	deco->tiff_pos = (int)pos;
 	return deco->tiff_pos;
 }
 
@@ -240,7 +240,7 @@ void tiff_finish(struct cached_image *cimg)
 	bla=TIFFGetField(t, TIFFTAG_IMAGELENGTH, &(cimg->height));
 	if (!bla){TIFFClose(t);img_end(cimg);return;}
 	cimg->buffer_bytes_per_pixel=4;
-	cimg->red_gamma=cimg->green_gamma=cimg->blue_gamma=sRGB_gamma;
+	cimg->red_gamma=cimg->green_gamma=cimg->blue_gamma=(float)sRGB_gamma;
 	cimg->strip_optimized=0;
 	if (header_dimensions_known(cimg)){TIFFClose(t);img_end(cimg);return;}
 /* int TIFFReadRGBAImage(TIFF* tif, u_long width, u_long height, u_long* raster, int stopOnError) from man page */
@@ -266,7 +266,7 @@ void add_tiff_version(unsigned char **s, int *l)
 	if (pp) p = pp + 9;
 	pp = cast_uchar strstr(cast_const_char p, "Version ");
 	if (pp) p = pp + 8;
-	pl = strcspn(cast_const_char p, " \n");
+	pl = (int)strcspn(cast_const_char p, " \n");
 	add_bytes_to_str(s, l, p, pl);
 	add_to_str(s, l, cast_uchar ")");
 }

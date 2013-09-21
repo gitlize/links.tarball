@@ -8,6 +8,8 @@
 
 static int smb_client = 0;
 
+#define CLIENT_NOT_FOUND_STRING	"client not found"
+
 struct smb_connection_info {
 	int client;
 	int list;
@@ -46,7 +48,7 @@ void smb_func(struct connection *c)
 	if (!(port = get_port_str(c->url))) port = stracpy(cast_uchar "");
 	if (!(data1 = get_url_data(c->url))) data1 = cast_uchar "";
 	data = init_str(), datal = 0;
-	add_conv_str(&data, &datal, data1, strlen(cast_const_char data1), -2);
+	add_conv_str(&data, &datal, data1, (int)strlen(cast_const_char data1), -2);
 
 	for (i = 0; data[i]; i++) if (data[i] < 32 || data[i] == ';' || (data[i] == '"' && smb_client == SMBCLIENT)) {
 /* ';' shouldn't cause security problems but samba doesn't like it */
@@ -256,8 +258,7 @@ void smb_func(struct connection *c)
 		}
 		v[n++] = NULL;
 		EINTRLOOP(rs, execvp(cast_const_char v[0], (void *)v));
-		fprintf(stderr, "client not found");
-		fflush(stderr);
+		hard_write(2, cast_uchar CLIENT_NOT_FOUND_STRING, (int)strlen(CLIENT_NOT_FOUND_STRING));
 		_exit(1);
 	}
 	c->pid = r;
@@ -282,10 +283,13 @@ static int smbc_get_num(unsigned char *text, int *ptr, off_t *res)
 	int dec, dec_order, unit;
 	int was_digit;
 	int i = *ptr;
+	const off_t max_off_t = (((off_t)1 << ((sizeof(off_t) * 8 - 2))) - 1) * 2 + 1;
+
 	while (text[i] == ' ' || text[i] == '\t') i++;
 	was_digit = 0;
 	num = 0;
 	while (text[i] >= '0' && text[i] <= '9') {
+		if (num >= max_off_t / 10) return -1;
 		num = num * 10 + text[i] - '0';
 		i++;
 		was_digit = 1;
@@ -310,7 +314,8 @@ static int smbc_get_num(unsigned char *text, int *ptr, off_t *res)
 	else return -1;
 	i++;
 	*ptr = i;
-	*res = num * unit + (double)dec * ((double)unit / (double)dec_order);
+	if (num >= max_off_t / unit) return -1;
+	*res = num * unit + (off_t)((double)dec * ((double)unit / (double)dec_order));
 	return 0;
 }
 
@@ -321,7 +326,7 @@ static void smb_read_text(struct connection *c, int sock)
 	if ((unsigned)sizeof(struct smb_connection_info) + si->ntext + page_size + 2 > MAXINT) overalloc();
 	si = mem_realloc(si, sizeof(struct smb_connection_info) + si->ntext + page_size + 2);
 	c->info = si;
-	EINTRLOOP(r, read(sock, si->text + si->ntext, page_size));
+	EINTRLOOP(r, (int)read(sock, si->text + si->ntext, page_size));
 	if (r == -1) {
 		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
@@ -385,7 +390,7 @@ static void smb_got_data(struct connection *c)
 		mem_free(buffer);
 		return;
 	}
-	EINTRLOOP(r, read(c->sock1, buffer, page_size));
+	EINTRLOOP(r, (int)read(c->sock1, buffer, page_size));
 	if (r == -1) {
 		setcstate(c, get_error_from_errno(errno));
 		retry_connection(c);
@@ -451,7 +456,7 @@ static void end_smb_connection(struct connection *c)
 		int sdir;
 		if (si->ntext && si->text[si->ntext - 1] != '\n') si->text[si->ntext++] = '\n';
 		si->text[si->ntext] = 0;
-		if (!strcmp(cast_const_char si->text, "client not found\n")) {
+		if (!strcmp(cast_const_char si->text, CLIENT_NOT_FOUND_STRING "\n")) {
 			setcstate(c, S_NO_SMB_CLIENT);
 			if (++si->client < N_CLIENTS) {
 				if (si->client > smb_client) smb_client = si->client;
@@ -492,7 +497,7 @@ static void end_smb_connection(struct connection *c)
 			add_to_str(&t, &l, cast_uchar "<html><head><title>");
 			ud = stracpy(c->url);
 			if (strchr(cast_const_char ud, POST_CHAR)) *cast_uchar strchr(cast_const_char ud, POST_CHAR) = 0;
-			add_conv_str(&t, &l, ud, strlen(cast_const_char ud), -1);
+			add_conv_str(&t, &l, ud, (int)strlen(cast_const_char ud), -1);
 			mem_free(ud);
 			add_to_str(&t, &l, cast_uchar "</title></head><body><pre>");
 			if (si->list == 1 && si->client == SMBC) {
@@ -528,15 +533,15 @@ static void end_smb_connection(struct connection *c)
 			ls = si->text;
 			while ((le = cast_uchar strchr(cast_const_char ls, '\n'))) {
 				unsigned char *lx;
+				unsigned char *st;
 				le2 = cast_uchar strchr(cast_const_char ls, '\r');
 				if (!le2 || le2 > le) le2 = le;
 				lx = memacpy(ls, le2 - ls);
 				if (si->list == 1) {
 					unsigned char *ll, *lll;
 					if (!*lx) type = 0;
-					if (strstr(cast_const_char lx, "Sharename") && strstr(cast_const_char lx, "Type")) {
-						if (strstr(cast_const_char lx, "Type")) pos = (unsigned char *)strstr(cast_const_char lx, "Type") - lx;
-						else pos = 0;
+					if (strstr(cast_const_char lx, "Sharename") && (st = cast_uchar strstr(cast_const_char lx, "Type"))) {
+						pos = (int)(st - lx);
 						type = 1;
 						goto af;
 					}
@@ -544,8 +549,8 @@ static void end_smb_connection(struct connection *c)
 						type = 2;
 						goto af;
 					}
-					if (strstr(cast_const_char lx, "Workgroup") && strstr(cast_const_char lx, "Master")) {
-						pos = (unsigned char *)strstr(cast_const_char lx, "Master") - lx;
+					if (strstr(cast_const_char lx, "Workgroup") && (st = cast_uchar strstr(cast_const_char lx, "Master"))) {
+						pos = (int)(st - lx);
 						type = 3;
 						goto af;
 					}
@@ -554,7 +559,7 @@ static void end_smb_connection(struct connection *c)
 					goto af;
 					np:
 					for (ll = lx; *ll; ll++) if (!WHITECHAR(*ll)) break;
-					for (lll = ll; *lll/* && lll[1]*/; lll++) if (WHITECHAR(*lll)/* && WHITECHAR(lll[1])*/) break;
+					for (lll = ll; *lll /* && lll[1]*/; lll++) if (WHITECHAR(*lll) /*&& WHITECHAR(lll[1])*/) break;
 					if (type == 1) {
 						unsigned char *llll;
 						if (!strstr(cast_const_char lll, "Disk")) goto af;
@@ -562,22 +567,22 @@ static void end_smb_connection(struct connection *c)
 							while (llll > ll && WHITECHAR(*llll)) llll--;
 							if (!WHITECHAR(*llll)) lll = llll + 1;
 						}
-						add_conv_str(&t, &l, lx, ll - lx, 0);
+						add_conv_str(&t, &l, lx, (int)(ll - lx), 0);
 						add_to_str(&t, &l, cast_uchar "<a href=\"/");
-						add_conv_str(&t, &l, ll, lll - ll, 1);
+						add_conv_str(&t, &l, ll, (int)(lll - ll), 1);
 						add_to_str(&t, &l, cast_uchar "/\">");
-						add_conv_str(&t, &l, ll, lll - ll, 0);
+						add_conv_str(&t, &l, ll, (int)(lll - ll), 0);
 						add_to_str(&t, &l, cast_uchar "</a>");
-						add_conv_str(&t, &l, lll, strlen(cast_const_char lll), 0);
+						add_conv_str(&t, &l, lll, (int)strlen(cast_const_char lll), 0);
 					} else if (type == 2) {
 						sss:
-						add_conv_str(&t, &l, lx, ll - lx, 0);
+						add_conv_str(&t, &l, lx, (int)(ll - lx), 0);
 						add_to_str(&t, &l, cast_uchar "<a href=\"smb://");
-						add_conv_str(&t, &l, ll, lll - ll, 1);
+						add_conv_str(&t, &l, ll, (int)(lll - ll), 1);
 						add_to_str(&t, &l, cast_uchar "/\">");
-						add_conv_str(&t, &l, ll, lll - ll, 0);
+						add_conv_str(&t, &l, ll, (int)(lll - ll), 0);
 						add_to_str(&t, &l, cast_uchar "</a>");
-						add_conv_str(&t, &l, lll, strlen(cast_const_char lll), 0);
+						add_conv_str(&t, &l, lll, (int)strlen(cast_const_char lll), 0);
 					} else if (type == 3) {
 						if ((size_t)pos < strlen(cast_const_char lx) && pos && WHITECHAR(lx[pos - 1]) && !WHITECHAR(lx[pos])) ll = lx + pos;
 						else for (ll = lll; *ll; ll++) if (!WHITECHAR(*ll)) break;
@@ -610,12 +615,12 @@ static void end_smb_connection(struct connection *c)
 							pp++;
 						}
 						add_to_str(&t, &l, cast_uchar "  <a href=\"./");
-						add_conv_str(&t, &l, ls + 2, p - (ls + 2), 1);
+						add_conv_str(&t, &l, ls + 2, (int)(p - (ls + 2)), 1);
 						if (dir) add_chr_to_str(&t, &l, '/');
 						add_to_str(&t, &l, cast_uchar "\">");
-						add_conv_str(&t, &l, ls + 2, p - (ls + 2), 0);
+						add_conv_str(&t, &l, ls + 2, (int)(p - (ls + 2)), 0);
 						add_to_str(&t, &l, cast_uchar "</a>");
-						add_conv_str(&t, &l, p, le - p, 0);
+						add_conv_str(&t, &l, p, (int)(le - p), 0);
 					} else goto af;
 				} else if (si->list == 2 && si->client == SMBC) {
 					unsigned char *d;
@@ -628,14 +633,14 @@ static void end_smb_connection(struct connection *c)
 						goto smbc_next_chr;
 					}
 					d += 9;
-					add_conv_str(&t, &l, ls, d - ls, 0);
+					add_conv_str(&t, &l, ls, (int)(d - ls), 0);
 					add_to_str(&t, &l, cast_uchar "<a href=\"./");
-					add_conv_str(&t, &l, d, le2 - d, 1);
+					add_conv_str(&t, &l, d, (int)(le2 - d), 1);
 					if (ls[4] == 'D') add_chr_to_str(&t, &l, '/');
 					add_to_str(&t, &l, cast_uchar "\">");
-					add_conv_str(&t, &l, d, le2 - d, 0);
+					add_conv_str(&t, &l, d, (int)(le2 - d), 0);
 					add_to_str(&t, &l, cast_uchar "</a>");
-				} else af: add_conv_str(&t, &l, ls, le2 - ls, 0);
+				} else af: add_conv_str(&t, &l, ls, (int)(le2 - ls), 0);
 				add_chr_to_str(&t, &l, '\n');
 				ls = le + 1;
 				mem_free(lx);

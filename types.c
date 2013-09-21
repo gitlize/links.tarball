@@ -59,19 +59,19 @@ static struct list_description assoc_ld={
 
 static void *assoc_new_item(void *ignore)
 {
-	struct assoc *new;
+	struct assoc *neww;
 
-	new = mem_calloc(sizeof(struct assoc));
-	new->label = stracpy(cast_uchar "");
-	new->ct = stracpy(cast_uchar "");
-	new->prog = stracpy(cast_uchar "");
-	new->block = new->xwin = new->cons = 1;
-	new->ask = 1;
-	new->accept_http = 0;
-	new->accept_ftp = 0;
-	new->type = 0;
-	new->system = SYSTEM_ID;
-	return new;
+	neww = mem_calloc(sizeof(struct assoc));
+	neww->label = stracpy(cast_uchar "");
+	neww->ct = stracpy(cast_uchar "");
+	neww->prog = stracpy(cast_uchar "");
+	neww->block = neww->xwin = neww->cons = 1;
+	neww->ask = 1;
+	neww->accept_http = 0;
+	neww->accept_ftp = 0;
+	neww->type = 0;
+	neww->system = SYSTEM_ID;
+	return neww;
 }
 
 static void assoc_delete_item(void *data)
@@ -129,7 +129,7 @@ static unsigned char *assoc_type_item(struct terminal *term, void *data, int x)
 		if (item->prog)add_to_strn(&txt,item->prog);
 	}
 	table=get_translation_table(assoc_ld.codepage,term->spec->charset);
-	txt1=convert_string(table,txt,strlen(cast_const_char txt),NULL);
+	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	mem_free(txt);
 			
 	return txt1;
@@ -228,13 +228,13 @@ static void assoc_edit_done(void *data)
 	prog=ct+MAX_STR_LEN;
 
 	table=get_translation_table(s->dlg->win->term->spec->charset,assoc_ld.codepage);
-	txt=convert_string(table,label,strlen(cast_const_char label),NULL);
+	txt=convert_string(table,label,(int)strlen(cast_const_char label),NULL);
 	mem_free(item->label); item->label=txt;
 
-	txt=convert_string(table,ct,strlen(cast_const_char ct),NULL);
+	txt=convert_string(table,ct,(int)strlen(cast_const_char ct),NULL);
 	mem_free(item->ct); item->ct=txt;
 
-	txt=convert_string(table,prog,strlen(cast_const_char prog),NULL);
+	txt=convert_string(table,prog,(int)strlen(cast_const_char prog),NULL);
 	mem_free(item->prog); item->prog=txt;
 
 	s->fn(s->dlg,s->data,item,&assoc_ld);
@@ -254,7 +254,7 @@ static void assoc_edit_abort(struct dialog_data *data)
 static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title)
 {
 	int p;
-	struct assoc *new=(struct assoc*)data;
+	struct assoc *neww=(struct assoc*)data;
 	struct terminal *term=dlg->win->term;
 	struct dialog *d;
 	struct assoc_ok_struct *s;
@@ -266,9 +266,9 @@ static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	ct=label+MAX_STR_LEN;
 	prog=ct+MAX_STR_LEN;
 
-	if (new->label)safe_strncpy(label,new->label,MAX_STR_LEN);
-	if (new->ct)safe_strncpy(ct,new->ct,MAX_STR_LEN);
-	if (new->prog)safe_strncpy(prog,new->prog,MAX_STR_LEN);
+	if (neww->label)safe_strncpy(label,neww->label,MAX_STR_LEN);
+	if (neww->ct)safe_strncpy(ct,neww->ct,MAX_STR_LEN);
+	if (neww->prog)safe_strncpy(prog,neww->prog,MAX_STR_LEN);
 	
 	/* Create the dialog */
 	s=mem_alloc(sizeof(struct assoc_ok_struct));
@@ -311,25 +311,25 @@ static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	p = 3;
 #ifdef ASSOC_BLOCK
 	d->items[p].type = D_CHECKBOX;
-	d->items[p].data = (unsigned char *)&new->block;
+	d->items[p].data = (unsigned char *)&neww->block;
 	d->items[p++].dlen = sizeof(int);
 #endif
 #ifdef ASSOC_CONS_XWIN
 	d->items[p].type = D_CHECKBOX;
-	d->items[p].data = (unsigned char *)&new->cons;
+	d->items[p].data = (unsigned char *)&neww->cons;
 	d->items[p++].dlen = sizeof(int);
 	d->items[p].type = D_CHECKBOX;
-	d->items[p].data = (unsigned char *)&new->xwin;
+	d->items[p].data = (unsigned char *)&neww->xwin;
 	d->items[p++].dlen = sizeof(int);
 #endif
 	d->items[p].type = D_CHECKBOX;
-	d->items[p].data = (unsigned char *)&new->ask;
+	d->items[p].data = (unsigned char *)&neww->ask;
 	d->items[p++].dlen = sizeof(int);
 	d->items[p].type = D_CHECKBOX;
-	d->items[p].data = (unsigned char *)&new->accept_http;
+	d->items[p].data = (unsigned char *)&neww->accept_http;
 	d->items[p++].dlen = sizeof(int);
 	d->items[p].type = D_CHECKBOX;
-	d->items[p].data = (unsigned char *)&new->accept_ftp;
+	d->items[p].data = (unsigned char *)&neww->accept_ftp;
 	d->items[p++].dlen = sizeof(int);
 	d->items[p].type = D_BUTTON;
 	d->items[p].gid = B_ENTER;
@@ -372,38 +372,37 @@ static void *assoc_find_item(void *start, unsigned char *str, int direction)
 }
 
 
-void update_assoc(struct assoc *new)
+void update_assoc(struct assoc *neww)
 {
 	struct assoc *repl;
-	if (!new->label[0] || !new->ct[0] || !new->prog[0]) return;
-	foreach(repl, assoc) if (!strcmp(cast_const_char repl->label, cast_const_char new->label)
-			      && !strcmp(cast_const_char repl->ct, cast_const_char new->ct)
-			      && !strcmp(cast_const_char repl->prog, cast_const_char new->prog)
-			      && repl->block == new->block
-			      && repl->cons == new->cons
-			      && repl->xwin == new->xwin
-			      && repl->ask == new->ask
-			      && repl->accept_http == new->accept_http
-			      && repl->accept_ftp == new->accept_ftp
-			      && repl->system == new->system) {
+	if (!neww->label[0] || !neww->ct[0] || !neww->prog[0]) return;
+	foreach(repl, assoc) if (!strcmp(cast_const_char repl->label, cast_const_char neww->label)
+			      && !strcmp(cast_const_char repl->ct, cast_const_char neww->ct)
+			      && !strcmp(cast_const_char repl->prog, cast_const_char neww->prog)
+			      && repl->block == neww->block
+			      && repl->cons == neww->cons
+			      && repl->xwin == neww->xwin
+			      && repl->ask == neww->ask
+			      && repl->accept_http == neww->accept_http
+			      && repl->accept_ftp == neww->accept_ftp
+			      && repl->system == neww->system) {
 		del_from_list(repl);
 		add_to_list(assoc, repl);
 		return;
 	}
 	repl = mem_calloc(sizeof(struct assoc));
-	add_to_list(assoc, repl);
-	repl->label = stracpy(new->label);
-	repl->ct = stracpy(new->ct);
-	repl->prog = stracpy(new->prog);
-	repl->block = new->block;
-	repl->cons = new->cons;
-	repl->xwin = new->xwin;
-	repl->ask = new->ask;
-	repl->accept_http = new->accept_http;
-	repl->accept_ftp = new->accept_ftp;
-	repl->system = new->system;
+	repl->label = stracpy(neww->label);
+	repl->ct = stracpy(neww->ct);
+	repl->prog = stracpy(neww->prog);
+	repl->block = neww->block;
+	repl->cons = neww->cons;
+	repl->xwin = neww->xwin;
+	repl->ask = neww->ask;
+	repl->accept_http = neww->accept_http;
+	repl->accept_ftp = neww->accept_ftp;
+	repl->system = neww->system;
 	repl->type = 0;
-	/*new->system = new->system; co to je? */
+	add_to_list(assoc, repl);
 }
 
 /*------------------------ EXTENSIONS -----------------------*/
@@ -455,13 +454,13 @@ static struct list_description ext_ld={
 
 static void *ext_new_item(void *ignore)
 {
-	struct extension *new;
+	struct extension *neww;
 
-	new = mem_calloc(sizeof(struct extension));
-	new->ext = stracpy(cast_uchar "");
-	new->ct = stracpy(cast_uchar "");
-	new->type=0;
-	return new;
+	neww = mem_calloc(sizeof(struct extension));
+	neww->ext = stracpy(cast_uchar "");
+	neww->ct = stracpy(cast_uchar "");
+	neww->type=0;
+	return neww;
 }
 
 
@@ -504,7 +503,7 @@ static unsigned char *ext_type_item(struct terminal *term, void *data, int x)
 	txt=stracpy(item->ext);
 	if (item->ct){add_to_strn(&txt,cast_uchar ": ");add_to_strn(&txt,item->ct);}
 	table=get_translation_table(assoc_ld.codepage,term->spec->charset);
-	txt1=convert_string(table,txt,strlen(cast_const_char txt),NULL);
+	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	mem_free(txt);
 			
 	return txt1;
@@ -574,10 +573,10 @@ static void ext_edit_done(void *data)
 	ct=ext+MAX_STR_LEN;
 
 	table=get_translation_table(s->dlg->win->term->spec->charset,ext_ld.codepage);
-	txt=convert_string(table,ext,strlen(cast_const_char ext),NULL);
+	txt=convert_string(table,ext,(int)strlen(cast_const_char ext),NULL);
 	mem_free(item->ext); item->ext=txt;
 
-	txt=convert_string(table,ct,strlen(cast_const_char ct),NULL);
+	txt=convert_string(table,ct,(int)strlen(cast_const_char ct),NULL);
 	mem_free(item->ct); item->ct=txt;
 
 	s->fn(s->dlg,s->data,item,&ext_ld);
@@ -598,7 +597,7 @@ static void ext_edit_abort(struct dialog_data *data)
 
 static void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(struct dialog_data *, void *, void *, struct list_description *), void *ok_arg, unsigned char dlg_title)
 {
-	struct extension *new=(struct extension*)data;
+	struct extension *neww=(struct extension*)data;
 	struct terminal *term=dlg->win->term;
 	struct dialog *d;
 	struct assoc_ok_struct *s;
@@ -609,8 +608,8 @@ static void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(str
 
 	ext=(unsigned char *)&d->items[5];
 	ct = ext + MAX_STR_LEN;
-	if (new->ext)safe_strncpy(ext, new->ext, MAX_STR_LEN);
-	if (new->ct)safe_strncpy(ct, new->ct, MAX_STR_LEN);
+	if (neww->ext)safe_strncpy(ext, neww->ext, MAX_STR_LEN);
+	if (neww->ct)safe_strncpy(ct, neww->ct, MAX_STR_LEN);
 
 	/* Create the dialog */
 	s=mem_alloc(sizeof(struct assoc_ok_struct));
@@ -690,20 +689,20 @@ static void *ext_find_item(void *start, unsigned char *str, int direction)
 }
 
 
-void update_ext(struct extension *new)
+void update_ext(struct extension *neww)
 {
 	struct extension *repl;
-	if (!new->ext[0] || !new->ct[0]) return;
-	foreach(repl, extensions) if (!strcmp(cast_const_char repl->ext, cast_const_char new->ext) && !strcmp(cast_const_char repl->ct, cast_const_char new->ct)) {
+	if (!neww->ext[0] || !neww->ct[0]) return;
+	foreach(repl, extensions) if (!strcmp(cast_const_char repl->ext, cast_const_char neww->ext) && !strcmp(cast_const_char repl->ct, cast_const_char neww->ct)) {
 		del_from_list(repl);
 		add_to_list(extensions, repl);
 		return;
 	}
 	repl = mem_calloc(sizeof(struct extension));
-	add_to_list(extensions, repl);
-	repl->ext = stracpy(new->ext);
-	repl->ct = stracpy(new->ct);
+	repl->ext = stracpy(neww->ext);
+	repl->ct = stracpy(neww->ct);
 	repl->type=0;
+	add_to_list(extensions, repl);
 }
 
 void update_prog(struct list_head *l, unsigned char *p, int s)
@@ -739,45 +738,45 @@ void create_initial_extensions(void)
 	if (!list_empty(extensions))return;
 
 	/* here you can add any default extension you want */
-	ext.ext=cast_uchar "aif,aiff,aifc",ext.ct=cast_uchar "audio/x-aiff",update_ext(&ext);
-	ext.ext=cast_uchar "au,snd",ext.ct=cast_uchar "audio/basic",update_ext(&ext);
-	ext.ext=cast_uchar "avi",ext.ct=cast_uchar "video/x-msvideo",update_ext(&ext);
-	ext.ext=cast_uchar "deb",ext.ct=cast_uchar "application/x-debian-package",update_ext(&ext);
-	ext.ext=cast_uchar "dl",ext.ct=cast_uchar "video/dl",update_ext(&ext);
-	ext.ext=cast_uchar "dxf",ext.ct=cast_uchar "application/dxf",update_ext(&ext);
-	ext.ext=cast_uchar "dvi",ext.ct=cast_uchar "application/x-dvi",update_ext(&ext);
-	ext.ext=cast_uchar "fli",ext.ct=cast_uchar "video/fli",update_ext(&ext);
+	ext.ext=cast_uchar "xpm",ext.ct=cast_uchar "image/x-xpixmap",update_ext(&ext);
+	ext.ext=cast_uchar "xls",ext.ct=cast_uchar "application/excel",update_ext(&ext);
+	ext.ext=cast_uchar "xbm",ext.ct=cast_uchar "image/x-xbitmap",update_ext(&ext);
+	ext.ext=cast_uchar "wav",ext.ct=cast_uchar "audio/x-wav",update_ext(&ext);
+	ext.ext=cast_uchar "tiff,tif",ext.ct=cast_uchar "image/tiff",update_ext(&ext);
+	ext.ext=cast_uchar "tga",ext.ct=cast_uchar "image/targa",update_ext(&ext);
+	ext.ext=cast_uchar "sxw",ext.ct=cast_uchar "application/x-openoffice",update_ext(&ext);
+	ext.ext=cast_uchar "swf",ext.ct=cast_uchar "application/x-shockwave-flash",update_ext(&ext);
+	ext.ext=cast_uchar "svg",ext.ct=cast_uchar "image/svg",update_ext(&ext);
+	ext.ext=cast_uchar "sch",ext.ct=cast_uchar "application/gschem",update_ext(&ext);
+	ext.ext=cast_uchar "rtf",ext.ct=cast_uchar "application/rtf",update_ext(&ext);
+	ext.ext=cast_uchar "ra,rm,ram",ext.ct=cast_uchar "audio/x-pn-realaudio",update_ext(&ext);
+	ext.ext=cast_uchar "qt,mov",ext.ct=cast_uchar "video/quicktime",update_ext(&ext);
+	ext.ext=cast_uchar "ps,eps,ai",ext.ct=cast_uchar "application/postscript",update_ext(&ext);
+	ext.ext=cast_uchar "ppt",ext.ct=cast_uchar "application/powerpoint",update_ext(&ext);
+	ext.ext=cast_uchar "ppm",ext.ct=cast_uchar "image/x-portable-pixmap",update_ext(&ext);
+	ext.ext=cast_uchar "pnm",ext.ct=cast_uchar "image/x-portable-anymap",update_ext(&ext);
+	ext.ext=cast_uchar "png",ext.ct=cast_uchar "image/png",update_ext(&ext);
+	ext.ext=cast_uchar "pgp",ext.ct=cast_uchar "application/pgp-signature",update_ext(&ext);
+	ext.ext=cast_uchar "pgm",ext.ct=cast_uchar "image/x-portable-graymap",update_ext(&ext);
+	ext.ext=cast_uchar "pdf",ext.ct=cast_uchar "application/pdf",update_ext(&ext);
+	ext.ext=cast_uchar "pcb",ext.ct=cast_uchar "application/pcb",update_ext(&ext);
+	ext.ext=cast_uchar "pbm",ext.ct=cast_uchar "image/x-portable-bitmap",update_ext(&ext);
+	ext.ext=cast_uchar "mpeg,mpg,mpe",ext.ct=cast_uchar "video/mpeg",update_ext(&ext);
+	ext.ext=cast_uchar "mid,midi",ext.ct=cast_uchar "audio/midi",update_ext(&ext);
+	ext.ext=cast_uchar "jpg,jpeg,jpe",ext.ct=cast_uchar "image/jpeg",update_ext(&ext);
+	ext.ext=cast_uchar "grb",ext.ct=cast_uchar "application/gerber",update_ext(&ext);
+	ext.ext=cast_uchar "gl",ext.ct=cast_uchar "video/gl",update_ext(&ext);
+	ext.ext=cast_uchar "gif",ext.ct=cast_uchar "image/gif",update_ext(&ext);
 	ext.ext=cast_uchar "g",ext.ct=cast_uchar "application/brlcad",update_ext(&ext);
 	ext.ext=cast_uchar "gbr",ext.ct=cast_uchar "application/gerber",update_ext(&ext);
-	ext.ext=cast_uchar "gif",ext.ct=cast_uchar "image/gif",update_ext(&ext);
-	ext.ext=cast_uchar "gl",ext.ct=cast_uchar "video/gl",update_ext(&ext);
-	ext.ext=cast_uchar "grb",ext.ct=cast_uchar "application/gerber",update_ext(&ext);
-	ext.ext=cast_uchar "jpg,jpeg,jpe",ext.ct=cast_uchar "image/jpeg",update_ext(&ext);
-	ext.ext=cast_uchar "mid,midi",ext.ct=cast_uchar "audio/midi",update_ext(&ext);
-	ext.ext=cast_uchar "mpeg,mpg,mpe",ext.ct=cast_uchar "video/mpeg",update_ext(&ext);
-	ext.ext=cast_uchar "pbm",ext.ct=cast_uchar "image/x-portable-bitmap",update_ext(&ext);
-	ext.ext=cast_uchar "pcb",ext.ct=cast_uchar "application/pcb",update_ext(&ext);
-	ext.ext=cast_uchar "pdf",ext.ct=cast_uchar "application/pdf",update_ext(&ext);
-	ext.ext=cast_uchar "pgm",ext.ct=cast_uchar "image/x-portable-graymap",update_ext(&ext);
-	ext.ext=cast_uchar "pgp",ext.ct=cast_uchar "application/pgp-signature",update_ext(&ext);
-	ext.ext=cast_uchar "png",ext.ct=cast_uchar "image/png",update_ext(&ext);
-	ext.ext=cast_uchar "pnm",ext.ct=cast_uchar "image/x-portable-anymap",update_ext(&ext);
-	ext.ext=cast_uchar "ppm",ext.ct=cast_uchar "image/x-portable-pixmap",update_ext(&ext);
-	ext.ext=cast_uchar "ppt",ext.ct=cast_uchar "application/powerpoint",update_ext(&ext);
-	ext.ext=cast_uchar "ps,eps,ai",ext.ct=cast_uchar "application/postscript",update_ext(&ext);
-	ext.ext=cast_uchar "qt,mov",ext.ct=cast_uchar "video/quicktime",update_ext(&ext);
-	ext.ext=cast_uchar "ra,rm,ram",ext.ct=cast_uchar "audio/x-pn-realaudio",update_ext(&ext);
-	ext.ext=cast_uchar "rtf",ext.ct=cast_uchar "application/rtf",update_ext(&ext);
-	ext.ext=cast_uchar "sch",ext.ct=cast_uchar "application/gschem",update_ext(&ext);
-	ext.ext=cast_uchar "svg",ext.ct=cast_uchar "image/svg",update_ext(&ext);
-	ext.ext=cast_uchar "swf",ext.ct=cast_uchar "application/x-shockwave-flash",update_ext(&ext);
-	ext.ext=cast_uchar "sxw",ext.ct=cast_uchar "application/x-openoffice",update_ext(&ext);
-	ext.ext=cast_uchar "tga",ext.ct=cast_uchar "image/targa",update_ext(&ext);
-	ext.ext=cast_uchar "tiff,tif",ext.ct=cast_uchar "image/tiff",update_ext(&ext);
-	ext.ext=cast_uchar "wav",ext.ct=cast_uchar "audio/x-wav",update_ext(&ext);
-	ext.ext=cast_uchar "xbm",ext.ct=cast_uchar "image/x-xbitmap",update_ext(&ext);
-	ext.ext=cast_uchar "xls",ext.ct=cast_uchar "application/excel",update_ext(&ext);
-	ext.ext=cast_uchar "xpm",ext.ct=cast_uchar "image/x-xpixmap",update_ext(&ext);
+	ext.ext=cast_uchar "fli",ext.ct=cast_uchar "video/fli",update_ext(&ext);
+	ext.ext=cast_uchar "dxf",ext.ct=cast_uchar "application/dxf",update_ext(&ext);
+	ext.ext=cast_uchar "dvi",ext.ct=cast_uchar "application/x-dvi",update_ext(&ext);
+	ext.ext=cast_uchar "dl",ext.ct=cast_uchar "video/dl",update_ext(&ext);
+	ext.ext=cast_uchar "deb",ext.ct=cast_uchar "application/x-debian-package",update_ext(&ext);
+	ext.ext=cast_uchar "avi",ext.ct=cast_uchar "video/x-msvideo",update_ext(&ext);
+	ext.ext=cast_uchar "au,snd",ext.ct=cast_uchar "audio/basic",update_ext(&ext);
+	ext.ext=cast_uchar "aif,aiff,aifc",ext.ct=cast_uchar "audio/x-aiff",update_ext(&ext);
 }
 
 /* --------------------------- PROG -----------------------------*/
@@ -808,12 +807,29 @@ static int is_in_list(unsigned char *list, unsigned char *str, int l)
 	goto rep;
 }
 
+static unsigned char *canonical_compressed_ext(unsigned char *ext, unsigned char *ext_end)
+{
+	size_t len;
+	if (!ext_end) ext_end = cast_uchar strchr(cast_const_char ext, 0);
+	len = ext_end - ext;
+	if (len == 3 && !casecmp(ext, cast_uchar "tgz", 3)) return cast_uchar "gz";
+	if (len == 3 && !casecmp(ext, cast_uchar "tbz", 3)) return cast_uchar "bz2";
+	if (len == 6 && !casecmp(ext, cast_uchar "tar-gz", 3)) return cast_uchar "gz";
+	if (len == 7 && !casecmp(ext, cast_uchar "tar-bz2", 3)) return cast_uchar "bz2";
+	return NULL;
+}
+
 unsigned char *get_compress_by_extension(unsigned char *ext, unsigned char *ext_end)
 {
-	size_t len = ext_end - ext;
+	size_t len;
+	unsigned char *x;
+	if ((x = canonical_compressed_ext(ext, ext_end))) {
+		ext = x;
+		ext_end = cast_uchar strchr(cast_const_char x, 0);
+	}
+	len = ext_end - ext;
 	if (len == 1 && !casecmp(ext, cast_uchar "z", 1)) return cast_uchar "compress";
 	if (len == 2 && !casecmp(ext, cast_uchar "gz", 2)) return cast_uchar "gzip";
-	if (len == 3 && !casecmp(ext, cast_uchar "tgz", 3)) return cast_uchar "gzip";
 	if (len == 3 && !casecmp(ext, cast_uchar "bz2", 3)) return cast_uchar "bzip2";
 	if (len == 4 && !casecmp(ext, cast_uchar "lzma", 4)) return cast_uchar "lzma";
 	if (len == 2 && !casecmp(ext, cast_uchar "xz", 2)) return cast_uchar "lzma2";
@@ -1047,7 +1063,7 @@ struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 	struct assoc *a;
 	int count=0;
 	foreach(a, assoc) 
-		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, strlen(cast_const_char type))) {
+		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, (int)strlen(cast_const_char type))) {
 			if (count == MAXINT) overalloc();
 			count++;
 		}
@@ -1057,7 +1073,7 @@ struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 	assoc_array = mem_alloc(count*sizeof(struct assoc));
 	count = 0;
 	foreach(a, assoc) 
-		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, strlen(cast_const_char type))) 
+		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, (int)strlen(cast_const_char type))) 
 			assoc_array[count++] = *a;
 	return assoc_array;
 }
@@ -1101,8 +1117,11 @@ unsigned char *get_filename_from_header(unsigned char *head)
 unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, int tmp)
 {
 	int ll = 0;
-	unsigned char *u, *s, *e, *f, *x;
+	unsigned char *u, *s, *e, *f, *x, *ww;
 	unsigned char *ct, *want_ext;
+	if (!casecmp(url, cast_uchar "data:", 5)) {
+		url = cast_uchar "data:/data";
+	}
 	want_ext = stracpy(cast_uchar "");
 	f = get_filename_from_header(head);
 	if (f) {
@@ -1114,7 +1133,7 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 	}
 	ll = 0;
 	f = init_str();
-	add_conv_str(&f, &ll, s, e - s, -2);
+	add_conv_str(&f, &ll, s, (int)(e - s), -2);
 	if (!(ct = parse_http_header(head, cast_uchar "Content-Type", NULL))) goto no_ct;
 	mem_free(ct);
 	ct = get_content_type(head, url);
@@ -1141,7 +1160,7 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 		if (!tmp) {
 			if (x) {
 				unsigned char *w = cast_uchar strrchr(cast_const_char want_ext, '.');
-				if (w && !strcasecmp(cast_const_char w, ".tgz") && !strcasecmp(cast_const_char x, "gz"))
+				if (w && (ww = canonical_compressed_ext(w + 1, NULL)) && !strcasecmp(cast_const_char x, cast_const_char ww))
 					goto skip_want_ext;
 				if (w && !strcasecmp(cast_const_char(w + 1), cast_const_char x))
 					goto skip_want_ext;
@@ -1160,7 +1179,7 @@ unsigned char *get_filename_from_url(unsigned char *url, unsigned char *head, in
 	}
 	if (strlen(cast_const_char want_ext) > strlen(cast_const_char f) || strcasecmp(cast_const_char want_ext, cast_const_char(f + strlen(cast_const_char f) - strlen(cast_const_char want_ext)))) {
 		x = cast_uchar strrchr(cast_const_char f, '.');
-		if (x && !strcasecmp(cast_const_char x, ".tgz") && !strcasecmp(cast_const_char want_ext, ".gz"))
+		if (x && (ww = canonical_compressed_ext(x + 1, NULL)) && want_ext[0] == '.' && !strcasecmp(cast_const_char(want_ext + 1), cast_const_char ww))
 			goto skip_tgz_2;
 		if (x) *x = 0;
 		add_to_strn(&f, want_ext);

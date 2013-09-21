@@ -17,7 +17,16 @@
 #undef HAVE_MAXINT_CONVERSION_BUG
 
 /* */
+#undef HAVE_STDLIB_H_X
+
+/* */
 #undef HAVE_SOCKLEN_T
+
+/* */
+#undef HAVE_VOLATILE
+
+/* */
+#undef HAVE_ERRNO
 
 /* */
 #undef C_BIG_ENDIAN
@@ -47,19 +56,43 @@
 #undef HAVE_STRNCMP
 
 /* */
+#undef HAVE_STRCASECMP
+
+/* */
+#undef HAVE_STRNCASECMP
+
+/* */
 #undef HAVE_STRCSPN
 
 /* */
 #undef HAVE_STRSTR
 
 /* */
+#undef HAVE_MEMCMP
+
+/* */
+#undef HAVE_MEMCHR
+
+/* */
+#undef HAVE_MEMCPY
+
+/* */
 #undef HAVE_MEMMOVE
+
+/* */
+#undef HAVE_MEMSET
 
 /* */
 #undef HAVE_STRERROR
 
 /* */
 #undef HAVE_SIGSETJMP
+
+/* */
+#undef HAVE_POW
+
+/* */
+#undef HAVE_POWF
 
 /* */
 #undef HAVE_GETHOSTBYNAME
@@ -99,6 +132,9 @@
 
 /* */
 #undef X2
+
+/* */
+#undef HAVE_XSETLOCALE
 
 /* */
 #undef HAVE_SSL
@@ -141,6 +177,9 @@
 
 /* */
 #undef GRDRV_ATHEOS
+
+/* */
+#undef GRDRV_GRX
 
 /* */
 #undef DONT_INCLUDE_SETJMP

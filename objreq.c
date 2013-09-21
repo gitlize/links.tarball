@@ -100,13 +100,13 @@ static int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 		ses = ((struct window *)dlg->win->term->windows.prev)->data;
 		ct = get_convert_table(rq->ce_internal->head, dlg->win->term->spec->charset, ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
 		ct = get_translation_table(dlg->win->term->spec->charset, net_cp);
-		uid = convert_string(ct, a->uid, strlen(cast_const_char a->uid), NULL);
-		passwd = convert_string(ct, a->passwd, strlen(cast_const_char a->passwd), NULL);
+		uid = convert_string(ct, a->uid, (int)strlen(cast_const_char a->uid), NULL);
+		passwd = convert_string(ct, a->passwd, (int)strlen(cast_const_char a->passwd), NULL);
 		add_auth(rq->url, a->realm, uid, passwd, a->proxy);
 		mem_free(uid);
 		mem_free(passwd);
 		change_connection(&rq->stat, NULL, PRI_CANCEL);
-		load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD, 0, 0);
+		load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD, 0, 0, 0);
 	}
 	cancel_dialog(dlg, item);
 	return 0;
@@ -139,7 +139,7 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 			mem_free(port);
 		}
 	}
-	urealm = convert_string(ct, realm, strlen(cast_const_char realm), NULL);
+	urealm = convert_string(ct, realm, (int)strlen(cast_const_char realm), NULL);
 	d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog) + strlen(cast_const_char _(TEXT_(T_ENTER_USERNAME), term)) + strlen(cast_const_char urealm) + 1 + strlen(cast_const_char _(TEXT_(T_AT), term)) + strlen(cast_const_char host) + + 1);
 	memset(d, 0, sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog));
 	a = (struct auth_dialog *)((unsigned char *)d + sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
@@ -183,7 +183,7 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 
 /* prev_url is a pointer to previous url or NULL */
 /* prev_url will NOT be deallocated */
-void request_object(struct terminal *term, unsigned char *url, unsigned char *prev_url, int pri, int cache, void (*upcall)(struct object_request *, void *), void *data, struct object_request **rqp)
+void request_object(struct terminal *term, unsigned char *url, unsigned char *prev_url, int pri, int cache, int allow_flags, void (*upcall)(struct object_request *, void *), void *data, struct object_request **rqp)
 {
 	struct object_request *rq;
 	rq = mem_calloc(sizeof(struct object_request));
@@ -207,7 +207,7 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 	if (rqp) *rqp = rq;
 	rq->count = obj_req_count++;
 	add_to_list(requests, rq);
-	load_url(url, prev_url, &rq->stat, pri, cache, 0, 0);
+	load_url(url, prev_url, &rq->stat, pri, cache, 0, allow_flags, 0);
 }
 
 static void set_ce_internal(struct object_request *rq)
@@ -232,7 +232,7 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 	if (stat->state < 0) {
 		if (stat->ce && rq->state == O_WAITING && stat->ce->redirect) {
 			if (rq->redirect_cnt++ < MAX_REDIRECTS) {
-				int cache;
+				int cache, allow_flags;
 				unsigned char *u, *p, *pos;
 				change_connection(stat, NULL, PRI_CANCEL);
 				u = join_urls(rq->url, stat->ce->redirect);
@@ -244,9 +244,10 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 				if (!http_options.bug_302_redirect && !stat->ce->redirect_get && (p = cast_uchar strchr(cast_const_char u, POST_CHAR))) add_to_strn(&u, p);
 				cache = rq->cache;
 				if (cache < NC_RELOAD && (!strcmp(cast_const_char u, cast_const_char rq->url) || !strcmp(cast_const_char u, cast_const_char rq->orig_url) || rq->redirect_cnt >= MAX_CACHED_REDIRECTS)) cache = NC_RELOAD;
+				allow_flags = get_allow_flags(rq->url);
 				mem_free(rq->url);
 				rq->url = u;
-				load_url(u, rq->prev_url, &rq->stat, rq->pri, cache, 0, 0);
+				load_url(u, rq->prev_url, &rq->stat, rq->pri, cache, 0, allow_flags, 0);
 				return;
 			} else {
 				maxrd:
@@ -261,7 +262,7 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 				mem_free(realm);
 				if (rq->redirect_cnt++ >= MAX_REDIRECTS) goto maxrd;
 				change_connection(stat, NULL, PRI_CANCEL);
-				load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD, 0, 0);
+				load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD, 0, 0, 0);
 				return;
 			}
 			user = get_user_name(rq->url);

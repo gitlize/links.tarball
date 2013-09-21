@@ -48,8 +48,6 @@ unsigned long connect_info(int type)
 			check_keepalive_connections();
 			foreach(cee, keepalive_connections) i++;
 			return i;
-		case CI_LIST:
-			return (long) &queue;
 		default:
 			internal("connect_info: bad request");
 	}
@@ -152,13 +150,14 @@ static struct k_conn *is_host_on_keepalive_list(struct connection *c)
 	return NULL;
 }
 
-int get_keepalive_socket(struct connection *c)
+int get_keepalive_socket(struct connection *c, int *protocol_data)
 {
 	struct k_conn *k;
 	int cc;
 	if (c->tries > 0 || c->unrestartable) return -1;
 	if (!(k = is_host_on_keepalive_list(c))) return -1;
 	cc = k->conn;
+	if (protocol_data) *protocol_data = k->protocol_data;
 	del_from_list(k);
 	mem_free(k->host);
 	mem_free(k);
@@ -261,7 +260,7 @@ static void del_connection(struct connection *c)
 static void check_queue_bugs(void);
 #endif
 
-void add_keepalive_socket(struct connection *c, ttime timeout)
+void add_keepalive_socket(struct connection *c, ttime timeout, int protocol_data)
 {
 	struct k_conn *k;
 	int rs;
@@ -282,6 +281,7 @@ void add_keepalive_socket(struct connection *c, ttime timeout)
 	k->conn = c->sock1;
 	k->timeout = timeout;
 	k->add_time = get_time();
+	k->protocol_data = protocol_data;
 	add_to_list(keepalive_connections, k);
 	del:
 	del_connection(c);
@@ -411,7 +411,7 @@ static void run_connection(struct connection *c)
 
 	safe_strncpy(c->socks_proxy, proxies.socks_proxy, sizeof c->socks_proxy);
 
-	if (proxies.only_proxies && casecmp(c->url, cast_uchar "proxy://", 8) && (!*c->socks_proxy || url_bypasses_socks(c->url))) {
+	if (proxies.only_proxies && casecmp(c->url, cast_uchar "proxy://", 8) && casecmp(c->url, cast_uchar "data:", 5) && (!*c->socks_proxy || url_bypasses_socks(c->url))) {
 		setcstate(c, S_NO_PROXY);
 		del_connection(c);
 		return;
@@ -622,14 +622,32 @@ unsigned char *get_proxy(unsigned char *url)
 	return u;
 }
 
+int get_allow_flags(unsigned char *url)
+{
+	return	!casecmp(url, cast_uchar "smb://", 6) ? ALLOW_SMB :
+		!casecmp(url, cast_uchar "file://", 7) ? ALLOW_FILE : 0;
+}
+
+int disallow_url(unsigned char *url, int allow_flags)
+{
+	if (!casecmp(url, cast_uchar "smb://", 6) && !(allow_flags & ALLOW_SMB) && !smb_options.allow_hyperlinks_to_smb) {
+		return S_SMB_NOT_ALLOWED;
+	}
+	if (!casecmp(url, cast_uchar "file://", 7) && !(allow_flags & ALLOW_FILE)) {
+		return S_FILE_NOT_ALLOWED;
+	}
+	return 0;
+}
+
 /* prev_url is a pointer to previous url or NULL */
 /* prev_url will NOT be deallocated */
-void load_url(unsigned char *url, unsigned char *prev_url, struct status *stat, int pri, int no_cache, int no_compress, off_t position)
+void load_url(unsigned char *url, unsigned char *prev_url, struct status *stat, int pri, int no_cache, int no_compress, int allow_flags, off_t position)
 {
 	struct cache_entry *e = NULL;
 	struct connection *c;
 	unsigned char *u;
 	int must_detach = 0;
+	int err;
 	if (stat) {
 		stat->c = NULL;
 		stat->ce = NULL;
@@ -653,6 +671,14 @@ void load_url(unsigned char *url, unsigned char *prev_url, struct status *stat, 
 	if (is_url_blocked(url)) {
 		if (stat) {
 			stat->state = S_BLOCKED_URL;
+			if (stat->end) stat->end(stat, stat->data);
+		}
+		return;
+	}
+	err = disallow_url(url, allow_flags);
+	if (err) {
+		if (stat) {
+			stat->state = err;
 			if (stat->end) stat->end(stat, stat->data);
 		}
 		return;
@@ -896,7 +922,7 @@ static void connection_timeout_1(struct connection *c)
 	c->timer = install_timer((c->unrestartable ? unrestartable_receive_timeout : receive_timeout) * 500, (void (*)(void *))connection_timeout, c);
 }
 
-void set_timeout(struct connection *c)
+void set_connection_timeout(struct connection *c)
 {
 	if (c->timer != -1) kill_timer(c->timer);
 	c->timer = install_timer((c->unrestartable ? unrestartable_receive_timeout : receive_timeout) * 500, (void (*)(void *))connection_timeout_1, c);
@@ -1034,9 +1060,12 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_SOCKS_BAD_USERID,	TEXT_(T_SOCKS_BAD_USERID)},
 	{S_SOCKS_UNKNOWN_ERROR,	TEXT_(T_SOCKS_UNKNOWN_ERROR)},
 
+	{S_NO_SMB_CLIENT,	TEXT_(T_NO_SMB_CLIENT)},
+
 	{S_BLOCKED_URL,		TEXT_(T_BLOCKED_URL)},
 	{S_NO_PROXY,		TEXT_(T_NO_PROXY)},
-	{S_NO_SMB_CLIENT,	TEXT_(T_NO_SMB_CLIENT)},
+	{S_SMB_NOT_ALLOWED,	TEXT_(T_SMB_NOT_ALLOWED)},
+	{S_FILE_NOT_ALLOWED,	TEXT_(T_FILE_NOT_ALLOWED)},
 
 	{S_WAIT_REDIR,		TEXT_(T_WAITING_FOR_REDIRECT_CONFIRMATION)},
 	{0,			NULL}

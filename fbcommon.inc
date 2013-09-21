@@ -95,7 +95,10 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 		break;
 
 		case 4:
-		{
+		if (((unsigned char *)pattern)[1] == ((unsigned char *)pattern)[2] &&
+		    ((unsigned char *)pattern)[1] == ((unsigned char *)pattern)[drv->depth & ~255 ? 3 : 0]) {
+			memset(dest, ((unsigned char *)pattern)[1], n);
+		} else {
 #ifdef t4c
 			t4c v=*(t4c *)do_not_optimize_here(pattern);
 #ifdef __ICC

@@ -11,7 +11,7 @@
 
 static int accept_cookies = ACCEPT_ALL;
 
-struct list_head cookies = { &cookies, &cookies };
+struct list_head all_cookies = { &all_cookies, &all_cookies };
 
 struct list_head c_domains = { &c_domains, &c_domains };
 
@@ -90,7 +90,7 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 	struct c_server *cs;
 	unsigned char *p, *q, *s, *server, *date;
 	if (accept_cookies == ACCEPT_NONE) return 0;
-	for (p = str; *p != ';' && *p; p++) {/*if (WHITECHAR(*p)) return 0*/}
+	for (p = str; *p != ';' && *p; p++) { /*if (WHITECHAR(*p)) return 0;*/ }
 	for (q = str; *q != '='; q++) if (!*q || q >= p) {
 		noval = 1;
 		break;
@@ -166,7 +166,7 @@ static void accept_cookie(struct cookie *c)
 {
 	struct c_domain *cd;
 	struct cookie *d, *e;
-	foreach(d, cookies) if (!strcasecmp(cast_const_char d->name, cast_const_char c->name) && !strcasecmp(cast_const_char d->domain, cast_const_char c->domain)) {
+	foreach(d, all_cookies) if (!strcasecmp(cast_const_char d->name, cast_const_char c->name) && !strcasecmp(cast_const_char d->domain, cast_const_char c->domain)) {
 		e = d;
 		d = d->prev;
 		del_from_list(e);
@@ -178,7 +178,7 @@ static void accept_cookie(struct cookie *c)
 		mem_free(c);
 		return;
 	}
-	add_to_list(cookies, c);
+	add_to_list(all_cookies, c);
 	foreach(cd, c_domains) if (!strcasecmp(cast_const_char cd->domain, cast_const_char c->domain)) return;
 	cd = mem_alloc(sizeof(struct c_domain) + strlen(cast_const_char c->domain) + 1);
 	strcpy(cast_char cd->domain, cast_const_char c->domain);
@@ -187,8 +187,8 @@ static void accept_cookie(struct cookie *c)
 
 int is_in_domain(unsigned char *d, unsigned char *s)
 {
-	int dl = strlen(cast_const_char d);
-	int sl = strlen(cast_const_char s);
+	int dl = (int)strlen(cast_const_char d);
+	int sl = (int)strlen(cast_const_char s);
 	if (dl > sl) return 0;
 	if (dl == sl) return !strcasecmp(cast_const_char d, cast_const_char s);
 	if (s[sl - dl - 1] != '.') return 0;
@@ -197,8 +197,8 @@ int is_in_domain(unsigned char *d, unsigned char *s)
 
 int is_path_prefix(unsigned char *d, unsigned char *s)
 {
-	int dl = strlen(cast_const_char d);
-	int sl = strlen(cast_const_char s);
+	int dl = (int)strlen(cast_const_char d);
+	int sl = (int)strlen(cast_const_char s);
 	if (!dl) return 1;
 	if (dl > sl) return 0;
 	if (memcmp(d, s, dl)) return 0;
@@ -208,6 +208,7 @@ int is_path_prefix(unsigned char *d, unsigned char *s)
 int cookie_expired(struct cookie *c)	/* parse_http_date is broken */
 {
 	time_t t;
+	errno = 0;
 	EINTRLOOPX(t, time(NULL), (time_t)-1);
 	return 0 && (c->expires && c->expires < t);
 }
@@ -224,7 +225,7 @@ void add_cookies(unsigned char **s, int *l, unsigned char *url)
 	mem_free(server);
 	return;
 	ok:
-	foreachback (c, cookies) if (is_in_domain(c->domain, server)) if (is_path_prefix(c->path, data)) {
+	foreachback (c, all_cookies) if (is_in_domain(c->domain, server)) if (is_path_prefix(c->path, data)) {
 		if (cookie_expired(c)) {
 			d = c;
 			c = c->prev;
@@ -256,7 +257,7 @@ void cleanup_cookies(void)
 	struct cookie *c;
 	free_list(c_domains);
 	/* !!! FIXME: save cookies */
-	foreach (c, cookies) free_cookie(c);
-	free_list(cookies);
+	foreach (c, all_cookies) free_cookie(c);
+	free_list(all_cookies);
 }
 

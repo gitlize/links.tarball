@@ -917,7 +917,7 @@ int main(int argc, char **argv)
 		sprintf(string,"convert -crop 0x0 letters%d.png letters%d.png\n",a,a);
 		fputs(string,stderr);
 		system(string);
-		sprintf(string,"improcess letters%d.png clip_improcess_program"
+		sprintf(string,"./improcess letters%d.png clip_improcess_program"
 			" font/new/orig_%04x.png\n",a,a);
 		fputs(string,stderr);
 		system(string);

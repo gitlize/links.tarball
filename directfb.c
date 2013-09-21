@@ -25,7 +25,7 @@
 #include <directfb.h>
 
 #include "links.h"
-#include "directfb_cursors.h"
+#include "dfb_cur.h"
 
 
 #define FOCUSED_OPACITY    0xFF
@@ -381,12 +381,11 @@ directfb_set_clip_area (struct graphics_device *gd, struct rect *r)
 {
   DFBDeviceData *data   = gd->driver_data;
   DFBRegion      region;
-  region.x1 = r->x1;
-  region.y1 = r->y1;
-  region.x2 = r->x2 - 1;
-  region.y2 = r->y2 - 1;
-
-  gd->clip = *r;
+  generic_set_clip_area(gd, r);
+  region.x1 = gd->clip.x1;
+  region.y1 = gd->clip.y1;
+  region.x2 = gd->clip.x2 - 1;
+  region.y2 = gd->clip.y2 - 1;
 
   data->surface->SetClip (data->surface, &region);
 }
@@ -444,6 +443,7 @@ struct graphics_driver directfb_driver =
   directfb_init_device,
   directfb_shutdown_device,
   directfb_shutdown_driver,
+  dummy_emergency_shutdown,
   directfb_get_driver_param,
   directfb_get_empty_bitmap,
   directfb_register_bitmap,

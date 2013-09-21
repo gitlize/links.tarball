@@ -32,13 +32,31 @@ SSL *getSSL(void)
 	if (!context) {
 		const SSL_METHOD *m;
 		unsigned char f_randfile[PATH_MAX];
+		unsigned char *os_pool;
+		unsigned os_pool_size;
 
 		const unsigned char *f = (const unsigned char *)RAND_file_name(cast_char f_randfile, sizeof(f_randfile));
-		if (f && RAND_egd(cast_const_char f)<0) {
+		if (f && RAND_egd(cast_const_char f) < 0) {
 			/* Not an EGD, so read and write to it */
 			if (RAND_load_file(cast_const_char f_randfile, -1))
 				RAND_write_file(cast_const_char f_randfile);
 		}
+
+		os_seed_random(&os_pool, &os_pool_size);
+		if (os_pool_size) RAND_add(os_pool, os_pool_size, os_pool_size);
+		mem_free(os_pool);
+
+/* needed for systems without /dev/random, but obviously kills security. */
+		/*{
+			static unsigned char pool[32768];
+			int i;
+			int rs;
+			struct timeval tv;
+			EINTRLOOP(rs, gettimeofday(&tv, NULL));
+			for (i = 0; i < (int)sizeof pool; i++) pool[i] = random() ^ tv.tv_sec ^ tv.tv_usec;
+			RAND_add(pool, sizeof pool, sizeof pool);
+		}*/
+
 		SSLeay_add_ssl_algorithms();
 		m = SSLv23_client_method();
 		if (!m) return NULL;
@@ -46,16 +64,7 @@ SSL *getSSL(void)
 		if (!context) return NULL;
 		SSL_CTX_set_options(context, SSL_OP_ALL);
 		SSL_CTX_set_default_verify_paths(context);
-/* needed for systems without /dev/random, but obviously kills security. */
-		/*{
-			unsigned char pool[32768];
-			int i;
-			int rs;
-			struct timeval tv;
-			EINTRLOOP(rs, gettimeofday(&tv, NULL));
-			for (i = 0; i < sizeof pool; i++) pool[i] = random() ^ tv.tv_sec ^ tv.tv_usec;
-			RAND_add(pool, sizeof pool, sizeof pool);
-		}*/
+
 	}
 	return (SSL_new(context));
 }

@@ -261,6 +261,7 @@ struct pm_window {
 #endif
 #ifdef WIN32
 	HDC dc;
+	HPEN pen_orig;
 	HPEN pen_cache;
 	HBRUSH brush_cache;
 	int pen_cache_color;
@@ -800,7 +801,7 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 			if (!flags) break;
 			pm_lock();
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), flags > 0 && flags < 0x8000 ? B_WHEELUP : B_WHEELDOWN, 0);
+			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), (flags > 0 && flags < 0x8000 ? B_WHEELUP : B_WHEELDOWN) | B_MOVE, 0);
 			pm_unlock();
 			break;
 #endif
@@ -1354,7 +1355,7 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 		s = cast_uchar "Could not create pipe.\n";
 		goto r2;
 	}
-	EINTRLOOP(rs, fcntl(pm_pipe[1], F_SETFL, O_NONBLOCK));
+	set_nonblock(pm_pipe[1]);
 	memset(pm_windows, 0, sizeof(struct pm_window *) * WIN_HASH);
 	if (pm_lock_init()) {
 		s = cast_uchar "Could not create mutext.\n";
@@ -1676,6 +1677,7 @@ static struct graphics_device *pm_init_device(void)
 	}
 #endif
 #ifdef WIN32
+	win->pen_orig = NULL;
 	win->pen_cache = NULL;
 	win->pen_cache_color = -1;
 	win->brush_cache = NULL;
@@ -1729,6 +1731,9 @@ static void pm_shutdown_device(struct graphics_device *dev)
 		error("WinReleasePS failed");
 #endif
 #ifdef WIN32
+	if (win->pen_orig)
+		if (!SelectObject(win->dc, win->pen_orig))
+			error("SelectObject failed for original pen");
 	if (!GdiFlush())
 		{/*error("GdiFlush failed")*/}
 	if (!ReleaseDC(win->hc, win->dc))
@@ -1790,19 +1795,34 @@ static void pm_set_window_title(struct graphics_device *dev, unsigned char *titl
 
 static int pm_get_empty_bitmap(struct bitmap *bmp)
 {
+	unsigned size;
 	debug_call(("get_empty_bitmap (%dx%d)\n", bmp->x, bmp->y));
 	if ((unsigned)bmp->x > (unsigned)MAXINT / (pmshell_driver.depth & 7) - 4) {
-		over:
+over:
 		bmp->data = NULL;
 		bmp->flags = NULL;
 		return -1;
 	}
 	bmp->skip = (bmp->x * (pmshell_driver.depth & 7) + 3) & ~3;
-	if (bmp->skip && (unsigned)bmp->skip * (unsigned)bmp->y / (unsigned)bmp->skip != (unsigned)bmp->y) goto over;
-	if ((unsigned)bmp->skip * (unsigned)bmp->y > MAXINT) goto over;
-	bmp->data = mem_alloc_mayfail(bmp->skip * bmp->y);
+	size = (unsigned)bmp->skip * (unsigned)bmp->y;
+	if (bmp->skip && size / (unsigned)bmp->skip != (unsigned)bmp->y) goto over;
+	if (size > MAXINT) goto over;
+#ifdef OS2
+	bmp->data = mem_alloc_mayfail(size);
 	if (!bmp->data) goto over;
-	bmp->data = (unsigned char *)bmp->data + bmp->skip * (bmp->y - 1);
+#endif
+#ifdef WIN32
+again:
+	/* space allocated with malloc may span multiple mapped areas
+	   and SetDIBitsToDevice doesn't like it. So use HeapAlloc/HeapFree */
+	bmp->data = HeapAlloc(GetProcessHeap(), 0, size);
+	if (!bmp->data) {
+		if (out_of_memory(0, NULL, 0))
+			goto again;
+		goto over;
+	}
+#endif
+	bmp->data = (unsigned char *)bmp->data + size - bmp->skip;
 	bmp->skip = -bmp->skip;
 	debug_call(("done\n"));
 	return 0;
@@ -1890,7 +1910,7 @@ static void pm_unregister_bitmap(struct bitmap *bmp)
 			error("GpiDeleteBitmap failed");
 #endif
 #ifdef WIN32
-	mem_free((unsigned char *)bmp->data + bmp->skip * (bmp->y - 1));
+	HeapFree(GetProcessHeap(), 0, (unsigned char *)bmp->data + bmp->skip * (bmp->y - 1));
 #endif
 	debug_call(("done\n"));
 }
@@ -1976,7 +1996,9 @@ static int win32_select_pen(struct pm_window *win, int color)
 			error("DeleteObject failed for pen");
 		return -1;
 	}
-	if (!DeleteObject(orig))
+	if (!win->pen_orig)
+		win->pen_orig = orig;
+	else if (!DeleteObject(orig))
 		error("DeleteObject failed for previous pen");
 	win->pen_cache = hpen;
 	win->pen_cache_color = color;
@@ -2102,7 +2124,6 @@ static int pm_hscroll(struct graphics_device *dev, struct rect_set **ignore, int
 	RECTL r;
 
 	debug_call(("hscroll (%d)\n", sc));
-	ignore = NULL;
 	r.xLeft = dev->clip.x1;
 	r.yBottom = dev->clip.y2;
 	r.xRight = dev->clip.x2;
@@ -2147,7 +2168,6 @@ static int pm_vscroll(struct graphics_device *dev, struct rect_set **ignore, int
 	RECTL r;
 
 	debug_call(("vscroll (%d)\n", sc));
-	ignore = NULL;
 	r.xLeft = dev->clip.x1;
 	r.yBottom = dev->clip.y2;
 	r.xRight = dev->clip.x2;
@@ -2169,14 +2189,6 @@ static int pm_vscroll(struct graphics_device *dev, struct rect_set **ignore, int
 	return 0;
 }
 
-static void pm_set_clip_area(struct graphics_device *dev, struct rect *rr)
-{
-	debug_call(("set_clip_area (%d,%d)x(%d,%d)\n", rr->x1, rr->y1, rr->x2, rr->y2));
-	memcpy(&dev->clip, rr, sizeof(struct rect));
-	if (dev->clip.x1 >= dev->clip.x2 || dev->clip.y1 >= dev->clip.y2) dev->clip.x1 = dev->clip.x2 = dev->clip.y1 = dev->clip.y2 = 0;
-	debug_call(("done\n"));
-}
-
 struct graphics_driver pmshell_driver = {
 #ifdef OS2
 	cast_uchar "pmshell",
@@ -2188,6 +2200,7 @@ struct graphics_driver pmshell_driver = {
 	pm_init_device,
 	pm_shutdown_device,
 	pm_shutdown_driver,
+	dummy_emergency_shutdown,
 	pm_get_driver_param,
 	pm_get_empty_bitmap,
 	pm_register_bitmap,
@@ -2201,7 +2214,7 @@ struct graphics_driver pmshell_driver = {
 	pm_draw_vline,
 	pm_hscroll,
 	pm_vscroll,
-	pm_set_clip_area,
+	generic_set_clip_area,
 	dummy_block,
 	dummy_unblock,
 	pm_set_window_title,

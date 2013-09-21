@@ -31,6 +31,9 @@ extern struct graphics_driver pmshell_driver;
 #ifdef GRDRV_ATHEOS
 extern struct graphics_driver atheos_driver;
 #endif
+#ifdef GRDRV_GRX
+extern struct graphics_driver grx_driver;
+#endif
 #ifdef GRDRV_SDL
 extern struct graphics_driver sdl_driver;
 #endif
@@ -68,6 +71,9 @@ static struct graphics_driver *graphics_drivers[] = {
 	&x_driver,
 #endif
 #endif
+#ifdef GRDRV_GRX
+	&grx_driver,
+#endif
 #ifdef GRDRV_SDL
 	&sdl_driver,
 #endif
@@ -82,6 +88,10 @@ int dummy_block(struct graphics_device *dev)
 int dummy_unblock(struct graphics_device *dev)
 {
 	return 0;
+}
+
+void dummy_emergency_shutdown(void)
+{
 }
 
 #if 0
@@ -112,8 +122,10 @@ static unsigned char *init_graphics_driver(struct graphics_driver *gd, unsigned 
 	gd->codepage=dp->codepage;
 	gd->shell=mem_calloc(MAX_STR_LEN);
 	if (dp->shell) safe_strncpy(gd->shell,dp->shell,MAX_STR_LEN);
+	drv = gd;
 	r = gd->init_driver(p,display);
-	if (r) mem_free(gd->shell), gd->shell = NULL;
+	if (r) mem_free(gd->shell), gd->shell = NULL, drv = NULL;
+	else F = 1;
 	return r;
 }
 
@@ -150,8 +162,6 @@ unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsign
 			if ((!driver || !*driver) && (*gd)->flags & GD_NOAUTO) continue;
 			if (!(r = init_graphics_driver(*gd, param, display))) {
 				mem_free(s);
-				drv = *gd;
-				F = 1;
 				return NULL;
 			}
 			if (!l) {
@@ -180,6 +190,7 @@ void shutdown_graphics(void)
 	{
 		if (drv->shell) mem_free(drv->shell);
 		drv->shutdown_driver();
+		drv = NULL;
 	}
 }
 
@@ -197,7 +208,20 @@ void update_driver_param(void)
 	}
 }
 
-#if defined(GRDRV_SVGALIB)|defined(GRDRV_FB)
+void generic_set_clip_area(struct graphics_device *dev, struct rect *r)
+{
+	memcpy(&dev->clip, r, sizeof(struct rect));
+	if (dev->clip.x1 < 0) dev->clip.x1 = 0;
+	if (dev->clip.x2 > dev->size.x2) dev->clip.x2 = dev->size.x2;
+	if (dev->clip.y1 < 0) dev->clip.y1 = 0;
+	if (dev->clip.y2 > dev->size.y2) dev->clip.y2 = dev->size.y2;
+	if (dev->clip.x1 >= dev->clip.x2 || dev->clip.y1 >= dev->clip.y2) {
+		/* Empty region */
+		dev->clip.x1 = dev->clip.x2 = dev->clip.y1 = dev->clip.y2 = 0;
+	}
+}
+
+#if defined(GRDRV_SVGALIB) || defined(GRDRV_FB) || defined(GRDRV_GRX)
 
 static struct graphics_driver *virtual_device_driver;
 struct graphics_device **virtual_devices;

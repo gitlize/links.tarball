@@ -7,6 +7,7 @@
 
 /*
 #define LOG_TRANSFER	"/tmp/log"
+#define LOG_SSL
 */
 
 #ifdef LOG_TRANSFER
@@ -15,7 +16,7 @@ static void log_data(unsigned char *data, int len)
 	static int hlaseno = 0;
 	int fd;
 	if (!hlaseno) {
-		printf("\n\033[1mWARNING -- LOGGING NETWORK TRANSFERS !!!\033[0m%c\n", 7);
+		printf("\n"ANSI_SET_BOLD"WARNING -- LOGGING NETWORK TRANSFERS !!!"ANSI_CLEAR_BOLD ANSI_BELL"\n");
 		fflush(stdout);
 		sleep(1);
 		hlaseno = 1;
@@ -32,6 +33,19 @@ static void log_data(unsigned char *data, int len)
 #else
 #define log_data(x, y)
 #endif
+
+#ifdef LOG_SSL
+#include <openssl/err.h>
+#endif
+
+static inline void log_ssl_error(int line, int ret1, int ret2)
+{
+#ifdef LOG_SSL
+	SSL_load_error_strings();
+	ERR_print_errors_fp(stderr);
+	debug("ssl error at %d: %d, %d, %d (%s)", line, ret1, ret2, errno, strerror(errno));
+#endif
+}
 
 static void connected(struct connection *);
 static void dns_found(struct connection *, int);
@@ -149,16 +163,18 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 		real_port = port;
 		port = 1080;
 		if ((p = cast_uchar strchr(cast_const_char host, ':'))) {
+			long lp;
 			*p++ = 0;
 			if (!*p) goto badu;
-			port = strtoul(cast_const_char p, (char **)(void *)&p, 10);
-			if (*p) {
+			lp = strtol(cast_const_char p, (char **)(void *)&p, 10);
+			if (*p || lp <= 0 || lp >= 65536) {
 				badu:
 				mem_free(host);
 				setcstate(c, S_BAD_URL);
 				abort_connection(c);
 				return;
 			}
+			port = (int)lp;
 		}
 		dns_append = proxies.dns_append;
 	} else if (!(host = get_host_name(c->url))) {
@@ -224,7 +240,7 @@ int get_pasv_socket(struct connection *c, int cc, int *sock, unsigned char *port
 	EINTRLOOP(s, socket(PF_INET, SOCK_STREAM, IPPROTO_TCP));
 	if (s == -1) goto e;
 	*sock = s;
-	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
+	set_nonblock(s);
 	memcpy(&sb, &sa, sizeof(struct sockaddr_in));
 	sb.sin_port = htons(0);
 	EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sb, sizeof sb));
@@ -264,7 +280,7 @@ int get_pasv_socket_ipv6(struct connection *c, int cc, int *sock, unsigned char 
 	EINTRLOOP(s, socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP));
 	if (s == -1) goto e;
 	*sock = s;
-	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
+	set_nonblock(s);
 	memcpy(&sb, &sa, sizeof(struct sockaddr_in6));
 	sb.sin6_port = htons(0);
 	EINTRLOOP(rs, bind(s, (struct sockaddr *)(void *)&sb, sizeof sb));
@@ -305,14 +321,15 @@ int get_pasv_socket_ipv6(struct connection *c, int cc, int *sock, unsigned char 
 #ifdef HAVE_SSL
 static void ssl_want_read(struct connection *c)
 {
+	int ret1, ret2;
 	struct conn_info *b = c->newconn;
 
-	set_timeout(c);
+	set_connection_timeout(c);
 
 #ifndef HAVE_NSS
 	if (c->no_tsl) c->ssl->options |= SSL_OP_NO_TLSv1;
 #endif
-	switch (SSL_get_error(c->ssl, SSL_connect(c->ssl))) {
+	switch ((ret2 = SSL_get_error(c->ssl, ret1 = SSL_connect(c->ssl)))) {
 		case SSL_ERROR_NONE:
 			c->newconn = NULL;
 			b->func(c);
@@ -325,6 +342,7 @@ static void ssl_want_read(struct connection *c)
 			set_handlers(*b->sock, NULL, (void(*)(void *))ssl_want_read, (void(*)(void *))exception, c);
 			break;
 		default:
+			log_ssl_error(__LINE__, ret1, ret2);
 			c->no_tsl++;
 			setcstate(c, S_SSL_ERROR);
 			retry_connection(c);
@@ -341,7 +359,7 @@ static void handle_socks(struct connection *c)
 	unsigned char *host;
 	int wr;
 	setcstate(c, S_SOCKS_NEG);
-	set_timeout(c);
+	set_connection_timeout(c);
 	add_bytes_to_str(&command, &len, cast_uchar "\004\001", 2);
 	add_chr_to_str(&command, &len, b->real_port >> 8);
 	add_chr_to_str(&command, &len, b->real_port);
@@ -365,7 +383,7 @@ static void handle_socks(struct connection *c)
 		retry_connection(c);
 		return;
 	}
-	EINTRLOOP(wr, write(*b->sock, command + b->socks_byte_count, len - b->socks_byte_count));
+	EINTRLOOP(wr, (int)write(*b->sock, command + b->socks_byte_count, len - b->socks_byte_count));
 	mem_free(command);
 	if (wr <= 0) {
 		setcstate(c, wr ? get_error_from_errno(errno) : S_CANT_WRITE);
@@ -387,8 +405,8 @@ static void handle_socks_reply(struct connection *c)
 {
 	struct conn_info *b = c->newconn;
 	int rd;
-	set_timeout(c);
-	EINTRLOOP(rd, read(*b->sock, b->socks_reply + b->socks_byte_count, sizeof b->socks_reply - b->socks_byte_count));
+	set_connection_timeout(c);
+	EINTRLOOP(rd, (int)read(*b->sock, b->socks_reply + b->socks_byte_count, sizeof b->socks_reply - b->socks_byte_count));
 	if (rd <= 0) {
 		setcstate(c, rd ? get_error_from_errno(errno) : S_CANT_READ);
 		retry_connection(c);
@@ -471,7 +489,7 @@ static void try_connect(struct connection *c)
 		retry_connect(c, get_error_from_errno(errno));
 		return;
 	}
-	EINTRLOOP(rs, fcntl(s, F_SETFL, O_NONBLOCK));
+	set_nonblock(s);
 	*b->sock = s;
 	if (addr->af == AF_INET) {
 		struct sockaddr_in sa;
@@ -492,6 +510,9 @@ static void try_connect(struct connection *c)
 		sa.sin6_port = htons(b->port);
 		EINTRLOOP(rs, connect(s, (struct sockaddr *)(void *)&sa, sizeof sa));
 #endif
+	} else {
+		rs = -1;
+		errno = EINVAL;
 	}
 	if (rs) {
 		if (errno != EALREADY && errno != EINPROGRESS) {
@@ -528,6 +549,7 @@ static void connected(struct connection *c)
 	int err = 0;
 	socklen_t len = sizeof(int);
 	int rs;
+#ifdef SO_ERROR
 	errno = 0;
 	EINTRLOOP(rs, getsockopt(*b->sock, SOL_SOCKET, SO_ERROR, (void *)&err, &len));
 	if (!rs) {
@@ -538,23 +560,32 @@ static void connected(struct connection *c)
 			return;
 		}
 	}
-	if (err > 0) {
+	if (err > 0
+#ifdef EISCONN
+	    && err != EISCONN
+#endif
+	    ) {
+#ifdef DOS
+		if (err == EALREADY) err = ETIMEDOUT;
+#endif
 		retry_connect(c, get_error_from_errno(err));
 		return;
 	}
+#endif
 	if (b->addr_index) {
 		int i;
 		for (i = 0; i < b->addr_index; i++)
 			dns_set_priority(b->host, &b->addr.a[i], 0);
 		dns_set_priority(b->host, &b->addr.a[i], 1);
 	}
-	set_timeout(c);
+	set_connection_timeout(c);
 	if (b->real_port != -1) {
 		handle_socks(c);
 		return;
 	}
 #ifdef HAVE_SSL
 	if (c->ssl) {
+		int ret1, ret2;
 		c->ssl = getSSL();
 		if (!c->ssl) {
 			goto ssl_error;
@@ -563,7 +594,7 @@ static void connected(struct connection *c)
 #ifndef HAVE_NSS
 		if (c->no_tsl) c->ssl->options |= SSL_OP_NO_TLSv1;
 #endif
-		switch (SSL_get_error(c->ssl, SSL_connect(c->ssl))) {
+		switch ((ret2 = SSL_get_error(c->ssl, ret1 = SSL_connect(c->ssl)))) {
 			case SSL_ERROR_WANT_READ:
 				setcstate(c, S_SSL_NEG);
 				set_handlers(*b->sock, (void(*)(void *))ssl_want_read, NULL, (void(*)(void *))exception, c);
@@ -575,6 +606,7 @@ static void connected(struct connection *c)
 			case SSL_ERROR_NONE:
 				break;
 			default:
+				log_ssl_error(__LINE__, ret1, ret2);
 			ssl_error:
 				c->no_tsl++;
 				setcstate(c, S_SSL_ERROR);
@@ -606,7 +638,7 @@ static void write_select(struct connection *c)
 		abort_connection(c);
 		return;
 	}
-	set_timeout(c);
+	set_connection_timeout(c);
 	/*printf("ws: %d\n",wb->len-wb->pos);
 	for (wr = wb->pos; wr < wb->len; wr++) printf("%c", wb->data[wr]);
 	printf("-\n");*/
@@ -617,6 +649,8 @@ static void write_select(struct connection *c)
 			int err;
 			if ((err = SSL_get_error(c->ssl, wr)) != SSL_ERROR_WANT_WRITE) {
 				setcstate(c, wr ? (err == SSL_ERROR_SYSCALL ? get_error_from_errno(errno) : S_SSL_ERROR) : S_CANT_WRITE);
+				if (c->state == S_SSL_ERROR)
+					log_ssl_error(__LINE__, wr, err);
 				if (!wr || err == SSL_ERROR_SYSCALL) retry_connection(c);
 				else abort_connection(c);
 				return;
@@ -626,11 +660,11 @@ static void write_select(struct connection *c)
 	} else
 #endif
 	{
-		EINTRLOOP(wr, write(wb->sock, wb->data + wb->pos, wb->len - wb->pos));
+		EINTRLOOP(wr, (int)write(wb->sock, wb->data + wb->pos, wb->len - wb->pos));
 		if (wr <= 0) {
-#ifdef ATHEOS
+#if defined(ATHEOS) || defined(DOS)
 	/* Workaround for a bug in Syllable */
-			if (wr && errno == EAGAIN) {
+			if (wr && (errno == EAGAIN || errno == EWOULDBLOCK)) {
 				return;
 			}
 #endif
@@ -696,6 +730,8 @@ static void read_select(struct connection *c)
 				return;
 			}
 			setcstate(c, rd ? (err == SSL_ERROR_SYSCALL ? get_error_from_errno(errno) : S_SSL_ERROR) : S_CANT_READ);
+			if (c->state == S_SSL_ERROR)
+				log_ssl_error(__LINE__, rd, err);
 			/*mem_free(rb);*/
 			if (!rd || err == SSL_ERROR_SYSCALL) retry_connection(c);
 			else abort_connection(c);
@@ -704,7 +740,7 @@ static void read_select(struct connection *c)
 	} else
 #endif
 	{
-		EINTRLOOP(rd, read(rb->sock, rb->data + rb->len, READ_SIZE));
+		EINTRLOOP(rd, (int)read(rb->sock, rb->data + rb->len, READ_SIZE));
 		if (rd <= 0) {
 			if (rb->close && !rd) {
 				rb->close = 2;

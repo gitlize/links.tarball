@@ -3,7 +3,6 @@
 ;Written by Joost Verburg
 
 SetCompressor /SOLID lzma
-OutFile Links-install.exe
 
 ;--------------------------------
 ;Include Modern UI
@@ -17,7 +16,7 @@ OutFile Links-install.exe
   Name "Links WWW Browser"
   ;Icon "links.ico"
   ;!define MUI_ICON "links.ico"
-  OutFile "Links-install.exe"
+  OutFile "Links-32bit-install.exe"
 
   ;Default installation folder
   InstallDir "$PROGRAMFILES\Links"
@@ -72,15 +71,16 @@ File COPYING
 File KEYS
 File README
 File links.exe
+File links-g.exe
 File c:\cygwin\bin\cygbz2-1.dll
 File c:\cygwin\bin\cygcrypto-1.0.0.dll
 File c:\cygwin\bin\cyggcc_s-1.dll
 File c:\cygwin\bin\cygjbig-2.dll
 File c:\cygwin\bin\cygjpeg-8.dll
 File c:\cygwin\bin\cyglzma-5.dll
-File c:\cygwin\bin\cygpng14-14.dll
+File c:\cygwin\bin\cygpng15-15.dll
 File c:\cygwin\bin\cygssl-1.0.0.dll
-File c:\cygwin\bin\cygtiff-5.dll
+File c:\cygwin\bin\cygtiff-6.dll
 File c:\cygwin\bin\cygwin1.dll
 File c:\cygwin\bin\cygz.dll
   
@@ -94,7 +94,7 @@ File c:\cygwin\bin\cygz.dll
 
 CreateDirectory "$SMPROGRAMS\$STARTMENU_FOLDER"
 CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\Links.lnk" "$INSTDIR\Links.exe"
-CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\Links Graphics.lnk" "$INSTDIR\Links.exe" "-g"
+CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\Links Graphics.lnk" "$INSTDIR\Links-g.exe" "-g"
 CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 !insertmacro MUI_STARTMENU_WRITE_END
 SectionEnd
@@ -110,16 +110,17 @@ Delete "$INSTDIR\BRAILLE_HOWTO"
 Delete "$INSTDIR\COPYING"
 Delete "$INSTDIR\KEYS"
 Delete "$INSTDIR\README"
-Delete "$INSTDIR\Links.exe"
+Delete "$INSTDIR\links.exe"
+Delete "$INSTDIR\links-g.exe"
 Delete "$INSTDIR\cygbz2-1.dll"
 Delete "$INSTDIR\cygcrypto-1.0.0.dll"
 Delete "$INSTDIR\cyggcc_s-1.dll"
 Delete "$INSTDIR\cygjbig-2.dll"
 Delete "$INSTDIR\cygjpeg-8.dll"
 Delete "$INSTDIR\cyglzma-5.dll"
-Delete "$INSTDIR\cygpng14-14.dll"
+Delete "$INSTDIR\cygpng15-15.dll"
 Delete "$INSTDIR\cygssl-1.0.0.dll"
-Delete "$INSTDIR\cygtiff-5.dll"
+Delete "$INSTDIR\cygtiff-6.dll"
 Delete "$INSTDIR\cygwin1.dll"
 Delete "$INSTDIR\cygz.dll"
 Delete "$INSTDIR\.links\*"

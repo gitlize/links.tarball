@@ -159,7 +159,7 @@ void unhandle_terminal_signals(struct terminal *term)
 	if (fg_poll_timer != -1) kill_timer(fg_poll_timer), fg_poll_timer = -1;
 }
 
-void unhandle_basic_signals(struct terminal *term)
+static void unhandle_basic_signals(struct terminal *term)
 {
 	install_signal_handler(SIGHUP, NULL, NULL, 0);
 	if (!F) install_signal_handler(SIGINT, NULL, NULL, 0);
@@ -185,8 +185,8 @@ int attach_terminal(int in, int out, int ctl, void *info, int len)
 {
 	struct terminal *term;
 	int rs;
-	EINTRLOOP(rs, fcntl(terminal_pipe[0], F_SETFL, O_NONBLOCK));
-	EINTRLOOP(rs, fcntl(terminal_pipe[1], F_SETFL, O_NONBLOCK));
+	set_nonblock(terminal_pipe[0]);
+	set_nonblock(terminal_pipe[1]);
 	handle_trm(in, out, out, terminal_pipe[1], ctl, info, len);
 	mem_free(info);
 	if ((term = init_term(terminal_pipe[0], out, win_func))) {
@@ -285,6 +285,12 @@ static unsigned char init_b = 0;
 static void initialize_all_subsystems(void);
 static void initialize_all_subsystems_2(void);
 
+static void fixup_g(void)
+{
+	if (ggr_drv[0] || ggr_mode[0] || force_g) ggr = 1;
+	if (dmp) ggr = 0;
+}
+
 static void init(void)
 {
 	int uh;
@@ -295,20 +301,15 @@ static void init(void)
 
 	initialize_all_subsystems();
 
-	utf8_table = get_cp_index(cast_uchar "UTF-8");
-
 /* OS/2 has some stupid bug and the pipe must be created before socket :-/ */
 	if (c_pipe(terminal_pipe)) {
-		error("ERROR: can't create pipe for internal communication");
-		retval = RET_FATAL;
-		goto ttt;
+		fatal_exit("ERROR: can't create pipe for internal communication");
 	}
 	if (!(u = parse_options(g_argc - 1, g_argv + 1))) {
 		retval = RET_SYNTAX;
 		goto ttt;
 	}
-	if (ggr_drv[0] || ggr_mode[0]) ggr = 1;
-	if (dmp) ggr = 0;
+	fixup_g();
 	if (!dmp && !ggr) {
 		init_os_terminal();
 	}
@@ -334,6 +335,7 @@ static void init(void)
 	load_url_history();
 	init_cookies();
 	u = parse_options(g_argc - 1, g_argv + 1);
+	fixup_g();
 	if (!u) {
 		ttt:
 		initialize_all_subsystems_2();
@@ -362,9 +364,7 @@ static void init(void)
 		}
 		initialize_all_subsystems_2();
 		if (!((info = create_session_info(base_session, u, default_target, &len)) && gf_val(attach_terminal(get_input_handle(), get_output_handle(), get_ctl_handle(), info, len), attach_g_terminal(info, len)) != -1)) {
-			error("Could not open initial session");
-			retval = RET_FATAL;
-			goto tttt;
+			fatal_exit("Could not open initial session");
 		}
 	} else {
 		unsigned char *uu, *wd;
@@ -377,7 +377,7 @@ static void init(void)
 			goto tttt;
 		}
 		if (!(uu = translate_url(u, wd = get_cwd()))) uu = stracpy(u);
-		request_object(NULL, uu, NULL, PRI_MAIN, NC_RELOAD, end_dump, NULL, &dump_obj);
+		request_object(NULL, uu, NULL, PRI_MAIN, NC_RELOAD, ALLOW_ALL, end_dump, NULL, &dump_obj);
 		mem_free(uu);
 		if (wd) mem_free(wd);
 	}
@@ -386,6 +386,7 @@ static void init(void)
 /* Is called before gaphics driver init */
 static void initialize_all_subsystems(void)
 {
+	init_charset();
 	init_trans();
 	set_sigcld();
 	init_home();

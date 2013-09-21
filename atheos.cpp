@@ -603,9 +603,9 @@ int ath_vscroll(struct graphics_device *dev, struct rect_set **ignore, int sc)
 void ath_set_clip_area(struct graphics_device *dev, struct rect *r)
 {
 	debug2("setc\n");
-	memcpy(&dev->clip, r, sizeof(struct rect));
+	generic_set_clip_area(dev, r);
 	lock_dev(dev);
-	lv(dev)->SetDrawingRegion(Region(IRect(r->x1, r->y1, r->x2 - 1, r->y2 - 1)));
+	lv(dev)->SetDrawingRegion(Region(IRect(dev->clip.x1, dev->clip.y1, dev->clip.x2 - 1, dev->clip.y2 - 1)));
 	unlock_dev(dev);
 }
 
@@ -615,6 +615,7 @@ struct graphics_driver atheos_driver = {
 	ath_init_device,
 	ath_shutdown_device,
 	ath_shutdown_driver,
+	dummy_emergency_shutdown,
 	ath_get_driver_param,
 	ath_get_empty_bitmap,
 	/*ath_get_filled_bitmap,*/

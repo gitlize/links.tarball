@@ -78,7 +78,7 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 			l_opt.plain = 0;
 			l_opt.cp = charset;
 			conv_table = get_translation_table(current_lang_charset, charset);
-			trn = convert_string(conv_table, tt, strlen(cast_const_char tt), &l_opt);
+			trn = convert_string(conv_table, tt, (int)strlen(cast_const_char tt), &l_opt);
 			if (!strcmp(cast_const_char trn, cast_const_char tt)) {
 				mem_free(trn);
 				trn = tt;

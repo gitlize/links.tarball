@@ -20,7 +20,6 @@ struct itrm {
 	int sock_out;
 	int ctl_in;
 	int blocked;
-	struct termios t;
 	int flags;
 	unsigned char kqueue[IN_BUF_SIZE];
 	int qlen;
@@ -42,6 +41,15 @@ static struct itrm *ditrm = NULL;
 
 int is_blocked(void)
 {
+#ifdef G
+	if (F) {
+		struct terminal *term;
+		foreach(term, terminals)
+			if (term->blocked != -1)
+				return 1;
+		return 0;
+	}
+#endif
 	return ditrm && ditrm->blocked;
 }
 
@@ -60,7 +68,7 @@ static void write_ev_queue(struct itrm *itrm)
 {
 	int l;
 	if (!itrm->eqlen) internal("event queue empty");
-	EINTRLOOP(l, write(itrm->sock_out, itrm->ev_queue, itrm->eqlen > 128 ? 128 : itrm->eqlen));
+	EINTRLOOP(l, (int)write(itrm->sock_out, itrm->ev_queue, itrm->eqlen > 128 ? 128 : itrm->eqlen));
 	if (l == -1) {
 		itrm_error(itrm);
 		return;
@@ -82,7 +90,7 @@ static void queue_event(struct itrm *itrm, unsigned char *data, int len)
 	int w = 0;
 	if (!len) return;
 	if (!itrm->eqlen && can_write(itrm->sock_out)) {
-		EINTRLOOP(w, write(itrm->sock_out, data, len));
+		EINTRLOOP(w, (int)write(itrm->sock_out, data, len));
 		if (w <= 0) {
 			register_bottom_half((void (*)(void *))itrm_error, itrm);
 			return;
@@ -104,37 +112,41 @@ void kbd_ctrl_c(void)
 }
 
 unsigned char init_seq[] = "\033)0\0337";
-unsigned char init_seq_x_mouse[] = "\033[?1000h\033[?1002h\033[?1005h\033[?1006l\033[?1015l";
+unsigned char init_seq_x_mouse[] = "\033[?1000h\033[?1002h\033[?1005l\033[?1015l\033[?1006h";
 unsigned char init_seq_tw_mouse[] = "\033[?9h";
 unsigned char term_seq[] = "\033[2J\0338\r \b";
-unsigned char term_seq_x_mouse[] = "\033[?1000l\r       \r\033[?1002l\r       \r\033[?1005l\r       \r";
+unsigned char term_seq_x_mouse[] = "\033[?1000l\r       \r\033[?1002l\r       \r\033[?1006l\r       \r";
 unsigned char term_seq_tw_mouse[] = "\033[?9l";
 
 static void send_init_sequence(int h, int flags)
 {
 	want_draw();
-	hard_write(h, init_seq, strlen(cast_const_char init_seq));
+	hard_write(h, init_seq, (int)strlen(cast_const_char init_seq));
+#ifndef DOS
 	if (flags & USE_TWIN_MOUSE) {
-		hard_write(h, init_seq_tw_mouse, strlen(cast_const_char init_seq_tw_mouse));
+		hard_write(h, init_seq_tw_mouse, (int)strlen(cast_const_char init_seq_tw_mouse));
 	} else {
-		hard_write(h, init_seq_x_mouse, strlen(cast_const_char init_seq_x_mouse));
+		hard_write(h, init_seq_x_mouse, (int)strlen(cast_const_char init_seq_x_mouse));
 	}
+#endif
 	done_draw();
 }
 
 static void send_term_sequence(int h, int flags)
 {
 	want_draw();
-	hard_write(h, term_seq, strlen(cast_const_char term_seq));
+	hard_write(h, term_seq, (int)strlen(cast_const_char term_seq));
+#ifndef DOS
 	if (flags & USE_TWIN_MOUSE) {
-		hard_write(h, term_seq_tw_mouse, strlen(cast_const_char term_seq_tw_mouse));
+		hard_write(h, term_seq_tw_mouse, (int)strlen(cast_const_char term_seq_tw_mouse));
 	} else {
-		hard_write(h, term_seq_x_mouse, strlen(cast_const_char term_seq_x_mouse));
+		hard_write(h, term_seq_x_mouse, (int)strlen(cast_const_char term_seq_x_mouse));
 	}
+#endif
 	done_draw();
 }
 
-void resize_terminal(void)
+static void resize_terminal(void)
 {
 	struct event ev = { EV_RESIZE, 0, 0, 0 };
 	int x, y;
@@ -142,6 +154,40 @@ void resize_terminal(void)
 	ev.x = x;
 	ev.y = y;
 	queue_event(ditrm, (unsigned char *)&ev, sizeof(struct event));
+}
+
+#if defined(OS_SETRAW)
+
+#elif defined(HAVE_TERMIOS_H)
+
+static void os_cfmakeraw(struct termios *t)
+{
+#ifdef HAVE_CFMAKERAW
+	cfmakeraw(t);
+#ifdef VMIN
+	t->c_cc[VMIN] = 1;
+#endif
+#else
+	t->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
+	t->c_oflag &= ~OPOST;
+	t->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
+	t->c_cflag &= ~(CSIZE|PARENB);
+	t->c_cflag |= CS8;
+	t->c_cc[VMIN] = 1;
+	t->c_cc[VTIME] = 0;
+#endif
+#if defined(NO_CTRL_Z) && defined(VSUSP)
+	t->c_cc[VSUSP] = 0;
+#endif
+	/*fprintf(stderr, "\n");
+	fprintf(stderr, "%08x %08x %08x\n", t->c_iflag, t->c_oflag, t->c_lflag);
+	{
+		int i;
+		for (i = 0; i < sizeof(t->c_cc) / sizeof(*t->c_cc); i++) {
+			fprintf(stderr, "%d - %d\n", i, t->c_cc[i]);
+		}
+	}
+	sleep(10);*/
 }
 
 static int ttcgetattr(int fd, struct termios *t)
@@ -210,11 +256,14 @@ static int ttcsetattr(int fd, int a, struct termios *t)
 	return r;
 }
 
-static int setraw(int fd, struct termios *p)
+static struct termios saved_termios;
+
+static int setraw(int ctl, int save)
 {
 	struct termios t;
+	if (ctl < 0) return 0;
 	memset(&t, 0, sizeof(struct termios));
-	if (ttcgetattr(fd, &t)) {
+	if (ttcgetattr(ctl, &t)) {
 		/*fprintf(stderr, "getattr result %s\n", strerror(errno));*/
 		/* If the terminal was destroyed (the user logged off),
 		 * we fake success here so that we can destroy the terminal
@@ -226,19 +275,67 @@ static int setraw(int fd, struct termios *p)
 		if (errno == EIO || errno == ENXIO) return 0;
 		return -1;
 	}
-	if (p) memcpy(p, &t, sizeof(struct termios));
+	if (save) memcpy(&saved_termios, &t, sizeof(struct termios));
 	os_cfmakeraw(&t);
 	t.c_lflag |= ISIG;
 #ifdef TOSTOP
 	t.c_lflag |= TOSTOP;
 #endif
 	t.c_oflag |= OPOST;
-	if (ttcsetattr(fd, TCSANOW, &t)) {
+#ifdef DOS
+	t.c_lflag &= ~(ISIG | ECHO);
+#endif
+	if (ttcsetattr(ctl, TCSANOW, &t)) {
 		/*fprintf(stderr, "setattr result %s\n", strerror(errno));*/
 		return -1;
 	}
 	return 0;
 }
+
+static void setcooked(int ctl)
+{
+	if (ctl < 0) return;
+	ttcsetattr(ctl, TCSANOW, &saved_termios);
+}
+
+#elif defined(HAVE_SGTTY_H)
+
+static struct sgttyb saved_sgtty;
+
+static int setraw(int ctl, int save)
+{
+	struct sgttyb sgtty;
+	if (ctl < 0) return 0;
+	if (gtty(ctl, &sgtty)) {
+		return -1;
+	}
+	if (save) memcpy(&saved_sgtty, &sgtty, sizeof(struct sgttyb));
+	sgtty.sg_flags |= CBREAK;
+	sgtty.sg_flags &= ~ECHO;
+	if (stty(ctl, &sgtty)) {
+		return -1;
+	}
+	return 0;
+}
+
+static void setcooked(int ctl)
+{
+	if (ctl < 0) return;
+	stty(ctl, &saved_sgtty);
+}
+
+#else
+
+static int setraw(int ctl, int save)
+{
+	return 0;
+}
+
+static void setcooked(int ctl)
+{
+}
+
+#endif
 
 void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, void *init_string, int init_len)
 {
@@ -265,22 +362,22 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	itrm->tm = -1;
 	itrm->ev_queue = DUMMY;
 	itrm->eqlen = 0;
-	if (ctl_in >= 0) setraw(ctl_in, &itrm->t);
+	setraw(itrm->ctl_in, 1);
 	set_handlers(std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm_error, itrm);
 	if (sock_in != std_out) set_handlers(sock_in, (void (*)(void *))in_sock, NULL, (void (*)(void *))itrm_error, itrm);
 	ev.x = x;
 	ev.y = y;
 	handle_terminal_resize(ctl_in, resize_terminal);
 	queue_event(itrm, (unsigned char *)&ev, sizeof(struct event));
-	xwin = is_xterm() * ENV_XWIN + can_twterm() * ENV_TWIN + (!!getenv("STY")) * ENV_SCREEN + get_system_env();
+	xwin = is_xterm() * ENV_XWIN + is_twterm() * ENV_TWIN + is_screen() * ENV_SCREEN + get_system_env();
 	itrm->flags = 0;
 	if (!(ts = cast_uchar getenv("TERM"))) ts = cast_uchar "";
 	if ((xwin & ENV_TWIN) && !strcmp(cast_const_char ts, "linux")) itrm->flags |= USE_TWIN_MOUSE;
 	if (strlen(cast_const_char ts) >= MAX_TERM_LEN) queue_event(itrm, ts, MAX_TERM_LEN);
 	else {
 		unsigned char *mm;
-		int ll = MAX_TERM_LEN - strlen(cast_const_char ts);
-		queue_event(itrm, ts, strlen(cast_const_char ts));
+		int ll = MAX_TERM_LEN - (int)strlen(cast_const_char ts);
+		queue_event(itrm, ts, (int)strlen(cast_const_char ts));
 		mm = mem_calloc(ll);
 		queue_event(itrm, mm, ll);
 		mem_free(mm);
@@ -289,8 +386,8 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	if (strlen(cast_const_char ts) >= MAX_CWD_LEN) queue_event(itrm, ts, MAX_CWD_LEN);
 	else {
 		unsigned char *mm;
-		int ll = MAX_CWD_LEN - strlen(cast_const_char ts);
-		queue_event(itrm, ts, strlen(cast_const_char ts));
+		int ll = MAX_CWD_LEN - (int)strlen(cast_const_char ts);
+		queue_event(itrm, ts, (int)strlen(cast_const_char ts));
 		mm = mem_calloc(ll);
 		queue_event(itrm, mm, ll);
 		mem_free(mm);
@@ -299,10 +396,10 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	queue_event(itrm, (unsigned char *)&xwin, sizeof(int));
 	queue_event(itrm, (unsigned char *)&init_len, sizeof(int));
 	queue_event(itrm, (unsigned char *)init_string, init_len);
-	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))mouse_queue_event, itrm);
 	itrm->orig_title = get_window_title();
 	set_window_title(cast_uchar "Links");
 	send_init_sequence(std_out, itrm->flags);
+	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))mouse_queue_event, itrm);
 }
 
 static void unblock_itrm_x(void *h)
@@ -317,7 +414,7 @@ int unblock_itrm(int fd)
 {
 	struct itrm *itrm = ditrm;
 	if (!itrm) return -1;
-	if (itrm->ctl_in >= 0 && setraw(itrm->ctl_in, NULL)) return -1;
+	if (setraw(itrm->ctl_in, 0)) return -1;
 	if (itrm->blocked != fd + 1) return -2;
 	itrm->blocked = 0;
 	send_init_sequence(itrm->std_out, itrm->flags);
@@ -338,9 +435,9 @@ void block_itrm(int fd)
 	itrm->blocked = fd + 1;
 	block_stdin();
 	unhandle_terminal_resize(itrm->ctl_in);
-	send_term_sequence(itrm->std_out, itrm->flags);
-	ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
 	if (itrm->mouse_h) unhandle_mouse(itrm->mouse_h), itrm->mouse_h = NULL;
+	send_term_sequence(itrm->std_out, itrm->flags);
+	setcooked(itrm->ctl_in);
 	set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm_error, itrm);
 }
 
@@ -350,9 +447,9 @@ static void free_trm(struct itrm *itrm)
 	set_window_title(itrm->orig_title);
 	if (itrm->orig_title) mem_free(itrm->orig_title), itrm->orig_title = NULL;
 	unhandle_terminal_resize(itrm->ctl_in);
-	send_term_sequence(itrm->std_out, itrm->flags);
-	ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
 	if (itrm->mouse_h) unhandle_mouse(itrm->mouse_h);
+	send_term_sequence(itrm->std_out, itrm->flags);
+	setcooked(itrm->ctl_in);
 	set_handlers(itrm->std_in, NULL, NULL, NULL, NULL);
 	set_handlers(itrm->sock_in, NULL, NULL, NULL, NULL);
 	set_handlers(itrm->std_out, NULL, NULL, NULL, NULL);
@@ -365,7 +462,16 @@ static void free_trm(struct itrm *itrm)
 
 void fatal_tty_exit(void)
 {
-	if (ditrm) ttcsetattr(ditrm->ctl_in, TCSANOW, &ditrm->t);
+#ifdef DOS
+	dos_mouse_terminate();
+#endif
+	if (ditrm) setcooked(ditrm->ctl_in);
+#ifdef G
+	if (drv) drv->emergency_shutdown();
+#endif
+#ifdef DOS
+	dos_restore_screen();
+#endif
 }
 
 static void resize_terminal_x(unsigned char *text)
@@ -400,7 +506,7 @@ do {								\
 	if (p < c) cc = buf[p++];				\
 	else if ((hard_read(itrm->sock_in, &cc, 1)) <= 0) {	\
 		mem_free(path);					\
-		mem_free(delete);				\
+		mem_free(delet);				\
 		goto fr;					\
 	}							\
 	xx = cc;						\
@@ -408,13 +514,13 @@ do {								\
 
 static void in_sock(struct itrm *itrm)
 {
-	unsigned char *path, *delete;
+	unsigned char *path, *delet;
 	int pl, dl;
 	unsigned char ch;
-	int fg;
+	unsigned char fg;
 	int c, i, p;
 	int rs;
-	EINTRLOOP(c, read(itrm->sock_in, buf, OUT_BUF_SIZE));
+	EINTRLOOP(c, (int)read(itrm->sock_in, buf, OUT_BUF_SIZE));
 	if (c <= 0) {
 		fr:
 		itrm_error(itrm);
@@ -439,7 +545,7 @@ static void in_sock(struct itrm *itrm)
 	c -= i;
 	p = 0;
 	path = init_str();
-	delete = init_str();
+	delet = init_str();
 	pl = dl = 0;
 	RD(fg);
 	while (1) {
@@ -450,38 +556,38 @@ static void in_sock(struct itrm *itrm)
 	while (1) {
 		RD(ch);
 		if (!ch) break;
-		add_chr_to_str(&delete, &dl, ch);
+		add_chr_to_str(&delet, &dl, ch);
 	}
 	if (!*path) {
-		dispatch_special(delete);
+		dispatch_special(delet);
 	} else {
-		long blockh;
+		int blockh;
 		unsigned char *param;
 		if (is_blocked() && fg) {
-			if (*delete)
-				EINTRLOOP(rs, unlink(cast_const_char delete));
+			if (*delet)
+				EINTRLOOP(rs, unlink(cast_const_char delet));
 			goto to_je_ale_hnus;
 		}
-		param = mem_alloc(strlen(cast_const_char path) + strlen(cast_const_char delete) + 3);
+		param = mem_alloc(strlen(cast_const_char path) + strlen(cast_const_char delet) + 3);
 		param[0] = fg;
 		strcpy(cast_char(param + 1), cast_const_char path);
-		strcpy(cast_char(param + 1 + strlen(cast_const_char path) + 1), cast_const_char delete);
+		strcpy(cast_char(param + 1 + strlen(cast_const_char path) + 1), cast_const_char delet);
 		if (fg == 1) block_itrm(0);
-		if ((blockh = start_thread((void (*)(void *, int))exec_thread, param, strlen(cast_const_char path) + strlen(cast_const_char delete) + 3)) == -1) {
+		if ((blockh = start_thread((void (*)(void *, int))exec_thread, param, (int)strlen(cast_const_char path) + (int)strlen(cast_const_char delet) + 3)) == -1) {
 			if (fg == 1) unblock_itrm(0);
 			mem_free(param);
 			goto to_je_ale_hnus;
 		}
 		mem_free(param);
 		if (fg == 1) {
-			set_handlers(blockh, (void (*)(void *))unblock_itrm_x, NULL, (void (*)(void *))unblock_itrm_x, (void *)blockh);
+			set_handlers(blockh, (void (*)(void *))unblock_itrm_x, NULL, (void (*)(void *))unblock_itrm_x, (void *)(my_intptr_t)blockh);
 		} else {
-			set_handlers(blockh, close_handle, NULL, close_handle, (void *)blockh);
+			set_handlers(blockh, close_handle, NULL, close_handle, (void *)(my_intptr_t)blockh);
 		}
 	}
 	to_je_ale_hnus:
 	mem_free(path);
-	mem_free(delete);
+	mem_free(delet);
 	memmove(buf, buf + p, OUT_BUF_SIZE - p);
 	c -= p;
 	goto qwerty;
@@ -629,17 +735,17 @@ struct os2_key os2xtd[256] = {
 {KBD_PAGE_DOWN,0},
 {KBD_INS,0},
 {KBD_DEL,0},
-{0,0},
-{0,0},
-{0,0},
-{0,0},
+{KBD_F1,KBD_SHIFT},
+{KBD_F2,KBD_SHIFT},
+{KBD_F3,KBD_SHIFT},
+{KBD_F4,KBD_SHIFT},
 /* 88 */
-{0,0},
-{0,0},
-{0,0},
-{0,0},
-{0,0},
-{0,0},
+{KBD_F5,KBD_SHIFT},
+{KBD_F6,KBD_SHIFT},
+{KBD_F7,KBD_SHIFT},
+{KBD_F8,KBD_SHIFT},
+{KBD_F9,KBD_SHIFT},
+{KBD_F10,KBD_SHIFT},
 {KBD_F1,KBD_CTRL},
 {KBD_F2,KBD_CTRL},
 /* 96 */
@@ -686,9 +792,9 @@ struct os2_key os2xtd[256] = {
 {KBD_PAGE_UP,KBD_CTRL},
 {KBD_F11,0},
 {KBD_F12,0},
-{0,0},
+{KBD_F11,KBD_SHIFT},
 /* 136 */
-{0,0},
+{KBD_F12,KBD_SHIFT},
 {KBD_F11,KBD_CTRL},
 {KBD_F12,KBD_CTRL},
 {KBD_F11,KBD_ALT},
@@ -965,7 +1071,8 @@ static int process_queue(struct itrm *itrm)
 					resize_terminal();
 					break ;
 				case 'M':
-					if (v == 5) {
+				case '<':
+					if (c == 'M' && v == 5) {
 						if (xterm_button == -1) xterm_button = 0; /* */
 						if (itrm->qlen - el < 5) goto ret;
 						ev.x = (unsigned char)(itrm->kqueue[el+1]) - ' ' - 1 + ((int)((unsigned char)(itrm->kqueue[el+2]) - ' ' - 1) << 7);
@@ -974,7 +1081,7 @@ static int process_queue(struct itrm *itrm)
 						if ( ev.y & (1 << 13)) ev.y = 0; /* ev.y |= ~0 << 14; */
 						switch ((itrm->kqueue[el] - ' ') ^ xterm_button) { /* Every event changhes only one bit */
 						    case TW_BUTT_LEFT:   ev.b = B_LEFT | ( (xterm_button & TW_BUTT_LEFT) ? B_UP : B_DOWN ); break; 
-						    case TW_BUTT_MIDDLE: ev.b = B_MIDDLE | ( (xterm_button & TW_BUTT_MIDDLE) ? B_UP :  B_DOWN ); break;
+						    case TW_BUTT_MIDDLE: ev.b = B_MIDDLE | ( (xterm_button & TW_BUTT_MIDDLE) ? B_UP : B_DOWN ); break;
 						    case TW_BUTT_RIGHT:  ev.b = B_RIGHT | ( (xterm_button & TW_BUTT_RIGHT) ? B_UP : B_DOWN ); break;
 						    case 0: ev.b = B_DRAG;
 						    /* default : Twin protocol error */
@@ -982,46 +1089,60 @@ static int process_queue(struct itrm *itrm)
 						xterm_button = itrm->kqueue[el] - ' ';
 						el += 5;
 					} else {
-						int x, y, button;
-						if (itrm->qlen - el < 3) goto ret;
-						if ((itrm->kqueue[el] & ~0x1f) == 0x20) button = B_DOWN;
-						else if ((itrm->kqueue[el] & ~0x1f) == 0x40) button = B_DRAG;
+						int x = 0, y = 0, b = 0, button;
+						unsigned char ch;
+						if (c == 'M') {
+							/* Legacy mouse protocol: \e[Mbxy whereas b, x and y are raw bytes, offset by 32. */
+							if (itrm->qlen - el < 3) goto ret;
+							b = itrm->kqueue[el++] - ' ';
+							x = itrm->kqueue[el++] - ' ';
+							y = itrm->kqueue[el++] - ' ';
+						} else /* c == '<' */ {
+							/* SGR 1006 mouse extension: \e[<b;x;yM where b, x and y are in decimal, no longer offset by 32,
+							   and the trailing letter is 'm' instead of 'M' for mouse release so that the released button is reported. */
+							while (1) {
+								if (el == itrm->qlen) goto ret;
+								ch = itrm->kqueue[el++];
+								if (ch == ';') break;
+								if (ch < '0' || ch > '9') goto l1;
+								b = 10 * b + ch - '0';
+							}
+							while (1) {
+								if (el == itrm->qlen) goto ret;
+								ch = itrm->kqueue[el++];
+								if (ch == ';') break;
+								if (ch < '0' || ch > '9') goto l1;
+								x = 10 * x + ch - '0';
+							}
+							while (1) {
+								if (el == itrm->qlen) goto ret;
+								ch = itrm->kqueue[el++];
+								if (ch == 'M' || ch == 'm') break;
+								if (ch < '0' || ch > '9') goto l1;
+								y = 10 * y + ch - '0';
+							}
+							/* Encode a release event the legacy way. */
+							if (ch == 'm') b |= 3;
+						}
+						x--;
+						y--;
+						if (x < 0 || y < 0 || b < 0)
+							break;
+						if ((b & ~0x1f) == 0x00) button = B_DOWN;
+						else if ((b & ~0x1f) == 0x20) button = B_DRAG;
 						else {
 							button = -1;
 							goto skip_button;
 						}
-						button |= itrm->kqueue[el] & 3;
-						if ((itrm->kqueue[el] & 3) == 3) {
+						button |= b & 3;
+						if ((b & 3) == 3) {
 							if (xterm_button == -1)
 								xterm_button = B_LEFT;
 							button = B_UP;
 							button |= xterm_button;
-						}  
+						}
 						xterm_button = button & BM_BUTT;
 						skip_button:
-						el++;
-						if (itrm->kqueue[el] < ' ') {
-							x = -1;
-							el++;
-						} else if (itrm->kqueue[el] >= 0xc2 && itrm->kqueue[el] < 0xe0 && itrm->qlen - el >= 3 && itrm->kqueue[el + 1] >= 0x80 && itrm->kqueue[el + 1] < 0xc0) {
-							x = (((itrm->kqueue[el] & 0x1f) << 6) | (itrm->kqueue[el + 1] & 0x3f)) - ' ' - 1;
-							el += 2;
-						} else {
-							x = itrm->kqueue[el] - ' ' - 1;
-							el++;
-						}
-						if (itrm->kqueue[el] < ' ') {
-							y = -1;
-							el++;
-						} else if (itrm->kqueue[el] >= 0xc2 && itrm->kqueue[el] < 0xe0 && itrm->qlen - el >= 2 && itrm->kqueue[el + 1] >= 0x80 && itrm->kqueue[el + 1] < 0xc0) {
-							y = (((itrm->kqueue[el] & 0x1f) << 6) | (itrm->kqueue[el + 1] & 0x3f)) - ' ' - 1;
-							el += 2;
-						} else {
-							y = itrm->kqueue[el] - ' ' - 1;
-							el++;
-						}
-						if (x < 0 || y < 0 || button < 0)
-							break;
 						ev.b = button;
 						ev.x = x;
 						ev.y = y;
@@ -1101,9 +1222,10 @@ do_alt:
 	if (ev.x == 4) ev.x = KBD_DEL;
 	if (ev.x == 5) ev.x = KBD_END;
 	if (ev.x == 6) ev.x = KBD_PAGE_DOWN;*/
+	if (ev.x == 3) ev.x = KBD_CTRL_C;
 	if (ev.x == 8) ev.x = KBD_BS;
 	if (ev.x == 9) ev.x = KBD_TAB;
-	if (ev.x == 10) ev.x = KBD_ENTER/*, ev.y = KBD_CTRL*/;
+	if (ev.x == 10) ev.x = KBD_ENTER /*, ev.y = KBD_CTRL*/;
 	if (ev.x == 13) ev.x = KBD_ENTER;
 	if (ev.x == 127) {
 		if (is_interix()) ev.x = KBD_DEL;
@@ -1119,12 +1241,12 @@ do_alt:
 		itrm->qlen = el;
 	}
 	if (ev.x != -1) {
+		/*printf("event: %x %x\n", ev.x, ev.y);*/
 		itrm->queue_event(itrm, (unsigned char *)&ev, sizeof(struct event));
-		memmove(itrm->kqueue, itrm->kqueue + el, itrm->qlen -= el);
 	} else {
 		/*printf("%d %d\n", itrm->qlen, el);fflush(stdout);*/
-		memmove(itrm->kqueue, itrm->kqueue + el, itrm->qlen -= el);
 	}
+	memmove(itrm->kqueue, itrm->kqueue + el, itrm->qlen -= el);
 	end:
 	if (itrm->qlen < IN_BUF_SIZE && !itrm->blocked) set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm_error, itrm);
 	return el;
@@ -1144,7 +1266,7 @@ static void in_kbd(struct itrm *itrm)
 			;
 		return;
 	}
-	EINTRLOOP(r, read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen));
+	EINTRLOOP(r, (int)read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen));
 	if (r <= 0) {
 		struct event ev = { EV_ABORT, 0, 0, 0 };
 		set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm_error, itrm);
@@ -1157,14 +1279,14 @@ static void in_kbd(struct itrm *itrm)
 		itrm->qlen = IN_BUF_SIZE;
 	}
 	if (itrm->qlen < IN_BUF_SIZE && can_read(itrm->std_in)) {
-		EINTRLOOP(r, read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen));
+		EINTRLOOP(r, (int)read(itrm->std_in, itrm->kqueue + itrm->qlen, IN_BUF_SIZE - itrm->qlen));
 		if (r > 0) goto more_data;
 	}
 	while (process_queue(itrm))
 		;
 }
 
-#if defined(GRDRV_SVGALIB) || defined(GRDRV_FB)
+#if defined(GRDRV_SVGALIB) || defined(GRDRV_FB) || defined(GRDRV_GRX)
 
 int kbd_set_raw;
 
@@ -1172,7 +1294,7 @@ void svgalib_free_trm(struct itrm *itrm)
 {
 	/*debug("svgalib_free: %p", itrm);*/
 	if (!itrm) return;
-	if (kbd_set_raw) ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
+	if (kbd_set_raw) setcooked(itrm->ctl_in);
 	set_handlers(itrm->std_in, NULL, NULL, NULL, NULL);
 	if (itrm->tm != -1) kill_timer(itrm->tm);
 	mem_free(itrm);
@@ -1189,7 +1311,7 @@ struct itrm *handle_svgalib_keyboard(void (*queue_event)(void *, unsigned char *
 	itrm->std_in = 0;
 	itrm->ctl_in = 0;
 	itrm->tm = -1;
-	if (kbd_set_raw) if (itrm->ctl_in >= 0) setraw(itrm->ctl_in, &itrm->t);
+	if (kbd_set_raw) setraw(itrm->ctl_in, 1);
 	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm_error, itrm);
 	/*debug("svgalib_handle: %p", itrm);*/
 	return itrm;
@@ -1199,7 +1321,7 @@ int svgalib_unblock_itrm(struct itrm *itrm)
 {
 	/*debug("svgalib_unblock: %p", itrm);*/
 	if (!itrm) return -1;
-	if (kbd_set_raw) if (itrm->ctl_in >= 0) if (setraw(itrm->ctl_in, NULL)) return -1;
+	if (kbd_set_raw) if (setraw(itrm->ctl_in, 0)) return -1;
 	itrm->blocked = 0;
 	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, (void (*)(void *))itrm_error, itrm);
 	unblock_stdin();
@@ -1212,7 +1334,7 @@ void svgalib_block_itrm(struct itrm *itrm)
 	if (!itrm) return;
 	itrm->blocked = 1;
 	block_stdin();
-	if (kbd_set_raw) ttcsetattr(itrm->ctl_in, TCSANOW, &itrm->t);
+	if (kbd_set_raw) setcooked(itrm->ctl_in);
 	set_handlers(itrm->std_in, NULL, NULL, (void (*)(void *))itrm_error, itrm);
 }
 

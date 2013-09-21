@@ -1,6 +1,6 @@
 Mikulas Patocka <mikulas@artax.karlin.mff.cuni.cz>
 Petr Kulhavy <brain@artax.karlin.mff.cuni.cz>
-Karel Kulhavy <clock@atrey.karlin.mff.cuni.cz>
+Karel Kulhavy <twibright@hispeed.ch>
 Martin Pergel <mper7437@artax.karlin.mff.cuni.cz>
 
 http://artax.karlin.mff.cuni.cz/~mikulas/vyplody/links/
@@ -366,4 +366,12 @@ Christian Biere <christianbiere@gmx.de>
 
 Hazel Russman <hazeldebian@googlemail.com>
 	Updated Links manual
+
+Egmont Koblinger <egmont@gmail.com>
+	Support for large mouse coordinates in text mode using the protocol 1006
+
+Volker Schatz <linksbrowser@volkerschatz.com>
+	Do not misreport Date header value as last-modified date
+		in the info box popping up on "=".
+	New graphics glyphs
 

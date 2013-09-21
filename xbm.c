@@ -71,14 +71,14 @@ void xbm_start(struct cached_image *cimg)
 	deco->in_data_block=0;
 
 	round_color_sRGB_to_48(&r,&g,&b,cimg->background_color);
-	deco->barvicky[0]=apply_gamma_single_16_to_8(r,display_red_gamma);
-	deco->barvicky[1]=apply_gamma_single_16_to_8(g,display_green_gamma);
-	deco->barvicky[2]=apply_gamma_single_16_to_8(b,display_blue_gamma);
+	deco->barvicky[0]=ags_16_to_8(r,(float)display_red_gamma);
+	deco->barvicky[1]=ags_16_to_8(g,(float)display_green_gamma);
+	deco->barvicky[2]=ags_16_to_8(b,(float)display_blue_gamma);
 	
 	round_color_sRGB_to_48(&r,&g,&b,get_foreground(cimg->background_color));
-	deco->barvicky[3]=apply_gamma_single_16_to_8(r,display_red_gamma);
-	deco->barvicky[4]=apply_gamma_single_16_to_8(g,display_green_gamma);
-	deco->barvicky[5]=apply_gamma_single_16_to_8(b,display_blue_gamma);
+	deco->barvicky[3]=ags_16_to_8(r,(float)display_red_gamma);
+	deco->barvicky[4]=ags_16_to_8(g,(float)display_green_gamma);
+	deco->barvicky[5]=ags_16_to_8(b,(float)display_blue_gamma);
 	
 			
 }
@@ -191,12 +191,12 @@ restart_again:
 
 		p=p&&q?min(p,q):max(p,q);	/* bereme vetsi, protoze ten 2. je NULL */
 		memmove(deco->buffer,p,(deco->buffer_pos)+(deco->buffer)-p);	/* sezereme to pred width/height */
-		deco->buffer_pos-=p-deco->buffer;
+		deco->buffer_pos-=(int)(p-deco->buffer);
 		/* deco->buffer zacina height/width */
 		if (deco->buffer[0]=='w'){p=deco->buffer+5;d=&(deco->width);}
 		else {p=deco->buffer+6;d=&(deco->height);}
 
-		a=deco->buffer_pos+deco->buffer-p;
+		a=(int)(deco->buffer_pos+deco->buffer-p);
 		xbm_skip_space_tab(&p,&a);
 		if (!a){must_return=1;goto restart_again;}	/* v bufferu je: width/height, whitespace, konec */
 		*d=xbm_read_num(&p,&a,&(deco->partnum),&digits, &base);
@@ -219,16 +219,16 @@ restart_again:
 			cimg->width=deco->width;
 			cimg->height=deco->height;
 			cimg->buffer_bytes_per_pixel=3;
-			cimg->red_gamma=display_red_gamma;
-			cimg->green_gamma=display_green_gamma;
-			cimg->blue_gamma=display_blue_gamma;
+			cimg->red_gamma=(float)display_red_gamma;
+			cimg->green_gamma=(float)display_green_gamma;
+			cimg->blue_gamma=(float)display_blue_gamma;
 			cimg->strip_optimized=0;
 			if (header_dimensions_known(cimg)) {img_end(cimg);return 1;}
 			
 			deco->in_data_block=1;
 			p++;
 			memmove(deco->buffer,p,deco->buffer_pos+deco->buffer-p);	/* sezereme to pred width/height */
-			deco->buffer_pos-=p-deco->buffer;
+			deco->buffer_pos-=(int)(p-deco->buffer);
 			deco->image_pos=0;
 			deco->pixels=deco->width*deco->height;
 			deco->line_pos=0;
@@ -264,8 +264,8 @@ cycle_again:
 			unsigned char *p;
 			p=memchr(data,'/',length);
 			if (!p){xbm_decode(cimg, data, length);return;}
-			if (xbm_decode(cimg, data, p-data)) return;
-			length-=p-data+1;
+			if (xbm_decode(cimg, data, (int)(p-data))) return;
+			length-=(int)(p-data+1);
 			data=p+1;	/* preskocim lomitko */
 			deco->state=1;
 			goto cycle_again;
@@ -284,7 +284,7 @@ cycle_again:
 			unsigned char *p;
 			p=memchr(data,'*',length);
 			if (!p)return;	/* furt komentar */
-			length-=p-data+1;
+			length-=(int)(p-data+1);
 			data=p+1;	/* preskocim hvezdicku */
 			deco->state=3;
 			goto cycle_again;

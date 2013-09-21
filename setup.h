@@ -44,6 +44,7 @@
 #define LINKS_SOCK_NAME			"socket"
 #define LINKS_PORT			23755
 #define MAX_BIND_TRIES			3
+#define AF_UNIX_SOCKET_TIMEOUT		2
 
 #define FG_POLL_TIME			500
 
@@ -118,7 +119,7 @@
 #define G_DIALOG_HLINE_SPACE		3
 #define G_DIALOG_VLINE_SPACE		4
 #define G_DIALOG_LEFT_INNER_BORDER	16
-#define G_DIALOG_TOP_INNER_BORDER	(G_BFU_FONT_SIZE < 24 ? 8 : G_BFU_FONT_SIZE - 16)
+#define G_DIALOG_TOP_INNER_BORDER	(G_BFU_FONT_SIZE < 20 ? 8 : G_BFU_FONT_SIZE - 12)
 
 #define G_DIALOG_BUTTON_SPACE		16
 #define G_DIALOG_CHECKBOX_SPACE		8
@@ -136,6 +137,9 @@
 
 #define G_DIALOG_BUTTON_L		"[ "
 #define G_DIALOG_BUTTON_R		" ]"
+
+#define G_LEFT_ARROW			" \342\206\220 "
+#define MENU_SUBMENU			(!F ? cast_uchar ">" : cast_uchar "\342\206\222")
 
 #define G_SCROLL_BAR_WIDTH		12
 #define G_SCROLL_BAR_MIN_SIZE		20

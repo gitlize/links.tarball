@@ -14,8 +14,14 @@
 #define SYS_ATHEOS	6
 #define SYS_SPAD	7
 #define SYS_INTERIX	8
+#define SYS_OPENVMS	9
+#define SYS_DOS		10
 
 /* hardcoded limit of 10 OSes in default.c */
+
+#ifdef UNIX
+#undef UNIX
+#endif
 
 #if defined(__EMX__)
 #define OS2
@@ -31,14 +37,12 @@
 #define ATHEOS
 #elif defined(__SPAD__)
 #define SPAD
+#elif defined(__VMS)
+#define OPENVMS
+#elif defined(__DJGPP)
+#define DOS
 #else
 #define UNIX
-#endif
-
-#if defined(OS2) || defined(WIN32) || defined(INTERIX) || defined(BEOS) || defined(RISCOS) || defined(ATHEOS) || defined(SPAD)
-#ifdef UNIX
-#undef UNIX
-#endif
 #endif
 
 #if defined(UNIX)
@@ -74,6 +78,7 @@ static inline int dir_sep(unsigned char x) { return x == '/' || x == '\\'; }
 #define NO_FG_EXEC
 #define NO_CTRL_Z
 #define DOS_FS
+#define DOS_FS_8_3
 #define NO_FILE_SECURITY
 #define NO_FORK_ON_EXIT
 #define ASSOC_CONS_XWIN
@@ -93,9 +98,7 @@ static inline int dir_sep(unsigned char x) { return x == '/' || x == '\\'; }
 #define DOS_FS
 #define SET_WINDOW_TITLE_UTF_8
 #define ASSOC_CONS_XWIN
-#ifdef _UWIN
 #define DISABLE_SMB
-#endif
 #ifdef __CYGWIN__
 #define OS_BAD_SIGNALS
 #endif
@@ -167,6 +170,7 @@ static inline int dir_sep(unsigned char x) { return x == '/' || x == '\\'; }
 #define NO_CTRL_Z
 #define NO_FILE_SECURITY
 #define NO_FORK_ON_EXIT
+#define DISABLE_SMB
 
 #elif defined(ATHEOS)
 
@@ -201,6 +205,44 @@ static inline int dir_sep(unsigned char x) { return x == '/'; }
 #define ASSOC_BLOCK
 #define ASSOC_CONS_XWIN
 #define NO_FORK_ON_EXIT
+
+#elif defined(OPENVMS)
+
+static inline int dir_sep(unsigned char x) { return x == '/'; }
+#define NEWLINE "\n"
+#define FS_UNIX_RIGHTS
+#define SYSTEM_ID SYS_OPENVMS
+#define SYSTEM_NAME "VMS"
+#define DEFAULT_SHELL "/DCL"
+#define GETSHELL NULL
+#define SHARED_CONFIG_DIR "/etc/"
+#ifndef HAVE_PTHREADS
+#define HAVE_PTHREADS
+#endif
+#define DONT_USE_AF_UNIX
+#define ASSOC_BLOCK
+#define ASSOC_CONS_XWIN
+#define NO_CTRL_Z
+#define NO_FORK_ON_EXIT
+#define DISABLE_SMB
+
+#elif defined(DOS)
+
+static inline int dir_sep(unsigned char x) { return x == '/' || x == '\\'; }
+#define NEWLINE "\r\n"
+#define NO_ASYNC_LOOKUP
+#define SYSTEM_ID SYS_DOS
+#define SYSTEM_NAME "DOS"
+#define DEFAULT_SHELL "command.com"
+#define GETSHELL getenv("COMSPEC")
+#define SHARED_CONFIG_DIR "/dev/env/DJDIR/etc"
+#define NO_CTRL_Z
+#define DOS_FS
+#define DOS_FS_8_3
+#define NO_FILE_SECURITY
+#define DONT_USE_AF_UNIX
+#define NO_FORK_ON_EXIT
+#define DISABLE_SMB
 
 #endif
 

@@ -258,6 +258,11 @@ that has broken compression support.
 Retry on internal server errors (50x).
 
 .TP
+\f3-http.do-not-track \f2<0>/<1>\f1
+(default 0)
+Send do not track request in the HTTP header.
+
+.TP
 \f3-http.referer \f2<0>/<1>/<2>/<3>/<4>\f1
 (default 0)
 0 - do not send referer.
@@ -297,6 +302,16 @@ browsing ftp directories, but it is incompatible with RFC
 and some servers don't like it.
 
 .TP
+\f3-ftp.set-iptos \f2<0>/<1>\f1
+Set IP Type-of-service to high throughput on ftp connections.
+
+.TP
+\f3-smb.allow-hyperlinks-to-smb \f2<0>/<1>\f1
+Allow hyperlinks to SMB protocol.
+Disabling this improves security, because internet sites cannot
+exploit possible bugs in the SMB client.
+
+.TP
 \f3-menu-font-size \f2<size>\f1
 Size of font in menu.
 
@@ -321,12 +336,16 @@ Set color of scroll bar. RRGGBB are hex.
 Set color of scroll bar frame. RRGGBB are hex.
 
 .TP
+\f3-bookmarks-file \f2<file>\f1
+File to store bookmarks.
+
+.TP
 \f3-bookmarks-codepage \f2<codepage>\f1
 Character set of bookmarks file.
 
 .TP
-\f3-bookmarks-file \f2<file>\f1
-File to store bookmarks.
+\f3-save-url-history \f2<0>/<1>\f1
+Save URL history on exit.
 
 .TP
 \f3-display-red-gamma \f2<fp-value>\f1

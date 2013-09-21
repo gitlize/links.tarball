@@ -61,7 +61,7 @@ static void init_table(void)
  for (i=0;i<1<<deco->code_size;i++)
  {
   deco->table[i].pointer=-1;
-  deco->table[i].end_char=i;
+  deco->table[i].end_char=(unsigned char)i;
  }
  /* Here i=1<<code_size. */
  deco->CC=i;
@@ -192,18 +192,18 @@ output_string(int c)
 
 /* Adds to the code table
    return value: 0 ok
-                 1 fatal error
+		 1 fatal error
 		 2 stop sending data
 */
 
 static inline void
-add_table(struct gif_decoder *deco,int end_char,int pointer)
+add_table(struct gif_decoder *deco,int end_char,short pointer)
 {
 	if (deco->table_pos>=4096){
 	 	end_callback_hit=1;
 	 	return; /* Overflow */
  	}
-	deco->table[deco->table_pos].end_char=end_char;
+	deco->table[deco->table_pos].end_char=(unsigned char)end_char;
 	deco->table[deco->table_pos].pointer=pointer;
 	deco->table_pos++;
 	if (deco->table_pos==(1<<deco->code_size)&&deco->code_size!=12)
@@ -278,7 +278,7 @@ accept_byte(unsigned char c)
  struct gif_decoder *deco;
  
  deco=global_cimg->decoder;
- deco->read_code|=(unsigned long)c<<deco->bits_read;  
+ deco->read_code|=(int)((unsigned long)c<<deco->bits_read);
  deco->bits_read+=8;
  while (deco->bits_read>=deco->code_size)
  {
@@ -317,7 +317,7 @@ static int gif_dimensions_known(void)
 	global_cimg->width=deco->im_width;
 	global_cimg->height=deco->im_height;
 	global_cimg->red_gamma=global_cimg->green_gamma
-		=global_cimg->blue_gamma=sRGB_gamma;
+		=global_cimg->blue_gamma=(float)sRGB_gamma;
 	global_cimg->strip_optimized=(deco->interl_dist==1
 		&&deco->im_width*deco->im_height>=65536);
 	/* Run strip_optimized only from 65536 pixels up */
@@ -329,7 +329,7 @@ static int gif_dimensions_known(void)
    end_callback_hit is 1.
 */
 static inline void 
-gif_accept_byte(int c)
+gif_accept_byte(unsigned char c)
 {
 	struct gif_decoder *deco;
 

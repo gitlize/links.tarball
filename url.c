@@ -16,6 +16,7 @@ static const struct {
 	int allow_post;
 	int bypasses_socks;
 } protocols[]= {
+		{"data", 0, data_func, NULL,		1, 0, 0, 0, 0},
 		{"file", 0, file_func, NULL,		1, 1, 0, 0, 1},
 		{"https", 443, https_func, NULL,	0, 1, 1, 1, 0},
 		{"http", 80, http_func, NULL,		0, 1, 1, 1, 0},
@@ -81,15 +82,15 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 	if (dalen) *dalen = 0;
 	if (post) *post = NULL;
 	if (!url || !(p = cast_uchar strchr(cast_const_char url, ':'))) return -1;
-	if (prlen) *prlen = p - url;
-	if ((a = check_protocol(url, p - url)) == -1) return -1;
+	if (prlen) *prlen = (int)(p - url);
+	if ((a = check_protocol(url, (int)(p - url))) == -1) return -1;
 	if (p[1] != '/' || p[2] != '/') {
 		if (protocols[a].need_slashes) return -1;
 		p -= 2;
 	}
 	if (protocols[a].free_syntax) {
 		if (data) *data = p + 3;
-		if (dalen) *dalen = strlen(cast_const_char(p + 3));
+		if (dalen) *dalen = (int)strlen(cast_const_char(p + 3));
 		return 0;
 	}
 	p += 3;
@@ -102,12 +103,12 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 		pp = cast_uchar strchr(cast_const_char p, ':');
 		if (!pp || pp > q) {
 			if (user) *user = p;
-			if (uslen) *uslen = q - p;
+			if (uslen) *uslen = (int)(q - p);
 		} else {
 			if (user) *user = p;
-			if (uslen) *uslen = pp - p;
+			if (uslen) *uslen = (int)(pp - p);
 			if (pass) *pass = pp + 1;
-			if (palen) *palen = q - pp - 1;
+			if (palen) *palen = (int)(q - pp - 1);
 		}
 		p = q + 1;
 	} 
@@ -122,13 +123,13 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 	have_host:
 	if (!*q && protocols[a].need_slash_after_host) return -1;
 	if (host) *host = p;
-	if (holen) *holen = q - p;
+	if (holen) *holen = (int)(q - p);
 	if (*q == ':') {
 		unsigned char *pp = q + strcspn(cast_const_char q, "/");
 		int cc;
 		if (*pp != '/' && protocols[a].need_slash_after_host) return -1;
 		if (port) *port = q + 1;
-		if (polen) *polen = pp - q - 1;
+		if (polen) *polen = (int)(pp - q - 1);
 		for (cc = 0; cc < pp - q - 1; cc++) if (q[cc+1] < '0' || q[cc+1] > '9') return -1;
 		q = pp;
 	}
@@ -138,7 +139,7 @@ int parse_url(unsigned char *url, int *prlen, unsigned char **user, int *uslen, 
 	p_c[1] = 0;
 	q = p + strcspn(cast_const_char p, cast_const_char p_c);
 	if (data) *data = p;
-	if (dalen) *dalen = q - p;
+	if (dalen) *dalen = (int)(q - p);
 	if (post) *post = *q ? q + 1 : NULL;
 	return 0;
 }
@@ -200,7 +201,8 @@ int get_port(unsigned char *url)
 	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &h, &hl, NULL, NULL, NULL)) return -1;
 	if (h) {
 		n = strtol(cast_const_char h, NULL, 10);
-		if (n && n < MAXINT) return n;
+		if (n > 0 && n < 65536) return (int)n;
+		return -1;
 	}
 	if ((h = get_protocol_name(url))) {
 		int nn = -1;	/* against warning */
@@ -208,7 +210,7 @@ int get_port(unsigned char *url)
 		mem_free(h);
 		n = nn;
 	}
-	return n;
+	return (int)n;
 }
 
 void (*get_protocol_handle(unsigned char *url))(struct connection *)
@@ -261,7 +263,7 @@ static void translate_directories(unsigned char *url)
 	int lo = !casecmp(url, cast_uchar "file://", 7);
 	if (!casecmp(url, cast_uchar "javascript:", 11)) return;
 	if (!casecmp(url, cast_uchar "magnet:", 7)) return;
-	if (!dd || dd == url/* || *--dd != '/'*/) return;
+	if (!dd || dd == url /*|| *--dd != '/'*/) return;
 	if (!dsep(*dd)) {
 		dd--;
 		if (!dsep(*dd)) {
@@ -323,7 +325,7 @@ unsigned char *translate_hashbang(unsigned char *up)
 	r = init_str();
 	rl = 0;
 	add_bytes_to_str(&r, &rl, u, post_seq - u);
-	q = strlen(cast_const_char data);
+	q = (int)strlen(cast_const_char data);
 	if (q && (data[q - 1] == '&' || data[q - 1] == '?'))
 		;
 	else if (strchr(cast_const_char data, '?')) add_chr_to_str(&r, &rl, '&');
@@ -379,6 +381,7 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 	unsigned char *p, *n, *pp, *ch;
 	int l;
 	int lo = !casecmp(base, cast_uchar "file://", 7);
+	int data = !casecmp(base, cast_uchar "data:", 5);
 	if (rel[0] == '#' || !rel[0]) {
 		n = stracpy(base);
 		for (p = n; *p && *p != POST_CHAR && *p != '#'; p++)
@@ -399,7 +402,7 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		add_to_strn(&n, rel);
 		goto return_n;
 	}
-	if (rel[0] == '/' && rel[1] == '/') {
+	if (rel[0] == '/' && rel[1] == '/' && !data) {
 		unsigned char *s;
 		if (!(s = cast_uchar strstr(cast_const_char base, "//"))) {
 			if (!(s = cast_uchar strchr(cast_const_char base, ':'))) {
@@ -433,11 +436,13 @@ unsigned char *join_urls(unsigned char *base, unsigned char *rel)
 		goto bad_base;
 	}
 	if (!dsep(*p)) p--;
-	if (end_of_dir(base, rel[0])) for (; *p; p++) {
-		if (end_of_dir(base, *p)) break;
-	} else if (!dsep(rel[0])) for (pp = p; *pp; pp++) {
-		if (end_of_dir(base, *pp)) break;
-		if (dsep(*pp)) p = pp + 1;
+	if (!data) {
+		if (end_of_dir(base, rel[0])) for (; *p; p++) {
+			if (end_of_dir(base, *p)) break;
+		} else if (!dsep(rel[0])) for (pp = p; *pp; pp++) {
+			if (end_of_dir(base, *pp)) break;
+			if (dsep(*pp)) p = pp + 1;
+		}
 	}
 	n = memacpy(base, p - base);
 	add_to_strn(&n, rel);
@@ -574,12 +579,23 @@ unsigned char *extract_position(unsigned char *url)
 	return r;
 }
 
+int url_not_saveable(unsigned char *url)
+{
+	int p, palen;
+	unsigned char *u = translate_url(url, cast_uchar "/");
+	if (!u)
+		return 1;
+	p = parse_url(u, NULL, NULL, NULL, NULL, &palen, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+	mem_free(u);
+	return p || palen;
+}
+
 #define accept_char(x)	((x) != '"' && (x) != '\'' && (x) != '&' && (x) != '<' && (x) != '>')
 #define special_char(x)	((x) == '%' || (x) == '#')
 
 void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encode_special)
 {
-	for (; ll; ll--, b++) {
+	for (; ll > 0; ll--, b++) {
 		if ((unsigned char)*b < ' ') continue;
 		if (special_char(*b) && encode_special == 1) {
 			unsigned char h[4];

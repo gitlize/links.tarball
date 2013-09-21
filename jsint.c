@@ -448,19 +448,6 @@ struct f_data_c *jsint_find_document(long doc_id)
 	return NULL;
 }
 
-void jsint_destroy_document_description(struct f_data *f)
-{
-	struct js_document_description *jsd;
-	if (!f)return;
-	
-	jsd= f->js_doc;
-	if (!jsd) return;
-	f->js_doc = NULL;
-	/* Pro Martina: vsecky polozky vyrobene vyse se tady zase musi uvolnit (jak kurtizana v rimskejch laznich) */
-	/* -------------- */
-	mem_free(jsd);
-}
-
 /* Document has just loaded. Scan for <SCRIPT> tags and execute each of them */
 
 void jsint_scan_script_tags(struct f_data_c *fd)
@@ -911,22 +898,6 @@ static void redraw_document(struct f_data_c *f)
 	}
 	*/
 	draw_fd(f);
-}
-
-struct js_document_description *js_upcall_get_document_description(void *p, long doc_id)
-{
-	struct js_document_description *js_doc;
-	struct f_data *f;
-	struct f_data_c *pfd = p;
-	struct f_data_c *fd;
-	fd = jsint_find_document(doc_id);
-	if (!fd || !fd->f_data || !jsint_can_access(pfd, fd)) return NULL;
-	f = fd->f_data;
-	if (f->js_doc) return f->js_doc;
-	js_doc = mem_calloc(sizeof(struct js_document_description));
-	/* Pro Martina: pridat sem prohlizeni f_data a vytvoreni struktury */
-	/* -------------- */
-	return f->js_doc = js_doc;
 }
 
 
@@ -2817,13 +2788,13 @@ struct gimme_js_id_string
 	long id;
 	long js_id;
 	unsigned char *string;
-	signed int n;
+	int n;
 };
 
 /* open a link in a new xterm */
 void send_vodevri_v_novym_vokne(struct terminal *term, void (*open_window)(struct terminal *term, unsigned char *, unsigned char *), struct session *ses)
 {
-        if (ses->dn_url) {
+	if (ses->dn_url) {
 		unsigned char *enc_url = encode_url(ses->dn_url);
 		open_window(term, path_to_exe, enc_url);
 		mem_free(enc_url);
@@ -3267,7 +3238,7 @@ ty_uz_se_nevratis:
 	else {mem_free(s);s=NULL;}
 	return s;
 	ok:
-	foreach (c, cookies) if (is_in_domain(c->domain, server)) if (is_path_prefix(c->path, data)) {
+	foreach (c, all_cookies) if (is_in_domain(c->domain, server)) if (is_path_prefix(c->path, data)) {
 		if (cookie_expired(c)) {
 			d = c;
 			c = c->prev;
@@ -3975,10 +3946,6 @@ void jsint_destroy(struct f_data_c *fd)
 }
 
 void jsint_scan_script_tags(struct f_data_c *fd)
-{
-}
-
-void jsint_destroy_document_description(struct f_data *f)
 {
 }
 

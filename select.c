@@ -48,8 +48,20 @@ ttime get_time(void)
 	struct timeval tv;
 	int rs;
 	EINTRLOOP(rs, gettimeofday(&tv, NULL));
+	if (rs) fatal_exit("gettimeofday failed: %d", errno);
 	return (uttime)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
+
+#ifndef OPENVMS
+void portable_sleep(unsigned msec)
+{
+	struct timeval tv;
+	int rs;
+	tv.tv_sec = msec / 1000;
+	tv.tv_usec = msec % 1000 * 1000;
+	EINTRLOOP(rs, select(0, NULL, NULL, NULL, &tv));
+}
+#endif
 
 int can_write(int fd)
 {
@@ -64,14 +76,17 @@ int can_write(int fd)
 	}
 	FD_SET(fd, &fds);
 	EINTRLOOP(rs, select(fd + 1, NULL, &fds, NULL, &tv));
+	if (rs < 0) fatal_exit("ERROR: select for write (%d) failed: %s", fd, strerror(errno));
 	return rs;
 }
 
-int can_read(int fd)
+int can_read_timeout(int fd, int sec)
 {
 	fd_set fds;
-	struct timeval tv = {0, 0};
+	struct timeval tv;
 	int rs;
+	tv.tv_sec = sec;
+	tv.tv_usec = 0;
 	FD_ZERO(&fds);
 	if (fd < 0)
 		internal("can_read: handle %d", fd);
@@ -80,8 +95,15 @@ int can_read(int fd)
 	}
 	FD_SET(fd, &fds);
 	EINTRLOOP(rs, select(fd + 1, &fds, NULL, NULL, &tv));
+	if (rs < 0) fatal_exit("ERROR: select for read (%d) failed: %s", fd, strerror(errno));
 	return rs;
 }
+
+int can_read(int fd)
+{
+	return can_read_timeout(fd, 0);
+}
+
 
 unsigned long select_info(int type)
 {
@@ -147,7 +169,12 @@ void check_bottom_halves(void)
 #ifdef DEBUG_CALLS
 	fprintf(stderr, "call: bh %p\n", fn);
 #endif
-	pr(fn(data)) {free_list(bottom_halves); return;};
+	pr(fn(data)) {
+#ifdef OOPS
+		free_list(bottom_halves);
+		return;
+#endif
+	};
 #ifdef DEBUG_CALLS
 	fprintf(stderr, "bh done\n");
 #endif
@@ -170,8 +197,10 @@ static void check_timers(void)
 		fprintf(stderr, "call: timer %p\n", t->func);
 #endif
 		pr(t->func(t->data)) {
+#ifdef OOPS
 			del_from_list((struct timer *)timers.next);
 			return;
+#endif
 		}
 #ifdef DEBUG_CALLS
 		fprintf(stderr, "timer done\n");
@@ -237,6 +266,10 @@ void *get_handler(int fd, int tp)
 
 void set_handlers(int fd, void (*read_func)(void *), void (*write_func)(void *), void (*error_func)(void *), void *data)
 {
+#ifdef __GNU__
+	/* GNU Hurd has bugs w.r.t. exceptions */
+	error_func = NULL;
+#endif
 	if (fd < 0)
 		internal("set_handlers: handle %d", fd);
 	if (fd >= (int)FD_SETSIZE) {
@@ -273,7 +306,32 @@ void set_handlers(int fd, void (*read_func)(void *), void (*write_func)(void *),
 	}
 }
 
+void clear_events(int h, int blocking)
+{
+#if !defined(O_NONBLOCK) && !defined(FIONBIO)
+	blocking = 1;
+#endif
+	while (blocking ? can_read(h) : 1) {
+		unsigned char c[64];
+		int rd;
+		EINTRLOOP(rd, (int)read(h, c, sizeof c));
+		if (rd != sizeof c) break;
+	}
+}
+
+#if defined(NSIG) && NSIG > 32
+#define NUM_SIGNALS	NSIG
+#else
 #define NUM_SIGNALS	32
+#endif
+
+#ifndef NO_SIGNAL_HANDLERS
+
+static void clear_events_ptr(void *handle)
+{
+	clear_events((int)(my_intptr_t)handle, 0);
+}
+
 
 struct signal_handler {
 	void (*fn)(void *);
@@ -281,49 +339,53 @@ struct signal_handler {
 	int critical;
 };
 
-static int signal_mask[NUM_SIGNALS];
-static struct signal_handler signal_handlers[NUM_SIGNALS];
+static volatile int signal_mask[NUM_SIGNALS];
+static volatile struct signal_handler signal_handlers[NUM_SIGNALS];
 
 static int signal_pipe[2];
 
-static void signal_break(void *data)
-{
-	unsigned char c;
-	while (can_read(signal_pipe[0])) {
-		int rd;
-		EINTRLOOP(rd, read(signal_pipe[0], &c, 1));
-		if (rd != 1) break;
-	}
-}
-
 SIGNAL_HANDLER static void got_signal(int sig)
 {
+	void (*fn)(void *);
 	int sv_errno = errno;
 		/*fprintf(stderr, "ERROR: signal number: %d\n", sig);*/
+
+#if !defined(HAVE_SIGACTION)
+	do_signal(sig, got_signal);
+#endif
+
 	if (sig >= NUM_SIGNALS || sig < 0) {
 		/*error("ERROR: bad signal number: %d", sig);*/
 		goto ret;
 	}
-	if (!signal_handlers[sig].fn) goto ret;
+	fn = signal_handlers[sig].fn;
+	if (!fn) goto ret;
 	if (signal_handlers[sig].critical) {
-		signal_handlers[sig].fn(signal_handlers[sig].data);
+		fn(signal_handlers[sig].data);
 		goto ret;
 	}
 	signal_mask[sig] = 1;
 	ret:
 	if (can_write(signal_pipe[1])) {
 		int wr;
-		EINTRLOOP(wr, write(signal_pipe[1], "x", 1));
+		EINTRLOOP(wr, (int)write(signal_pipe[1], "", 1));
 	}
 	errno = sv_errno;
 }
 
+#ifdef HAVE_SIGACTION
 static struct sigaction sa_zero;
+#endif
+
+#endif
 
 void install_signal_handler(int sig, void (*fn)(void *), void *data, int critical)
 {
+#if defined(NO_SIGNAL_HANDLERS)
+#elif defined(HAVE_SIGACTION)
 	int rs;
 	struct sigaction sa = sa_zero;
+	/*debug("install (%d) -> %p,%d", sig, fn, critical);*/
 	if (sig >= NUM_SIGNALS || sig < 0) {
 		internal("bad signal number: %d", sig);
 		return;
@@ -339,10 +401,18 @@ void install_signal_handler(int sig, void (*fn)(void *), void *data, int critica
 	signal_handlers[sig].critical = critical;
 	if (fn)
 		EINTRLOOP(rs, sigaction(sig, &sa, NULL));
+#else
+	if (!fn) do_signal(sig, SIG_IGN);
+	signal_handlers[sig].fn = fn;
+	signal_handlers[sig].data = data;
+	signal_handlers[sig].critical = critical;
+	if (fn) do_signal(sig, got_signal);
+#endif
 }
 
 void interruptible_signal(int sig, int in)
 {
+#if defined(HAVE_SIGACTION) && !defined(NO_SIGNAL_HANDLERS)
 	struct sigaction sa = sa_zero;
 	int rs;
 	if (sig >= NUM_SIGNALS || sig < 0) {
@@ -354,6 +424,7 @@ void interruptible_signal(int sig, int in)
 	sigfillset(&sa.sa_mask);
 	if (!in) sa.sa_flags = SA_RESTART;
 	EINTRLOOP(rs, sigaction(sig, &sa, NULL));
+#endif
 }
 
 static sigset_t sig_old_mask;
@@ -367,10 +438,25 @@ void block_signals(int except1, int except2)
 #ifdef HAVE_SIGDELSET
 	if (except1) sigdelset(&mask, except1);
 	if (except2) sigdelset(&mask, except2);
+#ifdef SIGILL
+	sigdelset(&mask, SIGILL);
+#endif
+#ifdef SIGABRT
+	sigdelset(&mask, SIGABRT);
+#endif
+#ifdef SIGFPE
+	sigdelset(&mask, SIGFPE);
+#endif
+#ifdef SIGSEGV
+	sigdelset(&mask, SIGSEGV);
+#endif
+#ifdef SIGBUS
+	sigdelset(&mask, SIGBUS);
+#endif
 #else
 	if (except1 || except2) return;
 #endif
-	EINTRLOOP(rs, sigprocmask(SIG_BLOCK, &mask, &sig_old_mask));
+	EINTRLOOP(rs, do_sigprocmask(SIG_BLOCK, &mask, &sig_old_mask));
 	if (!rs) sig_unblock = 1;
 }
 
@@ -378,14 +464,16 @@ void unblock_signals(void)
 {
 	int rs;
 	if (sig_unblock) {
-		EINTRLOOP(rs, sigprocmask(SIG_SETMASK, &sig_old_mask, NULL));
+		EINTRLOOP(rs, do_sigprocmask(SIG_SETMASK, &sig_old_mask, NULL));
 		sig_unblock = 0;
 	}
 }
 
 static int check_signals(void)
 {
-	int i, r = 0;
+	int r = 0;
+#ifndef NO_SIGNAL_HANDLERS
+	int i;
 	for (i = 0; i < NUM_SIGNALS; i++)
 		if (signal_mask[i]) {
 			signal_mask[i] = 0;
@@ -393,7 +481,11 @@ static int check_signals(void)
 #ifdef DEBUG_CALLS
 				fprintf(stderr, "call: signal %d -> %p\n", i, signal_handlers[i].fn);
 #endif
-				pr(signal_handlers[i].fn(signal_handlers[i].data)) return 1;
+				pr(signal_handlers[i].fn(signal_handlers[i].data)) {
+#ifdef OOPS
+					return 1;
+#endif
+}
 #ifdef DEBUG_CALLS
 				fprintf(stderr, "signal done\n");
 #endif
@@ -401,9 +493,11 @@ static int check_signals(void)
 			CHK_BH;
 			r = 1;
 		}
+#endif
 	return r;
 }
 
+#ifdef SIGCHLD
 static void sigchld(void *p)
 {
 	pid_t pid;
@@ -420,6 +514,11 @@ void set_sigcld(void)
 {
 	install_signal_handler(SIGCHLD, sigchld, NULL, 1);
 }
+#else
+void set_sigcld(void)
+{
+}
+#endif
 
 int terminate_loop = 0;
 
@@ -430,21 +529,27 @@ void select_loop(void (*init)(void))
 	EINTRLOOP(rs, stat(".", &st));
 	if (rs && getenv("HOME"))
 		EINTRLOOP(rs, chdir(getenv("HOME")));
+#if !defined(NO_SIGNAL_HANDLERS)
+#if defined(HAVE_SIGACTION)
 	memset(&sa_zero, 0, sizeof sa_zero);
-	memset(signal_mask, 0, sizeof signal_mask);
-	memset(signal_handlers, 0, sizeof signal_handlers);
+#endif
+	memset((void *)signal_mask, 0, sizeof signal_mask);
+	memset((void *)signal_handlers, 0, sizeof signal_handlers);
+#endif
 	FD_ZERO(&w_read);
 	FD_ZERO(&w_write);
 	FD_ZERO(&w_error);
 	w_max = 0;
 	last_time = get_time();
 	ignore_signals();
+#if !defined(NO_SIGNAL_HANDLERS)
 	if (c_pipe(signal_pipe)) {
 		fatal_exit("ERROR: can't create pipe for signal handling");
 	}
-	EINTRLOOP(rs, fcntl(signal_pipe[0], F_SETFL, O_NONBLOCK));
-	EINTRLOOP(rs, fcntl(signal_pipe[1], F_SETFL, O_NONBLOCK));
-	set_handlers(signal_pipe[0], signal_break, NULL, NULL, NULL);
+	set_nonblock(signal_pipe[0]);
+	set_nonblock(signal_pipe[1]);
+	set_handlers(signal_pipe[0], clear_events_ptr, NULL, NULL, (void *)(my_intptr_t)signal_pipe[0]);
+#endif
 	init();
 	CHK_BH;
 	while (!terminate_loop) {

@@ -111,6 +111,10 @@ void read_png(unsigned char *filename)
 	fclose(f);
 }
 
+#ifndef Z_BEST_COMPRESSION
+#define Z_BEST_COMPRESSION 9
+#endif
+
 void write_png(unsigned char *filename)
 {
 	unsigned char *temporary;

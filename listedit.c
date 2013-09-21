@@ -181,9 +181,9 @@ static long last_mouse_y;
 
 
 #ifdef G
-	#define sirka_scrollovadla (G_SCROLL_BAR_WIDTH<<1)
+#define sirka_scrollovadla (G_SCROLL_BAR_WIDTH<<1)
 #else
-	#define sirka_scrollovadla 0
+#define sirka_scrollovadla 0
 #endif
 
 
@@ -198,7 +198,7 @@ static long last_mouse_y;
 /* BFU elements are used in the list window */
 /* this function also defines shape and size of the elements */
 /* returns width of the BFU element (all elements have the same size, but sizes differ if we're in text mode or in graphics mode) */
-static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, long b, long f, unsigned char type, unsigned char selected)
+static int draw_bfu_element(struct terminal * term, int x, int y, unsigned char c, long b, long f, unsigned char type, unsigned char selected)
 {
 #ifdef G
 	if (!F){
@@ -295,45 +295,45 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 
 			case BFU_ELEMENT_L:
 			/* l */
-			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y,y+.5*BFU_GRX_HEIGHT,f);
-			drv->draw_vline(dev,x+1+1*BFU_GRX_WIDTH,y,y+.5*BFU_GRX_HEIGHT,f);
-			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y+.5*BFU_GRX_HEIGHT,x+1+3.5*BFU_GRX_WIDTH,f);
-			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,x+1+3.5*BFU_GRX_WIDTH,f);
+			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y,y+(int)(.5*BFU_GRX_HEIGHT),f);
+			drv->draw_vline(dev,x+1+1*BFU_GRX_WIDTH,y,y+(int)(.5*BFU_GRX_HEIGHT),f);
+			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y+(int)(.5*BFU_GRX_HEIGHT),x+1+(int)(3.5*BFU_GRX_WIDTH),f);
+			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y-1+(int)(.5*BFU_GRX_HEIGHT),x+1+(int)(3.5*BFU_GRX_WIDTH),f);
 			/* clear the rest */
 			drv->fill_area(dev,x,y,x+1*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+BFU_GRX_WIDTH,y+.5*BFU_GRX_HEIGHT+1,x+1+3.5*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y,x+1+3.5*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+1+3.5*BFU_GRX_WIDTH,y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+BFU_GRX_WIDTH,y+(int)(.5*BFU_GRX_HEIGHT)+1,x+1+(int)(3.5*BFU_GRX_WIDTH),y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y,x+1+(int)(3.5*BFU_GRX_WIDTH),y-1+(int)(.5*BFU_GRX_HEIGHT),b);
+			drv->fill_area(dev,x+1+(int)(3.5*BFU_GRX_WIDTH),y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
 			break;
 
 			case BFU_ELEMENT_TEE:
 			/* tee */
 			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y,y+BFU_GRX_HEIGHT,f);
 			drv->draw_vline(dev,x+1+1*BFU_GRX_WIDTH,y,y+BFU_GRX_HEIGHT,f);
-			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y+.5*BFU_GRX_HEIGHT,x+1+3.5*BFU_GRX_WIDTH,f);
-			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,x+1+3.5*BFU_GRX_WIDTH,f);
+			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y+(int)(.5*BFU_GRX_HEIGHT),x+1+(int)(3.5*BFU_GRX_WIDTH),f);
+			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y-1+(int)(.5*BFU_GRX_HEIGHT),x+1+(int)(3.5*BFU_GRX_WIDTH),f);
 			/* clear the rest */
 			drv->fill_area(dev,x,y,x+1*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+.5*BFU_GRX_HEIGHT+1,x+1+3.5*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y,x+1+3.5*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+1+3.5*BFU_GRX_WIDTH,y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+(int)(.5*BFU_GRX_HEIGHT)+1,x+1+(int)(3.5*BFU_GRX_WIDTH),y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y,x+1+(int)(3.5*BFU_GRX_WIDTH),y-1+(int)(.5*BFU_GRX_HEIGHT),b);
+			drv->fill_area(dev,x+1+(int)(3.5*BFU_GRX_WIDTH),y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
 			break;
 
 			case BFU_ELEMENT_CLOSED:
 			case BFU_ELEMENT_CLOSED_DOWN:
 			/* vertical line of the + */
-			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,y-1+.75*BFU_GRX_HEIGHT,f);
-			drv->draw_vline(dev,x+1+1*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,y-1+.75*BFU_GRX_HEIGHT,f);
+			drv->draw_vline(dev,x+1*BFU_GRX_WIDTH,y+1+(int)(.25*BFU_GRX_HEIGHT),y-1+(int)(.75*BFU_GRX_HEIGHT),f);
+			drv->draw_vline(dev,x+1+1*BFU_GRX_WIDTH,y+1+(int)(.25*BFU_GRX_HEIGHT),y-1+(int)(.75*BFU_GRX_HEIGHT),f);
 
 			/* clear around the + */
-			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+3,x+1.5*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y-1+.75*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y+3,x+(int)(1.5*BFU_GRX_WIDTH),y+1+(int)(.25*BFU_GRX_HEIGHT),b);
+			drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y-1+(int)(.75*BFU_GRX_HEIGHT),x+(int)(1.5*BFU_GRX_WIDTH),y-3+BFU_GRX_HEIGHT,b);
 
-			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,x+BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y+1+(int)(.25*BFU_GRX_HEIGHT),x+BFU_GRX_WIDTH,y-1+(int)(.5*BFU_GRX_HEIGHT),b);
+			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+1+(int)(.25*BFU_GRX_HEIGHT),x+(int)(1.5*BFU_GRX_WIDTH),y-1+(int)(.5*BFU_GRX_HEIGHT),b);
 
-			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y+1+(int)(.5*BFU_GRX_HEIGHT),x+BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+1+(int)(.5*BFU_GRX_HEIGHT),x+(int)(1.5*BFU_GRX_WIDTH),y-3+BFU_GRX_HEIGHT,b);
 
 			case BFU_ELEMENT_OPEN:
 			case BFU_ELEMENT_OPEN_DOWN:
@@ -348,12 +348,12 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			drv->draw_hline(dev,x+4,y-3+BFU_GRX_HEIGHT,x-2+2*BFU_GRX_WIDTH,f);
 
 			/* horizontal line of the - */
-			drv->draw_hline(dev,x+2+.5*BFU_GRX_WIDTH,y+.5*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,f);
-			drv->draw_hline(dev,x+2+.5*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,f);
+			drv->draw_hline(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y+(int)(.5*BFU_GRX_HEIGHT),x+(int)(1.5*BFU_GRX_WIDTH),f);
+			drv->draw_hline(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y-1+(int)(.5*BFU_GRX_HEIGHT),x+(int)(1.5*BFU_GRX_WIDTH),f);
 
 			/* line to title */
-			drv->draw_hline(dev,x+2*BFU_GRX_WIDTH,y+(BFU_GRX_HEIGHT>>1),x+1+3.5*BFU_GRX_WIDTH,f);
-			drv->draw_hline(dev,x+2*BFU_GRX_WIDTH,y-1+(BFU_GRX_HEIGHT>>1),x+1+3.5*BFU_GRX_WIDTH,f);
+			drv->draw_hline(dev,x+2*BFU_GRX_WIDTH,y+(BFU_GRX_HEIGHT>>1),x+1+(int)(3.5*BFU_GRX_WIDTH),f);
+			drv->draw_hline(dev,x+2*BFU_GRX_WIDTH,y-1+(BFU_GRX_HEIGHT>>1),x+1+(int)(3.5*BFU_GRX_WIDTH),f);
 
 			/* top and bottom short vertical line */
 			drv->draw_hline(dev,x+1*BFU_GRX_WIDTH,y,x+2+1*BFU_GRX_WIDTH,f);
@@ -366,18 +366,18 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			drv->draw_hline(dev,x+2,y-1+BFU_GRX_HEIGHT,x+BFU_GRX_WIDTH,b);
 			drv->draw_hline(dev,x+2+BFU_GRX_WIDTH,y,x+2*BFU_GRX_WIDTH,b);
 			drv->draw_hline(dev,x+2+BFU_GRX_WIDTH,y-1+BFU_GRX_HEIGHT,x+2*BFU_GRX_WIDTH,b);
-			drv->fill_area(dev,x+2*BFU_GRX_WIDTH,y,x+1+3.5*BFU_GRX_WIDTH,y+.5*BFU_GRX_HEIGHT-1,b);
-			drv->fill_area(dev,x+2*BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+1+3.5*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+4,y+3,x+2+.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+1.5*BFU_GRX_WIDTH,y+3,x-2+2*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+3,x+1.5*BFU_GRX_WIDTH,y+1+.25*BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y-1+.75*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2*BFU_GRX_WIDTH,y,x+1+(int)(3.5*BFU_GRX_WIDTH),y+(int)(.5*BFU_GRX_HEIGHT)-1,b);
+			drv->fill_area(dev,x+2*BFU_GRX_WIDTH,y+1+(int)(.5*BFU_GRX_HEIGHT),x+1+(int)(3.5*BFU_GRX_WIDTH),y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+4,y+3,x+2+(int)(.5*BFU_GRX_WIDTH),y-3+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+(int)(1.5*BFU_GRX_WIDTH),y+3,x-2+2*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y+3,x+(int)(1.5*BFU_GRX_WIDTH),y+1+(int)(.25*BFU_GRX_HEIGHT),b);
+			drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y-1+(int)(.75*BFU_GRX_HEIGHT),x+(int)(1.5*BFU_GRX_WIDTH),y-3+BFU_GRX_HEIGHT,b);
 			if (type==BFU_ELEMENT_OPEN || type == BFU_ELEMENT_OPEN_DOWN)
 			{
-				drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+3,x+1.5*BFU_GRX_WIDTH,y-1+.5*BFU_GRX_HEIGHT,b);
-				drv->fill_area(dev,x+2+.5*BFU_GRX_WIDTH,y+1+.5*BFU_GRX_HEIGHT,x+1.5*BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
+				drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y+3,x+(int)(1.5*BFU_GRX_WIDTH),y-1+(int)(.5*BFU_GRX_HEIGHT),b);
+				drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y+1+(int)(.5*BFU_GRX_HEIGHT),x+(int)(1.5*BFU_GRX_WIDTH),y-3+BFU_GRX_HEIGHT,b);
 			}
-			drv->fill_area(dev,x+1+3.5*BFU_GRX_WIDTH,y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+1+(int)(3.5*BFU_GRX_WIDTH),y,x+4*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
 			break;
 
 			default:
@@ -387,11 +387,11 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned c, lo
 			drv->fill_area(dev,x+4*BFU_GRX_WIDTH,y,x+5*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
 		else
 		{
-			drv->fill_area(dev,x+4*BFU_GRX_WIDTH,y,x+4.25*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+4.25*BFU_GRX_WIDTH,y,x+4.75*BFU_GRX_WIDTH,y+2.5*BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+4.25*BFU_GRX_WIDTH,y+.25*BFU_GRX_HEIGHT,x+4.75*BFU_GRX_WIDTH,y+.75*BFU_GRX_HEIGHT,f);
-			drv->fill_area(dev,x+4.25*BFU_GRX_WIDTH,y+.75*BFU_GRX_HEIGHT,x+4.75*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
-			drv->fill_area(dev,x+4.75*BFU_GRX_WIDTH,y,x+5*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+4*BFU_GRX_WIDTH,y,x+(int)(4.25*BFU_GRX_WIDTH),y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+(int)(4.25*BFU_GRX_WIDTH),y,x+(int)(4.75*BFU_GRX_WIDTH),y+(int)(2.5*BFU_GRX_HEIGHT),b);
+			drv->fill_area(dev,x+(int)(4.25*BFU_GRX_WIDTH),y+(int)(.25*BFU_GRX_HEIGHT),x+(int)(4.75*BFU_GRX_WIDTH),y+(int)(.75*BFU_GRX_HEIGHT),f);
+			drv->fill_area(dev,x+(int)(4.25*BFU_GRX_WIDTH),y+(int)(.75*BFU_GRX_HEIGHT),x+(int)(4.75*BFU_GRX_WIDTH),y+BFU_GRX_HEIGHT,b);
+			drv->fill_area(dev,x+(int)(4.75*BFU_GRX_WIDTH),y,x+5*BFU_GRX_WIDTH,y+BFU_GRX_HEIGHT,b);
 		}
 		
 		drv->set_clip_area(dev, &r);
@@ -991,19 +991,20 @@ static int redraw_list_element(struct terminal *term, struct dialog_data *dlg, i
 	unsigned char *txt;
 	int x=0;
 	int text_position;
-	unsigned color = 0;
+	unsigned char color = 0;
 	long bgcolor = 0, fgcolor = 0;
-	int b, element;
+	int b;
+	unsigned char element;
 
 	if (!F) {
 		color=(l==ld->current_pos)?COLOR_MENU_SELECTED:COLOR_MENU_TEXT;
 #ifdef G
 	} else {
-		bgcolor=(l==ld->current_pos)?G_BFU_FG_COLOR:G_BFU_BG_COLOR;
-		fgcolor=(l==ld->current_pos)?G_BFU_BG_COLOR:G_BFU_FG_COLOR;
+		int bgc=(l==ld->current_pos)?G_BFU_FG_COLOR:G_BFU_BG_COLOR;
+		int fgc=(l==ld->current_pos)?G_BFU_BG_COLOR:G_BFU_FG_COLOR;
 
-		bgcolor=dip_get_color_sRGB(bgcolor);
-		fgcolor=dip_get_color_sRGB(fgcolor);
+		bgcolor=dip_get_color_sRGB(bgc);
+		fgcolor=dip_get_color_sRGB(fgc);
 #endif
 	}
 	
@@ -1315,6 +1316,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 
 	rd.ld=ld;
 	rd.dlg=dlg;
+	rd.n=0;
 
 	switch ((int)ev->ev)
 	{
@@ -1329,6 +1331,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				if (!(ld->current_pos->type&2))unselect_in_folder(ld, ld->current_pos);
 				rd.n=0;
 				draw_to_window(dlg->win,redraw_list,&rd);
+				draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 				return EVENT_PROCESSED;
 			}
 			if (ev->x=='+'||ev->x=='=')  /* open folder */
@@ -1339,6 +1342,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				ld->current_pos->type|=2;
 				rd.n=0;
 				draw_to_window(dlg->win,redraw_list,&rd);
+				draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 				return EVENT_PROCESSED;
 			}
 			if (ev->x=='-')  /* close folder */
@@ -1350,6 +1354,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				unselect_in_folder(ld,ld->current_pos);
 				rd.n=0;
 				draw_to_window(dlg->win,redraw_list,&rd);
+				draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 				return EVENT_PROCESSED;
 			}
 		}
@@ -1388,16 +1393,17 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		}
 		if (ev->x==KBD_UP)
 		{
-			if (ld->current_pos==ld->list)return EVENT_PROCESSED;  /* already on the top */
+			if (ld->current_pos==ld->list) goto kbd_up_redraw_exit;  /* already on the top */
 			ld->current_pos=prev_in_tree(ld,ld->current_pos);
 			ld->win_pos--;
-			rd.n=+1;
+			rd.n=1;
 			if (ld->win_pos<0)  /* scroll up */
 			{
 				ld->win_pos=0;
 				ld->win_offset=prev_in_tree(ld,ld->win_offset);
 				draw_to_window(dlg->win,scroll_list,&rd);
 			}
+			kbd_up_redraw_exit:
 			draw_to_window(dlg->win,redraw_list_line,&rd);
 			return EVENT_PROCESSED;
 		}
@@ -1423,7 +1429,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		}
 		if (ev->x==KBD_DOWN)
 		{
-			if (next_in_tree(ld,ld->current_pos)==ld->list)return EVENT_PROCESSED;  /* already at the bottom */
+			if (next_in_tree(ld,ld->current_pos)==ld->list) goto kbd_down_redraw_exit;  /* already at the bottom */
 			ld->current_pos=next_in_tree(ld,ld->current_pos);
 			ld->win_pos++;
 			rd.n=-1;
@@ -1433,17 +1439,19 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 				ld->win_offset=next_in_tree(ld,ld->win_offset);
 				draw_to_window(dlg->win,scroll_list,&rd);
 			}
+			kbd_down_redraw_exit:
 			draw_to_window(dlg->win,redraw_list_line,&rd);
 			return EVENT_PROCESSED;
 		}
 		if (ev->x==KBD_HOME || (upcase(ev->x) == 'A' && ev->y & KBD_CTRL))
 		{
-			if (ld->current_pos==ld->list)return EVENT_PROCESSED;  /* already on the top */
+			if (ld->current_pos==ld->list) goto kbd_home_redraw_exit;  /* already on the top */
 			ld->win_offset=ld->list;
 			ld->current_pos=ld->win_offset;
 			ld->win_pos=0;
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			kbd_home_redraw_exit:
 			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
@@ -1451,7 +1459,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		{
 			int a;
 
-			if (ld->current_pos==prev_in_tree(ld,ld->list))return EVENT_PROCESSED;  /* already on the top */
+			if (ld->current_pos==prev_in_tree(ld,ld->list)) goto kbd_end_redraw_exit;  /* already on the top */
 			ld->win_offset=prev_in_tree(ld,ld->list);
 			for (a=1;a<ld->n_items&&ld->win_offset!=ld->list;a++)
 				ld->win_offset=prev_in_tree(ld,ld->win_offset);
@@ -1459,6 +1467,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			ld->win_pos=a-1;
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			kbd_end_redraw_exit:
 			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
@@ -1466,7 +1475,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		{
 			int a;
 
-			if (ld->current_pos==ld->list)return EVENT_PROCESSED;  /* already on the top */
+			if (ld->current_pos==ld->list) goto kbd_page_up_redraw_exit;  /* already on the top */
 			for (a=0;a<ld->n_items&&ld->win_offset!=ld->list;a++)
 			{
 				ld->win_offset=prev_in_tree(ld,ld->win_offset);
@@ -1475,6 +1484,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			if (a<ld->n_items){ld->current_pos=ld->win_offset;ld->win_pos=0;}
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			kbd_page_up_redraw_exit:
 			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
@@ -1483,7 +1493,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			int a;
 			struct list*p=ld->win_offset;
 
-			if (ld->current_pos==prev_in_tree(ld,ld->list))return EVENT_PROCESSED;  /* already on the bottom */
+			if (ld->current_pos==prev_in_tree(ld,ld->list)) goto kbd_page_down_redraw_exit;  /* already on the bottom */
 			for (a=0;a<ld->n_items&&ld->list!=next_in_tree(ld,p);a++)
 				p=next_in_tree(ld,p);
 			if (a<ld->n_items)  /* already last screen */
@@ -1506,6 +1516,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			if (a<ld->n_items){ld->current_pos=prev_in_tree(ld,ld->list);ld->win_pos=ld->n_items-1;}
 			rd.n=0;
 			draw_to_window(dlg->win,redraw_list,&rd);
+			kbd_page_down_redraw_exit:
 			draw_to_window(dlg->win,redraw_list_line,&rd);	/* set cursor */
 			return EVENT_PROCESSED;
 		}
@@ -1596,7 +1607,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 			int scroll_pos;
 			int redraw_all;
 			int rep = 0;
-			signed long delta;
+			long delta;
 			long h=ld->n_items*G_BFU_FONT_SIZE;
 
 			if (
@@ -1691,7 +1702,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		/* mouse wheel */
 		if ((ev->b&BM_ACT)==B_MOVE&&((ev->b&BM_BUTT)==B_WHEELUP||(ev->b&BM_BUTT)==B_WHEELDOWN||(ev->b&BM_BUTT)==B_WHEELDOWN1||(ev->b&BM_BUTT)==B_WHEELUP1))
 		{
-			int button=(ev->b)&BM_BUTT;
+			int button=(int)ev->b&BM_BUTT;
 			last_mouse_y=ev->y;
 
 			if (button==B_WHEELDOWN||button==B_WHEELDOWN1)  /* scroll down */
@@ -1735,7 +1746,7 @@ static int list_event_handler(struct dialog_data *dlg, struct event *ev)
 		break;
 
 		default:
-		internal("Unknown event received: %ld", ev->ev);
+		internal("Unknown event received: %d", ev->ev);
 
 	}
 	return EVENT_NOT_PROCESSED;

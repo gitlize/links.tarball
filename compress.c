@@ -1,6 +1,10 @@
 #include "links.h"
 
-unsigned long decompressed_cache_size;
+#ifdef write
+#undef write
+#endif
+
+my_uintptr_t decompressed_cache_size = 0;
 
 static int display_error(struct terminal *term, unsigned char *msg, int *errp)
 {
@@ -63,7 +67,7 @@ static void decompress_error(struct terminal *term, struct cache_entry *ce, unsi
 
 #ifdef HAVE_ZLIB
 #include <zlib.h>
-static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int defl, int *errp)
+static int decode_gzip(struct terminal *term, struct cache_entry *ce, int defl, int *errp)
 {
 	unsigned char err;
 	unsigned char memory_error;
@@ -89,7 +93,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 	z.next_in = NULL;
 	z.avail_in = 0;
 	z.next_out = p;
-	z.avail_out = size;
+	z.avail_out = (unsigned)size;
 	z.zalloc = NULL;
 	z.zfree = NULL;
 	z.opaque = NULL;
@@ -127,10 +131,10 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 		if (f->offset != offset) break;
 		z.next_in = f->data;
 		z.avail_in = (unsigned)f->length;
-		if (z.avail_in != (unsigned)f->length) overalloc();
+		if ((off_t)z.avail_in != f->length) overalloc();
 		if (header && !offset) {
 			z.next_in = (unsigned char *)z.next_in + header;
-			z.avail_in -= header;
+			z.avail_in -= (unsigned)header;
 		}
 		repeat_frag:
 		if (skip_gzip_header == 2) {
@@ -220,7 +224,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 			if (decoder_memory_expand(&p, size, &addsize) < 0)
 				goto mem_error;
 			z.next_out = p + size;
-			z.avail_out = addsize;
+			z.avail_out = (unsigned)addsize;
 			size += addsize;
 		}
 		if (z.avail_in) goto repeat_frag;
@@ -257,16 +261,17 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, unsigned c
 		mem_free(p);
 		return 1;
 	}
-	*p_start = p;
-	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
-	*p_start = mem_realloc(*p_start, *p_len);
+	ce->decompressed = p;
+	ce->decompressed_len = (unsigned char *)z.next_out - (unsigned char *)p;
+	decompressed_cache_size += ce->decompressed_len;
+	ce->decompressed = mem_realloc(ce->decompressed, ce->decompressed_len);
 	return 0;
 }
 #endif
 
 #ifdef HAVE_BZIP2
 #include <bzlib.h>
-static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int *errp)
+static int decode_bzip2(struct terminal *term, struct cache_entry *ce, int *errp)
 {
 	unsigned char err;
 	unsigned char memory_error;
@@ -285,7 +290,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 	z.next_in = NULL;
 	z.avail_in = 0;
 	z.next_out = cast_char p;
-	z.avail_out = size;
+	z.avail_out = (unsigned)size;
 	z.bzalloc = NULL;
 	z.bzfree = NULL;
 	z.opaque = NULL;
@@ -312,7 +317,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 		if (f->offset != offset) break;
 		z.next_in = cast_char f->data;
 		z.avail_in = (unsigned)f->length;
-		if (z.avail_in != f->length) overalloc();
+		if ((off_t)z.avail_in != f->length) overalloc();
 		repeat_frag:
 		r = BZ2_bzDecompress(&z);
 		switch (r) {
@@ -343,7 +348,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 			if (decoder_memory_expand(&p, size, &addsize) < 0)
 				goto mem_error;
 			z.next_out = cast_char(p + size);
-			z.avail_out = addsize;
+			z.avail_out = (unsigned)addsize;
 			size += addsize;
 		}
 		if (z.avail_in) goto repeat_frag;
@@ -376,9 +381,10 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 		mem_free(p);
 		return 1;
 	}
-	*p_start = p;
-	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
-	*p_start = mem_realloc(*p_start, *p_len);
+	ce->decompressed = p;
+	ce->decompressed_len = (unsigned char *)z.next_out - (unsigned char *)p;
+	decompressed_cache_size += ce->decompressed_len;
+	ce->decompressed = mem_realloc(ce->decompressed, ce->decompressed_len);
 	return 0;
 }
 #endif
@@ -387,7 +393,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, unsigned 
 #undef internal
 #include <lzma.h>
 #define internal internal_
-static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned char **p_start, size_t *p_len, int *errp)
+static int decode_lzma(struct terminal *term, struct cache_entry *ce, int *errp)
 {
 	unsigned char err;
 	unsigned char memory_error;
@@ -429,7 +435,7 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned c
 		if (f->offset != offset) break;
 		z.next_in = f->data;
 		z.avail_in = (size_t)f->length;
-		if (z.avail_in != (size_t)f->length) overalloc();
+		if ((off_t)z.avail_in != f->length) overalloc();
 		repeat_frag:
 		r = lzma_code(&z, LZMA_RUN);
 		switch (r) {
@@ -492,9 +498,10 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, unsigned c
 		mem_free(p);
 		return 1;
 	}
-	*p_start = p;
-	*p_len = (unsigned char *)z.next_out - (unsigned char *)p;
-	*p_start = mem_realloc(*p_start, *p_len);
+	ce->decompressed = p;
+	ce->decompressed_len = (unsigned char *)z.next_out - (unsigned char *)p;
+	decompressed_cache_size += ce->decompressed_len;
+	ce->decompressed = mem_realloc(ce->decompressed, ce->decompressed_len);
 	return 0;
 }
 #endif
@@ -521,24 +528,21 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 		if (!strcasecmp(cast_const_char enc, "gzip") || !strcasecmp(cast_const_char enc, "x-gzip") || !strcasecmp(cast_const_char enc, "deflate")) {
 			int defl = !strcasecmp(cast_const_char enc, "deflate");
 			mem_free(enc);
-			if (decode_gzip(term, ce, &ce->decompressed, &ce->decompressed_len, defl, errp)) goto uncompressed;
-			decompressed_cache_size += ce->decompressed_len;
+			if (decode_gzip(term, ce, defl, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
 #ifdef HAVE_BZIP2
 		if (!strcasecmp(cast_const_char enc, "bzip2")) {
 			mem_free(enc);
-			if (decode_bzip2(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
-			decompressed_cache_size += ce->decompressed_len;
+			if (decode_bzip2(term, ce, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
 #ifdef HAVE_LZMA
 		if (!strcasecmp(cast_const_char enc, "lzma") || !strcasecmp(cast_const_char enc, "lzma2")) {
 			mem_free(enc);
-			if (decode_lzma(term, ce, &ce->decompressed, &ce->decompressed_len, errp)) goto uncompressed;
-			decompressed_cache_size += ce->decompressed_len;
+			if (decode_lzma(term, ce, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
@@ -575,11 +579,11 @@ void free_decompressed_data(struct cache_entry *e)
 {
 	if (e->decompressed) {
 		if (decompressed_cache_size < e->decompressed_len)
-			internal("free_decompressed_data: decompressed_cache_size underflow %lu, %lu", decompressed_cache_size, (unsigned long)e->decompressed_len);
+			internal("free_decompressed_data: decompressed_cache_size underflow %lu, %lu", (unsigned long)decompressed_cache_size, (unsigned long)e->decompressed_len);
 		decompressed_cache_size -= e->decompressed_len;
+		e->decompressed_len = 0;
 		mem_free(e->decompressed);
 		e->decompressed = NULL;
-		e->decompressed_len = 0;
 	}
 }
 
@@ -602,7 +606,7 @@ void add_compress_methods(unsigned char **s, int *l)
 #ifdef HAVE_BZIP2
 	{
 		unsigned char *b = (unsigned char *)BZ2_bzlibVersion();
-		int bl = strcspn(cast_const_char b, ",");
+		int bl = (int)strcspn(cast_const_char b, ",");
 		if (!cl) cl = 1; else add_to_str(s, l, cast_uchar ", ");
 		add_to_str(s, l, cast_uchar "BZIP2");
 		add_to_str(s, l, cast_uchar " (");

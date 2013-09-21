@@ -14,7 +14,7 @@ static struct list_head image_cache = { &image_cache, &image_cache };
 
 /* xyw_meaning either MEANING_DIMS or MEANING_AUTOSCALE. */
 struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
-		yw, int xyw_meaning, int scale, int aspect)
+		yw, int xyw_meaning, int scale, unsigned aspect)
 {
 	struct cached_image *i;
 	if (xw>=0&&yw>=0&&xyw_meaning==MEANING_DIMS){
@@ -110,10 +110,10 @@ static int shrink_image_cache(int u)
 	return r | (list_empty(image_cache) ? ST_CACHE_EMPTY : 0);
 }
 
-unsigned long imgcache_info(int type)
+my_uintptr_t imgcache_info(int type)
 {
 	struct cached_image *i;
-	unsigned long n = 0;
+	my_uintptr_t n = 0;
 	foreach(i, image_cache) {
 		switch (type) {
 			case CI_BYTES:

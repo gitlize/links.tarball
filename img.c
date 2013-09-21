@@ -97,11 +97,8 @@ static void destroy_decoder (struct cached_image *cimg)
 #ifdef HAVE_TIFF
 		case IM_TIFF:
 			td=(struct tiff_decoder *)cimg->decoder;
-			if (td->tiff_open)
-			{
-				if (td->tiff_data)mem_free(td->tiff_data);
-				td->tiff_open=0;
-			}
+			if (td->tiff_data)mem_free(td->tiff_data);
+			td->tiff_open=0;
 			break;
 #endif
 		}
@@ -186,7 +183,7 @@ static int img_scale_h(unsigned scale, int in){
 
 	if (in<=0) return in;
 	pre=((unsigned long)(aspect<65536UL?65536UL:aspect)*scale+128)>>8;
-	out=((unsigned long)in*pre+12800UL)/25600UL;
+	out=(int)(((unsigned long)in*pre+12800UL)/25600UL);
 	if (out<1) out=1;
 	return out;
 }
@@ -197,7 +194,7 @@ static int img_scale_v(unsigned scale, int in){
 
 	if (in<=0) return in;
 	divisor=(100*(aspect>=65536UL?65536UL:aspect)+128)>>8;
-	out=((unsigned long)in*(scale*256)+(divisor>>1))/divisor;
+	out=(int)(((unsigned long)in*(scale*256)+(divisor>>1))/divisor);
 	if (out<1) out=1;
 	return out;
 }
@@ -207,8 +204,8 @@ static int width2height(float width_px, float width_mm, float height_mm)
 {
 	int height_px;
 
-	if (width_px<=0) return width_px;
-	height_px=(height_mm*width_px*65536)/(aspect*width_mm);
+	if (width_px<=0) return 0;
+	height_px=(int)((height_mm*width_px*65536)/(aspect*width_mm));
 	if (height_px<1) height_px=1;
 	return height_px;
 
@@ -219,8 +216,8 @@ static int height2width(float height_px, float width_mm, float height_mm)
 {
 	int width_px;
 
-	if (height_px<=0) return height_px;
-	width_px=(width_mm*height_px*aspect)/(65536*height_mm);
+	if (height_px<=0) return 0;
+	width_px=(int)((width_mm*height_px*aspect)/(65536*height_mm));
 	if (width_px<1) width_px=1;
 	return width_px;
 
@@ -234,12 +231,12 @@ void compute_background_8(unsigned char *rgb, struct cached_image *cimg)
 
 	round_color_sRGB_to_48(&red, &green, &blue
 		, cimg->background_color);
-	rgb[0]=apply_gamma_single_16_to_8(red
-		,cimg->red_gamma/user_gamma);
-	rgb[1]=apply_gamma_single_16_to_8(green
-		,cimg->green_gamma/user_gamma);
-	rgb[2]=apply_gamma_single_16_to_8(blue
-		,cimg->blue_gamma/user_gamma);
+	rgb[0]=ags_16_to_8(red
+		,(float)(cimg->red_gamma/user_gamma));
+	rgb[1]=ags_16_to_8(green
+		,(float)(cimg->green_gamma/user_gamma));
+	rgb[2]=ags_16_to_8(blue
+		,(float)(cimg->blue_gamma/user_gamma));
 }
 
 /* updates cimg state when header dimensions are know. Only allowed to be called
@@ -384,8 +381,10 @@ int header_dimensions_known(struct cached_image *cimg)
 		cimg->bmp.user=NULL;
 		if (cimg->width && (unsigned)cimg->width * (unsigned)cimg->height / (unsigned)cimg->width != (unsigned)cimg->height) overalloc();
 		if ((unsigned)cimg->width * (unsigned)cimg->height > (unsigned)MAXINT / cimg->buffer_bytes_per_pixel) overalloc();
-		cimg->buffer=mem_alloc(cimg->width*cimg->height
+		cimg->buffer=mem_alloc_mayfail(cimg->width*cimg->height
 			*cimg->buffer_bytes_per_pixel);
+		if (!cimg->buffer)
+			return 1;
 		if (cimg->buffer_bytes_per_pixel==4
 			 	||cimg->buffer_bytes_per_pixel==4
 				*sizeof(unsigned short))
@@ -402,12 +401,12 @@ int header_dimensions_known(struct cached_image *cimg)
 				round_color_sRGB_to_48(&red, &green, &blue
 					, cimg->background_color);
 
-				red=apply_gamma_single_16_to_16(red
-					,cimg->red_gamma/user_gamma);
-				green=apply_gamma_single_16_to_16(green
-					,cimg->green_gamma/user_gamma);
-				blue=apply_gamma_single_16_to_16(blue
-					,cimg->blue_gamma / user_gamma);
+				red=ags_16_to_16(red
+					,(float)(cimg->red_gamma/user_gamma));
+				green=ags_16_to_16(green
+					,(float)(cimg->green_gamma/user_gamma));
+				blue=ags_16_to_16(blue
+					,(float)(cimg->blue_gamma/user_gamma));
 				mix_one_color_48((unsigned short *)cimg->buffer
 					,cimg->width*cimg->height,red
 					,green, blue);
@@ -448,30 +447,30 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 	switch (cimg->buffer_bytes_per_pixel){
 		case 3:
 			if (cimg->gamma_table){
-				apply_gamma_exponent_24_to_48_table(tmp, buffer,
+				agx_24_to_48_table(tmp, buffer,
 					cimg->width*height
 					,cimg->gamma_table);
 			}
 			else{
-				apply_gamma_exponent_24_to_48(tmp,buffer,cimg->width
+				agx_24_to_48(tmp,buffer,cimg->width
 					*height
-					,user_gamma/cimg->red_gamma
-					,user_gamma/cimg->green_gamma
-					,user_gamma/cimg->blue_gamma);
+					,(float)(user_gamma/cimg->red_gamma)
+					,(float)(user_gamma/cimg->green_gamma)
+					,(float)(user_gamma/cimg->blue_gamma));
 			}
 		break;
 
 		case 3*sizeof(unsigned short):
 			if (cimg->gamma_table){
-				apply_gamma_exponent_48_to_48_table(tmp
+				agx_48_to_48_table(tmp
 					,(unsigned short *)buffer
 					,cimg->width*height, cimg->gamma_table);
 			}else{
-				apply_gamma_exponent_48_to_48(tmp,(unsigned short *)buffer
-					,cimg->width*height,
-					user_gamma/cimg->red_gamma,
-					user_gamma/cimg->green_gamma,
-					user_gamma/cimg->blue_gamma);
+				agx_48_to_48(tmp,(unsigned short *)buffer
+					,cimg->width*height
+					,(float)(user_gamma/cimg->red_gamma)
+					,(float)(user_gamma/cimg->green_gamma)
+					,(float)(user_gamma/cimg->blue_gamma));
 			}
 		break;
 
@@ -481,17 +480,17 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 
 			round_color_sRGB_to_48(&red,&green,&blue,cimg->background_color);
 			if (cimg->gamma_table){
-				apply_gamma_exponent_and_undercolor_32_to_48_table(
+				agx_and_uc_32_to_48_table(
 						tmp, buffer, cimg->width *height,
 						cimg->gamma_table, red, green, blue);
 			}else{
 				
-				apply_gamma_exponent_and_undercolor_32_to_48(tmp,buffer
-					,cimg->width*height,
-					user_gamma/cimg->red_gamma,
-					user_gamma/cimg->green_gamma,
-					user_gamma/cimg->blue_gamma,
-					red, green, blue);
+				agx_and_uc_32_to_48(tmp,buffer
+					,cimg->width*height
+					,(float)(user_gamma/cimg->red_gamma)
+					,(float)(user_gamma/cimg->green_gamma)
+					,(float)(user_gamma/cimg->blue_gamma)
+					,red, green, blue);
 			}
 		}
 		break;
@@ -501,16 +500,16 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 			round_color_sRGB_to_48(&red, &green, &blue,
 				cimg->background_color);
 			if (cimg->gamma_table){
-				apply_gamma_exponent_and_undercolor_64_to_48_table
+				agx_and_uc_64_to_48_table
 					(tmp, (unsigned short *)buffer, cimg->width*height
 					,cimg->gamma_table, red, green, blue);
 			}else{
-				apply_gamma_exponent_and_undercolor_64_to_48(tmp
-					,(unsigned short*)buffer,cimg->width*height,
-					user_gamma/cimg->red_gamma,
-					user_gamma/cimg->green_gamma,
-					user_gamma/cimg->blue_gamma,
-					red,green,blue);
+				agx_and_uc_64_to_48(tmp
+					,(unsigned short*)buffer,cimg->width*height
+					,(float)(user_gamma/cimg->red_gamma)
+					,(float)(user_gamma/cimg->green_gamma)
+					,(float)(user_gamma/cimg->blue_gamma)
+					,red,green,blue);
 			}
 		}
 		break;
@@ -768,8 +767,8 @@ static void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
 			case 13:
 			drv->unregister_bitmap(&cimg->bmp);
 		}
-                cimg->xww=img_scale_h(cimg->scale, cimg->wanted_xw<0?32:cimg->wanted_xw);
-                cimg->yww=img_scale_v(cimg->scale, cimg->wanted_yw<0?32:cimg->wanted_yw);
+		cimg->xww=img_scale_h(cimg->scale, cimg->wanted_xw<0?32:cimg->wanted_xw);
+		cimg->yww=img_scale_v(cimg->scale, cimg->wanted_yw<0?32:cimg->wanted_yw);
 		break;
 
 		case 14:
@@ -799,9 +798,9 @@ static void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
  * If doesn't return 1 then returns 0
  * dtest - Destructive TEST
  */
-static inline int dtest(unsigned char *template, unsigned char *test)
+static inline int dtest(unsigned char *templat, unsigned char *test)
 {
-	if (strcasecmp(cast_const_char template,cast_const_char test)) return 0;
+	if (strcasecmp(cast_const_char templat, cast_const_char test)) return 0;
 	else{
 		mem_free(test);
 		return 1;
@@ -887,7 +886,7 @@ static int img_process_download(struct g_object_image *goi, struct f_data_c *fda
 
 #ifdef DEBUG
 	if (!goi->af) internal("NULL goi->af in process_download\n");
-	if (cimg->state>=16){ /* Negative don't occur becaus it's unsigned char */
+	if (cimg->state>=16){ /* Negative don't occur because it's unsigned char */
 		fprintf(stderr,"cimg->state=%d\n",cimg->state);
 		internal("Invalid cimg->state in img_process_download\n");
 	}
@@ -917,7 +916,7 @@ static int img_process_download(struct g_object_image *goi, struct f_data_c *fda
 
 	if (!((cimg->state^8)&9)){
 		if (get_file(goi->af->rq, &data, &dataend)) goto end;
-		length = dataend - data;
+		length = (int)(dataend - data);
 		if (length<=cimg->last_length) goto end; /* No new data */
 
 		data+=cimg->last_length;
@@ -1072,7 +1071,7 @@ static void draw_frame_mark (struct graphics_driver *drv, struct
  * the buffer.
  */
 static void draw_picture(struct f_data_c *fdatac, struct g_object_image *goi,
-		int x, int y, int bg)
+		int x, int y, long bg)
 {
 	struct graphics_device *dev=fdatac->ses->term->dev;
 	struct cached_image *cimg=goi->cimg;
@@ -1295,7 +1294,7 @@ struct g_object_image *insert_image(struct g_part *p, struct image_description *
 	*/
 	image->af=request_additional_file(current_f_data,im->url);
 	if (image->xw < 0 || image->yw < 0) image->af->unknown_image_size = 1;
-	image->background=p->root->bg->u.sRGB;
+	image->background=hack_rgb(p->root->bg->u.sRGB);
 
 	/* This supplies the result into image->cimg and global_cimg */
 	find_or_make_cached_image(image, im->url, d_opt->image_scale);

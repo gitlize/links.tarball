@@ -22,6 +22,10 @@ void af_unix_close(void)
 #include <sys/un.h>
 #endif
 
+#if defined(__GNU__)
+#define SOCKET_TIMEOUT_HACK
+#endif
+
 static void af_unix_connection(void *);
 
 #define ADDR_SIZE	4096
@@ -68,7 +72,7 @@ static int get_address(void)
 	if (!links_home) return -1;
 	path = stracpy(links_home);
 	add_to_strn(&path, cast_uchar LINKS_SOCK_NAME);
-	s_unix_l = (unsigned char *)&s_unix.suni.sun_path - (unsigned char *)&s_unix.suni + strlen(cast_const_char path) + 1;
+	s_unix_l = (socklen_t)((unsigned char *)&s_unix.suni.sun_path - (unsigned char *)&s_unix.suni + strlen(cast_const_char path) + 1);
 	if (strlen(cast_const_char path) > sizeof(union address) || (size_t)s_unix_l > sizeof(union address)) {
 		mem_free(path);
 		return -1;
@@ -107,15 +111,6 @@ static void unlink_unix(void)
 }
 
 #endif
-
-static void sleep_a_little_bit(void)
-{
-	struct timeval tv = { 0, 100000 };
-	fd_set dummy;
-	int rs;
-	FD_ZERO(&dummy);
-	EINTRLOOP(rs, select(0, &dummy, &dummy, &dummy, &tv));
-}
 
 int bind_to_af_unix(void)
 {
@@ -159,11 +154,14 @@ retry:
 			/*perror("");
 			debug("connect: %d", errno);*/
 			if (++cnt < MAX_BIND_TRIES) {
-				sleep_a_little_bit();
+				portable_sleep(100);
 				EINTRLOOP(rs, close(s_unix_fd));
 				s_unix_fd = -1;
 				goto again;
 			}
+#ifdef SOCKET_TIMEOUT_HACK
+retry_unlink:
+#endif
 			EINTRLOOP(rs, close(s_unix_fd));
 			s_unix_fd = -1;
 			if (!u) {
@@ -173,6 +171,10 @@ retry:
 			}
 			return -1;
 		}
+#ifdef SOCKET_TIMEOUT_HACK
+		if (!can_read_timeout(s_unix_fd, AF_UNIX_SOCKET_TIMEOUT))
+			goto retry_unlink;
+#endif
 		HANDSHAKE_READ(s_unix_fd, S2C1_HANDSHAKE_LENGTH) {
 			if (r != S2C1_HANDSHAKE_LENGTH) goto retry;
 			goto close_and_fail;
@@ -211,7 +213,7 @@ static void af_unix_connection(void *xxx)
 		return;
 	}
 	HANDSHAKE_READ(ns, C2S2_HANDSHAKE_LENGTH) {
-		sleep_a_little_bit();	/* workaround a race in previous Links version */
+		portable_sleep(100);	/* workaround for a race in previous Links version */
 		EINTRLOOP(rs, close(ns));
 		return;
 	}

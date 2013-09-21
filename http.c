@@ -27,6 +27,7 @@ static void add_accept_language(unsigned char **hdr, int *l, struct http_connect
 static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct connection *c);
 static void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info *info);
 static void add_connection(unsigned char **hdr, int *l, int http10, int proxy, int post);
+static void add_dnt(unsigned char **hdr, int *l);
 static void add_if_modified(unsigned char **hdr, int *l, struct connection *c);
 static void add_range(unsigned char **hdr, int *l, unsigned char *url, struct connection *c);
 static void add_pragma_no_cache(unsigned char **hdr, int *l, int no_cache);
@@ -159,7 +160,7 @@ static void http_end_request(struct connection *c, int notrunc, int nokeepalive,
 	    !((struct http_connection_info *)c->info)->close &&
 	    !((struct http_connection_info *)c->info)->send_close &&
 	    !nokeepalive) {
-		add_keepalive_socket(c, HTTP_KEEPALIVE_TIMEOUT);
+		add_keepalive_socket(c, HTTP_KEEPALIVE_TIMEOUT, 0);
 	} else {
 		abort_connection(c);
 	}
@@ -168,11 +169,11 @@ static void http_end_request(struct connection *c, int notrunc, int nokeepalive,
 void http_func(struct connection *c)
 {
 	/*setcstate(c, S_CONN);*/
-	/*set_timeout(c);*/
-	if (get_keepalive_socket(c)) {
+	/*set_connection_timeout(c);*/
+	if (get_keepalive_socket(c, NULL)) {
 		int p;
 		if ((p = get_port(c->url)) == -1) {
-			setcstate(c, S_INTERNAL);
+			setcstate(c, S_BAD_URL);
 			abort_connection(c);
 			return;
 		}
@@ -220,7 +221,7 @@ static void http_send_header(struct connection *c)
 
 	proxy = upcase(c->url[0]) == 'P';
 	host = !proxy ? c->url : get_url_data(c->url);
-	set_timeout(c);
+	set_connection_timeout(c);
 	info = mem_calloc(sizeof(struct http_connection_info));
 	c->info = info;
 #ifdef HAVE_SSL
@@ -323,6 +324,7 @@ static void http_send_header(struct connection *c)
 		add_accept_language(&hdr, &l, info);
 		add_accept_encoding(&hdr, &l, host, c);
 		add_accept_charset(&hdr, &l, info);
+		add_dnt(&hdr, &l);
 		add_connection(&hdr, &l, http10, proxy, !info->send_close);
 		add_if_modified(&hdr, &l, c);
 		add_range(&hdr, &l, host, c);
@@ -455,6 +457,12 @@ static int advertise_compression(unsigned char *url, struct connection *c)
 	unsigned char *extd;
 	if (c->no_compress || http_options.no_compression || info->bl_flags & BL_NO_COMPRESSION)
 		return 0;
+
+	/* Fix for bugzilla. The attachment may be compressed and if the server
+	   compresses it again, we can't decompress the inner compression */
+	if (strstr(cast_const_char url, "/attachment.cgi?"))
+		return 0;
+
 	extd = cast_uchar strrchr(cast_const_char url, '.');
 	if (extd && get_compress_by_extension(extd + 1, cast_uchar strchr(cast_const_char(extd + 1), 0)))
 		return 0;
@@ -481,7 +489,8 @@ static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url,
 			add_to_str(hdr, l, cast_uchar "bzip2");
 		}
 #endif
-#if defined(HAVE_LZMA)
+	/* LZMA on DOS often fails with out of memory, don't announce it */
+#if defined(HAVE_LZMA) && !defined(DOS)
 		if (!(info->bl_flags & BL_NO_BZIP2)) {
 			if (*l != l1) add_chr_to_str(hdr, l, ',');
 			add_to_str(hdr, l, cast_uchar "lzma,lzma2");
@@ -519,6 +528,12 @@ static void add_accept_charset(unsigned char **hdr, int *l, struct http_connecti
 		mem_free(ac);
 	}
 	if (!(info->bl_flags & BL_NO_CHARSET) && !http_options.no_accept_charset) add_to_str(hdr, l, accept_charset);
+}
+
+static void add_dnt(unsigned char **hdr, int *l)
+{
+	if (http_options.header.do_not_track)
+		add_to_str(hdr, l, cast_uchar "DNT: 1\r\n");
 }
 
 static void add_connection(unsigned char **hdr, int *l, int http10, int proxy, int alive)
@@ -677,7 +692,7 @@ static void read_http_data(struct connection *c, struct read_buffer *rb)
 {
 	struct http_connection_info *info = c->info;
 	int a;
-	set_timeout(c);
+	set_connection_timeout(c);
 	if (rb->close == 2) {
 		http_end_request(c, 0, 0, S__OK);
 		return;
@@ -734,7 +749,7 @@ static void read_http_data(struct connection *c, struct read_buffer *rb)
 					return;
 				}
 				kill_buffer_data(rb, l);
-				if (!(info->chunk_remaining = n)) info->chunk_remaining = -2;
+				if (!(info->chunk_remaining = (int)n)) info->chunk_remaining = -2;
 				goto next_chunk;
 			}
 		} else {
@@ -791,7 +806,7 @@ static int get_header(struct read_buffer *rb)
 	if (rb->data[3] != 'P') return -2;
 	for (i = 0; i < rb->len; i++) {
 		unsigned char a = rb->data[i];
-		if (/*a < ' ' && a != 10 && a != 13*/!a) return -1;
+		if (/*a < ' ' && a != 10 && a != 13*/ !a) return -1;
 		if (i < rb->len - 1 && a == 10 && rb->data[i + 1] == 10) return i + 2;
 		if (i < rb->len - 3 && a == 13) {
 			if (rb->data[i + 1] != 10) return -1;
@@ -816,7 +831,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	int previous_http_code;
 	struct http_connection_info *info;
 	unsigned char *host = upcase(c->url[0]) != 'P' ? c->url : get_url_data(c->url);
-	set_timeout(c);
+	set_connection_timeout(c);
 	info = c->info;
 	if (rb->close == 2) {
 		unsigned char *h;
@@ -958,7 +973,11 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 				e->expire_time = 1;
 			}
 			if (!casecmp(f, cast_uchar "max-age=", 8)) {
-				if (e->expire_time != 1) e->expire_time = time(NULL) + atoi(cast_const_char(f + 8));
+				if (e->expire_time != 1) {
+					errno = 0;
+					EINTRLOOPX(e->expire_time, time(NULL), (time_t)-1);
+					e->expire_time += atoi(cast_const_char(f + 8));
+				}
 			}
 			while (*f && *f != ',') f++;
 		}
@@ -984,13 +1003,13 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 			unsigned char *newuser, *newpassword;
 			if (!parse_url(d, NULL, &user, NULL, NULL, NULL, &ins, NULL, NULL, NULL, NULL, NULL, NULL) && !user && ins && (newuser = get_user_name(host))) {
 				if (*newuser) {
-					int ins_off = ins - d;
+					int ins_off = (int)(ins - d);
 					newpassword = get_pass(host);
 					if (!newpassword) newpassword = stracpy(cast_uchar "");
 					add_to_strn(&newuser, cast_uchar ":");
 					add_to_strn(&newuser, newpassword);
 					add_to_strn(&newuser, cast_uchar "@");
-					extend_str(&d, strlen(cast_const_char newuser));
+					extend_str(&d, (int)strlen(cast_const_char newuser));
 					ins = d + ins_off;
 					memmove(ins + strlen(cast_const_char newuser), ins, strlen(cast_const_char ins) + 1);
 					memcpy(ins, newuser, strlen(cast_const_char newuser));
@@ -1017,21 +1036,13 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		if (strlen(cast_const_char d) > 6) {
 			d[5] = 0;
 			if (!(strcasecmp(cast_const_char d, "bytes")) && d[6] >= '0' && d[6] <= '9') {
-#if defined(HAVE_STRTOLL)
-				long long f = strtoll(cast_const_char(d + 6), NULL, 10);
-				if (f == MAXLLONG) f = -1;
-#elif defined(HAVE_STRTOQ)
-				longlong f = strtoq(cast_const_char(d + 6), NULL, 10);
-#else
-				long f = strtol(cast_const_char(d + 6), NULL, 10);
-				if (f == MAXLONG) f = -1;
-#endif
+				my_strtoll_t f = my_strtoll(d + 6, NULL);
 				if (f >= 0 && (off_t)f >= 0 && (off_t)f == f) c->from = f;
 			}
 		}
 		mem_free(d);
 	} else if (h == 206) {
-/* Hmm ... some servers send 206 partial but don't sent Content-Range */
+/* Hmm ... some servers send 206 partial but don't send Content-Range */
 		c->from = cf;
 	}
 	if (cf && !c->from && !c->unrestartable) c->unrestartable = 1;
@@ -1042,15 +1053,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if ((d = parse_http_header(e->head, cast_uchar "Content-Length", NULL))) {
 		unsigned char *ep;
-#if defined(HAVE_STRTOLL)
-		long long l = strtoll(cast_const_char d, (char **)(void *)&ep, 10);
-		if (l == MAXLLONG) l = -1;
-#elif defined(HAVE_STRTOQ)
-		longlong l = strtoq(cast_const_char d, (char **)(void *)&ep, 10);
-#else
-		long l = strtol(cast_const_char d, (char **)(void *)&ep, 10);
-		if (l == MAXLONG) l = -1;
-#endif
+		my_strtoll_t l = my_strtoll(d, &ep);
 		if (!*ep && l >= 0 && (off_t)l >= 0 && (off_t)l == l) {
 			if (!info->close || version >= 11) info->length = l;
 			if (c->from + l >= 0) c->est_length = c->from + l;
@@ -1111,7 +1114,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 static void http_get_header(struct connection *c)
 {
 	struct read_buffer *rb;
-	set_timeout(c);
+	set_connection_timeout(c);
 	if (!(rb = alloc_read_buffer(c))) return;
 	rb->close = 1;
 	read_from_socket(c, c->sock1, rb, http_got_header);

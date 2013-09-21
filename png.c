@@ -49,7 +49,7 @@ static void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 {
 	int bit_depth, color_type, intent;
 	double gamma;
-	int bytes_per_pixel=3;
+	unsigned char bytes_per_pixel=3;
 	struct cached_image *cimg;
 
 	cimg=global_cimg;
@@ -57,11 +57,11 @@ static void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 	bit_depth=png_get_bit_depth(png_ptr, info_ptr);
 	color_type=png_get_color_type(png_ptr, info_ptr);
 	if (color_type == PNG_COLOR_TYPE_PALETTE)
-        	png_set_expand(png_ptr);
+		png_set_expand(png_ptr);
     	if (color_type == PNG_COLOR_TYPE_GRAY &&
-        	bit_depth < 8) png_set_expand(png_ptr);
+		bit_depth < 8) png_set_expand(png_ptr);
 	if (png_get_valid(png_ptr, info_ptr,
-        	PNG_INFO_tRNS)){
+		PNG_INFO_tRNS)){
 		png_set_expand(png_ptr); /* Legacy version of
 		png_set_tRNS_to_alpha(png_ptr); */
 		bytes_per_pixel++;
@@ -79,7 +79,7 @@ static void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 		png_set_swap(png_ptr);
 #endif /* #ifdef C_LITTLE_ENDIAN */
 #endif /* #ifndef REPACK_16 */
-		bytes_per_pixel*=sizeof(unsigned short);
+		bytes_per_pixel*=(int)sizeof(unsigned short);
 	}
 	png_set_interlace_handling(png_ptr);
 	if (color_type==PNG_COLOR_TYPE_RGB_ALPHA
@@ -88,22 +88,24 @@ static void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 			||bytes_per_pixel==3*sizeof(unsigned short))
 			bytes_per_pixel=4*bytes_per_pixel/3;
 	}
-	cimg->width=png_get_image_width(png_ptr,info_ptr);
-	cimg->height=png_get_image_height(png_ptr,info_ptr);
+	cimg->width=(int)png_get_image_width(png_ptr,info_ptr);
+	cimg->height=(int)png_get_image_height(png_ptr,info_ptr);
 	cimg->buffer_bytes_per_pixel=bytes_per_pixel;
 	if (png_get_sRGB(png_ptr, info_ptr, &intent)){
 		gamma=sRGB_gamma;
 	}
 	else
- 	{              
+ 	{
   		if (!png_get_gAMA(png_ptr, info_ptr, &gamma)){
 			gamma=sRGB_gamma;
 		}
 	}
-	cimg->red_gamma=gamma;
-	cimg->green_gamma=gamma;
-	cimg->blue_gamma=gamma;
-	png_read_update_info(png_ptr,info_ptr);                 
+	if (gamma < 0.01 || gamma > 100)
+		gamma = sRGB_gamma;
+	cimg->red_gamma=(float)gamma;
+	cimg->green_gamma=(float)gamma;
+	cimg->blue_gamma=(float)gamma;
+	png_read_update_info(png_ptr,info_ptr);
 	cimg->strip_optimized=0;
 	if (header_dimensions_known(cimg))
 		img_my_png_error(png_ptr, "bad image size");
@@ -192,8 +194,14 @@ void png_start(struct cached_image *cimg)
 	struct png_decoder *decoder;
 
 	retry1:
+#ifdef PNG_USER_MEM_SUPPORTED
+	png_ptr=png_create_read_struct_2(PNG_LIBPNG_VER_STRING,
+			NULL, img_my_png_error, img_my_png_warning,
+			NULL, my_png_alloc, my_png_free);
+#else
 	png_ptr=png_create_read_struct(PNG_LIBPNG_VER_STRING,
 			NULL, img_my_png_error, img_my_png_warning);
+#endif
 	if (!png_ptr) {
 		if (out_of_memory(0, NULL, 0)) goto retry1;
 		fatal_exit("png_create_read_struct failed");
@@ -247,7 +255,7 @@ void add_png_version(unsigned char **s, int *l)
 #ifdef HAVE_PNG_GET_LIBPNG_VER
 	add_to_str(s, l, cast_uchar png_get_libpng_ver(NULL));
 #else
-	add_to_str(s, l, PNG_LIBPNG_VER_STRING);
+	add_to_str(s, l, cast_uchar PNG_LIBPNG_VER_STRING);
 #endif
 	add_to_str(s, l, cast_uchar ")");
 }

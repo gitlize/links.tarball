@@ -529,7 +529,7 @@ static void flush_caches(struct terminal *term, void *d, void *e)
 /* jde v historii na polozku id_ptr */
 void go_backwards(struct terminal *term, void *id_ptr, struct session *ses)
 {
-	unsigned want_id = (my_intptr_t)id_ptr;
+	unsigned want_id = (unsigned)(my_intptr_t)id_ptr;
 	struct location *l;
 	int n = 0;
 	foreach(l, ses->history) {
@@ -581,7 +581,7 @@ static void history_menu(struct terminal *term, void *ddd, struct session *ses)
 		add_history_menu_entry(&mi, &n, l);
 	}
 	if (!mi) do_menu(term, no_hist_menu, ses);
-	else do_menu_selected(term, mi, ses, selected);
+	else do_menu_selected(term, mi, ses, selected, NULL, NULL);
 }
 
 static struct menu_item no_downloads_menu[] = {
@@ -631,7 +631,7 @@ static void menu_toggle(struct terminal *term, void *ddd, struct session *ses)
 
 static void display_codepage(struct terminal *term, void *pcp, struct session *ses)
 {
-	long cp = (my_intptr_t)pcp;
+	int cp = (int)(my_intptr_t)pcp;
 	struct term_spec *t = new_term_spec(term->term);
 	if (t) t->charset = cp;
 	cls_redraw_all_terminals();
@@ -639,7 +639,7 @@ static void display_codepage(struct terminal *term, void *pcp, struct session *s
 
 static void charset_list(struct terminal *term, void *xxx, struct session *ses)
 {
-	long i; int sel;
+	int i, sel;
 	unsigned char *n;
 	struct menu_item *mi;
 	mi = new_menu(1);
@@ -647,30 +647,31 @@ static void charset_list(struct terminal *term, void *xxx, struct session *ses)
 #ifndef ENABLE_UTF8
 		if (i == utf8_table) continue;
 #endif
-		add_to_menu(&mi, get_cp_name(i), cast_uchar "", cast_uchar "", MENU_FUNC display_codepage, (void *)i, 0, i);
+		add_to_menu(&mi, get_cp_name(i), cast_uchar "", cast_uchar "", MENU_FUNC display_codepage, (void *)(my_intptr_t)i, 0, i);
 	}
 	sel = ses->term->spec->charset;
 	if (sel < 0) sel = 0;
-	do_menu_selected(term, mi, ses, sel);
+	do_menu_selected(term, mi, ses, sel, NULL, NULL);
 }
 
 static void set_val(struct terminal *term, void *ip, int *d)
 {
-	*d = (my_intptr_t)ip;
+	*d = (int)(my_intptr_t)ip;
 }
 
-static void charset_sel_list(struct terminal *term, struct session *ses, int *ptr)
+static void charset_sel_list(struct terminal *term, int *ptr, int utf)
 {
-	long i; int sel;
+	int i, sel;
 	unsigned char *n;
 	struct menu_item *mi;
 	mi = new_menu(1);
 	for (i = 0; (n = get_cp_name(i)); i++) {
-		add_to_menu(&mi, get_cp_name(i), cast_uchar "", cast_uchar "", MENU_FUNC set_val, (void *)i, 0, i);
+		if (!utf && i == utf8_table) continue;
+		add_to_menu(&mi, get_cp_name(i), cast_uchar "", cast_uchar "", MENU_FUNC set_val, (void *)(my_intptr_t)i, 0, i);
 	}
 	sel = *ptr;
 	if (sel < 0) sel = 0;
-	do_menu_selected(term, mi, ptr, sel);
+	do_menu_selected(term, mi, ptr, sel, NULL, NULL);
 }
 
 static void terminal_options_ok(void *p)
@@ -918,7 +919,7 @@ static unsigned char *http_labels[] = { TEXT_(T_USE_HTTP_10), TEXT_(T_ALLOW_SERV
 #endif
 	TEXT_(T_RETRY_ON_INTERNAL_ERRORS), NULL };
 
-static unsigned char *http_header_labels[] = { TEXT_(T_REFERER_NONE), TEXT_(T_REFERER_SAME_URL), TEXT_(T_REFERER_FAKE), TEXT_(T_REFERER_REAL_SAME_SERVER), TEXT_(T_REFERER_REAL), TEXT_(T_FAKE_REFERER), TEXT_(T_FAKE_USERAGENT), TEXT_(T_EXTRA_HEADER), NULL };
+static unsigned char *http_header_labels[] = { TEXT_(T_DO_NOT_TRACK), TEXT_(T_REFERER_NONE), TEXT_(T_REFERER_SAME_URL), TEXT_(T_REFERER_FAKE), TEXT_(T_REFERER_REAL_SAME_SERVER), TEXT_(T_REFERER_REAL), TEXT_(T_FAKE_REFERER), TEXT_(T_FAKE_USERAGENT), TEXT_(T_EXTRA_HEADER), NULL };
 
 static void httpheadopt_fn(struct dialog_data *dlg)
 {
@@ -972,54 +973,58 @@ static int dlg_http_header_options(struct dialog_data *dlg, struct dialog_item_d
 {
 	struct http_header_options *header = (struct http_header_options *)di->cdata;
 	struct dialog *d;
-	d = mem_calloc(sizeof(struct dialog) + 10 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_HTTP_HEADER_OPTIONS);
 	d->fn = httpheadopt_fn;
 	d->udata = http_header_labels;
 	d->items[0].type = D_CHECKBOX;
-	d->items[0].gid = 1;
-	d->items[0].gnum = REFERER_NONE;
+	d->items[0].gid = 0;
 	d->items[0].dlen = sizeof(int);
-	d->items[0].data = (void *)&header->referer;
+	d->items[0].data = (void *)&header->do_not_track;
 	d->items[1].type = D_CHECKBOX;
 	d->items[1].gid = 1;
-	d->items[1].gnum = REFERER_SAME_URL;
+	d->items[1].gnum = REFERER_NONE;
 	d->items[1].dlen = sizeof(int);
 	d->items[1].data = (void *)&header->referer;
 	d->items[2].type = D_CHECKBOX;
 	d->items[2].gid = 1;
-	d->items[2].gnum = REFERER_FAKE;
+	d->items[2].gnum = REFERER_SAME_URL;
 	d->items[2].dlen = sizeof(int);
 	d->items[2].data = (void *)&header->referer;
 	d->items[3].type = D_CHECKBOX;
 	d->items[3].gid = 1;
-	d->items[3].gnum = REFERER_REAL_SAME_SERVER;
+	d->items[3].gnum = REFERER_FAKE;
 	d->items[3].dlen = sizeof(int);
 	d->items[3].data = (void *)&header->referer;
 	d->items[4].type = D_CHECKBOX;
 	d->items[4].gid = 1;
-	d->items[4].gnum = REFERER_REAL;
+	d->items[4].gnum = REFERER_REAL_SAME_SERVER;
 	d->items[4].dlen = sizeof(int);
 	d->items[4].data = (void *)&header->referer;
+	d->items[5].type = D_CHECKBOX;
+	d->items[5].gid = 1;
+	d->items[5].gnum = REFERER_REAL;
+	d->items[5].dlen = sizeof(int);
+	d->items[5].data = (void *)&header->referer;
 
-	d->items[5].type = D_FIELD;
-	d->items[5].dlen = MAX_STR_LEN;
-	d->items[5].data = header->fake_referer;
 	d->items[6].type = D_FIELD;
 	d->items[6].dlen = MAX_STR_LEN;
-	d->items[6].data = header->fake_useragent;
+	d->items[6].data = header->fake_referer;
 	d->items[7].type = D_FIELD;
 	d->items[7].dlen = MAX_STR_LEN;
-	d->items[7].data = header->extra_header;
-	d->items[8].type = D_BUTTON;
-	d->items[8].gid = B_ENTER;
-	d->items[8].fn = ok_dialog;
-	d->items[8].text = TEXT_(T_OK);
+	d->items[7].data = header->fake_useragent;
+	d->items[8].type = D_FIELD;
+	d->items[8].dlen = MAX_STR_LEN;
+	d->items[8].data = header->extra_header;
 	d->items[9].type = D_BUTTON;
-	d->items[9].gid = B_ESC;
-	d->items[9].fn = cancel_dialog;
-	d->items[9].text = TEXT_(T_CANCEL);
-	d->items[10].type = D_END;
+	d->items[9].gid = B_ENTER;
+	d->items[9].fn = ok_dialog;
+	d->items[9].text = TEXT_(T_OK);
+	d->items[10].type = D_BUTTON;
+	d->items[10].gid = B_ESC;
+	d->items[10].fn = cancel_dialog;
+	d->items[10].text = TEXT_(T_CANCEL);
+	d->items[11].type = D_END;
 	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
@@ -1147,20 +1152,26 @@ static int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	d->items[a].dlen = MAX_STR_LEN;
 	d->items[a++].data = ftp_options->anon_pass;
 	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
 	d->items[a].dlen = sizeof(int);
 	d->items[a].data = (void*)&ftp_options->passive_ftp;
-	d->items[a++].gid = 0;
+	a++;
 	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
 	d->items[a].dlen = sizeof(int);
 	d->items[a].data = (void*)&ftp_options->eprt_epsv;
-	d->items[a++].gid = 0;
+	a++;
 	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
 	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void*)&ftp_options->fast_ftp;
+	d->items[a].data = (void*)&ftp_options->fast_ftp;
+	a++;
 #ifdef HAVE_IPTOS
 	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
 	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void*)&ftp_options->set_tos;
+	d->items[a].data = (void*)&ftp_options->set_tos;
+	a++;
 #endif
 	d->items[a].type = D_BUTTON;
 	d->items[a].gid = B_ENTER;
@@ -1176,6 +1187,42 @@ static int dlg_ftp_options(struct dialog_data *dlg, struct dialog_item_data *di)
 	do_dialog(dlg->win->term, d, getml(d, NULL));
 	return 0;
 }
+
+#ifndef DISABLE_SMB
+
+static unsigned char *smb_labels[] = { TEXT_(T_ALLOW_HYPERLINKS_TO_SMB), NULL };
+
+static int dlg_smb_options(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	int a;
+	struct smb_options *smb_options = (struct smb_options *)di->cdata;
+	struct dialog *d;
+	d = mem_calloc(sizeof(struct dialog) + 3 * sizeof(struct dialog_item));
+	d->title = TEXT_(T_SMB_OPTIONS);
+	d->fn = checkbox_list_fn;
+	d->udata = smb_labels;
+	a=0;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a].data = (void*)&smb_options->allow_hyperlinks_to_smb;
+	a++;
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ENTER;
+	d->items[a].fn = ok_dialog;
+	d->items[a].text = TEXT_(T_OK);
+	a++;
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ESC;
+	d->items[a].fn = cancel_dialog;
+	d->items[a].text = TEXT_(T_CANCEL);
+	a++;
+	d->items[a].type = D_END;
+	do_dialog(dlg->win->term, d, getml(d, NULL));
+	return 0;
+}
+
+#endif
 
 #ifdef G
 
@@ -1224,7 +1271,6 @@ static unsigned char *video_msg_1[] = {
 };
 
 static unsigned char *video_msg_2[] = {
-	TEXT_(T_ASPECT_CORRECTION_ON),
 	TEXT_(T_DISPLAY_OPTIMIZATION_CRT),
 	TEXT_(T_DISPLAY_OPTIMIZATION_LCD_RGB),
 	TEXT_(T_DISPLAY_OPTIMIZATION_LCD_BGR),
@@ -1280,7 +1326,7 @@ static void videoopt_fn(struct dialog_data *dlg)
 
 static void remove_zeroes(unsigned char *string)
 {
-	int l=strlen(cast_const_char string);
+	int l=(int)strlen(cast_const_char string);
 
 	while(l&&(string[l-1]=='0')){
 		l--;
@@ -1302,7 +1348,7 @@ static void video_options(struct terminal *term, void *xxx, struct session *ses)
 	remove_zeroes(user_g);
 	snprintf(cast_char aspect_str, VO_GAMMA_LEN, "%f", bfu_aspect);
 	remove_zeroes(aspect_str);
-	d = mem_calloc(sizeof(struct dialog) + 17 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_VIDEO_OPTIONS);
 	d->fn = videoopt_fn;
 	d->refresh = (void (*)(void *))refresh_video;
@@ -1339,11 +1385,6 @@ static void video_options(struct terminal *term, void *xxx, struct session *ses)
 	d->items[a].fn = check_float;
 	d->items[a].gid = 25;
 	d->items[a++].gnum = 400;
-
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].gid = 0;
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&aspect_on;
 
 	d->items[a].type = D_CHECKBOX;
 	d->items[a].gid = 1;
@@ -1551,6 +1592,7 @@ static unsigned char *net_msg[] = {
 	cast_uchar "",
 	cast_uchar "",
 	cast_uchar "",
+	cast_uchar "",
 };
 
 #ifdef SUPPORT_IPV6
@@ -1568,6 +1610,7 @@ static unsigned char *net_msg_ipv6[] = {
 	cast_uchar "",
 	cast_uchar "",
 	cast_uchar "",
+	cast_uchar "",
 };
 #endif
 
@@ -1580,7 +1623,7 @@ static void net_options(struct terminal *term, void *xxx, void *yyy)
 	snprint(max_t_str, 3, max_tries);
 	snprint(time_str, 5, receive_timeout);
 	snprint(unrtime_str, 5, unrestartable_receive_timeout);
-	d = mem_calloc(sizeof(struct dialog) + 15 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_NETWORK_OPTIONS);
 	d->fn = group_fn;
 #ifdef SUPPORT_IPV6
@@ -1666,6 +1709,14 @@ static void net_options(struct terminal *term, void *xxx, void *yyy)
 	d->items[a].text = TEXT_(T_FTP_OPTIONS);
 	d->items[a].data = (unsigned char *)&ftp_options;
 	d->items[a++].dlen = sizeof(struct ftp_options);
+#ifndef DISABLE_SMB
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = 0;
+	d->items[a].fn = dlg_smb_options;
+	d->items[a].text = TEXT_(T_SMB_OPTIONS);
+	d->items[a].data = (unsigned char *)&smb_options;
+	d->items[a++].dlen = sizeof(struct smb_options);
+#endif
 	d->items[a].type = D_BUTTON;
 	d->items[a].gid = B_ENTER;
 	d->items[a].fn = ok_dialog;
@@ -1707,7 +1758,7 @@ static void netprog_fn(struct dialog_data *dlg)
 	max_text_width(term, prg_msg[a], &max, AL_LEFT);
 	min_text_width(term, prg_msg[a++], &min, AL_LEFT);
 #ifdef G
-	if (F && drv->exec) {
+	if (have_extra_exec()) {
 		max_text_width(term, prg_msg[a], &max, AL_LEFT);
 		min_text_width(term, prg_msg[a++], &min, AL_LEFT);
 	}
@@ -1738,7 +1789,7 @@ static void netprog_fn(struct dialog_data *dlg)
 	a++;
 	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef G
-	if (F && drv->exec) {
+	if (have_extra_exec()) {
 		dlg_format_text_and_field(dlg, NULL, prg_msg[a], &dlg->items[a], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 		a++;
 		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
@@ -1770,7 +1821,7 @@ static void netprog_fn(struct dialog_data *dlg)
 	a++;
 	if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
 #ifdef G
-	if (F && drv->exec) {	
+	if (have_extra_exec()) {	
 		dlg_format_text_and_field(dlg, term, prg_msg[a], &dlg->items[a], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 		a++;
 		if (!term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
@@ -1786,7 +1837,7 @@ static void net_programs(struct terminal *term, void *xxx, void *yyy)
 	int a;
 	d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
 #ifdef G
-	if (F && drv->exec) d->title = TEXT_(T_MAIL_TELNET_AND_SHELL_PROGRAMS);
+	if (have_extra_exec()) d->title = TEXT_(T_MAIL_TELNET_AND_SHELL_PROGRAMS);
 	else
 #endif
 		d->title = TEXT_(T_MAIL_AND_TELNET_PROGRAMS);
@@ -1809,7 +1860,7 @@ static void net_programs(struct terminal *term, void *xxx, void *yyy)
 	d->items[a].dlen = MAX_STR_LEN;
 	d->items[a++].data = get_prog(&magnet_prog);
 #ifdef G
-	if (F && drv->exec) {
+	if (have_extra_exec()) {
 		d->items[a].type = D_FIELD;
 		d->items[a].dlen = MAX_STR_LEN;
 		d->items[a++].data = drv->shell;
@@ -1989,14 +2040,20 @@ static unsigned char *html_texts[] = { TEXT_(T_DISPLAY_TABLES), TEXT_(T_DISPLAY_
 
 static int dlg_assume_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	charset_sel_list(dlg->win->term, dlg->dlg->udata2, (int *)di->cdata);
+	charset_sel_list(dlg->win->term, (int *)di->cdata, 1);
 	return 0;
 }
 
 #ifdef G
 static int dlg_kb_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	charset_sel_list(dlg->win->term, dlg->dlg->udata2, (int *)di->cdata);
+	charset_sel_list(dlg->win->term, (int *)di->cdata,
+#ifdef DOS
+		0
+#else
+		1
+#endif
+	);
 	return 0;
 }
 #endif
@@ -2133,9 +2190,9 @@ static void html_color_refresh(struct session *ses)
 {
 #ifdef G
 	if (F) {
-		ses->ds.g_text_color = strtol(cast_const_char g_text_color_str, NULL, 16);
-		ses->ds.g_link_color = strtol(cast_const_char g_link_color_str, NULL, 16);
-		ses->ds.g_background_color = strtol(cast_const_char g_background_color_str, NULL, 16);
+		ses->ds.g_text_color = (int)strtol(cast_const_char g_text_color_str, NULL, 16);
+		ses->ds.g_link_color = (int)strtol(cast_const_char g_link_color_str, NULL, 16);
+		ses->ds.g_background_color = (int)strtol(cast_const_char g_background_color_str, NULL, 16);
 	}
 #endif
 	html_interpret_recursive(ses->screen);
@@ -2150,7 +2207,7 @@ static void select_color(struct terminal *term, int n, int *ptr)
 	for (i = 0; i < n; i++) {
 		add_to_menu(&mi, TEXT_(T_COLOR_0 + i), cast_uchar "", cast_uchar "", MENU_FUNC set_val, (void *)(unsigned long)i, 0, i);
 	}
-	do_menu_selected(term, mi, ptr, *ptr);
+	do_menu_selected(term, mi, ptr, *ptr, NULL, NULL);
 }
 
 static int select_color_8(struct dialog_data *dlg, struct dialog_item_data *di)
@@ -2269,12 +2326,12 @@ static void refresh_misc(struct session *ses)
 	if (F) {
 		struct session *ses;
 
-		menu_font_size=strtol(cast_const_char menu_font_str,NULL,10);
-		G_BFU_FG_COLOR=strtol(cast_const_char fg_color_str,NULL,16);
-		G_BFU_BG_COLOR=strtol(cast_const_char bg_color_str,NULL,16);
-		G_SCROLL_BAR_AREA_COLOR=strtol(cast_const_char scroll_area_color_str,NULL,16);
-		G_SCROLL_BAR_BAR_COLOR=strtol(cast_const_char scroll_bar_color_str,NULL,16);
-		G_SCROLL_BAR_FRAME_COLOR=strtol(cast_const_char scroll_frame_color_str,NULL,16);
+		menu_font_size=(int)strtol(cast_const_char menu_font_str,NULL,10);
+		G_BFU_FG_COLOR=(int)strtol(cast_const_char fg_color_str,NULL,16);
+		G_BFU_BG_COLOR=(int)strtol(cast_const_char bg_color_str,NULL,16);
+		G_SCROLL_BAR_AREA_COLOR=(int)strtol(cast_const_char scroll_area_color_str,NULL,16);
+		G_SCROLL_BAR_BAR_COLOR=(int)strtol(cast_const_char scroll_bar_color_str,NULL,16);
+		G_SCROLL_BAR_FRAME_COLOR=(int)strtol(cast_const_char scroll_frame_color_str,NULL,16);
 		shutdown_bfu();
 		init_bfu();
 		init_grview();
@@ -2293,7 +2350,7 @@ static void refresh_misc(struct session *ses)
 static unsigned char *miscopt_labels_g[] = { TEXT_(T_MENU_FONT_SIZE), TEXT_(T_ENTER_COLORS_AS_RGB_TRIPLETS), TEXT_(T_MENU_FOREGROUND_COLOR), TEXT_(T_MENU_BACKGROUND_COLOR), TEXT_(T_SCROLL_BAR_AREA_COLOR), TEXT_(T_SCROLL_BAR_BAR_COLOR), TEXT_(T_SCROLL_BAR_FRAME_COLOR), TEXT_(T_BOOKMARKS_FILE), NULL };
 #endif
 static unsigned char *miscopt_labels[] = { TEXT_(T_BOOKMARKS_FILE), NULL };
-
+static unsigned char *miscopt_checkbox_labels[] = { TEXT_(T_SAVE_URL_HISTORY_ON_EXIT), NULL };
 
 static void miscopt_fn(struct dialog_data *dlg)
 {
@@ -2318,19 +2375,23 @@ static void miscopt_fn(struct dialog_data *dlg)
 		min_text_width(term, labels[1], &min, AL_LEFT);
 		max_group_width(term, labels, dlg->items, 1, &max);
 		min_group_width(term, labels, dlg->items, 1, &min);
-		max_group_width(term, labels, dlg->items+2, 5, &max);
-		min_group_width(term, labels, dlg->items+2, 5, &min);
+		max_group_width(term, labels + 2, dlg->items+1, 5, &max);
+		min_group_width(term, labels + 2, dlg->items+1, 5, &min);
 	}
 #endif
 	if (bmk)
 	{
-		max_buttons_width(term, dlg->items + dlg->n - 3 - a, 1, &max);
-		min_buttons_width(term, dlg->items + dlg->n - 3 - a, 1, &min);
+		max_buttons_width(term, dlg->items + dlg->n - 3 - a - bmk, 1, &max);
+		min_buttons_width(term, dlg->items + dlg->n - 3 - a - bmk, 1, &min);
 	}
 	if (a)
 	{
-		max_buttons_width(term, dlg->items + dlg->n - 3, 1, &max);
-		min_buttons_width(term, dlg->items + dlg->n - 3, 1, &min);
+		max_buttons_width(term, dlg->items + dlg->n - 3 - bmk, 1, &max);
+		min_buttons_width(term, dlg->items + dlg->n - 3 - bmk, 1, &min);
+	}
+	if (bmk) {
+		checkboxes_width(term, miscopt_checkbox_labels, 1, &max, max_text_width);
+		checkboxes_width(term, miscopt_checkbox_labels, 1, &min, min_text_width);
 	}
 	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
 	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
@@ -2354,14 +2415,16 @@ static void miscopt_fn(struct dialog_data *dlg)
 #endif
 	if (bmk)
 	{
-		dlg_format_text_and_field(dlg, NULL, labels[F?7:0], dlg->items + dlg->n - 4 - a, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		dlg_format_text_and_field(dlg, NULL, labels[F?7:0], dlg->items + dlg->n - 4 - a - bmk, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		y += gf_val(1, G_BFU_FONT_SIZE);
 	}
 	if (bmk) {
 		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 3 - a, 1, 0, &y, w, &rw, AL_LEFT);
+		dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 3 - a - bmk, 1, 0, &y, w, &rw, AL_LEFT);
 	}
-	if (a) dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 3, 1, 0, &y, w, &rw, AL_LEFT);
-	dlg_format_buttons(dlg, NULL, dlg->items +dlg->n-2, 2, 0, &y, w, &rw, AL_CENTER);
+	if (a) dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 3 - bmk, 1, 0, &y, w, &rw, AL_LEFT);
+	if (bmk) dlg_format_checkboxes(dlg, NULL, dlg->items + dlg->n - 3, 1, 0, &y, w, &rw, miscopt_checkbox_labels);
+	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
 	w = rw;
 	dlg->xw = w + 2 * DIALOG_LB;
 	dlg->yw = y + 2 * DIALOG_TB;
@@ -2385,11 +2448,15 @@ static void miscopt_fn(struct dialog_data *dlg)
 	}
 	if (bmk)
 	{
-		dlg_format_text_and_field(dlg, term, labels[F?7:0], dlg->items + dlg->n - 4 - a, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+		dlg_format_text_and_field(dlg, term, labels[F?7:0], dlg->items + dlg->n - 4 - a - bmk, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
 		y += gf_val(1, G_BFU_FONT_SIZE);
-		dlg_format_buttons(dlg, term, dlg->items + dlg->n - 3 - a, 1, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
+		dlg_format_buttons(dlg, term, dlg->items + dlg->n - 3 - a - bmk, 1, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 	}
-	if (a) dlg_format_buttons(dlg, term, dlg->items + dlg->n - 3, 1, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
+	if (a) dlg_format_buttons(dlg, term, dlg->items + dlg->n - 3 - bmk, 1, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
+	if (bmk) {
+		dlg_format_checkboxes(dlg, term, dlg->items + dlg->n - 3, 1, dlg->x + DIALOG_LB, &y, w, NULL, miscopt_checkbox_labels);
+		y += gf_val(1, G_BFU_FONT_SIZE);
+	}
 	dlg_format_buttons(dlg, term, dlg->items+dlg->n-2, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
 
@@ -2404,11 +2471,11 @@ static void miscelaneous_options(struct terminal *term, void *xxx, struct sessio
 	safe_strncpy(new_bookmarks_file,bookmarks_file,MAX_STR_LEN);
 	new_bookmarks_codepage=bookmarks_codepage;
 	if (!F) {
-		d = mem_calloc(sizeof(struct dialog) + 4 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
 	}
 #ifdef G
 	else {
-		d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
+		d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 		snprintf(cast_char menu_font_str,4,"%d",menu_font_size);
 		snprintf(cast_char fg_color_str,7,"%06x",(unsigned) G_BFU_FG_COLOR);
 		snprintf(cast_char bg_color_str,7,"%06x",(unsigned) G_BFU_BG_COLOR);
@@ -2498,6 +2565,13 @@ static void miscelaneous_options(struct terminal *term, void *xxx, struct sessio
 		a++;
 	}
 #endif
+	if (!anonymous) {
+		d->items[a].type = D_CHECKBOX;
+		d->items[a].gid = 0;
+		d->items[a].dlen = sizeof(int);
+		d->items[a].data = (void *)&save_history;
+		a++;
+	}
 	d->items[a].type = D_BUTTON;
 	d->items[a].gid = B_ENTER;
 	d->items[a].fn = ok_dialog;
@@ -2514,22 +2588,22 @@ static void miscelaneous_options(struct terminal *term, void *xxx, struct sessio
 
 static void menu_set_language(struct terminal *term, void *pcp, struct session *ses)
 {
-	set_language((my_intptr_t)pcp);
+	set_language((int)(my_intptr_t)pcp);
 	cls_redraw_all_terminals();
 }
 
 static void menu_language_list(struct terminal *term, void *xxx, struct session *ses)
 {
-	long i; int sel;
+	int i, sel;
 	unsigned char *n;
 	struct menu_item *mi;
 	mi = new_menu(1);
 	for (i = 0; i < n_languages(); i++) {
 		n = language_name(i);
-		add_to_menu(&mi, n, cast_uchar "", cast_uchar "", MENU_FUNC menu_set_language, (void *)i, 0, i);
+		add_to_menu(&mi, n, cast_uchar "", cast_uchar "", MENU_FUNC menu_set_language, (void *)(my_intptr_t)i, 0, i);
 	}
 	sel = current_language;
-	do_menu_selected(term, mi, ses, sel);
+	do_menu_selected(term, mi, ses, sel, NULL, NULL);
 }
 
 static unsigned char *resize_texts[] = { TEXT_(T_COLUMNS), TEXT_(T_ROWS) };

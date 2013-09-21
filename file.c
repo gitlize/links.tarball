@@ -8,9 +8,9 @@
 #ifdef FS_UNIX_RIGHTS
 static void setrwx(int m, unsigned char *p)
 {
-	if(m & S_IRUSR) p[0] = 'r';
-	if(m & S_IWUSR) p[1] = 'w';
-	if(m & S_IXUSR) p[2] = 'x';
+	if (m & S_IRUSR) p[0] = 'r';
+	if (m & S_IWUSR) p[1] = 'w';
+	if (m & S_IXUSR) p[2] = 'x';
 }
 
 static void setst(int m, unsigned char *p)
@@ -129,7 +129,7 @@ static void stat_user(unsigned char **p, int *l, struct stat *stp, int g)
 	}
 	a:
 	add_to_str(p, l, pp);
-	for (i = strlen(cast_const_char pp); i < 8; i++) add_chr_to_str(p, l, ' ');
+	for (i = (int)strlen(cast_const_char pp); i < 8; i++) add_chr_to_str(p, l, ' ');
 	add_chr_to_str(p, l, ' ');
 #endif
 }
@@ -144,7 +144,7 @@ static void stat_size(unsigned char **p, int *l, struct stat *stp)
 	} else {
 		snzprint(num, sizeof num, stp->st_size);
 	}
-	for (i = strlen(cast_const_char num); i < digits; i++)
+	for (i = (int)strlen(cast_const_char num); i < digits; i++)
 		add_chr_to_str(p, l, ' ');
 	add_to_str(p, l, num);
 	add_chr_to_str(p, l, ' ');
@@ -157,22 +157,25 @@ static void stat_date(unsigned char **p, int *l, struct stat *stp)
 	struct tm *when_local;
 	unsigned char *fmt;
 	unsigned char str[13];
+	static unsigned char fmt1[] = "%b %e  %Y";
+	static unsigned char fmt2[] = "%b %e %H:%M";
 	int wr;
 	EINTRLOOPX(current_time, time(NULL), (time_t)-1);
 	if (!stp) {
-		add_to_str(p, l, cast_uchar "             ");
-		return;
+		wr = 0;
+		goto set_empty;
 	}
 	when = stp->st_mtime;
 	when_local = localtime(&when);
 	if ((ulonglong)current_time > (ulonglong)when + 6L * 30L * 24L * 60L * 60L || 
-	    (ulonglong)current_time < (ulonglong)when - 60L * 60L) fmt = cast_uchar "%b %e  %Y";
-	else fmt = cast_uchar "%b %e %H:%M";
+	    (ulonglong)current_time < (ulonglong)when - 60L * 60L) fmt = fmt1;
+	else fmt = fmt2;
 #ifdef HAVE_STRFTIME
-	wr = strftime(cast_char str, 13, cast_const_char fmt, when_local);
+	wr = (int)strftime(cast_char str, 13, cast_const_char fmt, when_local);
 #else
 	wr = 0;
 #endif
+	set_empty:
 	while (wr < 12) str[wr++] = ' ';
 	str[12] = 0;
 	add_to_str(p, l, str);
@@ -189,7 +192,7 @@ static unsigned char *get_filename(unsigned char *url)
 	for (p = url + 7; *p && *p != POST_CHAR; p++)
 		;
 	m = init_str(), ml = 0;
-	add_conv_str(&m, &ml, url + 7, p - url - 7, -2);
+	add_conv_str(&m, &ml, url + 7, (int)(p - url - 7), -2);
 	return m;
 }
 
@@ -263,7 +266,7 @@ void file_func(struct connection *c)
 			if (!c->cache) {
 				if (get_cache_entry(c->url, &c->cache)) {
 					mem_free(name);
-					EINTRLOOP(rs, closedir(d));
+					closedir(d);
 					setcstate(c, S_OUT_OF_MEM); abort_connection(c); return;
 				}
 				c->cache->refcount--;
@@ -274,7 +277,7 @@ void file_func(struct connection *c)
 			e->redirect_get = 1;
 			add_to_strn(&e->redirect, cast_uchar "/");
 			mem_free(name);
-			EINTRLOOP(rs, closedir(d));
+			closedir(d);
 			goto end;
 		}
 #ifdef FS_UNIX_USERS
@@ -284,10 +287,10 @@ void file_func(struct connection *c)
 		file = init_str();
 		fl = 0;
 		add_to_str(&file, &fl, cast_uchar "<html><head><title>");
-		add_conv_str(&file, &fl, name, strlen(cast_const_char name), -1);
+		add_conv_str(&file, &fl, name, (int)strlen(cast_const_char name), -1);
 		add_to_str(&file, &fl, cast_uchar "</title></head><body><h2>Directory ");
-		add_conv_str(&file, &fl, name, strlen(cast_const_char name), -1);
-		add_to_str(&file, &fl, cast_uchar "</h2><pre>");
+		add_conv_str(&file, &fl, name, (int)strlen(cast_const_char name), -1);
+		add_to_str(&file, &fl, cast_uchar "</h2>\n<pre>");
 		while (1) {
 			struct stat stt, *stp;
 			unsigned char **p;
@@ -296,6 +299,15 @@ void file_func(struct connection *c)
 			ENULLLOOP(de, (void *)readdir(d));
 			if (!de) break;
 			if (!strcmp(cast_const_char de->d_name, ".")) continue;
+			if (!strcmp(cast_const_char de->d_name, "..")) {
+				unsigned char *n = name;
+#if defined(DOS_FS) || defined(SPAD)
+				unsigned char *nn = cast_uchar strchr(cast_const_char n, ':');
+				if (nn) n = nn + 1;
+#endif
+				if (!strcspn(cast_const_char n, dir_sep('\\') ? "/\\" : "/") == strlen(cast_const_char n))
+					continue;
+			}
 			if ((unsigned)dirl > MAXINT / sizeof(struct dirs) - 1) overalloc();
 			dir = mem_realloc(dir, (dirl + 1) * sizeof(struct dirs));
 			dir[dirl].f = stracpy(cast_uchar de->d_name);
@@ -318,7 +330,7 @@ void file_func(struct connection *c)
 			stat_size(p, &l, stp);
 			stat_date(p, &l, stp);
 		}
-		EINTRLOOP(rs, closedir(d));
+		closedir(d);
 		if (dirl) qsort(dir, dirl, sizeof(struct dirs), (int(*)(const void *, const void *))comp_de);
 		for (i = 0; i < dirl; i++) {
 			unsigned char *lnk = NULL;
@@ -334,7 +346,7 @@ void file_func(struct connection *c)
 					size += ALLOC_GR;
 					if ((unsigned)size > MAXINT) overalloc();
 					buf = mem_alloc(size);
-					EINTRLOOP(r, readlink(cast_const_char n, cast_char buf, size));
+					EINTRLOOP(r, (int)readlink(cast_const_char n, cast_char buf, size));
 				} while (r == size);
 				if (r == -1) goto yyy;
 				buf[r] = 0;
@@ -349,7 +361,7 @@ void file_func(struct connection *c)
 			/*add_to_str(&file, &fl, cast_uchar "   ");*/
 			add_to_str(&file, &fl, dir[i].s);
 			add_to_str(&file, &fl, cast_uchar "<a href=\"./");
-			add_conv_str(&file, &fl, dir[i].f, strlen(cast_const_char dir[i].f), 1);
+			add_conv_str(&file, &fl, dir[i].f, (int)strlen(cast_const_char dir[i].f), 1);
 			if (dir[i].s[0] == 'd') add_to_str(&file, &fl, cast_uchar "/");
 			else if (lnk) {
 				struct stat st;
@@ -361,7 +373,7 @@ void file_func(struct connection *c)
 			}
 			add_to_str(&file, &fl, cast_uchar "\">");
 			/*if (dir[i].s[0] == 'd') add_to_str(&file, &fl, cast_uchar "<font color=\"yellow\">");*/
-			add_conv_str(&file, &fl, dir[i].f, strlen(cast_const_char dir[i].f), 0);
+			add_conv_str(&file, &fl, dir[i].f, (int)strlen(cast_const_char dir[i].f), 0);
 			/*if (dir[i].s[0] == 'd') add_to_str(&file, &fl, cast_uchar "</font>");*/
 			add_to_str(&file, &fl, cast_uchar "</a>");
 			if (lnk) {
@@ -395,14 +407,20 @@ void file_func(struct connection *c)
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c); return;
 		}
-		if ((r = hard_read(h, file, (int)stt.st_size)) != stt.st_size) {
+		if ((r = hard_read(h, file, (int)stt.st_size))
+#ifdef OPENVMS
+			< 0
+#else
+			!= stt.st_size
+#endif
+			) {
 			mem_free(file);
 			EINTRLOOP(rs, close(h));
 			setcstate(c, r == -1 ? get_error_from_errno(errno) : S_FILE_ERROR);
 			abort_connection(c); return;
 		}
+		fl = r;
 		EINTRLOOP(rs, close(h));
-		fl = (int)stt.st_size;
 		head = stracpy(cast_uchar "");
 	}
 	if (!c->cache) {

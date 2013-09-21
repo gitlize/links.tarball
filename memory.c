@@ -40,7 +40,7 @@ void register_cache_upcall(int (*upcall)(int), int flags, unsigned char *name)
 	struct cache_upcall *c;
 	c = mem_alloc(sizeof(struct cache_upcall) + strlen(cast_const_char name));
 	c->upcall = upcall;
-	c->flags = flags;
+	c->flags = (unsigned char)flags;
 	strcpy(cast_char c->name, cast_const_char name);
 	add_to_list(cache_upcalls, c);
 }
@@ -73,11 +73,12 @@ void free_all_caches(void)
 
 int malloc_try_hard = 0;
 
-int out_of_memory(int flags, unsigned char *msg, size_t size)
+int out_of_memory_fl(int flags, unsigned char *msg, size_t size, unsigned char *file, int line)
 {
 	int sh;
 retry:
 	sh = shrink_memory(SH_FREE_SOMETHING, flags);
+	/*fprintf(stderr, "out of memory: %d, %d (%s,%d)\n", flags, sh, msg, size);*/
 	if (sh & ST_SOMETHING_FREED) return 1;
 	if (flags) {
 		flags = 0;
@@ -89,20 +90,27 @@ retry:
 	}
 	if (!msg) return 0;
 
+	fatal_tty_exit();
+
 	fprintf(stderr, "\n");
-	fprintf(stderr, "File cache: %lu bytes, %lu files, %lu locked, %lu loading\n", cache_info(CI_BYTES), cache_info(CI_FILES), cache_info(CI_LOCKED), cache_info(CI_LOADING));
+#ifdef LEAK_DEBUG
+	fprintf(stderr, "Allocated: %lu bytes, %lu blocks\n", (unsigned long)mem_amount, (unsigned long)mem_blocks);
+#endif
+	fprintf(stderr, "File cache: %lu bytes, %lu files, %lu locked, %lu loading\n", (unsigned long)cache_info(CI_BYTES), (unsigned long)cache_info(CI_FILES), (unsigned long)cache_info(CI_LOCKED), (unsigned long)cache_info(CI_LOADING));
 #ifdef HAVE_ANY_COMPRESSION
-	fprintf(stderr, "Decompressed cache: %lu bytes, %lu files, %lu locked\n", decompress_info(CI_BYTES), decompress_info(CI_FILES), decompress_info(CI_LOCKED));
+	fprintf(stderr, "Decompressed cache: %lu bytes, %lu files, %lu locked\n", (unsigned long)decompress_info(CI_BYTES), (unsigned long)decompress_info(CI_FILES), (unsigned long)decompress_info(CI_LOCKED));
 #endif
 #ifdef G
 	if (F) {
-		fprintf(stderr, "Image cache: %lu bytes, %lu files, %lu locked\n", imgcache_info(CI_BYTES), imgcache_info(CI_FILES), imgcache_info(CI_LOCKED));
+		fprintf(stderr, "Image cache: %lu bytes, %lu files, %lu locked\n", (unsigned long)imgcache_info(CI_BYTES), (unsigned long)imgcache_info(CI_FILES), (unsigned long)imgcache_info(CI_LOCKED));
+		fprintf(stderr, "Font cache: %lu bytes, %lu letters\n", (unsigned long)fontcache_info(CI_BYTES), (unsigned long)fontcache_info(CI_FILES));
 	}
 #endif
 	fprintf(stderr, "Formatted document cache: %lu documents, %lu locked\n", formatted_info(CI_FILES), formatted_info(CI_LOCKED));
 	fprintf(stderr, "DNS cache: %lu servers\n", dns_info(CI_FILES));
 
-	fatal_exit("ERROR: out of memory (%s(%lu) returned NULL)", msg, (unsigned long)size);
+	if (file) fatal_exit("ERROR: out of memory (%s(%lu) at %s:%d returned NULL)", msg, (unsigned long)size, file, line);
+	else fatal_exit("ERROR: out of memory (%s(%lu) returned NULL)", msg, (unsigned long)size);
 	return 0;
 }
 

@@ -5,5 +5,5 @@ make arrow generate_font &&
 ./arrow &&
 ./generate_font &&
 rm arrow generate_font &&
-mv font_include.c .. &&
+mv font_inc.c .. &&
 mv arrow.inc ..

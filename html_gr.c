@@ -6,8 +6,6 @@
 
 #include "cfg.h"
 
-#define format format_
-
 #ifdef G
 
 #include "links.h"
@@ -143,8 +141,8 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 	for (i = l->n_entries - 1; i >= 0; i--) {
 		struct g_object_text *go = (struct g_object_text *)l->entries[i];
 		if (go->draw == g_text_draw) {
-			int l;
-			while ((l = strlen(cast_const_char go->text)) && go->text[l - 1] == ' ') go->text[l - 1] = 0, go->xw -= g_char_width(go->style, ' ');
+			int l = (int)strlen(cast_const_char go->text);
+			while (l && go->text[l - 1] == ' ') go->text[--l] = 0, go->xw -= g_char_width(go->style, ' ');
 			if (go->xw < 0) internal("xw(%d) < 0", go->xw);
 		}
 		if (!go->xw) continue;
@@ -157,30 +155,30 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 	for (i = 0; i < l->n_entries; i++) {
 		int yy = l->entries[i]->y;
 		if (yy >= G_OBJ_ALIGN_SPECIAL) yy = 0;
-		pp += l->entries[i]->xw;
-		if (l->entries[i]->xw && l->entries[i]->yw + yy > w) w = l->entries[i]->yw + yy;
+		pp = safe_add(pp, l->entries[i]->xw);
+		if (l->entries[i]->xw && safe_add(l->entries[i]->yw, yy) > w) w = safe_add(l->entries[i]->yw, yy);
 		if (yy < lbl) lbl = yy;
 	}
 	if (lbl < 0) {
 		for (i = 0; i < l->n_entries; i++) {
-			if (l->entries[i]->y < G_OBJ_ALIGN_SPECIAL) l->entries[i]->y -= lbl;
+			if (l->entries[i]->y < G_OBJ_ALIGN_SPECIAL) l->entries[i]->y = safe_add(l->entries[i]->y, -lbl);
 		}
 		goto scan_again;
 	}
-	if (par_format.align == AL_CENTER) pos = (rm(par_format) + par_format.leftmargin * G_HTML_MARGIN - pp) / 2;
+	if (par_format.align == AL_CENTER) pos = (safe_add(rm(par_format), par_format.leftmargin * G_HTML_MARGIN) - pp) / 2;
 	else if (par_format.align == AL_RIGHT) pos = rm(par_format) - pp;
 	else pos = par_format.leftmargin * G_HTML_MARGIN;
 	if (pos < par_format.leftmargin * G_HTML_MARGIN) pos = par_format.leftmargin * G_HTML_MARGIN;
 	pp = pos;
 	for (i = 0; i < l->n_entries; i++) {
 		l->entries[i]->x = pp;
-		pp += l->entries[i]->xw;
+		pp = safe_add(pp, l->entries[i]->xw);
 		if (l->entries[i]->y < G_OBJ_ALIGN_SPECIAL) {
 			l->entries[i]->y = w - l->entries[i]->yw - l->entries[i]->y;
 		} else if (l->entries[i]->y == G_OBJ_ALIGN_TOP) {
 			l->entries[i]->y = 0;
 		} else if (l->entries[i]->y == G_OBJ_ALIGN_MIDDLE) {
-			l->entries[i]->y = (w - l->entries[i]->yw + 1) / 2;
+			l->entries[i]->y = (w - safe_add(l->entries[i]->yw, 1)) / 2;
 		}
 	}
 	l->x = 0;
@@ -188,8 +186,9 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 	l->yw = w;
 	l->y = p->cy;
 	if (l->xw > p->root->xw) p->root->xw = l->xw;
-	p->root->yw = p->cy += w;
-	p->root->n_lines++;
+	p->cy = safe_add(p->cy, w);
+	p->root->yw = p->cy;
+	p->root->n_lines = safe_add(p->root->n_lines, 1);
 	if ((unsigned)p->root->n_lines > (MAXINT - sizeof(struct g_object_area)) / 2 / sizeof(struct g_object_text *) + 1) overalloc();
 	a = mem_realloc(p->root, sizeof(struct g_object_area) + sizeof(struct g_object_text *) * pw2(p->root->n_lines + 1));
 		/* note: +1 is for extend_area */
@@ -235,9 +234,9 @@ void add_object_to_line(struct g_part *pp, struct g_object_line **lp, struct g_o
 	*lp = l;
 	if (pp->cx == -1) pp->cx = par_format.leftmargin * G_HTML_MARGIN;
 	if (go->xw) {
-		pp->cx += pp->cx_w;
+		pp->cx = safe_add(pp->cx, pp->cx_w);
 		pp->cx_w = 0;
-		pp->cx += go->xw;
+		pp->cx = safe_add(pp->cx, go->xw);
 	}
 }
 
@@ -295,8 +294,9 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 	}
 	if (0) {
 		int nn;
+		int qw;
 		found:
-		n += !ptr;
+		n = safe_add(n, !ptr);
 		l2 = mem_calloc(sizeof(struct g_object_line) + (p->line->n_entries - n) * sizeof(struct g_object_text *));
 		l2->mouse_event = g_line_mouse;
 		l2->draw = g_line_draw;
@@ -305,8 +305,8 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		l2->bg = p->root->bg;
 		l2->n_entries = p->line->n_entries - n;
 		l2->entries[0] = (struct g_object *)t2;
-		memcpy(&l2->entries[!!ptr], p->line->entries + n + !!ptr, (l2->n_entries - !!ptr) * sizeof(struct g_object_text *));
-		p->line->n_entries = n + !!ptr;
+		memcpy(&l2->entries[!!ptr], p->line->entries + safe_add(n, !!ptr), (l2->n_entries - !!ptr) * sizeof(struct g_object_text *));
+		p->line->n_entries = safe_add(n, !!ptr);
 		flush_pending_line_to_obj(p, 0);
 		p->line = l2;
 		if (ptr) {
@@ -315,11 +315,12 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 			p->w.pos = 0;
 		}
 		for (nn = 0; nn < l2->n_entries; nn++) {
-			p->w.pos += l2->entries[nn]->xw;	/* !!! FIXME: nastav last_wrap */
+			p->w.pos = safe_add(p->w.pos, l2->entries[nn]->xw);	/* !!! FIXME: nastav last_wrap */
 			/*debug("a1: %d (%s)", l2->entries[nn]->xw, tt->text);*/
 		}
 		wwww:
-		if (p->text) p->w.pos += g_text_width(p->text->style, p->text->text);
+		qw = g_text_width(p->text->style, p->text->text);
+		if (p->text) p->w.pos = safe_add(p->w.pos, qw);
 		/*debug("%d", p->w.pos);*/
 	} else {
 		flush_pending_text_to_line(p);
@@ -336,7 +337,7 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 	p->w.last_wrap_obj = NULL;
 	t2 = p->text;
 	if (t2) {
-		int sl = strlen(cast_const_char t2->text);
+		int sl = (int)strlen(cast_const_char t2->text);
 		if (sl >= 1 && t2->text[sl - 1] == ' ') {
 			p->w.last_wrap = &t2->text[sl - 1];
 			p->w.last_wrap_obj = t2;
@@ -352,11 +353,11 @@ void add_object(struct g_part *p, struct g_object *o)
 	g_nobreak = 0;
 	flush_pending_text_to_line(p);
 	p->w.width = rm(par_format) - par_format.leftmargin * G_HTML_MARGIN;
-	if (p->w.pos + o->xw > p->w.width) flush_pending_line_to_obj(p, 0);
+	if (safe_add(p->w.pos, o->xw) > p->w.width) flush_pending_line_to_obj(p, 0);
 	add_object_to_line(p, &p->line, o);
 	p->w.last_wrap = NULL;
 	p->w.last_wrap_obj = o;
-	p->w.pos += o->xw;
+	p->w.pos = safe_add(p->w.pos, o->xw);
 }
 
 static void g_line_break(void *p_)
@@ -370,7 +371,7 @@ static void g_line_break(void *p_)
 	if (!p->line || par_format.align == AL_NO) {
 		add_object_to_line(p, &p->line, NULL);
 		empty_line:
-		flush_pending_line_to_obj(p, get_real_font_size(format.fontsize));
+		flush_pending_line_to_obj(p, get_real_font_size(format_.fontsize));
 	} else {
 		int i;
 		for (i = 0; i < p->line->n_entries; i++) {
@@ -396,9 +397,10 @@ static void g_html_form_control(struct g_part *p, struct form_control *fc)
 		add_to_list(p->uf, fc);
 		return;
 	}
-	fc->g_ctrl_num = g_ctrl_num++;
+	fc->g_ctrl_num = g_ctrl_num;
+	g_ctrl_num = safe_add(g_ctrl_num, 1);
 	if (fc->type == FC_TEXT || fc->type == FC_PASSWORD || fc->type == FC_TEXTAREA) {
-		unsigned char *dv = convert_string(convert_table, fc->default_value, strlen(cast_const_char fc->default_value), d_opt);
+		unsigned char *dv = convert_string(convert_table, fc->default_value, (int)strlen(cast_const_char fc->default_value), d_opt);
 		if (dv) {
 			mem_free(fc->default_value);
 			fc->default_value = dv;
@@ -486,8 +488,9 @@ static void do_image(struct g_part *p, struct image_description *im)
 	putchars_link_ptr = NULL;
 	if (!link) im->link_num = -1;
 	else {
-		im->link_num = link - p->data->links;
-		im->link_order = link->obj_order++;
+		im->link_num = (int)(link - p->data->links);
+		im->link_order = link->obj_order;
+		link->obj_order = safe_add(link->obj_order, 1);
 		if (link->img_alt) mem_free(link->img_alt);
 		link->img_alt = stracpy(im->alt);
 	}
@@ -508,7 +511,7 @@ static void do_image(struct g_part *p, struct image_description *im)
 			struct image_map *map;
 			if (get_file(af->rq, &start, &end)) goto ft;
 			if (start == end) goto ft;
-			if (get_image_map(ce->head, start, end, tag, &menu, &ml, format.href_base, format.target_base, 0, 0, 0, 1)) goto ft;
+			if (get_image_map(ce->head, start, end, tag, &menu, &ml, format_.href_base, format_.target_base, 0, 0, 0, 1)) goto ft;
 			map = mem_alloc(sizeof(struct image_map));
 			map->n_areas = 0;
 			for (i = 0; menu[i].text; i++) {
@@ -572,7 +575,7 @@ static void do_image(struct g_part *p, struct image_description *im)
 						link->js_event->move_code = stracpy(ld->onmousemove);
 					}
 #endif
-					a->link_num = link - p->data->links;
+					a->link_num = (int)(link - p->data->links);
 				}
 				if (last_link) mem_free(last_link), last_link = NULL;
 			}
@@ -598,11 +601,11 @@ static void g_hr(struct g_part *gp, struct hr_param *hr)
 	o->y = 0;*/
 	o->xw = hr->width;
 	o->yw = hr->size;
-	table_bg(&format, bgstr);
+	table_bg(&format_, bgstr);
 	o->bg = get_background(NULL, bgstr);
 	o->n_entries = 0;
 	flush_pending_text_to_line(gp);
-	/*flush_pending_line_to_obj(gp, get_real_font_size(format.fontsize));*/
+	/*flush_pending_line_to_obj(gp, get_real_font_size(format_.fontsize));*/
 	add_object_to_line(gp, &gp->line, (struct g_object *)o);
 	line_breax = 0;
 	gp->cx = -1;
@@ -703,14 +706,15 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 	struct link *link;
 	int ptl;
 	unsigned char *sh;
+	int qw;
 
 	if (l < 0) overalloc();
 
 again:
 	if (l > 2 && (sh = memchr(s + 1, 0xad, l - 2)) && sh[-1] == 0xc2) {
 		sh++;
-		g_put_chars(p_, s, sh - s);
-		l -= (sh - s);
+		g_put_chars(p_, s, (int)(sh - s));
+		l -= (int)(sh - s);
 		s = sh;
 		goto again;
 	}
@@ -728,19 +732,19 @@ again:
 	g_nobreak = 0;
 	if (p->cx < par_format.leftmargin * G_HTML_MARGIN) p->cx = par_format.leftmargin * G_HTML_MARGIN;
 	if (html_format_changed) {
-		if (memcmp(&ta_cache, &format, sizeof(struct text_attrib_beginning)) || xstrcmp(cached_font_face, format.fontface) || cached_font_face == to_je_ale_prasarna ||
-	xstrcmp(format.link, last_link) || xstrcmp(format.target, last_target) ||
-	    xstrcmp(format.image, last_image) || format.form != last_form
-	    || ((format.js_event || last_js_event) && compare_js_event_spec(format.js_event, last_js_event))	) {
+		if (memcmp(&ta_cache, &format_, sizeof(struct text_attrib_beginning)) || xstrcmp(cached_font_face, format_.fontface) || cached_font_face == to_je_ale_prasarna ||
+	xstrcmp(format_.link, last_link) || xstrcmp(format_.target, last_target) ||
+	    xstrcmp(format_.image, last_image) || format_.form != last_form
+	    || ((format_.js_event || last_js_event) && compare_js_event_spec(format_.js_event, last_js_event))	) {
 			/*if (!html_format_changed) internal("html_format_changed not set");*/
 			flush_pending_text_to_line(p);
-			if (xstrcmp(cached_font_face, format.fontface) || cached_font_face == to_je_ale_prasarna) {
+			if (xstrcmp(cached_font_face, format_.fontface) || cached_font_face == to_je_ale_prasarna) {
 				if (cached_font_face && cached_font_face != to_je_ale_prasarna) mem_free(cached_font_face);
-				cached_font_face = stracpy(format.fontface);
+				cached_font_face = stracpy(format_.fontface);
 			}
-			memcpy(&ta_cache, &format, sizeof(struct text_attrib_beginning));
+			memcpy(&ta_cache, &format_, sizeof(struct text_attrib_beginning));
 			if (p->current_style) g_free_style(p->current_style);
-			p->current_style = get_style_by_ta(&format);
+			p->current_style = get_style_by_ta(&format_);
 		}
 		html_format_changed = 0;
 	}
@@ -756,13 +760,13 @@ again:
 		t->yw = t->style->height;
 		/*t->xw = 0;
 		t->y = 0;*/
-		if (format.baseline) {
-			if (format.baseline < 0) t->y = -(t->style->height / 3);
-			if (format.baseline > 0) t->y = get_real_font_size(format.baseline) - (t->style->height / 2);
+		if (format_.baseline) {
+			if (format_.baseline < 0) t->y = -(t->style->height / 3);
+			if (format_.baseline > 0) t->y = get_real_font_size(format_.baseline) - (t->style->height / 2);
 		}
 		check_link:
-		if (last_link || last_image || last_form || format.link || format.image || format.form 
-		|| format.js_event || last_js_event
+		if (last_link || last_image || last_form || format_.link || format_.image || format_.form 
+		|| format_.js_event || last_js_event
 		) goto process_link;
 		back_link:
 		if (putchars_link_ptr) {
@@ -772,7 +776,7 @@ again:
 
 		if (!link) t->link_num = -1;
 		else {
-			t->link_num = link - p->data->links;
+			t->link_num = (int)(link - p->data->links);
 			t->link_order = link->obj_order++;
 		}
 
@@ -781,24 +785,26 @@ again:
 		p->text = t;
 	}
 	if (p->pending_text_len == -1) {
-		p->pending_text_len = strlen(cast_const_char p->text->text);
+		p->pending_text_len = (int)strlen(cast_const_char p->text->text);
 		ptl = p->pending_text_len;
 		if (!ptl) ptl = 1;
 		goto a1;
 	}
 	ptl = p->pending_text_len;
 	if (!ptl) ptl = 1;
+	safe_add(safe_add(ptl, l), ALLOC_GR);
 	if (((ptl + ALLOC_GR - 1) & ~(ALLOC_GR - 1)) != ((ptl + l + ALLOC_GR - 1) & ~(ALLOC_GR - 1))) a1: {
 		struct g_object_text *t;
 		if ((unsigned)l > MAXINT) overalloc();
 		if ((unsigned)ptl + (unsigned)l > MAXINT - ALLOC_GR) overalloc();
 		t = mem_realloc(p->text, sizeof(struct g_object_text) + ((ptl + l + ALLOC_GR - 1) & ~(ALLOC_GR - 1)));
-		if (p->w.last_wrap >= p->text->text && p->w.last_wrap < p->text->text + p->pending_text_len) p->w.last_wrap += (unsigned char *)t - (unsigned char *)p->text;
+		if (p->w.last_wrap >= p->text->text && p->w.last_wrap < p->text->text + p->pending_text_len) p->w.last_wrap = p->w.last_wrap + ((unsigned char *)t - (unsigned char *)p->text);
 		if (p->w.last_wrap_obj == p->text) p->w.last_wrap_obj = t;
 		p->text = t;
 	}
-	memcpy(p->text->text + p->pending_text_len, s, l), p->text->text[p->pending_text_len += l] = 0;
-	p->text->xw += g_text_width(p->text->style, p->text->text + p->pending_text_len - l); /* !!! FIXME: move to g_wrap_text */
+	memcpy(p->text->text + p->pending_text_len, s, l), p->text->text[p->pending_text_len = safe_add(p->pending_text_len, l)] = 0;
+	qw = g_text_width(p->text->style, p->text->text + p->pending_text_len - l);
+	p->text->xw = safe_add(p->text->xw, qw); /* !!! FIXME: move to g_wrap_text */
 	if (par_format.align != AL_NO) {
 		p->w.text = p->text->text + p->pending_text_len - l;
 		p->w.style = p->text->style;
@@ -817,9 +823,9 @@ again:
 	process_link:
 	if ((last_link /*|| last_target*/ || last_image || last_form) &&
 	    !putchars_link_ptr &&
-	    !xstrcmp(format.link, last_link) && !xstrcmp(format.target, last_target) &&
-	    !xstrcmp(format.image, last_image) && format.form == last_form
-	    && ((!format.js_event && !last_js_event) || !compare_js_event_spec(format.js_event, last_js_event))) {
+	    !xstrcmp(format_.link, last_link) && !xstrcmp(format_.target, last_target) &&
+	    !xstrcmp(format_.image, last_image) && format_.form == last_form
+	    && ((!format_.js_event && !last_js_event) || !compare_js_event_spec(format_.js_event, last_js_event))) {
 		if (!p->data) goto back_link;
 		if (!p->data->nlinks) {
 			internal("no link");
@@ -835,36 +841,36 @@ again:
 		last_link = last_target = last_image = NULL;
 		last_form = NULL;
 		last_js_event = NULL;
-		if (!(format.link || format.image || format.form || format.js_event)) goto back_link;
+		if (!(format_.link || format_.image || format_.form || format_.js_event)) goto back_link;
 		/*if (d_opt->num_links) {
 			unsigned char s[64];
-			unsigned char *fl = format.link, *ft = format.target, *fi = format.image;
-			struct form_control *ff = format.form;
-			struct js_event_spec *js = format.js_event;
-			format.link = format.target = format.image = NULL;
-			format.form = NULL;
-			format.js_event = NULL;
+			unsigned char *fl = format_.link, *ft = format_.target, *fi = format_.image;
+			struct form_control *ff = format_.form;
+			struct js_event_spec *js = format_.js_event;
+			format_.link = format_.target = format_.image = NULL;
+			format_.form = NULL;
+			format_.js_event = NULL;
 			s[0] = '[';
 			snzprint(s + 1, 62, p->link_num);
 			strcat(cast_char s, "]");
 			g_put_chars(p, s, strlen(cast_const_char s));
 			if (ff && ff->type == FC_TEXTAREA) g_line_break(p);
 			if (p->cx < par_format.leftmargin * G_HTML_MARGIN) p->cx = par_format.leftmargin * G_HTML_MARGIN;
-			format.link = fl, format.target = ft, format.image = fi;
-			format.form = ff;
-			format.js_event = js;
+			format_.link = fl, format_.target = ft, format_.image = fi;
+			format_.form = ff;
+			format_.js_event = js;
 		}*/
 		p->link_num++;
-		last_link = stracpy(format.link);
-		last_target = stracpy(format.target);
-		last_image = stracpy(format.image);
-		last_form = format.form;
-		copy_js_event_spec(&last_js_event, format.js_event);
+		last_link = stracpy(format_.link);
+		last_target = stracpy(format_.target);
+		last_image = stracpy(format_.image);
+		last_form = format_.form;
+		copy_js_event_spec(&last_js_event, format_.js_event);
 		if (!p->data) goto back_link;
 		if (!(link = new_link(p->data))) goto back_link;
 		link->num = p->link_num - 1;
 		link->pos = DUMMY;
-		copy_js_event_spec(&link->js_event, format.js_event);
+		copy_js_event_spec(&link->js_event, format_.js_event);
 		if (!last_form) {
 			link->type = L_LINK;
 			link->where = stracpy(last_link);
@@ -891,25 +897,6 @@ static void g_do_format(unsigned char *start, unsigned char *end, struct g_part 
 	) {};
 }
 
-struct g_table_cache_entry {
-	struct g_table_cache_entry *next;
-	struct g_table_cache_entry *prev;
-	unsigned char *start;
-	unsigned char *end;
-	int align;
-	int m;
-	int width;
-	int link_num;
-	struct g_part p;
-};
-
-static struct list_head g_table_cache = { &g_table_cache, &g_table_cache };
-
-void g_free_table_cache(void)
-{
-	free_list(g_table_cache);
-}
-
 struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int align, int m, int width, unsigned char *head, int link_num, unsigned char *bg, unsigned char *bgcolor, struct f_data *f_d)
 {
 	int wa;
@@ -918,14 +905,9 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	struct form_control *fc;
 	int lm = margin;
 
-	struct g_table_cache_entry *tce;
-
-	if (!f_d) foreach(tce, g_table_cache) {
-		if (tce->start == start && tce->end == end && tce->align == align && tce->m == m && tce->width == width && tce->link_num == link_num) {
-			p = mem_alloc(sizeof(struct g_part));
-			memcpy(p, &tce->p, sizeof(struct part));
-			return p;
-		}
+	if (!f_d) {
+		p = find_table_cache_entry(start, end, align, m, width, 0, link_num);
+		if (p) return p;
 	}
 	margin = m;
 
@@ -945,7 +927,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 		struct g_object_area *a;
 		a = mem_calloc(sizeof(struct g_object_area) + sizeof(struct g_object_line *));
 		a->bg = get_background(bg, bgcolor);
-		if (bgcolor) decode_color(bgcolor, &format.bg);
+		if (bgcolor) decode_color(bgcolor, &format_.bg);
 		if (bgcolor) decode_color(bgcolor, &par_format.bgcolor);
 		a->mouse_event = g_area_mouse;
 		a->draw = g_area_draw;
@@ -1010,15 +992,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	last_js_event = NULL;
 
 	if (table_level > 1 && !f_d) {
-		tce = mem_alloc(sizeof(struct g_table_cache_entry));
-		tce->start = start;
-		tce->end = end;
-		tce->align = align;
-		tce->m = m;
-		tce->width = width;
-		tce->link_num = link_num;
-		memcpy(&tce->p, p, sizeof(struct g_part));
-		add_to_list(g_table_cache, tce);
+		add_table_cache_entry(start, end, align, m, width, 0, link_num, p);
 	}
 
 	return p;
@@ -1037,7 +1011,8 @@ static void g_scan_lines(struct g_object_line **o, int n, int *w)
 	while (n--) {
 		if ((*o)->n_entries) {
 			struct g_object *oo = (*o)->entries[(*o)->n_entries - 1];
-			if ((*o)->x + oo->x + oo->xw > *w) *w = (*o)->x + oo->x + oo->xw;
+			if (safe_add(safe_add((*o)->x, oo->x), oo->xw) > *w)
+				*w = (*o)->x + oo->x + oo->xw;
 		}
 		o++;
 	}

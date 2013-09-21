@@ -10,9 +10,33 @@ echo Found GNU Make under gmake. Going to use gmake instead of make.
 make=gmake
 fi
 
-if which autoheader-2.13 2>/dev/null >/dev/null
+if which automake-1.4 2>/dev/null >/dev/null
 then
-autoheader="autoheader-2.13"
+automake="automake-1.4"
+else
+automake="automake"
+fi
+
+if which aclocal-1.4 2>/dev/null >/dev/null
+then
+aclocal="aclocal-1.4"
+if [ -d /usr/share/aclocal-1.4/ ]; then
+	aclocal="$aclocal --acdir=/usr/share/aclocal-1.4/"
+fi
+else
+aclocal="aclocal"
+fi
+
+if which autoconf2.13 2>/dev/null >/dev/null
+then
+autoconf="autoconf2.13"
+else
+autoconf="autoconf"
+fi
+
+if which autoheader2.13 2>/dev/null >/dev/null
+then
+autoheader="autoheader2.13"
 else
 autoheader="autoheader"
 fi
@@ -23,19 +47,20 @@ if [ "$1" = reconf ]; then
 	echo Warning: You don\'t have pkg-config. The PKG_CHECK_MODULES macro will probably fail. >&2	
 	fi
 
-	if ! which autoconf 2>/dev/null >/dev/null
+	if ! which $autoconf 2>/dev/null >/dev/null
 	then
 		echo You don\'t have autoconf. Wiping out. >&2
 		exit 1
 	fi
 
-	if ! autoconf --version | grep -i "GNU Autoconf" >/dev/null
+	if ! $autoconf --version | grep -i "GNU Autoconf" >/dev/null
 	then
 		echo This looks like autoconf installed on OpenBSD. >&2
-		if ! AUTOCONF_VERSION=2.13 autoconf --version 2>/dev/null >/dev/null
+		if ! AUTOCONF_VERSION=2.13 $autoconf --version 2>/dev/null >/dev/null
 		then
 			echo Autoconf 2.13 is not found. This script needs at most autoconf 2.13. \
 			Trying with some other \(random\) autoconf. >&2
+			exit 1
 			path=`echo "$PATH" | tr -s ':' '\n'`
 			alt=`find $path -name 'autoconf*' -and ! -name autoconf | head -n 1`
 			if [ -z "$alt" ]
@@ -51,11 +76,11 @@ if [ "$1" = reconf ]; then
 		fi
 	fi
 
-	if ! automake --version | grep -i "GNU automake" >/dev/null
+	if ! $automake --version | grep -i "GNU automake" >/dev/null
 	then
 		echo This looks like automake installed on OpenBSD. >&2
 		export AUTOMAKE_VERSION=1.4
-		if ! automake --version 2>/dev/null >/dev/null
+		if ! $automake --version 2>/dev/null >/dev/null
 		then
 			echo Automake 1.4 is needed. Wiping out. >&2
 			exit 1
@@ -79,12 +104,21 @@ if [ "$1" = reconf ]; then
 		rm -rf .deps missing depcomp aclocal.m4 &&
 		$autoheader &&
 		rm -f autoh* &&
-		aclocal &&
-		automake --add-missing &&
+		$aclocal -I . &&
+		$automake --add-missing &&
 		sed 's%sed '\''s/\\\.am\$/\.in/'\''%sed '\''s/\\\.[aA][mM]\$/\.in/'\''%' <missing >missing.tmp &&
 		mv -f missing.tmp missing &&
 		chmod a+x missing &&
-		autoconf
+		$autoconf &&
+		ed configure <<EOS
+1a
+LANG=
+LC_ALL=
+.
+w
+q
+EOS
+
 	else
 		exit
 	fi
@@ -95,7 +129,7 @@ if [ "$1" = reconf_aby_to_brain_nepouzival ]; then
 fi &&
 #cd Unicode;./gen; cd ..
 #cd intl; ./synclang; cd ..
-export CFLAGS="$CFLAGS -Wall -g -O2 -pipe -ansi -U__STRICT_ANSI__ -fno-common" &&
+export CFLAGS="-Wall -g -O2 -pipe -ansi -U__STRICT_ANSI__ -fno-common $CFLAGS" &&
 #export CFLAGS="-Wall -g -O2 -pipe"
 export CXXFLAGS="$CXXFLAGS -Wall -g -O2 -pipe" &&
 ./configure --enable-graphics --enable-debuglevel=2 &&
@@ -103,7 +137,7 @@ $make clean &&
 $make &&
 if [ "$1" = reconf ]; then
 	$autoheader &&
-	automake --add-missing --include-deps --build-dir=. --srcdir-name=. --output-dir=. &&
+	$automake --add-missing --include-deps --build-dir=. --srcdir-name=. --output-dir=. &&
 	sed 's%sed '\''s/\\\.am\$/\.in/'\''%sed '\''s/\\\.[aA][mM]\$/\.in/'\''%' <missing >missing.tmp &&
 	mv -f missing.tmp missing &&
 	chmod a+x missing &&

@@ -329,7 +329,7 @@ void process_letters(FILE *output)
  *  * renews font description structures
  *  * scans the images
  *  * builds a binary search array
- *  * writes the font structure into the ../font_include.c
+ *  * writes the font structure into the ../font_inc.c
  *  * releases font description structures
  *  Also prints the font_data byte table.
  */
@@ -451,7 +451,6 @@ void print_font(int a, FILE * output)
 void print_font_table(FILE *output)
 {
 	int a;
-	int index;
 
 	fprintf(output,"struct letter letter_data[%d]={\n",n_letters);
 	for (a=0;a<n_fonts;a++){
@@ -467,7 +466,7 @@ void print_font_table(FILE *output)
 	fprintf(output,"};\n\n");
 	fprintf(output,"struct font font_table[%d]={\n",n_fonts);
 	n_letters=0;
-	for (a=0,index=0;a<n_fonts;a++){
+	for (a=0;a<n_fonts;a++){
 		print_font(a,output);
 	}
 	fprintf(output,"};\n");
@@ -479,11 +478,11 @@ int main(int argc, char **argv)
 	FILE *output;
 	int retval;
 
-	while(!(output=fopen("font_include.c","w"))
+	while(!(output=fopen("font_inc.c","w"))
 		&&(errno==EAGAIN||errno==EINTR));
 	if (!output){
 		fprintf(stderr,PROGNAME ": ");
-		perror("font_include.c");
+		perror("font_inc.c");
 		exit(1);
 	}
 	

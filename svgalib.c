@@ -617,9 +617,9 @@ static void generate_palette(struct irgb *palette)
 		}else{
 			/* palette_depth==8 */
 			for (a=0;a<256;a++,palette++){
-				palette->r=((a>>5)&7)*36;
-				palette->g=((a>>2)&7)*36;
-				palette->b=(a&3)*84;
+				palette->r=((a>>5)&7)*(255./7.);
+				palette->g=((a>>2)&7)*(255./7.);
+				palette->b=(a&3)*85;
 			}
 		}
 	}
@@ -654,7 +654,10 @@ static void svga_shutdown_driver(void)
 #ifndef __SPAD__
 	kill_timer(svgalib_timer_id);
 #endif
+	vga_setmode_retry:
 	if (vga_setmode(TEXT) < 0) {
+		if (out_of_memory(0, NULL, 0))
+			goto vga_setmode_retry;
 		fatal_exit("ERROR: vga_setmode failed");
 	}
 	svgalib_free_trm(svgalib_kbd);
@@ -1442,21 +1445,6 @@ static int hscroll_paged(struct graphics_device *dev, struct rect_set **ignore, 
 	return 1;
 }
 
-static void svga_set_clip_area(struct graphics_device *dev, struct rect *r)
-{
-	memcpy(&dev->clip, r, sizeof(struct rect));
-	if (dev->clip.x1>=dev->clip.x2||dev->clip.y2<=dev->clip.y1||dev->clip.y2<=0||dev->clip.x2<=0||dev->clip.x1>=xsize
-			||dev->clip.y1>=ysize){
-		/* Empty region */
-		dev->clip.x1=dev->clip.x2=dev->clip.y1=dev->clip.y2=0;
-	}else{
-		if (dev->clip.x1<0) dev->clip.x1=0;
-		if (dev->clip.x2>xsize) dev->clip.x2=xsize;
-		if (dev->clip.y1<0) dev->clip.y1=0;
-		if (dev->clip.y2>ysize) dev->clip.y2=ysize;
-	}
-}
-
 /* For modes where video memory is not directly accessible through svgalib */
 static inline void fill_area_drawscansegment(struct graphics_device *dev, int left, int top, int right, int bottom, long color)
 {
@@ -1564,6 +1552,7 @@ static void alloc_scroll_buffer(void)
 
 static void setup_functions(void)
 {
+	svga_driver.flags &= ~GD_DONT_USE_SCROLL;
 
 	if (accel_avail&ACCELFLAG_SETMODE){
 		do_sync=1;
@@ -1719,8 +1708,9 @@ void dump_mode_info_into_file(vga_modeinfo* i)
 }
 #endif
 
-static void svgalib_key_in(void *p, struct event *ev, int size)
+static void svgalib_key_in(void *p, unsigned char *ev_, int size)
 {
+	struct event *ev = (struct event *)(void *)ev_;
 	if (size != sizeof(struct event)) return;
 	if (ev->ev == EV_ABORT) terminate_loop = 1;
 	if (ev->ev != EV_KBD) return;
@@ -2215,8 +2205,6 @@ static void setup_mode(int mode)
 	my_graph_mem=vga_getgraphmem();
 	svga_driver.x = xsize=i->width;
 	svga_driver.y = ysize=i->height;
-	aspect_native=(196608*xsize+(ysize<<1))/(ysize<<2);
-	aspect=aspect_native*bfu_aspect+0.5;
 	vga_colors=i->colors;
 	if (xsize==320&&ysize==200&&vga_colors==256) vga_linear=1; /* The mode
 		does not need to page :-) */
@@ -2352,7 +2340,10 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	svgalib_timer_id=install_timer(100,vtswitch_handler,NULL);
 	if (vga_runinbackground_version()>=1) vga_runinbackground(1);
 #endif
+	vga_setmode_retry:
 	if (vga_setmode(modes[j].number) < 0) {
+		if (out_of_memory(0, NULL, 0))
+			goto vga_setmode_retry;
 #ifndef __SPAD__
 		kill_timer(svgalib_timer_id);
 #endif
@@ -2363,7 +2354,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	}
 	vga_mode=modes[j].number;
 	setup_mode(modes[j].number);
-	svgalib_kbd = handle_svgalib_keyboard((void (*)(void *, unsigned char *, int))svgalib_key_in);
+	svgalib_kbd = handle_svgalib_keyboard(svgalib_key_in);
 
 	if (mouse_works){
 		if ((unsigned)arrow_area > (unsigned)MAXINT / fb_pixelsize) overalloc();
@@ -2440,7 +2431,10 @@ static int vga_block(struct graphics_device *dev)
 			/* mouse_close(); This is not necessary as it is
 				handled by vga_setmode(TEXT). */
 		}
+		vga_setmode_retry:
 		if (vga_setmode(TEXT) < 0) {
+			if (out_of_memory(0, NULL, 0))
+				goto vga_setmode_retry;
 			fatal_exit("ERROR: vga_setmode failed");
 		}
 	}
@@ -2459,7 +2453,10 @@ static int vga_unblock(struct graphics_device *dev)
 	flags&=~2;
 	if (!flags) current_virtual_device=backup_virtual_device;
 	vga_setmousesupport(1);
+	vga_setmode_retry:
 	if (vga_setmode(vga_mode) < 0) {
+		if (out_of_memory(0, NULL, 0))
+			goto vga_setmode_retry;
 		fatal_exit("ERROR: vga_setmode failed");
 	}
 	setup_mode(vga_mode);
@@ -2531,6 +2528,7 @@ struct graphics_driver svga_driver={
 	init_virtual_device,
 	shutdown_virtual_device,
 	svga_shutdown_driver,
+	dummy_emergency_shutdown,
 	svga_get_driver_param,
 	svga_get_empty_bitmap,
 	/*svga_get_filled_bitmap,*/
@@ -2546,7 +2544,7 @@ struct graphics_driver svga_driver={
 	NULL, /* draw_vline */
 	NULL, /* hscroll */
 	NULL, /* vscroll */
-	svga_set_clip_area,
+	generic_set_clip_area,
 	vga_block, /* block */
 	vga_unblock, /* unblock */
 	NULL, /* set_title */

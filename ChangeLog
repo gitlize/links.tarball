@@ -1,3 +1,116 @@
+=== RELEASE 2.8 ===
+
+Sat Sep 14 22:42:15 CEST 2013 mikulas:
+
+	Fixed a memory leak if TIFF download was interrupted
+
+Sat Aug 24 17:59:01 cet 2013 mikulas:
+
+	DOS DJGPP port
+
+Sun Jul 14 23:35:49 CEST 2013 mikulas:
+
+	Do not save lines starting with space to URL history on the disk
+	(idea by Volker Schatz)
+
+Sun Jul 14 23:35:28 CEST 2013 Volker Schatz <linksbrowser@volkerschatz.com>
+
+	Do not misreport Date header value as last-modified date
+		in the info box popping up on "=".
+	New graphics glyphs
+
+Wed May 15 00:44:53 CEST 2013 Samuli Suominen <ssuominen@gentoo.org>:
+
+	Fixed file 045e.png. It was not compatible with libpng-1.6
+
+Wed May 15 00:43:27 CEST 2013 mikulas:
+
+	Test integers addition for overflow. This fixes possible crashes due to
+	overflows, they could possibly be security-sensitive.
+
+Sat Apr  6 19:00:07 CEST 2013 mikulas:
+
+	Fixed a bug in Xwindow driver when images larger than 65536
+	pixels were used
+	Fixed some integer overflows when scaling images larger than 65536
+	pixels
+
+Wed Jan  2 02:07:43 CET 2013 mikulas:
+
+	OpenVMS port
+
+Wed Dec 12 04:52:33 MET 2012 mikulas:
+
+	Fixed invalid pointer comparison (comparing if NULL is smaller
+	than non-NULL pointer) that could result in failures with certain
+	compilers
+
+Wed Nov  7 22:43:45 CET 2012 mikulas:
+
+	Fixed IPv6 detection on OpenBSD
+
+Sat Sep 22 03:01:58 CEST 2012 mikulas:
+
+	Fixed an internal error in decompressed file cache if Links
+	was running out of memory and was freeing cached data
+
+Wed Sep 19 22:40:04 MET 2012 mikulas:
+
+	An option that allows the user not to save URL history
+
+Sat Sep  1 18:26:50 CEST 2012 mikulas:
+
+	An option to send do not track request
+
+Thu Aug 16 04:19:58 CEST 2012 mikulas:
+
+	Reduced CPU consumption when downloading big files
+
+Tue Aug 14 21:52:43 CEST 2012 mikulas:
+
+	Fixed a crash if the user selects "Save as" and the document has no
+	header (the bug was introduced in Links 2.7pre1)
+
+Tue Aug 14 21:01:39 CEST 2012 mikulas:
+
+	Parse FTP directories on VMS FTP server
+
+Mon Aug 13 21:39:09 CEST 2012 mikulas:
+
+	Use a blocking pipe when communicating with the dns process, it
+	fixes a possible error when system pipe buffer is too small
+
+Mon Aug  6 23:31:44 CEST 2012 mikulas:
+
+	Workaround for bugs on GNU Hurd
+
+Sat Jul 28 01:21:18 CEST 2012 mikulas:
+
+	data: url
+
+Fri Jul 20 19:00:30 MET 2012 mikulas:
+
+	Accept color in #xxx format (besides usual #xxxxxx)
+
+Tue Jul 10 22:45:19 CEST 2012 mikulas:
+
+	Fixed an infinite retry loop when the server terminates connection
+	prematurely
+
+Sun Jul  8 20:23:43 CEST 2012 mikulas:
+
+	Fixed some races in the framebuffer driver that could result in
+	display corruption if the user is switching virtual consoles too
+	quickly
+
+Thu Jul  5 22:35:57 CEST 2012 mikulas:
+
+	Don't save URLs with password to history file on a disk
+
+Sat Jun 30 17:32:11 CEST 2012 mikulas:
+
+	Fixed a rare bug where image alpha channel was not applied correctly
+
 === RELEASE 2.7 ===
 
 Sat Jun 23 23:02:47 CEST 2012 mikulas:
@@ -23,7 +136,7 @@ Ne Jun 17 22:32:52 CEST 2012 mikulas:
 
 	Fix memory leak in ftp
 
-Tue Jun 12 02:31:05 MET 2012 progman:
+Tue Jun 12 02:31:05 MET 2012 mikulas:
 
 	Fixed incorrect display when aspect ratio was changed
 	while multiple windows were open

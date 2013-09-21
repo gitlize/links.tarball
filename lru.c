@@ -66,10 +66,10 @@ void lru_destroy_bottom(struct lru* cache)
 /* Returns a value of "data"
  * template is what we search for.
  */
-void *lru_lookup(struct lru *cache, void *template, struct lru_entry *ptr)
+void *lru_lookup(struct lru *cache, void *templat, struct lru_entry *ptr)
 {
 	while (ptr){
-		if (!cache->compare_function(ptr->data,template)){
+		if (!cache->compare_function(ptr->data,templat)){
 			/* Found */
 			if (ptr->above){
 				if (ptr->below){
@@ -90,7 +90,7 @@ void *lru_lookup(struct lru *cache, void *template, struct lru_entry *ptr)
 	return NULL;
 }
 
-void lru_init (struct lru *cache, int (*compare_function)(void *entry, void *template))
+void lru_init (struct lru *cache, int (*compare_function)(void *entry, void *templat))
 {
 	cache->compare_function=compare_function;
 	cache->top=NULL;

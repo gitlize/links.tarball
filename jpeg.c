@@ -25,12 +25,15 @@ struct jerr_struct{
 
 static struct jerr_struct *global_jerr;
 static struct jpeg_decompress_struct *global_cinfo;
-static int mesg_unsup_emitted; /* Defaults to zero at program startup and once
+static int mesg_unsup_emitted = 0; /* Defaults to zero at program startup and once
 				* set is never reset back to zero */
 
 
+/*#include <jerror.h>*/
+
 METHODDEF(void) my_error_exit(j_common_ptr cinfo)
 {
+	/*fprintf(stderr, "jpeg error %d (%d)\n", cinfo->err->msg_code, JERR_OUT_OF_MEMORY);*/
 	longjmp(global_jerr->setjmp_buffer,2);
 }
 
@@ -56,7 +59,7 @@ METHODDEF(void) my_skip_input_data(j_decompress_ptr cinfo,long num_bytes)
 	 	/* We have to enter skipping state */
 	 	cinfo->src->next_input_byte+=cinfo->src->bytes_in_buffer;
 		((struct jpg_decoder *)(global_cimg->decoder))->skip_bytes
-  			=num_bytes-cinfo->src->bytes_in_buffer;
+  			=(int)(num_bytes-cinfo->src->bytes_in_buffer);
   		cinfo->src->bytes_in_buffer=0;
 	}
 	else
@@ -145,6 +148,9 @@ static void gray_to_rgb(unsigned char *data, int pixels)
 /* Fixes returned data in case they are CMYK or grayscale. */
 static inline void fix_data( struct jpg_decoder *deco, int lines_read)
 {
+#ifdef __ICC
+	volatile	/* ICC bug */
+#endif
 	int a;
 
 	switch (global_cinfo->output_components){
@@ -274,7 +280,7 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 			/* Let's make a decompression fatal error here */
 
 			if (!mesg_unsup_emitted){
-				fprintf(stderr,
+				error(
 			"Unsupported JPEG output components number: %d.\n",
 			cimg->buffer_bytes_per_pixel);
 				mesg_unsup_emitted=1;
@@ -293,9 +299,9 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 			 * than with ordinary commercially available jumps.
 			 */
 		}
-		cimg->red_gamma=sRGB_gamma;
-		cimg->green_gamma=sRGB_gamma;
-		cimg->blue_gamma=sRGB_gamma;
+		cimg->red_gamma=(float)sRGB_gamma;
+		cimg->green_gamma=(float)sRGB_gamma;
+		cimg->blue_gamma=(float)sRGB_gamma;
 		/* This is defined in the JPEG standard somehow that sRGB
 		 * color space is used. */
 
@@ -324,7 +330,7 @@ susp0:
 		case 3:
 		/* jpeg_read_scanlines */
 			/* color */
-        	while (global_cinfo->output_scanline
+		while (global_cinfo->output_scanline
 			<global_cinfo->output_height){
 			int a, lines;
 
@@ -336,7 +342,7 @@ susp0:
 					buffer_bytes_per_pixel;
 			}
 		
-         		if ((lines=
+	 		if ((lines=
 				jpeg_read_scanlines(
 				global_cinfo,deco->scanlines,1))){
 				/* Some lines were written into cimg buffer */
@@ -346,8 +352,8 @@ susp0:
 			}else{
 				/* No lines have been written into cimg
 				 * buffer */
-                	 	/* We are suspended and we want more data */
-         	 		goto susp0; /* Break the outer 
+			 	/* We are suspended and we want more data */
+	 	 		goto susp0; /* Break the outer 
 					     * switch statement */
 			}
 		}

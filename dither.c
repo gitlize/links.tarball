@@ -125,7 +125,7 @@ static long color_555(int);
 static long color_565be(int);
 static long color_565(int);
 /*static void make_8_table(int *, double);*/
-static void make_16_table(int *, int, int, double , int, int);
+static void make_16_table(int *, int, int, float_double, int, int);
 static void make_red_table(int, int, int, int);
 static void make_green_table(int, int, int, int);
 static void make_blue_table(int, int, int, int);
@@ -378,7 +378,7 @@ ROUND_TEMPLATE(round_708)
 static long color_332(int rgb)
 {
 	int r,g,b;
-	long ret;
+	long ret = 0;
 
 	r=(rgb>>16)&255;
 	g=(rgb>>8)&255;
@@ -387,7 +387,7 @@ static long color_332(int rgb)
 	g=(g*7+127)/255;
 	b=(b*3+127)/255;
 
-	*(char *)&ret=(r<<5)|(g<<2)|b;
+	*(unsigned char *)&ret=(r<<5)|(g<<2)|b;
 	return ret;
 
 }
@@ -395,7 +395,7 @@ static long color_332(int rgb)
 static long color_121(int rgb)
 {
 	int r,g,b;
-	long ret;
+	long ret = 0;
 
 	r=(rgb>>16)&255;
 	g=(rgb>>8)&255;
@@ -403,18 +403,18 @@ static long color_121(int rgb)
 	r=(r+127)/255;
 	g=(3*g+127)/255;
 	b=(b+127)/255;
-	*(char *)&ret=(r<<3)|(g<<1)|b;
+	*(unsigned char *)&ret=(r<<3)|(g<<1)|b;
 	return ret;
 
 }
 
 static long color_pass_rgb(int rgb)
 {
-	long ret;
+	long ret = 0;
 
-	*(char *)&ret=rgb>>16;
-	((char *)&ret)[1]=rgb>>8;
-	((char *)&ret)[2]=rgb;
+	((unsigned char *)&ret)[0]=rgb>>16;
+	((unsigned char *)&ret)[1]=rgb>>8;
+	((unsigned char *)&ret)[2]=(unsigned char)rgb;
 
 	return ret;
 
@@ -422,11 +422,11 @@ static long color_pass_rgb(int rgb)
 
 static long color_888_bgr(int rgb)
 {
-	long ret;
+	long ret = 0;
 
-	((char *)&ret)[0]=rgb;
-	((char *)&ret)[1]=rgb>>8;
-	((char *)&ret)[2]=rgb>>16;
+	((unsigned char *)&ret)[0]=(unsigned char)rgb;
+	((unsigned char *)&ret)[1]=rgb>>8;
+	((unsigned char *)&ret)[2]=rgb>>16;
 
 	return ret;
 }
@@ -454,12 +454,12 @@ static void pass_bgr(unsigned short *in, struct bitmap *out)
 
 static long color_8888_bgr0(int rgb)
 {
-	long ret;
+	long ret = 0;
 
-	((char *)&ret)[0]=rgb;
-	((char *)&ret)[1]=rgb>>8;
-	((char *)&ret)[2]=rgb>>16;
-	((char *)&ret)[3]=0;
+	((unsigned char *)&ret)[0]=(unsigned char)rgb;
+	((unsigned char *)&ret)[1]=rgb>>8;
+	((unsigned char *)&ret)[2]=rgb>>16;
+	((unsigned char *)&ret)[3]=0;
 
 	return ret;
 }
@@ -467,13 +467,13 @@ static long color_8888_bgr0(int rgb)
 /* Long live the sigma-delta modulator! */
 static long color_8888_0bgr(int rgb)
 {
-	long ret;
+	long ret = 0;
 
 	/* Atmospheric lightwave communication rulez */
-	((char *)&ret)[0]=0;
-	((char *)&ret)[1]=rgb;
-	((char *)&ret)[2]=rgb>>8;
-	((char *)&ret)[3]=rgb>>16;
+	((unsigned char *)&ret)[0]=0;
+	((unsigned char *)&ret)[1]=(unsigned char)rgb;
+	((unsigned char *)&ret)[2]=rgb>>8;
+	((unsigned char *)&ret)[3]=rgb>>16;
 
 	return ret;
 }
@@ -483,13 +483,13 @@ static long color_8888_0bgr(int rgb)
  * the capital punishment ;-) */
 static long color_8888_0rgb(int rgb)
 {
-	long ret;
+	long ret = 0;
 
 	/* Chokpori Dharamsala Lhasa Laddakh */
-	((char *)&ret)[0]=0;
-	((char *)&ret)[1]=rgb>>16;
-	((char *)&ret)[2]=rgb>>8;
-	((char *)&ret)[3]=rgb;
+	((unsigned char *)&ret)[0]=0;
+	((unsigned char *)&ret)[1]=rgb>>16;
+	((unsigned char *)&ret)[2]=rgb>>8;
+	((unsigned char *)&ret)[3]=(unsigned char)rgb;
 
 	return ret;
 }
@@ -523,31 +523,31 @@ static long color_555be(int rgb)
 	int g=(rgb>>8)&255;
 	int b=(rgb)&255;
 	int i;
-	long ret;
+	long ret = 0;
 
 	r=(r*31+127)/255;
 	g=(g*31+127)/255;
 	b=(b*31+127)/255;
 	i=(r<<10)|(g<<5)|b;
 	((unsigned char *)&ret)[0]=i>>8;
-	((unsigned char *)&ret)[1]=i;
+	((unsigned char *)&ret)[1]=(unsigned char)i;
 	return ret;
 }
 
 /* We assume long holds at least 32 bits */
-long color_555(int rgb)
+static long color_555(int rgb)
 {
 	int r=(rgb>>16)&255;
 	int g=(rgb>>8)&255;
 	int b=(rgb)&255;
 	int i;
-	long ret;
+	long ret = 0;
 
 	r=(r*31+127)/255;
 	g=(g*31+127)/255;
 	b=(b*31+127)/255;
 	i=(r<<10)|(g<<5)|b;
-	((unsigned char *)&ret)[0]=i;
+	((unsigned char *)&ret)[0]=(unsigned char)i;
 	((unsigned char *)&ret)[1]=i>>8;
 	return ret;
 }
@@ -555,7 +555,7 @@ long color_555(int rgb)
 static long color_565be(int rgb)
 {
 	int r,g,b;
-	long ret;
+	long ret = 0;
 	int i;
 
 	r=(rgb>>16)&255;
@@ -568,14 +568,14 @@ static long color_565be(int rgb)
 	b=(b*31+127)/255;
 	i = (r<<11)|(g<<5)|b;
 	((unsigned char *)&ret)[0]=i>>8;
-	((unsigned char *)&ret)[1]=i;
+	((unsigned char *)&ret)[1]=(unsigned char)i;
 	return ret;
 }
 
-long color_565(int rgb)
+static long color_565(int rgb)
 {
 	int r,g,b;
-	long ret;
+	long ret = 0;
 	int i;
 
 	r=(rgb>>16)&255;
@@ -587,7 +587,7 @@ long color_565(int rgb)
 	g=(g*63+127)/255;
 	b=(b*31+127)/255;
 	i=(r<<11)|(g<<5)|b;
-	((unsigned char *)&ret)[0]=i;
+	((unsigned char *)&ret)[0]=(unsigned char)i;
 	((unsigned char *)&ret)[1]=i>>8;
 	return ret;
 }
@@ -657,10 +657,11 @@ long (*get_color_fn(int depth))(int rgb)
 static void make_8_table(int *table, double gamma)
 {
 	int i,light0;
-	double light;
+	float_double light;
+	const float_double inv_255=1/255.;
 	
 	for (i=0;i<256;i++){
-		light=pow((double)i/255,gamma);
+		light=fd_pow((float_double)i*inv_255,gamma);
 		/* Long live the Nipkow Disk */
 		light0=65535*light;
 		if (light0<0) light0=0;
@@ -674,13 +675,13 @@ static void make_8_table(int *table, double gamma)
 /* dump_t2c means memory organization defined in comment for
  * red_table on the top of dither.c */
 /* dump_t2c is taken into account only if t2c is defined. */
-static void make_16_table(int *table, int bits, int pos,double gamma, int dump_t2c,
+static void make_16_table(int *table, int bits, int pos, float_double gamma, int dump_t2c,
 	int bigendian)
 {
 	int j,light_val,grades=(1<<bits)-1,grade;
-	double voltage;
-	double rev_gamma=1/gamma;
-	const double t=((double)1)/65535;
+	float_double voltage;
+	float_double rev_gamma=1/gamma;
+	const float_double inv_65535=1/65535.;
 	int last_grade, last_content;
 	ttime start_time = get_time();
 	int sample_state = 0;
@@ -712,18 +713,18 @@ static void make_16_table(int *table, int bits, int pos,double gamma, int dump_t
 				}
 			}
 		}
-		voltage=pow(j*t,rev_gamma);
+		voltage=fd_pow(j*inv_65535,rev_gamma);
 		/* Determine which monitor input voltage is equivalent
 		 * to said photon flux level
 		 */
 
-		grade=voltage*grades+.5;
+		grade=(int)(voltage*grades+.5);
 		if (grade==last_grade){
 			table[j]=last_content;
 			continue;
 		}
 		last_grade=grade;
-		voltage=(double)grade/grades;
+		voltage=(float_double)grade/grades;
 		/* Find nearest voltage to this voltage. Finding nearest voltage, not
 		 * nearest photon flux ensures the dithered pixels will be perceived to be
 		 * near. The voltage input into the monitor was intentionally chosen by
@@ -733,40 +734,22 @@ static void make_16_table(int *table, int bits, int pos,double gamma, int dump_t
 		 * kool ;-) (and is kool)
 		 */
 		 
-		light_val=pow(voltage,gamma)*65535+0.5;
+		light_val=(int)(fd_pow(voltage,gamma)*65535+0.5);
 		/* Find out what photon flux this index represents */
 
 		if (light_val<0) light_val=0;
 		if (light_val>65535) light_val=65535;
 		/* Clip photon flux for safety */
 
-#ifdef t2c_xxx
-/* This branch is broken, but it was never tried */
-		if (dump_t2c){
-			t2c sh;
-			int val=grade<<pos;
-
-			if (bigendian) {
-				((unsigned char *)&sh)[0]=val;
-				((unsigned char *)&sh)[1]=val>>8;
-			}else{
-				((unsigned char *)&sh)[1]=val;
-				((unsigned char *)&sh)[0]=val>>8;
-			}
-			last_content=light_val|(sh<<16U);	
+		if (bigendian) {
+			int val, val2;
+			val = grade<<pos;
+			val2 = (val>>8) | ((val&0xff)<<8);
+			last_content=light_val|(val2<<16U);
 		}else{
-#endif /* #ifdef t2c */
-			if (bigendian) {
-				int val, val2;
-				val = grade<<pos;
-				val2 = (val>>8) | ((val&0xff)<<8);
-				last_content=light_val|(val2<<16U);
-			}else{
-				last_content=light_val|(grade<<(pos+16U));
-			}
-#ifdef t2c_xxx
+			last_content=light_val|(grade<<(pos+16U));
 		}
-#endif /* #ifdef t2c */
+
 		table[j]=last_content;
 		/* Save index and photon flux. */
 	}
@@ -777,17 +760,17 @@ static void make_16_table(int *table, int bits, int pos,double gamma, int dump_t
 
 static void make_red_table(int bits, int pos, int dump_t2c, int be)
 {
-	make_16_table(red_table,bits,pos,display_red_gamma,dump_t2c, be);
+	make_16_table(red_table,bits,pos,(float_double)display_red_gamma,dump_t2c, be);
 }
 
 static void make_green_table(int bits, int pos, int dump_t2c, int be)
 {
-	make_16_table(green_table,bits,pos,display_green_gamma,dump_t2c, be);
+	make_16_table(green_table,bits,pos,(float_double)display_green_gamma,dump_t2c, be);
 }
 
 static void make_blue_table(int bits, int pos,int dump_t2c, int be)
 {
-	make_16_table(blue_table,bits,pos,display_blue_gamma, dump_t2c, be);
+	make_16_table(blue_table,bits,pos,(float_double)display_blue_gamma, dump_t2c, be);
 }
 
 void dither(unsigned short *in, struct bitmap *out)
@@ -824,7 +807,7 @@ static void make_round_tables(void)
 
 	for (a=0;a<256;a++){
 		/* a is sRGB coordinate */
-		v=apply_gamma_single_8_to_16(a,user_gamma/sRGB_gamma);
+		v=ags_8_to_16((unsigned char)a,(float)(user_gamma/sRGB_gamma));
 		round_red_table[a]=red_table[v];
 		round_green_table[a]=green_table[v];
 		round_blue_table[a]=blue_table[v];
