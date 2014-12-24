@@ -70,13 +70,13 @@ VERSION = @VERSION@
 
 man_MANS = links.1
 
-EXTRA_DIST = $(man_MANS) atheos.cpp BRAILLE_HOWTO KEYS SITES descrip.mms *.opt PATCH-gpm-1.20.0-smooth-cursor PATCH-libpng-1.2.18 mailcap.pl rebuild Links_logo.png Unicode/*.cp Unicode/[!C]* intl/[!C]* graphics/*.c graphics/arrow.png graphics/gen graphics/system_font/*.png graphics/font/century_extensions-medium-roman-serif-vari/*.png graphics/font/century_school-bold-roman-serif-vari/*.png graphics/font/century_school-medium-roman-serif-vari/*.png graphics/font/courier-medium-roman-serif-mono/*.png graphics/font/japanese-medium-roman-sans-mono/*.png graphics/font/symbol-medium-roman-sans-vari/*.png graphics/font/century_school-bold-roman-serif-vari/aliases graphics/font/century_school-medium-roman-serif-vari/aliases graphics/font/japanese-medium-roman-sans-mono/aliases graphics/font/symbol-medium-roman-sans-vari/aliases doc/links_cal/*.png doc/links_cal/*.html graphics/Makefile graphics/Fontmap graphics/clip.c graphics/links.xpm graphics/makefont graphics/pdf2html graphics/spacer.png pkg-config.m4 *.xpm *.ico *.rc mk-release-os2 mk-release-win mk-dos links.wis *.nsi
+EXTRA_DIST = $(man_MANS) atheos.cpp BRAILLE_HOWTO KEYS SITES descrip.mms *.opt PATCH-gpm-1.20.0-smooth-cursor PATCH-libpng-1.2.18 mailcap.pl rebuild Links_logo.png Unicode/*.cp Unicode/[!C]* intl/[!C]* graphics/*.c graphics/arrow.png graphics/gen graphics/system_font/*.png graphics/font/century_extensions-medium-roman-serif-vari/*.png graphics/font/century_school-bold-roman-serif-vari/*.png graphics/font/century_school-medium-roman-serif-vari/*.png graphics/font/courier-medium-roman-serif-mono/*.png graphics/font/japanese-medium-roman-sans-mono/*.png graphics/font/symbol-medium-roman-sans-vari/*.png graphics/font/century_school-bold-roman-serif-vari/aliases graphics/font/century_school-medium-roman-serif-vari/aliases graphics/font/japanese-medium-roman-sans-mono/aliases graphics/font/symbol-medium-roman-sans-vari/aliases doc/links_cal/*.png doc/links_cal/*.html graphics/Makefile graphics/Fontmap graphics/clip.c graphics/links.xpm graphics/makefont graphics/pdf2html graphics/spacer.png pkg-config.m4 *.xpm *.ico *.rc mk-release-os2 mk-release-win mk-dos mk-dos83.cmd links.wis *.nsi
 
 bin_PROGRAMS = links
 
 @ATHEOS_GR_TRUE@links_LDADD = atheos.o
 
-links_SOURCES = af_unix.c auth.c beos.c bfu.c block.c bookmark.c cache.c charsets.c compress.c connect.c cookies.c data.c default.c dip.c directfb.c dither.c dns.c dos.c drivers.c error.c file.c finger.c fn_impl.c font_inc.c framebuf.c ftp.c gif.c grx.c hpux.c html.c html_gr.c html_r.c html_tbl.c http.c https.c img.c imgcache.c jpeg.c jsint.c kbd.c language.c links_ic.c listedit.c lru.c mailto.c main.c memory.c menu.c objreq.c os_dep.c pmshell.c png.c sched.c select.c session.c smb.c string.c svgalib.c terminal.c tiff.c types.c url.c view.c view_gr.c vms.c x.c xbm.c beos.h bits.h cfg.h codepage.h com-defs.h config-vms.h dfb_cur.h hpux.h language.h links.h os_dep.h os_depx.h setup.h arrow.inc codepage.inc entity.inc fbcommon.inc language.inc uni_7b.inc upcase.inc vpipe.inc
+links_SOURCES = af_unix.c auth.c beos.c bfu.c block.c bookmark.c cache.c charsets.c compress.c connect.c cookies.c data.c default.c dip.c directfb.c dither.c dns.c dos.c drivers.c error.c file.c finger.c fn_impl.c font_inc.c framebuf.c ftp.c gif.c grx.c hpux.c html.c html_gr.c html_r.c html_tbl.c http.c https.c img.c imgcache.c jpeg.c jsint.c kbd.c language.c listedit.c lru.c mailto.c main.c memory.c menu.c objreq.c os_dep.c pmshell.c png.c sched.c select.c session.c smb.c string.c svgalib.c terminal.c tiff.c types.c url.c view.c view_gr.c vms.c x.c xbm.c beos.h bits.h cfg.h codepage.h com-defs.h config-vms.h dfb_cur.h hpux.h language.h links.h os_dep.h os_depx.h setup.h arrow.inc codepage.inc entity.inc fbcommon.inc language.inc links_ic.inc uni_7b.inc upcase.inc vpipe.inc
 
 CXXFLAGS = @CXXFLAGS@
 
@@ -97,10 +97,10 @@ cache.o charsets.o compress.o connect.o cookies.o data.o default.o \
 dip.o directfb.o dither.o dns.o dos.o drivers.o error.o file.o finger.o \
 fn_impl.o font_inc.o framebuf.o ftp.o gif.o grx.o hpux.o html.o \
 html_gr.o html_r.o html_tbl.o http.o https.o img.o imgcache.o jpeg.o \
-jsint.o kbd.o language.o links_ic.o listedit.o lru.o mailto.o main.o \
-memory.o menu.o objreq.o os_dep.o pmshell.o png.o sched.o select.o \
-session.o smb.o string.o svgalib.o terminal.o tiff.o types.o url.o \
-view.o view_gr.o vms.o x.o xbm.o
+jsint.o kbd.o language.o listedit.o lru.o mailto.o main.o memory.o \
+menu.o objreq.o os_dep.o pmshell.o png.o sched.o select.o session.o \
+smb.o string.o svgalib.o terminal.o tiff.o types.o url.o view.o \
+view_gr.o vms.o x.o xbm.o
 @ATHEOS_GR_TRUE@links_DEPENDENCIES =  atheos.o
 links_LDFLAGS = 
 CFLAGS = @CFLAGS@
@@ -371,9 +371,8 @@ data.o: data.c links.h cfg.h config.h com-defs.h os_dep.h os_depx.h \
 default.o: default.c links.h cfg.h config.h com-defs.h os_dep.h \
 	os_depx.h setup.h language.h codepage.h
 dip.o: dip.c cfg.h config.h links.h com-defs.h os_dep.h os_depx.h \
-	setup.h language.h codepage.h
-directfb.o: directfb.c cfg.h config.h links.h com-defs.h os_dep.h \
-	os_depx.h setup.h language.h codepage.h dfb_cur.h
+	setup.h language.h codepage.h links_ic.inc
+directfb.o: directfb.c cfg.h config.h
 dither.o: dither.c cfg.h config.h links.h com-defs.h os_dep.h os_depx.h \
 	setup.h language.h codepage.h bits.h
 dns.o: dns.c links.h cfg.h config.h com-defs.h os_dep.h os_depx.h \
@@ -424,8 +423,6 @@ kbd.o: kbd.c links.h cfg.h config.h com-defs.h os_dep.h os_depx.h \
 	setup.h language.h codepage.h
 language.o: language.c links.h cfg.h config.h com-defs.h os_dep.h \
 	os_depx.h setup.h language.h codepage.h language.inc
-links_ic.o: links_ic.c cfg.h config.h links.h com-defs.h os_dep.h \
-	os_depx.h setup.h language.h codepage.h
 listedit.o: listedit.c links.h cfg.h config.h com-defs.h os_dep.h \
 	os_depx.h setup.h language.h codepage.h
 lru.o: lru.c cfg.h config.h links.h com-defs.h os_dep.h os_depx.h \
@@ -455,9 +452,7 @@ smb.o: smb.c links.h cfg.h config.h com-defs.h os_dep.h os_depx.h \
 	setup.h language.h codepage.h
 string.o: string.c links.h cfg.h config.h com-defs.h os_dep.h os_depx.h \
 	setup.h language.h codepage.h
-svgalib.o: svgalib.c cfg.h config.h links.h com-defs.h os_dep.h \
-	os_depx.h setup.h language.h codepage.h bits.h arrow.inc \
-	fbcommon.inc
+svgalib.o: svgalib.c cfg.h config.h
 terminal.o: terminal.c links.h cfg.h config.h com-defs.h os_dep.h \
 	os_depx.h setup.h language.h codepage.h
 tiff.o: tiff.c cfg.h config.h links.h com-defs.h os_dep.h os_depx.h \
@@ -557,15 +552,10 @@ maintainer-clean-generic clean mostlyclean distclean maintainer-clean
 
 dist-hook:
 #remove the symlinka:
-	rm $(distdir)/README
 	rm $(distdir)/INSTALL
-	echo Links $(VERSION) > $(distdir)/README
 	echo Links $(VERSION) -- How To Install > $(distdir)/INSTALL
-	echo Links $(VERSION) | tr -c '\n' '-' >> $(distdir)/README
 	echo Links $(VERSION) -- How To Install | tr -c '\n' '-' >> $(distdir)/INSTALL
-	echo >> $(distdir)/README
 	echo >> $(distdir)/INSTALL
-	cat $(srcdir)/README >> $(distdir)/README
 	cat $(srcdir)/INSTALL >> $(distdir)/INSTALL
 
 atheos.o: atheos.cpp

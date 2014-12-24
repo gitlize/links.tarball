@@ -19,7 +19,6 @@ static int root_y = 0;
 static void get_object_pos(struct g_object *o, int *x, int *y);
 static void g_get_search_data(struct f_data *f);
 static struct g_object_text * g_find_nearest_object(struct f_data *f, int x, int y);
-static void redraw_link(struct f_data_c *fd, int nl);
 
 static int previous_link=-1;	/* for mouse event handlers */
 
@@ -147,13 +146,13 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 			case FC_RADIO:
 				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
 				else inv = t->style, in = 0;
-				g_print_text(drv, dev, x, y, inv, fs->state ? cast_uchar "[X]" : cast_uchar "[ ]", NULL);
+				g_print_text(dev, x, y, inv, fs->state ? cast_uchar "[X]" : cast_uchar "[ ]", NULL);
 				if (in) g_free_style(inv);
 				return;
 			case FC_CHECKBOX:
 				if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) inv = g_invert_style(t->style), in = 1;
 				else inv = t->style, in = 0;
-				g_print_text(drv, dev, x, y, inv, fs->state ? cast_uchar "[X]" : cast_uchar "[ ]", NULL);
+				g_print_text(dev, x, y, inv, fs->state ? cast_uchar "[X]" : cast_uchar "[ ]", NULL);
 				if (in) g_free_style(inv);
 				return;
 			case FC_SELECT:
@@ -161,8 +160,8 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				else inv = t->style, in = 0;
 				fixup_select_state(form, fs);
 				l = 0;
-				if (fs->state < form->nvalues) g_print_text(drv, dev, x, y, inv, form->labels[fs->state], &l);
-				while (l < t->xw) g_print_text(drv, dev, x + l, y, inv, cast_uchar "_", &l);
+				if (fs->state < form->nvalues) g_print_text(dev, x, y, inv, form->labels[fs->state], &l);
+				while (l < t->xw) g_print_text(dev, x + l, y, inv, cast_uchar "_", &l);
 				if (in) g_free_style(inv);
 				return;
 			case FC_TEXT:
@@ -200,13 +199,13 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 						i += prepare_input_field_char(fs->value + fs->vpos + i, tx);
 						if (form->type == FC_PASSWORD) tx[0] = '*', tx[1] = 0;
 					}
-					g_print_text(drv, dev, x + l, y, st, tx, &l);
+					g_print_text(dev, x + l, y, st, tx, &l);
 					if (sm) g_free_style(st);
 				}
 				return;
 			case FC_TEXTAREA:
 				cur = area_cursor(fd, form, fs);
-				if (!(lnx = format_text(fs->value, form->cols, form->wrap, fd->f_data->opt.cp))) break;
+				lnx = format_text(fs->value, form->cols, form->wrap, fd->f_data->opt.cp);
 				ln = lnx;
 				yy = y - t->link_order * t->style->height;
 				for (j = 0; j < fs->vypos; j++) if (ln->st) ln++;
@@ -232,7 +231,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 							if (!cur) {
 								st = g_invert_style(t->style);
 							}
-							g_print_text(drv, dev, xx, yy + j * t->style->height, st, tx, &xx);
+							g_print_text(dev, xx, yy + j * t->style->height, st, tx, &xx);
 							if (!cur) {
 								g_free_style(st);
 							}
@@ -247,7 +246,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 							else a = stracpy(cast_uchar "");
 							for (aa = 0; aa < form->cols; aa += 4) add_to_strn(&a, cast_uchar "____");
 							restrict_clip_area(dev, &old, x, 0, x + t->xw, dev->size.y2);
-							g_print_text(drv, dev, x, yy + j * t->style->height, t->style, a, NULL);
+							g_print_text(dev, x, yy + j * t->style->height, t->style, a, NULL);
 							drv->set_clip_area(dev, &old);
 							mem_free(a);
 						}
@@ -255,18 +254,17 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 					}
 					if (ln->st) ln++;
 				}
-				mem_free(lnx);
 				return;
 		}
 	}
 	if (link && fd->active && fd->vs->g_display_link && fd->vs->current_link == link - fd->f_data->links) {
 		struct style *inv;
 		inv = g_invert_style(t->style);
-		g_print_text(drv, dev, x, y, inv, t->text, NULL);
+		g_print_text(dev, x, y, inv, t->text, NULL);
 		g_free_style(inv);
 	} else if ((!fd->f_data->hlt_len && (!highlight_positions || !n_highlight_positions)) || g_text_no_search(fd->f_data, t)) {
 		prn:
-		g_print_text(drv, dev, x, y, t->style, t->text, NULL);
+		g_print_text(dev, x, y, t->style, t->text, NULL);
 	} else {
 		int tlen = (int)strlen(cast_const_char t->text);
 		int found;
@@ -317,7 +315,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 		pmask = -1;
 		for (ii = 0; ii < tlen; ii++) {
 			if (mask[ii] != pmask) {
-				g_print_text(drv, dev, x, y, pmask ? inv : t->style, tx, &x);
+				g_print_text(dev, x, y, pmask ? inv : t->style, tx, &x);
 				mem_free(tx);
 				tx = init_str();
 				txl = 0;
@@ -325,7 +323,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 			add_chr_to_str(&tx, &txl, t->text[ii]);
 			pmask = mask[ii];
 		}
-		g_print_text(drv, dev, x, y, pmask ? inv : t->style, tx, &x);
+		g_print_text(dev, x, y, pmask ? inv : t->style, tx, &x);
 		mem_free(tx);
 		g_free_style(inv);
 		mem_free(mask);
@@ -450,7 +448,7 @@ void get_scrollbar_pos(int dsize, int total, int vsize, int vpos, int *start, in
 		*start = 0; *end = dsize;
 		return;
 	}
-	*start = (int)((double)(dsize - ssize) * vpos / (total - vsize));
+	*start = (int)((double)(dsize - ssize) * vpos / (total - vsize) + 0.5);
 	*end = *start + ssize;
 	if (*start > dsize) *start = dsize;
 	if (*start < 0) *start = 0;
@@ -801,6 +799,7 @@ static void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int
 			if (l->type==L_AREA)
 			{
 				struct line_info *ln;
+				int aa;
 				if (!(fs=find_form_state(fd,l->form)))return;
 
 				if (g_char_width(a->style,' ')) {
@@ -810,16 +809,13 @@ static void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int
 				xx=xx<0?0:xx;
 				yy=a->link_order;
 				yy+=fs->vypos;
-				if ((ln = format_text(fs->value, l->form->cols, l->form->wrap, fd->f_data->opt.cp))) {
-					int a;
-					for (a = 0; ln[a].st; a++) if (a==yy){
-						int bla=textptr_diff(ln[a].en,ln[a].st, fd->f_data->opt.cp);
+				ln = format_text(fs->value, l->form->cols, l->form->wrap, fd->f_data->opt.cp);
+				for (aa = 0; ln[aa].st; aa++) if (aa==yy){
+					int bla=textptr_diff(ln[aa].en,ln[aa].st, fd->f_data->opt.cp);
 
-						fs->state=(int)(ln[a].st-fs->value);
-						fs->state = (int)(textptr_add(fs->value + fs->state, xx<bla?xx:bla, fd->f_data->opt.cp) - fs->value);
-						break;
-					}
-					mem_free(ln);
+					fs->state=(int)(ln[aa].st-fs->value);
+					fs->state = (int)(textptr_add(fs->value + fs->state, xx<bla?xx:bla, fd->f_data->opt.cp) - fs->value);
+					break;
 				}
 				return;
 			}
@@ -885,7 +881,7 @@ static void process_sb_event(struct f_data_c *fd, int off, int h)
 	if (off >= spos && off < epos) {
 		fd->ses->scrolling = 1;
 		fd->ses->scrolltype = h;
-		fd->ses->scrolloff = off - spos - 1;
+		fd->ses->scrolloff = off - spos;
 		return;
 	}
 	if (off < spos) {
@@ -906,13 +902,15 @@ static void process_sb_move(struct f_data_c *fd, int off)
 	int w = h ? fd->hsbsize : fd->vsbsize;
 	int rpos = off - 2 - fd->ses->scrolloff;
 	int st, en;
+	int new_val;
 	get_scrollbar_pos(w - 4, h ? fd->f_data->x : fd->f_data->y, w, h ? fd->vs->view_posx : fd->vs->view_pos, &st, &en);
 	if (en - st >= w - 4) return;
 	/*
 	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = rpos * (h ? fd->f_data->x : fd->f_data->y) / (w - 4);
 	*/
-	if (!(w - 4 - (en - st))) return;
-	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = (int)(rpos * (double)(h ? fd->f_data->x - w : fd->f_data->y - w) / (w - 4 - (en - st)));
+	if (w - 4 - (en - st) <= 0) return;
+	new_val = (int)(rpos * (double)(h ? fd->f_data->x - w : fd->f_data->y - w) / (w - 4 - (en - st)) + 0.5);
+	*(h ? &fd->vs->view_posx : &fd->vs->view_pos) = new_val;
 	fd->vs->orig_view_pos = fd->vs->view_pos;
 	fd->vs->orig_view_posx = fd->vs->view_posx;
 	draw_graphical_doc(fd->ses->term, fd, 1);
@@ -1335,12 +1333,12 @@ void draw_title(struct f_data_c *f)
 	if (drv->set_title && strchr(cast_const_char title, POST_CHAR)) *cast_uchar strchr(cast_const_char title, POST_CHAR) = 0;
 	w = g_text_width(bfu_style_bw, title);
 	z = 0;
-	g_print_text(drv, dev, 0, 0, bfu_style_bw, cast_uchar G_LEFT_ARROW, &z);
+	g_print_text(dev, 0, 0, bfu_style_bw, cast_uchar G_LEFT_ARROW, &z);
 	f->ses->back_size = z;
 	b = (dev->size.x2 - w) - 16;
 	if (b < z) b = z;
 	drv->fill_area(dev, z, 0, b, G_BFU_FONT_SIZE, bfu_bg_color);
-	g_print_text(drv, dev, b, 0, bfu_style_bw, title, &b);
+	g_print_text(dev, b, 0, bfu_style_bw, title, &b);
 	drv->fill_area(dev, b, 0, dev->size.x2, G_BFU_FONT_SIZE, bfu_bg_color);
 	mem_free(title);
 }

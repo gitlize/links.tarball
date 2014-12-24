@@ -13,9 +13,9 @@ struct table_entry {
 };
 
 struct codepage_desc {
-	char *name;
-	char **aliases;
-	struct table_entry *table;
+	const char *name;
+	const char * const *aliases;
+	const struct table_entry *table;
 };
 
 #include "codepage.inc"
@@ -23,7 +23,7 @@ struct codepage_desc {
 #include "entity.inc"
 #include "upcase.inc"
 
-static unsigned char strings[256][2] = {
+static const unsigned char strings[256][2] = {
 	"\000", "\001", "\002", "\003", "\004", "\005", "\006", "\007",
 	"\010", "\011", "\012", "\013", "\014", "\015", "\016", "\017",
 	"\020", "\021", "\022", "\023", "\024", "\025", "\026", "\033",
@@ -65,17 +65,17 @@ static void free_translation_table(struct conv_table *p)
 	mem_free(p);
 }
 
-static unsigned char no_str[] = "*";
+static const unsigned char no_str[] = "*";
 
 static void new_translation_table(struct conv_table *p)
 {
 	int i;
 	for (i = 0; i < 256; i++) if (p[i].t) free_translation_table(p[i].u.tbl);
-	for (i = 0; i < 128; i++) p[i].t = 0, p[i].u.str = strings[i];
-	for (; i < 256; i++) p[i].t = 0, p[i].u.str = no_str;
+	for (i = 0; i < 128; i++) p[i].t = 0, p[i].u.str = cast_uchar strings[i];
+	for (; i < 256; i++) p[i].t = 0, p[i].u.str = cast_uchar no_str;
 }
 
-static int strange_chars[32] = {
+static const int strange_chars[32] = {
 	0x20ac, 0x0000, 0x002a, 0x0000, 0x201e, 0x2026, 0x2020, 0x2021,
 	0x005e, 0x2030, 0x0160, 0x003c, 0x0152, 0x0000, 0x0000, 0x0000,
 	0x0000, 0x0060, 0x0027, 0x0022, 0x0022, 0x002a, 0x2013, 0x2014,
@@ -89,9 +89,9 @@ unsigned char *u2cp(int u, int to, int fallback)
 {
 	int j, s;
 	again:
-	if (u < 128) return strings[u];
-	if (u == 0xa0) return strings[1];
-	if (u == 0xad) return strings[0];
+	if (u < 128) return cast_uchar strings[u];
+	if (u == 0xa0) return cast_uchar strings[1];
+	if (u == 0xad) return cast_uchar strings[0];
 	if (to == utf8_table) return encode_utf_8(u);
 	if (u < 0xa0) {
 		u = strange_chars[u - 0x80];
@@ -100,7 +100,7 @@ unsigned char *u2cp(int u, int to, int fallback)
 	}
 	for (j = 0; codepages[to].table[j].c; j++)
 		if (codepages[to].table[j].u == u)
-			return strings[codepages[to].table[j].c];
+			return cast_uchar strings[codepages[to].table[j].c];
 	if (!fallback) return NULL;
 	BIN_SEARCH(N_UNICODE_7B, U_EQUAL, U_ABOVE, u, s);
 	if (s != -1) return cast_uchar unicode_7b[s].s;
@@ -109,7 +109,7 @@ unsigned char *u2cp(int u, int to, int fallback)
 
 int cp2u(unsigned ch, int from)
 {
-	struct table_entry *e;
+	const struct table_entry *e;
 	if (from == utf8_table) return ch;
 	if (from < 0 || ch < 0x80) return ch;
 	for (e = codepages[from].table; e->c; e++) if (e->c == ch) return e->u;
@@ -194,7 +194,7 @@ static struct conv_table *get_translation_table_to_utf_8(int from)
 	lfr = from;
 	if (utf_table_init) memset(utf_table, 0, sizeof(struct conv_table) * 256), utf_table_init = 0;
 	else free_utf_table();
-	for (i = 0; i < 128; i++) utf_table[i].u.str = strings[i];
+	for (i = 0; i < 128; i++) utf_table[i].u.str = cast_uchar strings[i];
 	if (from == utf8_table) {
 		for (i = 128; i < 256; i++) utf_table[i].u.str = stracpy(strings[i]);
 		return utf_table;
@@ -264,7 +264,7 @@ unsigned char utf_8_1[256] = {
 	3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 6, 6,
 };
 
-static unsigned min_utf_8[9] = {
+static const unsigned min_utf_8[9] = {
 	0, 0x4000000, 0x200000, 0x10000, 0x800, 0x80, 0x100, 0x1,
 };
 
@@ -313,7 +313,7 @@ struct conv_table *get_translation_table(int from, int to)
 	new_translation_table(table);
 	if (from == utf8_table) {
 		int j;
-		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? strings[1] : codepages[to].table[j].u == 0xad ? strings[0] : strings[codepages[to].table[j].c]);
+		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? cast_uchar strings[1] : codepages[to].table[j].u == 0xad ? cast_uchar strings[0] : cast_uchar strings[codepages[to].table[j].c]);
 		for (i = 0; unicode_7b[i].x != -1; i++) if (unicode_7b[i].x >= 0x80) add_utf_8(table, unicode_7b[i].x, cast_uchar unicode_7b[i].s);
 	} else for (i = 128; i < 256; i++) {
 		int j;

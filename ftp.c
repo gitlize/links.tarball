@@ -405,7 +405,7 @@ static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 		}
 	}
 	if (inf->pending_commands > 1) {
-		unsigned char pc[6];
+		unsigned char pc[6] = { 0, 0, 0, 0, 0, 0 }; /* against warning */
 		if (inf->pasv && inf->opc - (inf->pending_commands - 1) == 2) {
 			int i, j;
 			i = 3;
@@ -697,7 +697,7 @@ static int ftp_process_dirlist(struct cache_entry *ce, off_t *pos, int *d, unsig
 				while (pp + 1 < p && WHITECHAR(buf[pp + 1])) pp++;
 				if (pp + 1 < p) goto done;
 			}
-		
+
 		bn = -1;
 		bp = 0;		/* warning, go away */
 		for (pp = 0; pp < p; ) {

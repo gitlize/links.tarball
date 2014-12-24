@@ -144,7 +144,7 @@ static int check_http_server_bugs(unsigned char *url, struct http_connection_inf
 		mem_free(server);
 		return bugs & ~BL_NO_RANGE;
 	}
-	return 0;	
+	return 0;
 }
 
 static void http_end_request(struct connection *c, int notrunc, int nokeepalive, int state)
@@ -205,7 +205,7 @@ static void add_url_to_str(unsigned char **str, int *l, unsigned char *url)
 static void http_send_header(struct connection *c)
 {
 	struct http_connection_info *info;
-	int http10 = http_options.http10;
+	int http10 = http_options.http10 && !SCRUB_HEADERS;
 	int proxy;
 	unsigned char *hdr;
 	unsigned char *h, *u;
@@ -354,7 +354,9 @@ static void http_send_header(struct connection *c)
 static void add_user_agent(unsigned char **hdr, int *l)
 {
 	add_to_str(hdr, l, cast_uchar "User-Agent: ");
-	if (!(*http_options.header.fake_useragent)) {
+	if (SCRUB_HEADERS) {
+		add_to_str(hdr, l, cast_uchar "Mozilla/5.0 (Windows NT 6.1; rv:31.0) Gecko/20100101 Firefox/31.0\r\n");
+	} else if (!(*http_options.header.fake_useragent)) {
 		add_to_str(hdr, l, cast_uchar("Links (" VERSION_STRING "; "));
 		add_to_str(hdr, l, system_name);
 		add_to_str(hdr, l, cast_uchar "; ");
@@ -383,6 +385,8 @@ static void add_user_agent(unsigned char **hdr, int *l)
 
 static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url)
 {
+	if (SCRUB_HEADERS)
+		return;
 	switch (http_options.header.referer)
 	{
 		case REFERER_FAKE:
@@ -390,7 +394,7 @@ static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigne
 		add_to_str(hdr, l, http_options.header.fake_referer);
 		add_to_str(hdr, l, cast_uchar "\r\n");
 		break;
-		
+
 		case REFERER_SAME_URL:
 		add_to_str(hdr, l, cast_uchar "Referer: ");
 		add_url_to_str(hdr, l, url);
@@ -433,20 +437,28 @@ static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigne
 
 static void add_accept(unsigned char **hdr, int *l)
 {
-	add_to_str(hdr, l, cast_uchar "Accept: */*\r\n");
+	if (SCRUB_HEADERS) {
+		add_to_str(hdr, l, cast_uchar "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n");
+	} else {
+		add_to_str(hdr, l, cast_uchar "Accept: */*\r\n");
+	}
 }
 
 static void add_accept_language(unsigned char **hdr, int *l, struct http_connection_info *info)
 {
 	if (!(info->bl_flags & BL_NO_ACCEPT_LANGUAGE)) {
-		int la;
 		add_to_str(hdr, l, cast_uchar "Accept-Language: ");
-		la = *l;
-		add_to_str(hdr, l, _(TEXT_(T__ACCEPT_LANGUAGE), NULL));
-		add_to_str(hdr, l, cast_uchar ",");
-		if (!strstr(cast_const_char(*hdr + la), "en,") &&
-		    !strstr(cast_const_char(*hdr + la), "en;")) add_to_str(hdr, l, cast_uchar "en;q=0.2,");
-		add_to_str(hdr, l, cast_uchar "*;q=0.1\r\n");
+		if (SCRUB_HEADERS) {
+			add_to_str(hdr, l, cast_uchar "en-us,en;q=0.5\r\n");
+		} else {
+			int la;
+			la = *l;
+			add_to_str(hdr, l, _(TEXT_(T__ACCEPT_LANGUAGE), NULL));
+			add_to_str(hdr, l, cast_uchar ",");
+			if (!strstr(cast_const_char(*hdr + la), "en,") &&
+			    !strstr(cast_const_char(*hdr + la), "en;")) add_to_str(hdr, l, cast_uchar "en;q=0.2,");
+			add_to_str(hdr, l, cast_uchar "*;q=0.1\r\n");
+		}
 	}
 }
 
@@ -480,19 +492,19 @@ static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url,
 		add_to_str(hdr, l, cast_uchar "Accept-Encoding: ");
 		l1 = *l;
 #if defined(HAVE_ZLIB)
-		if (*l != l1) add_chr_to_str(hdr, l, ',');
-		add_to_str(hdr, l, cast_uchar "gzip,deflate");
+		if (*l != l1) add_to_str(hdr, l, cast_uchar ", ");
+		add_to_str(hdr, l, cast_uchar "gzip, deflate");
 #endif
 #if defined(HAVE_BZIP2)
-		if (!(info->bl_flags & BL_NO_BZIP2)) {
-			if (*l != l1) add_chr_to_str(hdr, l, ',');
+		if (!SCRUB_HEADERS && !(info->bl_flags & BL_NO_BZIP2)) {
+			if (*l != l1) add_to_str(hdr, l, cast_uchar ", ");
 			add_to_str(hdr, l, cast_uchar "bzip2");
 		}
 #endif
 	/* LZMA on DOS often fails with out of memory, don't announce it */
 #if defined(HAVE_LZMA) && !defined(DOS)
-		if (!(info->bl_flags & BL_NO_BZIP2)) {
-			if (*l != l1) add_chr_to_str(hdr, l, ',');
+		if (!SCRUB_HEADERS && !(info->bl_flags & BL_NO_BZIP2)) {
+			if (*l != l1) add_to_str(hdr, l, cast_uchar ", ");
 			add_to_str(hdr, l, cast_uchar "lzma,lzma2");
 		}
 #endif
@@ -506,6 +518,8 @@ static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url,
 static void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info *info)
 {
 	static unsigned char *accept_charset = NULL;
+	if (SCRUB_HEADERS)
+		return;
 	if (!accept_charset) {
 		int i;
 		unsigned char *cs, *ac;
@@ -786,7 +800,6 @@ static void read_http_data(struct connection *c, struct read_buffer *rb)
 				goto next_chunk;
 			}
 		}
-				
 	}
 	read_more:
 	read_from_socket(c, c->sock1, rb, read_http_data);

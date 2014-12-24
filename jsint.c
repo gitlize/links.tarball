@@ -3,12 +3,12 @@
  * This file is a part of the Links program, relased under GPL.
  */
 
-/* 
+/*
  * Ve vsech upcallech plati, ze pokud dostanu ID nejakeho objektu, tak
  * javascript ma k tomu objektu pristupova prava. Jinymi slovy pristupova prava
  * se testuji v upcallech jen, aby se neco neproneslo vratnici ven. Dovnitr se
  * muze donaset vsechno, co si javascript donese, na to ma prava.
- * 
+ *
  * Navic vsechny upcally dostanou pointer na f_data_c, kde bezi javascript,
  * takze se bude moci testovat, zda javascript nesaha na f_data_c, ke kteremu
  * nema pristupova prava.
@@ -21,7 +21,7 @@
  * dale se bude pouzivat take ve funkcich pro praci s cookies, protoze string
  * cookies v javascript_context se tez alokuje pomoci js_mem_alloc/js_mem_free.
  */
- 
+
 /*
    Retezce:
 
@@ -30,7 +30,7 @@
  */
 
 
-#include "links.h" 
+#include "links.h"
 
 #ifdef JS
 
@@ -82,7 +82,7 @@ struct js_request {
 
 /* JESTLI V TYHLE FUNKCI BUDE NEJAKA BUGA, tak za to muze PerM, Clock a pan GNU,
  * ktery tady kolem rusili, ze jsem se nemohl soustredit. Takze se s
- * pripadnejma reklamacema obratte na ne! 
+ * pripadnejma reklamacema obratte na ne!
  *
  *  Brain
  */
@@ -109,11 +109,11 @@ void jsint_set_cookies(struct f_data_c *fd, int final_flush)
 	if(!(fd->js)||!(fd->js->ctx))internal("jsint_set_cookies called with NULL context.\n");
 	if (!(fd->js->ctx->cookies)||!(fd->rq))return;  /* cookies string is empty, nothing to set */
 	str=fd->js->ctx->cookies;
-	
+
 a_znova:
 	eq1=strchr(str,'=');
 	semic1=strchr(str,';');
-	
+
 	if (!*str||(!final_flush&&!semic1))  /* na konci neni strednik a skript jeste bezi, takze to musime vratit do stringu a vypadnout */
 	{
 		unsigned char *bla=NULL;
@@ -139,7 +139,7 @@ a_znova:
 	}
 
 	/* ted by to mela bejt regulerni susenka */
-	
+
 	next_par:
 	eq2=NULL,semic2=NULL;
 	if (semic1!=NULL)
@@ -147,7 +147,7 @@ a_znova:
 		eq2=strchr(semic1+1,'=');
 		semic2=strchr(semic1+1,';');
 	}
-	
+
 	if (eq2&&semic1&&(final_flush||semic2))
 	{
 		unsigned char *p=strstr(semic1+1,"expires");
@@ -178,7 +178,7 @@ a_znova:
 	}
 
 	if (*next)next[-1]=0;
-	
+
 	for (;*str&&WHITECHAR(*str);str++); /* skip whitechars */
 
 	/*debug("set_cookie: \"%s\"", str);*/
@@ -249,14 +249,14 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 	struct js_request *r, *q;
 
 	for (;code&&len&&*code&&((*code)==' '||(*code)==9||(*code)==13||(*code)==10);code++,len--);
-	
+
 	/*
 	FUJ !!!!
 	if (!strncasecmp(cast_const_char code,"javascript:",strlen(cast_const_char "javascript:")))code+=strlen(cast_const_char "javascript:");
 	*/
 
 	if (len >= 11 && !casecmp(code, "javascript:", 11)) code += 11, len -= 11;
-	
+
 	if (!js_enable) {
 		jsint_send_event(fd, ev);
 		return;
@@ -351,16 +351,16 @@ void jsint_done_execution(struct f_data_c *fd)
 		}
 		mem_free(r);
 	}
-	
+
 	to_exec = js->active;
 	if (!to_exec && !list_empty(fd->js->queue)) to_exec = fd->js->queue.next;
 	if (fd->ses->defered_url && (!to_exec || (to_exec->seq > fd->ses->defered_seq && to_exec->write_pos == -1)))
 	{
 		unsigned char *url, *target;
-		
+
 		url=stracpy(fd->ses->defered_url);
 		target=stracpy(fd->ses->defered_url);
-		
+
 		goto_url_f(fd->ses,NULL,url,target,fd->ses->defered_target_base,fd->ses->defered_data,0,0,0);
 		mem_free(url);
 		mem_free(target);
@@ -440,7 +440,7 @@ struct f_data_c *jsint_find_document(long doc_id)
 	struct f_data_c *fd;
 	struct session *ses;
 	int type=jsint_object_type(doc_id);
-	
+
 	if (type!=JS_OBJ_T_DOCUMENT&&type!=JS_OBJ_T_FRAME)
 		{unsigned char txt[256]; snprintf(txt,256,"jsint_find_document called with type=%d\n",type);internal(txt);}
 	doc_id>>=JS_OBJ_MASK_SIZE;
@@ -491,13 +491,13 @@ void jsint_scan_script_tags(struct f_data_c *fd)
 		onload_code=get_attr_val(attr,"onload");	/* if the element doesn't have onload attribute get_attr_val returns NULL */
 		goto se;
 	}
-		
+
 	if (!onload_code&&namelen==3&&!casecmp(name,"IMG",3))
 	{
 		onload_code=get_attr_val(attr,"onload");	/* if the element doesn't have onload attribute get_attr_val returns NULL */
 		goto se;
 	}
-		
+
 	if (namelen != 6 || casecmp(name, "SCRIPT", 6) || s - ss < fd->script_t) goto se;
 	start = end = NULL;
 	if ((val = get_attr_val(attr, "src"))) {
@@ -591,7 +591,7 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 			struct form_control *fc;
 			/*int n=document->vs->form_info_len;*/
 			int a=0;
-	
+
 			if (obj_id<0/*||obj_id>=n*/)return NULL;
 			hopla=mem_alloc(sizeof(struct hopla_mladej));
 
@@ -605,8 +605,8 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 			hopla->fc=fc;
 			return hopla;
 		}
-		
-		/* link 
+
+		/* link
 		 * obj_id can be from 0 to (nlinks-1)
 		 */
 		case JS_OBJ_T_LINK:
@@ -618,11 +618,11 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 
 			l=document->f_data->links;
 			n=document->f_data->nlinks;
-	
+
 			if (obj_id<0||obj_id>=n)return NULL;
 			return l+obj_id;
 		}
-		
+
 		/* form
 		 * obj_id is form_num in struct form_control (f_data->forms)
 		 */
@@ -634,7 +634,7 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 			foreachback(f, document->f_data->forms) if ((f->form_num)==obj_id)return f;
 			return NULL;
 		}
-		
+
 		/* anchors
 		 * obj_id is position in list of all tags
 		 */
@@ -680,7 +680,7 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 				if (gi->id==obj_id)return gi;
 			}
 			return NULL;
-		}else 
+		}else
 #endif
 		return NULL;
 
@@ -697,7 +697,7 @@ long *add_id(long *field,int *len,long id)
 	int a;
 	for (a=0;a<(*len);a++)	/* this object is already on the list */
 		if (field[a]==id)return field;
-	
+
 	(*len)++;
 	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	p=mem_realloc(field,(*len)*sizeof(long));
@@ -712,8 +712,8 @@ long *add_fd_id(long *field,int *len,long fd,long id, unsigned char *name)
 	int a;
 	for (a=0;a<(*len);a+=3)	/* this object is already on the list */
 		if (field[a]==fd&&field[a+1]==id)return field;
-	
-	
+
+
 	(*len)+=3;
 	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	p=mem_realloc(field,(*len)*sizeof(long));
@@ -787,13 +787,13 @@ static long *find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, lon
 			}
 			if (tak_mu_to_ukaz&&!(pole_vole=add_id(pole_vole,n_items,tak_mu_to_ukaz)))return NULL;
 		}
-		
+
 a_je_po_ptakach:
 	/* find in all rq==NULL */
 	foreach(ff,fd->subframes)
 		if (!(ff->rq)) pole_vole=find_in_subframes(js_ctx,ff,pole_vole,n_items,takhle_tomu_u_nas_nadavame);
 
-	
+
 	return pole_vole;
 }
 
@@ -821,12 +821,12 @@ long *jsint_resolve(void *context, long obj_id, char *takhle_tomu_u_nas_nadavame
 		case JS_OBJ_T_FRAME:
 		fd=jsint_find_document(obj_id);
 		if (!fd||!(jsint_can_access(js_ctx,fd)))break;
-		
+
 		pole_vole=find_in_subframes(js_ctx, fd, pole_vole, n_items, takhle_tomu_u_nas_nadavame);
-		break;	
+		break;
 
 		/* searched name can be a form element */
-		case JS_OBJ_T_FORM:	
+		case JS_OBJ_T_FORM:
 		{
 			struct form_control *fc=jsint_find_object(js_ctx,obj_id);
 			struct form_control *f;
@@ -967,7 +967,7 @@ unsigned char *js_upcall_get_title(void *data)
 	fd=(struct f_data_c *)data;
 
 	title=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_title(fd->ses,title,MAX_STR_LEN))){mem_free(title);return NULL;}
 	if (fd->f_data)
 	{
@@ -993,7 +993,7 @@ void js_upcall_set_title(void *data, unsigned char *title)
 	fd=(struct f_data_c *)data;
 
 	if (!title)return;
-	
+
 	if (!(fd->f_data)){mem_free(title);return;}
 	if (fd->f_data->title)mem_free(fd->f_data->title);
 	fd->f_data->title=init_str();
@@ -1020,9 +1020,9 @@ unsigned char *js_upcall_get_location(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
-	return loc;	
+	return loc;
 }
 
 
@@ -1033,14 +1033,14 @@ unsigned char *js_upcall_document_last_modified(void *data, long document_id)
 	struct f_data_c *fd;
 	struct f_data_c *document;
 	unsigned char *retval;
-	
+
 	document=jsint_find_document(document_id);
 	if (!data)internal("js_upcall_document_last_modified called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
 	if (!document)return NULL;  /* document not found */
 	if (!jsint_can_access(fd, document))return NULL; /* you have no permissions to look at the document */
-	
+
 	if (!fd->rq||!fd->rq->ce)return NULL;
 	retval=stracpy(fd->rq->ce->last_modified);
 
@@ -1054,7 +1054,7 @@ unsigned char *js_upcall_get_useragent(void *data)
 	struct f_data_c *fd;
 	unsigned char *retval=init_str();
 	int l=0;
-	
+
 	if (!data)internal("js_upcall_get_useragent called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
@@ -1114,7 +1114,7 @@ unsigned char *js_upcall_get_referrer(void *data)
 	unsigned char *retval=init_str();
 	unsigned char *loc;
 	int l=0;
-	
+
 	if (!data)internal("js_upcall_get_referrer called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
@@ -1123,7 +1123,7 @@ unsigned char *js_upcall_get_referrer(void *data)
 		case REFERER_FAKE:
 		add_to_str(&retval, &l, http_options.header.fake_referer);
 		break;
-		
+
 		case REFERER_SAME_URL:
 		loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
 		if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);break;}
@@ -1216,19 +1216,19 @@ void js_upcall_confirm(void *data)
 
 	if (!fd->js)return;
 	jsid=mem_alloc(sizeof(struct gimme_js_id));
-	
+
 	/* kill timer, that called me */
 	js_spec_vykill_timer(fd->js->ctx,0);
 
 	/* fill in jsid */
 	jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
 	jsid->js_id=fd->js->ctx->js_id;
-	
+
 	skip_nonprintable(s->string);
 	if (fd->f_data)
 	{
 		struct conv_table* ct;
-		
+
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
 		txt=convert_string(ct,s->string,strlen(cast_const_char s->string),NULL);
 	}
@@ -1286,19 +1286,19 @@ void js_upcall_alert(void * data)
 
 	if (!fd->js) return;
 	jsid=mem_alloc(sizeof(struct gimme_js_id));
-	
+
 	/* kill timer, that called me */
 	js_spec_vykill_timer(fd->js->ctx,0);
 
 	/* fill in jsid */
 	jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
 	jsid->js_id=fd->js->ctx->js_id;
-	
+
 	skip_nonprintable(s->string);
 	if (fd->f_data)
 	{
 		struct conv_table* ct;
-		
+
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
 		txt=convert_string(ct,s->string,strlen(cast_const_char s->string),NULL);
 	}
@@ -1361,11 +1361,11 @@ void js_upcall_close_window(void *data)
 		struct gimme_js_id* jsid;
 
 		jsid=mem_alloc(sizeof(struct gimme_js_id));
-	
+
 		/* fill in jsid */
 		jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
 		jsid->js_id=fd->js->ctx->js_id;
-		
+
 		msg_box(
 			term,   /* terminal */
 			getml(jsid,NULL),   /* memory blocks to free */
@@ -1384,7 +1384,7 @@ void js_upcall_close_window(void *data)
 		js_mem_free(s);
 		if (term->next == term->prev && are_there_downloads())
 			query_exit(fd->ses);
-		else 
+		else
 			really_exit_prog(fd->ses);
 	}
 }
@@ -1421,8 +1421,8 @@ struct history js_get_string_history={0, {&js_get_string_history.items, &js_get_
 
 /* creates input field for string, with text s->string1, default response
  * s->string2 and buttons OK/Kill Script
- * s->string1 and s->string2 will be dealocated 
- * s will be dealocated too 
+ * s->string1 and s->string2 will be dealocated
+ * s will be dealocated too
  * must be called from select loop */
 
 void js_upcall_get_string(void *data)
@@ -1441,14 +1441,14 @@ void js_upcall_get_string(void *data)
 
 	if (!fd->js) return;
 	jsid=mem_alloc(sizeof(struct gimme_js_id));
-	
+
 	/* kill timer, that called me */
 	js_spec_vykill_timer(fd->js->ctx,0);
 
 	/* fill in jsid */
 	jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
 	jsid->js_id=fd->js->ctx->js_id;
-	
+
 	str1=stracpy(s->string1);
 	str2=stracpy(s->string2);
 	js_mem_free(s->string1);
@@ -1501,14 +1501,14 @@ unsigned char *js_upcall_get_window_name(void *data)
 {
 	/* context must be a valid pointer ! */
 	struct f_data_c *fd=(struct f_data_c*)data;
-	
+
 	return fd->loc?stracpy(fd->loc->name):NULL;
 }
 
 
 /* returns allocated field of ID's of links in JS document
  * number of links is stored in len
- * if number of links is 0, returns NULL 
+ * if number of links is 0, returns NULL
  * on error returns NULL too
  */
 long *js_upcall_get_links(void *data, long document_id, int *len)
@@ -1532,7 +1532,7 @@ long *js_upcall_get_links(void *data, long document_id, int *len)
 	for (a=0;a<(*len);a++)
 		/*to_je_Ono[a]=JS_OBJ_T_LINK+(((l+a)->num)<<JS_OBJ_MASK_SIZE);*/
 		to_je_Ono[a]=JS_OBJ_T_LINK+(a<<JS_OBJ_MASK_SIZE);
-	
+
 	return to_je_Ono;
 }
 
@@ -1561,7 +1561,7 @@ unsigned char *js_upcall_get_link_target(void *data, long document_id, long link
 
 /* returns allocated field of ID's of forms in JS document
  * number of forms is stored in len
- * if number of forms is 0, returns NULL 
+ * if number of forms is 0, returns NULL
  * on error returns NULL too
  */
 long *js_upcall_get_forms(void *data, long document_id, int *len)
@@ -1590,7 +1590,7 @@ long *js_upcall_get_forms(void *data, long document_id, int *len)
 		if ((*len)&&(fc->form_num)==last)continue;
 		for (a=0;a<(*len);a++)
 			if ((to_je_Ono[a]>>JS_OBJ_MASK_SIZE)==(fc->form_num))goto already_have;  /* we already have this number */
-		
+
 		(*len)++;
 		if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 		p=mem_realloc(to_je_Ono,(*len)*sizeof(long));
@@ -1601,7 +1601,7 @@ already_have:;
 	}
 
 	if (!(*len)){mem_free(to_je_Ono);to_je_Ono=NULL;}
-	
+
 	return to_je_Ono;
 }
 
@@ -1623,13 +1623,13 @@ unsigned char *js_upcall_get_form_action(void *data, long document_id, long form
 
 	fc=jsint_find_object(fd,form_id);
 	if (!fc)return NULL;
-	
+
 	return stracpy(fc->action);
 }
 
 
 
-/* sets form action 
+/* sets form action
  */
 void js_upcall_set_form_action(void *context, long document_id, long form_id, unsigned char *action)
 {
@@ -1660,9 +1660,9 @@ void js_upcall_set_form_action(void *context, long document_id, long form_id, un
 
 	if (fc->action) {
 		mem_free (fc->action);
-		if ( fd->loc && fd->loc->url ) 
+		if ( fd->loc && fd->loc->url )
 			fc->action=join_urls(fd->loc->url,action);
-		else 
+		else
 			fc->action=stracpy(action);
 		fd->f_data->uncacheable=1;
 	}
@@ -1690,7 +1690,7 @@ unsigned char *js_upcall_get_form_target(void *data, long document_id, long form
 
 	fc=jsint_find_object(fd,form_id);
 	if (!fc)return NULL;
-	
+
 	return stracpy(fc->target);
 }
 
@@ -1713,7 +1713,7 @@ unsigned char *js_upcall_get_form_method(void *data, long document_id, long form
 
 	fc=jsint_find_object(fd,form_id);
 	if (!fc)return NULL;
-	
+
 	switch (fc->method)
 	{
 		case FM_GET:
@@ -1748,7 +1748,7 @@ unsigned char *js_upcall_get_form_encoding(void *data, long document_id, long fo
 
 	fc=jsint_find_object(fd,form_id);
 	if (!fc)return NULL;
-	
+
 	switch (fc->method)
 	{
 		case FM_GET:
@@ -1779,7 +1779,7 @@ unsigned char *js_upcall_get_location_protocol(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
 	if (parse_url(loc, &l, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)){mem_free(loc);return NULL;}
@@ -1802,7 +1802,7 @@ unsigned char *js_upcall_get_location_port(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
 	p=get_port_str(loc);
@@ -1824,7 +1824,7 @@ unsigned char *js_upcall_get_location_hostname(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
 	p=get_host_name(loc);
@@ -1847,7 +1847,7 @@ unsigned char *js_upcall_get_location_host(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
 	if (parse_url(loc, NULL, NULL, NULL, NULL, NULL, &h, &l1, NULL, &l2, NULL, NULL, NULL)){mem_free(loc);return NULL;}
@@ -1870,7 +1870,7 @@ unsigned char *js_upcall_get_location_pathname(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
 	if (parse_url(loc, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &d, NULL, NULL)){mem_free(loc);return NULL;}
@@ -1894,7 +1894,7 @@ unsigned char *js_upcall_get_location_search(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
 	if (parse_url(loc, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &d, NULL, NULL)){mem_free(loc);return NULL;}
@@ -1918,7 +1918,7 @@ unsigned char *js_upcall_get_location_hash(void *data)
 	fd=(struct f_data_c *)data;
 
 	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
-	
+
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
 	if (parse_url(loc, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &d, NULL, NULL)){mem_free(loc);return NULL;}
@@ -1953,15 +1953,15 @@ long *js_upcall_get_form_elements(void *data, long document_id, long form_id, in
 	if (!fc)return NULL;
 
 	*len=0;
-	
+
 	foreach (fc2, fd->f_data->forms)
 		if (fc2->form_num==fc->form_num)(*len)++;
 
 	if (!(*len))return NULL;
-	
+
 	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	pole_Premysla_Zavorace=mem_alloc((*len)*sizeof(long));
-	
+
 	b=0;
 	foreachback (fc2, fd->f_data->forms)
 		if (fc2->form_num==fc->form_num)
@@ -2021,7 +2021,7 @@ long *js_upcall_get_anchors(void *hej_Hombre, long document_id, int *len)
 		a++;
 	}
 	return to_je_Ono;
-	
+
 }
 
 
@@ -2045,14 +2045,14 @@ int js_upcall_get_checkbox_radio_checked(void *smirak, long document_id, long ra
 
 	hopla=jsint_find_object(fd,radio_tv_id);
 	if (!hopla)return -1;
-	
+
 	state=hopla->fs->state;
 	mem_free(hopla);
 	return state;
 }
 
 
-/* checks/unchecks radio or checkbox 
+/* checks/unchecks radio or checkbox
  */
 void js_upcall_set_checkbox_radio_checked(void *smirak, long document_id, long radio_tv_id, int value)
 {
@@ -2067,7 +2067,7 @@ void js_upcall_set_checkbox_radio_checked(void *smirak, long document_id, long r
 
 	hopla=jsint_find_object(fd,radio_tv_id);
 	if (!hopla)return;
-	
+
 	hopla->fs->state=!!value;
 	mem_free(hopla);
 	redraw_document(fd);
@@ -2093,7 +2093,7 @@ int js_upcall_get_checkbox_radio_default_checked(void *bidak_smirak, long docume
 
 	hopla=jsint_find_object(fd,radio_tv_id);
 	if (!hopla)return -1;
-	
+
 	default_checked=hopla->fc->default_state;
 	mem_free(hopla);
 	return default_checked;
@@ -2117,7 +2117,7 @@ void js_upcall_set_checkbox_radio_default_checked(void *bidak_smirak, long docum
 
 	hopla=jsint_find_object(fd,radio_tv_id);
 	if (!hopla)return;
-	
+
 	something_changed=(hopla->fc->default_state)^value;
 	hopla->fc->default_state=value;
 	fd->f_data->uncacheable|=something_changed;
@@ -2160,7 +2160,7 @@ unsigned char *js_upcall_get_form_element_name(void *bidak, long document_id, lo
 
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla)return NULL;
-	
+
 	hele_ho_bidaka=stracpy(hopla->fc->name);
 	mem_free(hopla);
 	return hele_ho_bidaka;
@@ -2201,7 +2201,7 @@ void js_upcall_set_form_element_name(void *bidak, long document_id, long ksunt_i
 
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla){if (name)mem_free(name);return;}
-	
+
 	if ((name||(hopla->fc->name))&&strcmp(cast_const_char name,cast_const_char hopla->fc->name))
 	{
 		mem_free(hopla->fc->name);
@@ -2248,7 +2248,7 @@ unsigned char *js_upcall_get_form_element_default_value(void *bidak, long docume
 
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla)return NULL;
-	
+
 	ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
 	hele_ho_bidaka=convert_string(ct,hopla->fc->default_value,strlen(cast_const_char hopla->fc->default_value),NULL);
 
@@ -2291,11 +2291,11 @@ void js_upcall_set_form_element_default_value(void *bidak, long document_id, lon
 
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla){if (name)mem_free(name);return;}
-	
+
 	if ((name||(hopla->fc->default_value))&&strcmp(cast_const_char name,cast_const_char hopla->fc->default_value))
 	{
 		struct conv_table *ct;
-		
+
 		mem_free(hopla->fc->default_value);
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
 		hopla->fc->default_value=convert_string(ct,name,strlen(cast_const_char name),NULL);
@@ -2386,7 +2386,7 @@ unsigned char *js_upcall_get_form_element_value(void *bidak, long document_id, l
 
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla)return NULL;
-	
+
 	ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
 	hele_ho_bidaka=convert_string(ct,hopla->fs->value,strlen(cast_const_char hopla->fs->value),NULL);
 
@@ -2426,7 +2426,7 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla){if (name)mem_free(name);return;}
-	
+
 	mem_free(hopla->fs->value);
 	ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
 	hopla->fs->value=convert_string(ct,name,strlen(cast_const_char name),NULL);
@@ -2468,7 +2468,7 @@ void js_upcall_click(void *bidak, long document_id, long elem_id)
 			if (!fd->f_data)return;
 			hopla=jsint_find_object(fd,elem_id);
 			if (!hopla)return;
-	
+
 			for (a=0;a<fd->f_data->nlinks;a++)
 			{
 				l=&(fd->f_data->links[a]);
@@ -2527,7 +2527,7 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 			if (!fd->f_data)return;
 			hopla=jsint_find_object(fd,elem_id);
 			if (!hopla)return;
-	
+
 			for (a=0;a<fd->f_data->nlinks;a++)
 			{
 				l=&(fd->f_data->links[a]);
@@ -2594,11 +2594,11 @@ void js_upcall_blur(void *bidak, long document_id, long elem_id)
 				struct hopla_mladej *hopla;
 				int a;
 				struct link *l;
-	
+
 				if (!fd->f_data)return;
 				hopla=jsint_find_object(fd,elem_id);
 				if (!hopla)return;
-		
+
 				for (a=0;a<fd->f_data->nlinks;a++)
 				{
 					l=&(fd->f_data->links[a]);
@@ -2663,7 +2663,7 @@ void js_upcall_reset(void *bidak, long document_id, long form_id)
 	if (!fd||!jsint_can_access(js_ctx,fd))return;
 	if ((form_id&JS_OBJ_MASK)!=JS_OBJ_T_FORM)return;
 	if (!fd->f_data)return;
-		
+
 	reset_form(fd,form_id>>JS_OBJ_MASK_SIZE);
 	draw_fd(fd);
 	change_screen_status(fd->ses);
@@ -2698,7 +2698,7 @@ int js_upcall_get_radio_length(void *p, long document_id, long radio_id)
 	return count;
 }
 
-/* returns number of items in a select form element 
+/* returns number of items in a select form element
  * on error returns -1
  */
 int js_upcall_get_select_length(void *p, long document_id, long select_id)
@@ -2817,7 +2817,7 @@ static void js_upcall_goto_url_ok_pressed(void *data)
 		fd->ses->dn_url=stracpy(jsid->string);
 		open_in_new_window(fd->ses->term, send_vodevri_v_novym_vokne, fd->ses);
 	}
-	else 
+	else
 		goto_url(fd->ses,jsid->string);
 
 	if (!(fd->js)||jsid->js_id!=fd->js->ctx->js_id)return;
@@ -2877,7 +2877,7 @@ void js_upcall_goto_url(void * data)
 		{
 			unsigned char txt[MAX_STR_LEN];
 			void *p;
-	
+
 			p=get_current_url(fd->ses,txt,MAX_STR_LEN);
 			if (p&&fd->loc&&fd->loc->url&&!strcmp(cast_const_char txt,cast_const_char dest_url))
 			{
@@ -2886,16 +2886,16 @@ void js_upcall_goto_url(void * data)
 				goto goto_url_failed;
 			}
 		}
-	
+
 		jsid=mem_alloc(sizeof(struct gimme_js_id_string));
-		
+
 		/* context must be a valid pointer ! */
 		/* fill in jsid */
 		jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
 		jsid->js_id=fd->js->ctx->js_id;
 		jsid->string=dest_url;
 		jsid->n=s->num;
-		
+
 		msg_box(
 			term,   /* terminal */
 			getml(jsid->string,jsid,NULL),   /* memory blocks to free */
@@ -2919,7 +2919,7 @@ void js_upcall_goto_url(void * data)
 			fd->ses->dn_url=stracpy(dest_url);
 			open_in_new_window(fd->ses->term, send_vodevri_v_novym_vokne, fd->ses);
 		}
-		else 
+		else
 			goto_url(fd->ses,dest_url);
 		js_downcall_vezmi_null(fd->js->ctx);   /* call downcall */
 		mem_free(dest_url);
@@ -2957,7 +2957,7 @@ static void js_upcall_goto_history_ok_pressed(void *data)
 
 	fd=jsint_find_document(jsid->id);
 	if (!fd)return;  /* context no longer exists */
-	
+
 	a=0;
 	foreach(loc,fd->ses->history)a++;
 
@@ -2967,7 +2967,7 @@ static void js_upcall_goto_history_ok_pressed(void *data)
 }
 
 
-/* gets struct fax_me_tender_int_string 
+/* gets struct fax_me_tender_int_string
  * either num or string is set, but not both, the other must be NULL
  * asks user whether to go to the url or not
  * structure and the text are both deallocated
@@ -2978,7 +2978,7 @@ static void js_upcall_goto_history_ok_pressed(void *data)
  * 		<0	go backward in history (supported :) )
  * if string is defined - find appropriate history item and go to the url, when
  * the URL doesn't exist do nothing
- * 
+ *
  * JAK TO FUNGUJE:
  * string se prekonvertuje na cislo (projde se historie)
  * po zmacknuti OK se spocita delka historie a pokud je dostatecna, n-krat
@@ -3044,13 +3044,13 @@ void js_upcall_goto_history(void * data)
 		struct gimme_js_id_string* jsid;
 
 		jsid=mem_alloc(sizeof(struct gimme_js_id_string));
-	
+
 		/* fill in jsid */
 		jsid->id=((fd->id)<<JS_OBJ_MASK_SIZE)|JS_OBJ_T_DOCUMENT;
 		jsid->js_id=fd->js->ctx->js_id;
 		jsid->string=url;
 		jsid->n=history_num;
-	
+
 		snprintf(txt,16," (-%d) ",jsid->n);
 		msg_box(
 			term,   /* terminal */
@@ -3096,7 +3096,7 @@ void js_upcall_set_default_status(void *context, unsigned char *tak_se_ukaz_Kolb
 	if (fd->f_data&&tak_se_ukaz_Kolbene)
 	{
 		struct conv_table* ct; /* ... a ted ty pochybne reci o majetku ... */
-		
+
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
 		trouba=convert_string(ct,tak_se_ukaz_Kolbene,strlen(cast_const_char tak_se_ukaz_Kolbene),NULL); /* Taky to mate levnejsi - jinak by to stalo deset! */
 		mem_free(tak_se_ukaz_Kolbene);
@@ -3122,13 +3122,13 @@ unsigned char* js_upcall_get_default_status(void *context)
 	unsigned char *trouba;
 
 	if (!fd)internal("Ale hovno!\n");
-	
+
 	if (fd->ses->default_status&&(*fd->ses->default_status))tak_se_ukaz_Danku=stracpy(fd->ses->default_status);
 	skip_nonprintable(tak_se_ukaz_Danku);
 	if (fd->f_data&&tak_se_ukaz_Danku)
 	{
 		struct conv_table* ct;
-		
+
 		ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
 		trouba=convert_string(ct,tak_se_ukaz_Danku,strlen(cast_const_char tak_se_ukaz_Danku),NULL);
 		mem_free(tak_se_ukaz_Danku);
@@ -3139,7 +3139,7 @@ unsigned char* js_upcall_get_default_status(void *context)
 	}
 
 	/* Tak to mame Kolben a Danek po peti korunach... */
-	
+
 	return trouba; /* No jo, je to v troube! */
 }
 
@@ -3161,7 +3161,7 @@ void js_upcall_set_status(void *context, unsigned char *tak_se_ukaz_Kolbene)
 	if (fd->f_data&&tak_se_ukaz_Kolbene)
 	{
 		struct conv_table* ct;
-		
+
 		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
 		trouba=convert_string(ct,tak_se_ukaz_Kolbene,strlen(cast_const_char tak_se_ukaz_Kolbene),NULL);
 		mem_free(tak_se_ukaz_Kolbene);
@@ -3186,13 +3186,13 @@ unsigned char* js_upcall_get_status(void *context)
 	unsigned char *trouba;
 
 	if (!fd)internal("To leda tak hovno!\n");
-	
+
 	if (fd->ses->st&&(*fd->ses->st))tak_se_ukaz_Danku=stracpy(fd->ses->st);
 	skip_nonprintable(tak_se_ukaz_Danku);
 	if (fd->f_data&&tak_se_ukaz_Danku)
 	{
 		struct conv_table* ct;
-		
+
 		ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
 		trouba=convert_string(ct,tak_se_ukaz_Danku,strlen(cast_const_char tak_se_ukaz_Danku),NULL);
 		mem_free(tak_se_ukaz_Danku);
@@ -3203,7 +3203,7 @@ unsigned char* js_upcall_get_status(void *context)
 	}
 
 	/* Kolben a Danek, to mame po peti korunach... */
-	
+
 	return trouba;
 }
 
@@ -3224,9 +3224,9 @@ unsigned char * js_upcall_get_cookies(void *context)
 
 	if (!fd->js||!fd->js->ctx) {mem_free(s);return NULL;}
 	if (!fd->rq) goto ty_uz_se_nevratis;
-	
+
 	jsint_set_cookies(fd,0);
-	
+
 	server = get_host_name(fd->rq->url);
 	data = get_url_data(fd->rq->url);
 
@@ -3256,7 +3256,7 @@ ty_uz_se_nevratis:
 			add_to_str(&s, &l, c->value);
 		}
 	}
-	
+
 	if (!nc) {mem_free(s);s=NULL;}
 	mem_free(server);
 
@@ -3278,7 +3278,7 @@ void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct
 {
 	struct f_data_c *ff;
 	struct form_control *fc;
-	
+
 #ifdef G
 	struct xlist_head *fi;
 #endif
@@ -3297,7 +3297,7 @@ void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct
 		{
 			struct g_object_image *gi;
 			struct g_object_image goi;
-	
+
 			gi = (struct g_object_image *)((char *)fi + ((char *)(&goi) - (char *)(&(goi.image_list))));
 			if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE),gi->name)))return;
 		}
@@ -3329,7 +3329,7 @@ void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct
 			}
 			if (tak_mu_to_ukaz&&!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),tak_mu_to_ukaz,fc->name)))return;
 		}
-	
+
 tady_uz_nic_peknyho_nebude:
 
 	foreach(ff,fd->subframes)
@@ -3364,7 +3364,7 @@ long * js_upcall_get_all(void *chuligane, long document_id, int *len)
 	/* nothing was found */
 	if (!pole_neorane)return NULL;
 	if (!(*len))mem_free(pole_neorane),pole_neorane=NULL;
-	
+
 	return pole_neorane;
 }
 
@@ -3388,24 +3388,24 @@ long *js_upcall_get_images(void *chuligane, long document_id, int *len)
 		if (!js_ctx)internal("js_upcall_get_images called with NULL context pointer\n");
 		fd=jsint_find_document(document_id);
 		if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd))return NULL;
-	
+
 		*len=0;
-		
+
 		foreach(fi,fd->f_data->images)(*len)++;
-	
+
 		if (!(*len))return NULL;
-		
+
 		if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 		pole_Premysla_Zavorace=mem_alloc((*len)*sizeof(long));
-		
+
 		a=0;
 		foreachback(fi,fd->f_data->images)
 		{
 			unsigned id;
 			struct g_object_image gi;
-	
+
 			id=((struct g_object_image *)((char *)fi + ((char *)&gi - (char *)&(gi.image_list))))->id;
-	
+
 			pole_Premysla_Zavorace[a]=JS_OBJ_T_IMAGE+(id<<JS_OBJ_MASK_SIZE);
 			a++;
 		}
@@ -3433,11 +3433,11 @@ int js_upcall_get_image_width(void *chuligane, long document_id, long image_id)
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return -1;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return -1;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return -1;
-		
+
 		return gi->xw;
 	}else
 #endif
@@ -3463,11 +3463,11 @@ int js_upcall_get_image_height(void *chuligane, long document_id, long image_id)
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return -1;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return -1;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return -1;
-		
+
 		return gi->yw;
 	}else
 #endif
@@ -3493,11 +3493,11 @@ int js_upcall_get_image_border(void *chuligane, long document_id, long image_id)
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return -1;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return -1;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return -1;
-		
+
 		return gi->border;
 	}else
 #endif
@@ -3523,11 +3523,11 @@ int js_upcall_get_image_vspace(void *chuligane, long document_id, long image_id)
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return -1;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return -1;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return -1;
-		
+
 		return gi->vspace;
 	}else
 #endif
@@ -3553,11 +3553,11 @@ int js_upcall_get_image_hspace(void *chuligane, long document_id, long image_id)
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return -1;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return -1;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return -1;
-		
+
 		return gi->hspace;
 	}else
 #endif
@@ -3583,11 +3583,11 @@ unsigned char * js_upcall_get_image_name(void *chuligane, long document_id, long
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return NULL;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return NULL;
-		
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return NULL;
-		
+
 		return stracpy(gi->name);
 	}else
 #endif
@@ -3613,11 +3613,11 @@ unsigned char * js_upcall_get_image_alt(void *chuligane, long document_id, long 
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return NULL;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return NULL;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return NULL;
-		
+
 		return stracpy(gi->alt);
 	}else
 #endif
@@ -3645,11 +3645,11 @@ void js_upcall_set_image_name(void *chuligane, long document_id, long image_id, 
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return;
-		
+
 		if (gi->name)mem_free(gi->name);
 		gi->name=stracpy(name);	/* radeji takhle, protoze to je bezpecnejsi: az PerM zase do neceho slapne, tak se to pozna hned tady a ne buhvikde */
 		if (name)mem_free(name);
@@ -3681,17 +3681,17 @@ void js_upcall_set_image_alt(void *chuligane, long document_id, long image_id, u
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return;
 		fd=jsint_find_document(document_id);
 		if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd))return;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return;
-		
+
 		if (gi->alt)mem_free(gi->alt);
 		gi->alt=stracpy(alt);	/* radeji takhle, protoze to je bezpecnejsi: az PerM zase do neceho slapne, tak se to pozna hned tady a ne buhvikde */
 		if (fd->f_data&&gi->link_num>=0&&gi->link_num<fd->f_data->nlinks)
 		{
 			struct link *l=&fd->f_data->links[gi->link_num];
-	
+
 			if (l->img_alt)mem_free(l->img_alt);
 			l->img_alt=stracpy(alt);
 		}
@@ -3718,18 +3718,18 @@ unsigned char * js_upcall_get_image_src(void *chuligane, long document_id, long 
 	struct f_data_c *fd;
 	struct f_data_c *js_ctx=(struct f_data_c*)chuligane;
 	struct g_object_image *gi;
-	
+
 	if (F)
 	{
 		if (!js_ctx)internal("js_upcall_get_image_src called with NULL context pointer\n");
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)return NULL;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))return NULL;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return NULL;
-		
+
 		return stracpy(gi->orig_src);
 	}else
 #endif
@@ -3768,17 +3768,17 @@ void js_upcall_set_image_src(void *chuligane)
 		if ((image_id&JS_OBJ_MASK)!=JS_OBJ_T_IMAGE)goto abych_tu_nepovecerel;
 		fd=jsint_find_document(document_id);
 		if (!fd||!jsint_can_access(js_ctx,fd))goto abych_tu_nepovecerel;
-	
+
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi||!fd->f_data)goto abych_tu_nepovecerel;
-	
+
 		/* string joinnem s url */
 		if (fd->f_data&&fd->f_data->script_href_base) vecirek=join_urls(fd->f_data->script_href_base,fax->string);
 		else if (fd->loc&&fd->loc->url) vecirek=join_urls(fd->loc->url,fax->string);
 		else vecirek=stracpy(fax->string);
 		/* a mame to kompatidebilni s verzi pred jointem */
-	
+
 		change_image(gi,vecirek,fax->string,fd->f_data);
 		if (vecirek) mem_free(vecirek);
 		fd->f_data->uncacheable = 1;
@@ -3814,9 +3814,9 @@ int js_upcall_image_complete(void *chuligane, long document_id, long image_id)
 		if (!fd||!jsint_can_access(js_ctx,fd))return -1;
 
 		gi=jsint_find_object(fd,image_id);
-	
+
 		if (!gi)return -1;
-		
+
 		if (!gi->af||!gi->af->rq||!gi->af->rq->state)return -1;
 		return gi->af->rq->state==O_OK;
 	}else
@@ -3842,7 +3842,7 @@ long js_upcall_get_parent(void *chuligane, long frame_id)
 	if (!fd||!jsint_can_access(js_ctx,fd))return -1;
 
 	for (ff=fd->parent;ff&&!ff->rq;ff=ff->parent);
-	
+
 	if (!ff)ff=fd->ses->screen;
 	return jsint_can_access(fd,ff)?js_upcall_get_frame_id(ff):-1;
 }
@@ -3894,7 +3894,7 @@ long * js_upcall_get_subframes(void *chuligane, long frame_id, int *count)
 	if (!*count)return NULL;
 	if ((unsigned)*count > MAXINT / sizeof(long)) overalloc();
 	pole=mem_alloc((*count)*sizeof(long));
-	
+
 	a=0;
 	foreach(f,fd->subframes)
 		if (jsint_can_access(fd,f))
@@ -3908,7 +3908,7 @@ long * js_upcall_get_subframes(void *chuligane, long frame_id, int *count)
 void js_downcall_game_over(void *context)
 {
 	struct f_data_c *fd=(struct f_data_c*)(((js_context*)(context))->ptr);
-	
+
 	/* js_error(_(TEXT_(T_SCRIPT_KILLED_BY_USER),fd->ses->term),context);
 	 * Tato hlaska me srala. Na to bych neprisel, ze jsem prave zabil
 	 * rucne javascript. */
@@ -3921,9 +3921,7 @@ void js_downcall_game_over(void *context)
 	/* Kolben - ale nespi mi - co s tim budeme delat? */
 	((js_context*)context)->running=0;
 #endif
-	
 }
-
 
 
 void js_downcall_vezmi_int(void *context, int i)

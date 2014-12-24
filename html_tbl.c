@@ -106,9 +106,11 @@ struct table_cell {
 	int height;
 	int xpos, ypos, xw, yw;
 	int link_num;
+	unsigned char *tag;
 #ifdef G
 	unsigned char bgcolor_str[8];
 	struct g_object_area *root;
+	struct g_object_tag *tag_object;
 	struct rect_set *brd;
 	int g_width;
 	struct rect rect;
@@ -214,14 +216,18 @@ static struct table *new_table(void)
 
 static void free_table(struct table *t)
 {
+	int i, j;
+	for (j = 0; j < t->y; j++) for (i = 0; i < t->x; i++) {
+		struct table_cell *c = CELL(t, i, j);
+		if (c->tag) mem_free(c->tag);
+#ifdef G
+		if (c->root) c->root->destruct(c->root);
+		if (c->tag_object) c->tag_object->destruct((struct g_object *)c->tag_object);
+		if (c->brd) mem_free(c->brd);
+#endif
+	}
 #ifdef G
 	if (F) {
-		int i, j;
-		for (j = 0; j < t->y; j++) for (i = 0; i < t->x; i++) {
-			struct table_cell *c = CELL(t, i, j);
-			if (c->root) c->root->destruct(c->root);
-			if (c->brd) mem_free(c->brd);
-		}
 		for (i = 0; i < t->nr_frame; i++) mem_free(t->r_frame[i]);
 		if (t->r_frame) mem_free(t->r_frame);
 		for (i = 0; i < t->nr_bg; i++) mem_free(t->r_bg[i]);
@@ -388,7 +394,7 @@ struct s_e {
 
 static int default_line_align(void)
 {
-	return par_format.align == AL_NO ? AL_NO : AL_LEFT;
+	return par_format.align == AL_NO || par_format.align == AL_NO_BREAKABLE ? par_format.align : AL_LEFT;
 }
 
 static struct table *parse_table(unsigned char *html, unsigned char *eof, unsigned char **end, struct rgb *bgcolor, int sh, struct s_e **bad_html, int *bhp)
@@ -396,7 +402,7 @@ static struct table *parse_table(unsigned char *html, unsigned char *eof, unsign
 	int qqq;
 	struct table *t;
 	struct table_cell *cell;
-	unsigned char *t_name, *t_attr, *en;
+	unsigned char *t_name, *t_attr, *en, *a;
 	int t_namelen;
 	int x = 0, y = -1;
 	int p = 0;
@@ -414,7 +420,7 @@ static struct table *parse_table(unsigned char *html, unsigned char *eof, unsign
 		*bad_html = DUMMY;
 		*bhp = 0;
 	}
-	if (!(t = new_table())) return NULL;
+	t = new_table();
 	memcpy(&t->bgcolor, bgcolor, sizeof(struct rgb));
 	se:
 	en = html;
@@ -553,6 +559,15 @@ static struct table *parse_table(unsigned char *html, unsigned char *eof, unsign
 	get_align(t_attr, &cell->align);
 	get_valign(t_attr, &cell->valign);
 	get_bgcolor(t_attr, &cell->bgcolor);
+	if ((a = get_attr_val(t_attr, cast_uchar "id")))
+		cell->tag = a;
+	if ((a = get_attr_val(t_attr, cast_uchar "class"))) {
+		if (!strncmp(cast_const_char a, "blob-code", 9) ||	/* github hack */
+		    !strcmp(cast_const_char a, "changelog")) {
+			cell->align = !par_format.implicit_pre_wrap ? AL_NO : AL_NO_BREAKABLE;
+		}
+		mem_free(a);
+	}
 #ifdef G
 	sprintf(cast_char cell->bgcolor_str, "#%02x%02x%02x", cell->bgcolor.r & 0xff, cell->bgcolor.g & 0xff, cell->bgcolor.b & 0xff);
 #endif
@@ -635,7 +650,7 @@ static void get_cell_width(struct table *t, struct table_cell *c, int w, int a, 
 	if (n_links) *n_links = c->link_num;
 	if (!F) {
 		struct part *p;
-		if (!(p = format_html_part(c->start, c->end, c->align != AL_NO ? AL_LEFT : AL_NO, t->cellpd, w, NULL, !!a, !!a, NULL, c->link_num))) return;
+		if (!(p = format_html_part(c->start, c->end, c->align == AL_NO || c->align == AL_NO_BREAKABLE ? c->align : AL_LEFT, t->cellpd, w, NULL, !!a, !!a, NULL, c->link_num))) return;
 		if (min) *min = p->x;
 		if (max) *max = p->xmax;
 		if (n_links) *n_links = p->link_num;
@@ -643,7 +658,7 @@ static void get_cell_width(struct table *t, struct table_cell *c, int w, int a, 
 #ifdef G
 	} else {
 		struct g_part *gp;
-		if (!(gp = g_format_html_part(c->start, c->end, c->align != AL_NO ? AL_LEFT : AL_NO, 0, w, NULL, c->link_num, NULL, c->bgcolor_str, NULL))) return;
+		if (!(gp = g_format_html_part(c->start, c->end, c->align == AL_NO || c->align == AL_NO_BREAKABLE ? c->align : AL_LEFT, 0, w, NULL, c->link_num, NULL, c->bgcolor_str, NULL))) return;
 		if (min) *min = gp->x;
 		if (max) *max = gp->xmax;
 		if (n_links) *n_links = gp->link_num;
@@ -787,7 +802,7 @@ static int g_get_hline_pad(struct table *t, int row, int *plpos, int *plsize)
 	return pad;
 }
 #endif
-	
+
 static int get_column_widths(struct table *t)
 {
 	int i, j, s, ns;
@@ -1182,6 +1197,9 @@ static void display_complicated_table(struct table *t, int x, int y, int *yy)
 				if (cell->b) format_.attr |= AT_BOLD;
 				memcpy(&format_.bg, &cell->bgcolor, sizeof(struct rgb));
 				memcpy(&par_format.bgcolor, &cell->bgcolor, sizeof(struct rgb));
+				if (cell->tag) {
+					if (f) html_tag(f, cell->tag, safe_add(t->p->xp, xp), safe_add(t->p->yp, yp));
+				}
 				p = format_html_part(cell->start, cell->end, cell->align, t->cellpd, xw, f, safe_add(t->p->xp, xp), safe_add(safe_add(t->p->yp, yp), cell->valign != VAL_MIDDLE && cell->valign != VAL_BOTTOM ? 0 : (yw - cell->height) / (cell->valign == VAL_MIDDLE ? 2 : 1)), NULL, cell->link_num);
 				cell->xpos = xp;
 				cell->ypos = yp;
@@ -1363,6 +1381,9 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 		/*fg = fg_color(fg, bg);*/
 		AF = ATTR_FRAME | get_attribute(fg, bg);
 	}
+	html_stack_dup();
+	html_top.dontkill = 1;
+	par_format.align = AL_LEFT;
 	if ((border = get_num(attr, cast_uchar "border")) == -1) border = has_attr(attr, cast_uchar "border") || has_attr(attr, cast_uchar "rules") || has_attr(attr, cast_uchar "frame");
 	/*if (!border) border = 1;*/
 	if ((cellsp = get_num(attr, cast_uchar "cellspacing")) == -1) cellsp = gf_val(1, 2);
@@ -1385,7 +1406,21 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	if (F && !cellsp && border) cellsp = 1;
 #endif
 	align = par_format.align;
-	if (align == AL_NO || align == AL_BLOCK) align = AL_LEFT;
+	if (align == AL_NO || align == AL_NO_BREAKABLE || align == AL_BLOCK) align = AL_LEFT;
+	if ((al = get_attr_val(attr, cast_uchar "summary"))) {
+		if (!strcmp(cast_const_char al, "diff")) {
+			mem_free(al);
+			if ((al = get_attr_val(attr, cast_uchar "class"))) {
+				if (!strcmp(cast_const_char al, "diff")) {
+					format_.attr |= AT_FIXED;
+					par_format.align = AL_NO;
+				}
+				mem_free(al);
+			}
+		} else {
+			mem_free(al);
+		}
+	}
 	if ((al = get_attr_val(attr, cast_uchar "align"))) {
 		if (!strcasecmp(cast_const_char al, "left")) align = AL_LEFT;
 		if (!strcasecmp(cast_const_char al, "center")) align = AL_CENTER;
@@ -1421,19 +1456,13 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 		if (width < 0) width = 0;
 		wf = 1;
 	}
-	if (!(t = parse_table(html, eof, end, &bgcolor, gf_val(p->data || p->xp, !!gp->data), &bad_html, &bad_html_n))) {
-		if (bad_html) mem_free(bad_html);
-		goto ret0;
-	}
+	t = parse_table(html, eof, end, &bgcolor, gf_val(p->data || p->xp, !!gp->data), &bad_html, &bad_html_n);
 	for (i = 0; i < bad_html_n; i++) {
 		while (bad_html[i].s < bad_html[i].e && WHITECHAR(*bad_html[i].s)) bad_html[i].s++;
 		while (bad_html[i].s < bad_html[i].e && WHITECHAR(bad_html[i].e[-1])) bad_html[i].e--;
 		if (bad_html[i].s < bad_html[i].e) parse_html(bad_html[i].s, bad_html[i].e, put_chars_f, line_break_f, special_f, gf_val((void *)p, (void *)gp), NULL);
 	}
 	mem_free(bad_html);
-	html_stack_dup();
-	html_top.dontkill = 1;
-	par_format.align = AL_LEFT;
 #ifdef G
 	if (F) {
 		t->gp = gp;
@@ -1534,7 +1563,6 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	if (!F) if (p->cy > p->y) p->y = p->cy;
 	if (t) free_table(t);
 	kill_html_stack_item(&html_top);
-	ret0:
 	table_level--;
 	if (!table_level) {
 		free_table_cache();
@@ -1665,7 +1693,10 @@ static void table_get_list(struct g_object_table *o, void (*fn)(struct g_object 
 	int i, j;
 	for (j = 0; j < t->y; j++) for (i = 0; i < t->x; i++) {
 		struct table_cell *c = CELL(t, i, j);
-		if (c->root) fn((struct g_object *)o, (struct g_object *)c->root);
+		if (c->tag_object)
+			fn((struct g_object *)o, (struct g_object *)c->tag_object);
+		if (c->root)
+			fn((struct g_object *)o, (struct g_object *)c->root);
 	}
 }
 
@@ -1846,6 +1877,24 @@ static void process_g_table(struct g_part *gp, struct table *t)
 	flush_pending_line_to_obj(gp, 0);
 	gp->cx = -1;
 	gp->cx_w = 0;
+
+	for (j = 0; j < t->y; j++) {
+		for (i = 0; i < t->x; i++) {
+			struct table_cell *c;
+			c = CELL(t, i, j);
+			if (c->root && c->tag) {
+				struct g_object_tag *tag = mem_calloc(sizeof(struct g_object_tag) + strlen(cast_const_char c->tag));
+				tag->mouse_event = g_dummy_mouse;
+				tag->draw = g_dummy_draw;
+				tag->destruct = g_tag_destruct;
+				strcpy(cast_char tag->name, cast_const_char c->tag);
+				tag->x = c->root->x;
+				tag->y = c->root->y + o->yw;
+				c->tag_object = tag;
+			}
+		}
+	}
+
 }
 
 #endif

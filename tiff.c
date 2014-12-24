@@ -70,7 +70,7 @@ static tsize_t tiff_read(thandle_t data, tdata_t dest, tsize_t count)
 	if (count > deco->tiff_size-deco->tiff_pos)
 		count = deco->tiff_size-deco->tiff_pos;
 	memcpy(dest,deco->tiff_data+deco->tiff_pos,count);
-	deco->tiff_pos+=count;
+	deco->tiff_pos+=(int)count;
 	return count;
 }
 
@@ -249,7 +249,7 @@ void tiff_finish(struct cached_image *cimg)
 	TIFFClose(t);
 
 	/* For some reason the TIFFReadRGBAImage() function chooses the lower
-	 * left corner as the origin.  Vertically mirror scanlines. 
+	 * left corner as the origin.  Vertically mirror scanlines.
 	 */
 	flip_buffer((void*)(cimg->buffer),cimg->width,cimg->height);
 

@@ -40,6 +40,71 @@ void *do_not_optimize_here(void *p)
 	return p;
 }
 
+
+#if defined(USE_WIN32_HEAP)
+
+#include <windows.h>
+
+/*#define NEW_HEAP*/
+
+static HANDLE heap;
+
+#define heap_malloc(s)		HeapAlloc(heap, 0, (s))
+#define heap_calloc(s)		HeapAlloc(heap, HEAP_ZERO_MEMORY, (s))
+#define heap_free(p)		HeapFree(heap, 0, (p))
+#define heap_realloc(p, s)	HeapReAlloc(heap, 0, (p), (s))
+
+void init_heap(void)
+{
+#ifndef NEW_HEAP
+	heap = GetProcessHeap();
+#else
+	if (!(heap = HeapCreate(0, 0, 0)))
+		fatal_exit("HeapCreate failed: %x", (unsigned)GetLastError());
+#endif
+	{
+		ULONG heap_frag = 2;
+		if (!HeapSetInformation(heap, HeapCompatibilityInformation, &heap_frag, sizeof(heap_frag))) {
+			/*fatal_exit("HeapSetInformation failed: %x", (unsigned)GetLastError());*/
+		}
+	}
+}
+
+static void exit_heap(void)
+{
+#if DEBUGLEVEL >= 1
+	if (!HeapValidate(heap, 0, NULL))
+		internal("HeapValidate failed: %x", (unsigned)GetLastError());
+#endif
+#ifdef NEW_HEAP
+	if (!HeapDestroy(heap))
+		internal("HeapDestroy failed: %x", (unsigned)GetLastError());
+#endif
+}
+
+#else
+
+#define heap_malloc	malloc
+#define heap_realloc	realloc
+#define heap_free	free
+#ifdef HAVE_CALLOC
+#define heap_calloc(x) calloc(1, (x))
+#else
+static inline void *heap_calloc(size_t x)
+{
+	void *p;
+	if ((p = heap_malloc(x))) memset(p, 0, x);
+	return p;
+}
+#endif
+void init_heap(void)
+{
+}
+#define exit_heap()	do { } while (0)
+
+#endif
+
+
 #ifdef LEAK_DEBUG
 
 my_uintptr_t mem_amount = 0;
@@ -69,7 +134,7 @@ static struct list_head memory_list = { &memory_list, &memory_list };
 
 #define L_D_S ((sizeof(struct alloc_header) + 15) & ~15)
 
-const unsigned alloc_overhead = L_D_S + RED_ZONE_INC;
+unsigned alloc_overhead = L_D_S + RED_ZONE_INC;
 
 #endif
 
@@ -91,10 +156,7 @@ static inline void force_dump(void)
 
 void check_memory_leaks(void)
 {
-#if defined(NO_IE)
-	return;
-#else
-#ifdef LEAK_DEBUG
+#if defined(LEAK_DEBUG) && !defined(NO_IE)
 	if (mem_amount || mem_blocks) {
 		fatal_tty_exit();
 		fprintf(stderr, "\n"ANSI_SET_BOLD"Memory leak by %lu bytes (%lu blocks)"ANSI_CLEAR_BOLD"\n", (unsigned long)mem_amount, (unsigned long)mem_blocks);
@@ -113,7 +175,7 @@ void check_memory_leaks(void)
 		force_dump();
 	}
 #endif
-#endif
+	exit_heap();
 }
 
 static void er(int b, char *m, va_list l)
@@ -203,7 +265,7 @@ void *debug_mem_alloc(unsigned char *file, int line, size_t size, int mayfail)
 	mem_amount += size - L_D_S;
 	mem_blocks++;
 #endif
-	if (!(p = malloc(size + RED_ZONE_INC))) {
+	if (!(p = heap_malloc(size + RED_ZONE_INC))) {
 #ifdef LEAK_DEBUG
 		mem_amount -= size - L_D_S;
 		mem_blocks--;
@@ -251,7 +313,7 @@ void *debug_mem_calloc(unsigned char *file, int line, size_t size, int mayfail)
 	mem_amount += size - L_D_S;
 	mem_blocks++;
 #endif
-	if (!(p = x_calloc(size + RED_ZONE_INC))) {
+	if (!(p = heap_calloc(size + RED_ZONE_INC))) {
 #ifdef LEAK_DEBUG
 		mem_amount -= size - L_D_S;
 		mem_blocks--;
@@ -301,7 +363,7 @@ void debug_mem_free(unsigned char *file, int line, void *p)
 	ah->magic = ALLOC_FREE_MAGIC;
 #ifdef LEAK_DEBUG_LIST
 	del_from_list(ah);
-	if (ah->comment) free(ah->comment);
+	if (ah->comment) heap_free(ah->comment);
 #endif
 	mem_amount -= ah->size;
 	mem_blocks--;
@@ -317,7 +379,7 @@ void debug_mem_free(unsigned char *file, int line, void *p)
 		return;
 	}
 #endif
-	free(p);
+	heap_free(p);
 }
 
 void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size, int mayfail)
@@ -365,7 +427,7 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size, int
 	}
 #endif
 	retry:
-	if (!(np = realloc(p, size + L_D_S + RED_ZONE_INC))) {
+	if (!(np = heap_realloc(p, size + L_D_S + RED_ZONE_INC))) {
 		if (out_of_memory_fl(0, !mayfail ? cast_uchar "realloc" : NULL, size + L_D_S + RED_ZONE_INC, file, line)) goto retry;
 		ah->magic = ALLOC_MAGIC;
 		return NULL;
@@ -391,8 +453,8 @@ void set_mem_comment(void *p, unsigned char *c, int l)
 {
 #ifdef LEAK_DEBUG_LIST
 	struct alloc_header *ah = (struct alloc_header *)((unsigned char *)p - L_D_S);
-	if (ah->comment) free(ah->comment);
-	if ((ah->comment = malloc(l + 1))) memcpy(ah->comment, c, l), ah->comment[l] = 0;
+	if (ah->comment) heap_free(ah->comment);
+	if ((ah->comment = heap_malloc(l + 1))) memcpy(ah->comment, c, l), ah->comment[l] = 0;
 #endif
 }
 
@@ -423,7 +485,7 @@ void *mem_alloc_(size_t size, int mayfail)
 		overalloc();
 	}
 	retry:
-	if (!(p = malloc(size))) {
+	if (!(p = heap_malloc(size))) {
 		if (out_of_memory_fl(0, !mayfail ? cast_uchar "malloc" : NULL, size, NULL, 0)) goto retry;
 		return NULL;
 	}
@@ -441,7 +503,7 @@ void *mem_calloc_(size_t size, int mayfail)
 		overalloc();
 	}
 	retry:
-	if (!(p = x_calloc(size))) {
+	if (!(p = heap_calloc(size))) {
 		if (out_of_memory_fl(0, !mayfail ? cast_uchar "calloc" : NULL, size, NULL, 0)) goto retry;
 		return NULL;
 	}
@@ -456,7 +518,7 @@ void mem_free(void *p)
 		internal("mem_free(NULL)");
 		return;
 	}
-	free(p);
+	heap_free(p);
 }
 
 void *mem_realloc_(void *p, size_t size, int mayfail)
@@ -478,7 +540,7 @@ void *mem_realloc_(void *p, size_t size, int mayfail)
 		overalloc();
 	}
 	retry:
-	if (!(np = realloc(p, size))) {
+	if (!(np = heap_realloc(p, size))) {
 		if (out_of_memory_fl(0, !mayfail ? cast_uchar "realloc" : NULL, size, NULL, 0)) goto retry;
 		return NULL;
 	}
@@ -506,7 +568,7 @@ unsigned char *stracpy(const unsigned char *src)
 
 #else
 
-unsigned char *debug_memacpy(unsigned char *f, int l, unsigned char *src, size_t len)
+unsigned char *debug_memacpy(unsigned char *f, int l, const unsigned char *src, size_t len)
 {
 	unsigned char *m;
 	m = (unsigned char *)debug_mem_alloc(f, l, len + 1, 0);
@@ -515,7 +577,7 @@ unsigned char *debug_memacpy(unsigned char *f, int l, unsigned char *src, size_t
 	return m;
 }
 
-unsigned char *debug_stracpy(unsigned char *f, int l, unsigned char *src)
+unsigned char *debug_stracpy(unsigned char *f, int l, const unsigned char *src)
 {
 	return src ? (unsigned char *)debug_memacpy(f, l, src, src != DUMMY ? strlen(cast_const_char src) : 0L) : NULL;
 }

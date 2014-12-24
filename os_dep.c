@@ -14,77 +14,6 @@
 #endif
 
 
-int is_safe_in_shell(unsigned char c)
-{
-	return c == '@' || c == '+' || c == '-' || c == '.' || c == ',' || c == '=' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z');
-}
-
-int is_safe_in_url(unsigned char c)
-{
-	return is_safe_in_shell(c) || c == ':' || c == '/' || c >= 0x80;
-}
-
-void check_shell_security(unsigned char **cmd)
-{
-	unsigned char *c = *cmd;
-	while (*c) {
-		if (!is_safe_in_shell(*c)) *c = '_';
-		c++;
-	}
-}
-
-int check_shell_url(unsigned char *url)
-{
-	while (*url) {
-		if (!is_safe_in_url(*url)) return -1;
-		url++;
-	}
-	return 0;
-}
-
-unsigned char *escape_path(unsigned char *path)
-{
-	unsigned char *result;
-	size_t i;
-	if (strchr(cast_const_char path, '"')) return stracpy(path);
-	for (i = 0; path[i]; i++) if (!is_safe_in_url(path[i])) goto do_esc;
-	return stracpy(path);
-	do_esc:
-	result = stracpy(cast_uchar "\"");
-	add_to_strn(&result, path);
-	add_to_strn(&result, cast_uchar "\"");
-	return result;
-}
-
-static inline int get_e(unsigned char *env)
-{
-	unsigned char *v;
-	if ((v = cast_uchar getenv(cast_const_char env))) return atoi(cast_const_char v);
-	return 0;
-}
-
-void do_signal(int sig, void (*handler)(int))
-{
-	errno = 0;
-	while (signal(sig, handler) == SIG_ERR && errno == EINTR) errno = 0;
-}
-
-void ignore_signals(void)
-{
-	do_signal(SIGPIPE, SIG_IGN);
-#ifdef SIGXFSZ
-	do_signal(SIGXFSZ, SIG_IGN);
-#endif
-#ifdef VMS
-#ifdef SIGCHLD
-	do_signal(SIGCHLD, SIG_IGN);
-#endif
-	do_signal(SIGINT, SIG_IGN);
-#endif
-}
-
-unsigned char *clipboard = NULL;
-
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -176,6 +105,7 @@ static int dosallocmem_attrib = PAG_READ | PAG_WRITE | PAG_COMMIT;
 #define HEAP_ALIGN		0x10000
 #define HEAP_PAD		2
 #define HEAP_MAXPAD		0x1000000
+#define HEAP_IMMEDIATE_RELEASE	0x100000
 
 static void heap_release(Heap_t h, void *ptr, size_t len)
 {
@@ -260,6 +190,14 @@ static void init_os2_heap(void)
 	_udefault(new_heap);
 }
 
+void mem_freed_large(size_t size)
+{
+#if defined(HAVE__HEAPMIN)
+	if (size >= HEAP_IMMEDIATE_RELEASE)
+		_heapmin();
+#endif
+}
+
 #endif
 
 #if defined(O_SIZE) && defined(__EMX__)
@@ -272,6 +210,136 @@ int open_prealloc(unsigned char *name, int flags, int mode, off_t siz)
 }
 
 #endif
+
+
+int is_safe_in_shell(unsigned char c)
+{
+	return c == '@' || c == '+' || c == '-' || c == '.' || c == ',' || c == '=' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z');
+}
+
+static inline int is_safe_in_file(unsigned char c)
+{
+	return !(c < ' ' || c == '"' || c == '*' || c == '/' || c == ':' || c == '<' || c == '>' || c == '\\' || c == '|' || c >= 0x80);
+}
+
+static inline int is_safe_in_url(unsigned char c)
+{
+	return is_safe_in_shell(c) || c == ':' || c == '/' || c >= 0x80;
+}
+
+void check_shell_security(unsigned char **cmd)
+{
+	unsigned char *c = *cmd;
+	while (*c) {
+		if (!is_safe_in_shell(*c)) *c = '_';
+		c++;
+	}
+}
+
+void check_filename(unsigned char **file)
+{
+	unsigned char *c = *file;
+	while (*c) {
+		if (!is_safe_in_file(*c)) *c = '_';
+		c++;
+	}
+}
+
+int check_shell_url(unsigned char *url)
+{
+	while (*url) {
+		if (!is_safe_in_url(*url)) return -1;
+		url++;
+	}
+	return 0;
+}
+
+unsigned char *escape_path(unsigned char *path)
+{
+	unsigned char *result;
+	size_t i;
+	if (strchr(cast_const_char path, '"')) return stracpy(path);
+	for (i = 0; path[i]; i++) if (!is_safe_in_url(path[i])) goto do_esc;
+	return stracpy(path);
+	do_esc:
+	result = stracpy(cast_uchar "\"");
+	add_to_strn(&result, path);
+	add_to_strn(&result, cast_uchar "\"");
+	return result;
+}
+
+static inline int get_e(unsigned char *env)
+{
+	unsigned char *v;
+	if ((v = cast_uchar getenv(cast_const_char env))) return atoi(cast_const_char v);
+	return 0;
+}
+
+void do_signal(int sig, void (*handler)(int))
+{
+	errno = 0;
+	while (signal(sig, handler) == SIG_ERR && errno == EINTR) errno = 0;
+}
+
+void ignore_signals(void)
+{
+	do_signal(SIGPIPE, SIG_IGN);
+#ifdef SIGXFSZ
+	do_signal(SIGXFSZ, SIG_IGN);
+#endif
+#ifdef VMS
+#ifdef SIGCHLD
+	do_signal(SIGCHLD, SIG_IGN);
+#endif
+	do_signal(SIGINT, SIG_IGN);
+#endif
+}
+
+ttime get_time(void)
+{
+#if defined(OS2) || defined(WIN32)
+	static unsigned last_tim = 0;
+	static ttime add = 0;
+	unsigned tim;
+#if defined(OS2)
+	int rc;
+	rc = DosQuerySysInfo(QSV_MS_COUNT, QSV_MS_COUNT, &tim, sizeof tim);
+	if (rc) fatal_exit("DosQuerySysInfo failed: %d", rc);
+#elif defined(WIN32)
+	tim = GetTickCount();
+#endif
+	if (tim < last_tim) {
+		add += (ttime)1 << 31 << 1;
+	}
+	last_tim = tim;
+	return tim | add;
+#else
+	union {
+		struct timeval tv;
+#if defined(HAVE_CLOCK_GETTIME) && defined(TIME_WITH_SYS_TIME)
+		struct timespec ts;
+#endif
+	} u;
+	int rs;
+#if defined(HAVE_CLOCK_GETTIME) && defined(TIME_WITH_SYS_TIME)
+#if defined(CLOCK_MONOTONIC_RAW)
+	EINTRLOOP(rs, clock_gettime(CLOCK_MONOTONIC_RAW, &u.ts));
+	if (!rs) return(uttime)u.ts.tv_sec * 1000 + u.ts.tv_nsec / 1000000;
+#endif
+#if defined(CLOCK_MONOTONIC)
+	EINTRLOOP(rs, clock_gettime(CLOCK_MONOTONIC, &u.ts));
+	if (!rs) return(uttime)u.ts.tv_sec * 1000 + u.ts.tv_nsec / 1000000;
+#endif
+#endif
+	EINTRLOOP(rs, gettimeofday(&u.tv, NULL));
+	if (rs) fatal_exit("gettimeofday failed: %d", errno);
+	return (uttime)u.tv.tv_sec * 1000 + u.tv.tv_usec / 1000;
+#endif
+}
+
+
+unsigned char *clipboard = NULL;
+
 
 /* Terminal size */
 
@@ -389,7 +457,7 @@ static unsigned char winch_thread_running = 0;
 
 static void winch_thread(void)
 {
-	/* A thread which regularly checks whether the size of 
+	/* A thread which regularly checks whether the size of
 	   window has changed. Then raise SIGWINCH or notifiy
 	   the thread responsible to handle this. */
 	static int old_xsize, old_ysize;
@@ -406,7 +474,7 @@ static void winch_thread(void)
 			EINTRLOOP(wr, (int)write(winch_pipe[1], "x", 1));
 			/* Resizing may take some time. So don't send a flood
 		     of requests?! */
-			_sleep2(2*WINCH_SLEEPTIME);   
+			_sleep2(2*WINCH_SLEEPTIME);
 		}
 		else
 			_sleep2(WINCH_SLEEPTIME);
@@ -1865,7 +1933,7 @@ static void input_thread(void *p)
 	int rs;
 	ignore_signals();
 	while (1) {
-	   /* for the records: 
+	   /* for the records:
 		 _read_kbd(0, 1, 1) will
 		 read a char, don't echo it, wait for one available and
 		 accept CTRL-C.
@@ -2607,7 +2675,7 @@ static int open_in_new_g(struct terminal *term, unsigned char *exe, unsigned cha
 		target = param;
 		param += strcspn(cast_const_char param, " ");
 		if (*param == ' ') *param++ = 0;
-	}	
+	}
 	url = param;
 	if (!(info = create_session_info(base, url, target, &len)))
 		return -1;

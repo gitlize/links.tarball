@@ -138,6 +138,9 @@
 /* Define if you have the chmod function.  */
 #define HAVE_CHMOD 1
 
+/* Define if you have the clock_gettime function.  */
+/* #undef HAVE_CLOCK_GETTIME */
+
 /* Define if you have the cygwin_conv_path function.  */
 /* #undef HAVE_CYGWIN_CONV_PATH */
 
@@ -185,6 +188,9 @@
 
 /* Define if you have the inet_pton function.  */
 #define HAVE_INET_PTON 1
+
+/* Define if you have the malloc_trim function.  */
+/* #undef HAVE_MALLOC_TRIM */
 
 /* Define if you have the memchr function.  */
 #define HAVE_MEMCHR 1
@@ -642,6 +648,9 @@
 /* Define if you have the pthread library (-lpthread).  */
 /* #undef HAVE_LIBPTHREAD */
 
+/* Define if you have the rt library (-lrt).  */
+/* #undef HAVE_LIBRT */
+
 /* Define if you have the socket library (-lsocket).  */
 /* #undef HAVE_LIBSOCKET */
 
@@ -673,11 +682,8 @@
 #define PACKAGE "links"
 
 /* Version number of package */
-#define VERSION "2.8"
+#define VERSION "2.9"
 
-
-/* */
-#define VERSION "2.8"
 
 /* */
 /* #undef HAVE_TYPEOF */
@@ -764,10 +770,10 @@
 #define HAVE_SIGSETJMP 1
 
 /* */
-/* #undef HAVE_POW */
+#define DEBUGLEVEL 0
 
 /* */
-/* #undef HAVE_POWF */
+/* #undef HAVE_CLOCK_GETTIME */
 
 /* */
 #define HAVE_GETHOSTBYNAME 1
@@ -782,7 +788,10 @@
 #define SUPPORT_IPV6_SCOPE 1
 
 /* */
-#define DEBUGLEVEL 0
+/* #undef HAVE_POW */
+
+/* */
+/* #undef HAVE_POWF */
 
 /* */
 /* #undef JS */
@@ -864,3 +873,6 @@
 
 /* Tiff by Brain */
 /* #undef HAVE_TIFF */
+
+/* Gpm_Event has wdx and wdy */
+/* #undef HAVE_WDX_WDY */

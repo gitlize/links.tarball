@@ -617,6 +617,8 @@ struct graphics_driver atheos_driver = {
 	ath_shutdown_driver,
 	dummy_emergency_shutdown,
 	ath_get_driver_param,
+	NULL,
+	NULL,
 	ath_get_empty_bitmap,
 	/*ath_get_filled_bitmap,*/
 	ath_register_bitmap,

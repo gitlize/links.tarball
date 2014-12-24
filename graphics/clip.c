@@ -103,7 +103,7 @@ int copy[]={
 
 int merge[]={};
 #endif /* #ifdef STANDARD_SYMBOL */
-	
+
 #ifdef GEORGIAN_MKHEDRULI  /* mkhedruli.pfb */
 int copy[]={
 	35,0x10d0,
@@ -467,55 +467,55 @@ int merge[]={};
  */
 int copy[]={
 	161,0xa1,
-	162,0xa2,  
+	162,0xa2,
 	163,0xa3,
-	165,0xa5,  
+	165,0xa5,
 	167,0xa7,
-	171,0xab,	
-	172,0x2039,	
+	171,0xab,
+	172,0x2039,
 	173,0x203a,
 	174,0xfb01,
 	175,0xfb02,
 	177,0x2013,
-	178,0x2020,	
-	179,0x2021,	
-	182,0xb6,	
-	183,0x2022,	
-	187,0xbb,	
-	188,0x2026,	
-	189,0x2030,	
-	191,0xbf,	
-	196,0x2dc,	
-	208,0x2014,	
-	225,0xc6,	
-	232,0x141,	
-	233,0xd8,	
-	234,0x152,	
-	235,0x2116,	
-	241,0xe6,	
-	248,0x142,	
-	249,0xf8,	
-	250,0x153,	
-	251,0xdf,	
+	178,0x2020,
+	179,0x2021,
+	182,0xb6,
+	183,0x2022,
+	187,0xbb,
+	188,0x2026,
+	189,0x2030,
+	191,0xbf,
+	196,0x2dc,
+	208,0x2014,
+	225,0xc6,
+	232,0x141,
+	233,0xd8,
+	234,0x152,
+	235,0x2116,
+	241,0xe6,
+	248,0x142,
+	249,0xf8,
+	250,0x153,
+	251,0xdf,
 
 	193,0x300,
 #define GRA 193		/* ` */
-	194,0xb4,	
+	194,0xb4,
 #define ACU 194		/* ' */
 	195,0x2c6,
 #define CIR 195		/* ^ */
-	196,0x2dc,	
+	196,0x2dc,
 #define TIL 196		/* ~ */
-	197,0xaf,	
+	197,0xaf,
 #define MAC 197		/* - above */
 	198,0x306,
 #define LSC 198		/* lower semicircle above */
 	199,0x2d9,
 	199,0xb7,
 #define DOT 199		/* . above */
-	200,0xa8,	
+	200,0xa8,
 #define UML 200		/* .. above */
-	202,0x2da,	
+	202,0x2da,
 	202,0xb0,
 #define RIN 202		/* o above */
 	203,0xb8,
@@ -524,11 +524,11 @@ int copy[]={
 #define DAC 205		/* " */
 	206,0x2db,
 #define OGO 206		/* left-right mirrored J under (ogonek) */
-	207,0x2c7,	
+	207,0x2c7,
 #define CAR 207		/* v above */
 
-	
-	
+
+
 };
 
 int merge[]={
@@ -854,7 +854,7 @@ int merge[]={};
 
 #endif /* #ifdef GREEK */
 unsigned char string[256];
-	
+
 void cp(int src, int dest)
 {
 		sprintf(string,"cp font/new/orig_%04x.png font/new/%04x.png"
@@ -878,7 +878,7 @@ int main(int argc, char **argv)
 	float dpi;
 	unsigned char *txt;
 	FILE *f;
-	
+
 	if (!(txt=getenv("hundred_dpi"))){
 		fprintf(stderr,"Can't find environment variable \"hundred_dpi\".\n");
 		exit(1);
@@ -907,7 +907,7 @@ int main(int argc, char **argv)
 	fprintf(f,"detract %d\n",top_margin);
 	fprintf(f,"mirror\nflip\nmirror\nflip\n");
 	fclose(f);
-	
+
 	fprintf(stderr,"mkdir -p font/new\n");
 	system("mkdir -p font/new");
 	fprintf(stderr,"rm font/new/*\n");

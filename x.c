@@ -290,77 +290,66 @@ static void x_clip_number(int *n,int l,int h)
 static unsigned char * x_set_palette(void)
 {
 	XColor color;
-	int a,r,g,b;
-	int tbl0[4]={0,21845,43690,65535};
-	int tbl1[8]={0,9362,18724,28086,37449,46811,56173,65535};
+	unsigned a;
+	unsigned limit = 1U << (x_depth <= 24 ? x_depth : 24);
 
 	x_colormap=XCreateColormap(x_display,x_root_window,x_default_visual,AllocAll);
 	XInstallColormap(x_display,x_colormap);
 
-	switch(x_depth)
-	{
-		case 4:
-		for (a=0;a<16;a++)
-		{
-			color.red=(a&8)?65535:0;
-			color.green=tbl0[(a>>1)&3];
-			color.blue=(a&1)?65535:0;
-			color.pixel=a;
-			color.flags=DoRed|DoGreen|DoBlue;
-			XStoreColor(x_display,x_colormap,&color);
-		}
-		break;
-
-		case 8:
-		for (a=0;a<256;a++)
-		{
-			color.red=tbl1[(a>>5)&7];
-			color.green=tbl1[(a>>2)&7];
-			color.blue=tbl0[a&3];
-			color.pixel=a;
-			color.flags=DoRed|DoGreen|DoBlue;
-			XStoreColor(x_display,x_colormap,&color);
-		}
-		break;
-
-		case 15:
-		for (a=0;a<32768;a++){
-		       	color.red=((a>>10)&31)*(65535/31);
-			color.green=((a>>5)&31)*(65535/31);
-       			color.blue=(a&31)*(65535/31);
-			color.pixel=a;
-			color.flags=DoRed|DoGreen|DoBlue;
-			XStoreColor(x_display,x_colormap,&color);
-		}
-		break;
-		case 16:
-		for (a=0;a<65536;a++){
-		       	color.red=((a>>11)&31)*(65535/31);
-			color.green=((a>>5)&63)*(65535/63);
-       			color.blue=(a&31)*(65535/31);
-			color.pixel=a;
-			color.flags=DoRed|DoGreen|DoBlue;
-			XStoreColor(x_display,x_colormap,&color);
-		}
-		break;
-
-		case 24:
-		for (r=0;r<256;r++)
-			for (g=0;g<256;g++)
-				for (b=0;b<256;b++)
-				{
-		       			color.red=r<<8;
-					color.green=g<<8;
-       					color.blue=b<<8;
-					color.pixel=(r<<16)+(g<<8)+(b);
-					color.flags=DoRed|DoGreen|DoBlue;
-					XStoreColor(x_display,x_colormap,&color);
-	       			 }
-
-		break;
+	for (a = 0; a < limit; a++) {
+		unsigned rgb[3];
+		q_palette(limit, a, 65535, rgb);
+		color.red = rgb[0];
+		color.green = rgb[1];
+		color.blue = rgb[2];
+		color.pixel = a;
+		color.flags = DoRed | DoGreen | DoBlue;
+		XStoreColor(x_display, x_colormap, &color);
 	}
 
 	X_FLUSH();
+	return NULL;
+}
+
+static unsigned char static_color_table[256];
+static int use_static_color_table;
+
+static unsigned char *x_query_palette(void)
+{
+	int i, j;
+	XColor color[256];
+	unsigned char valid[256];
+	int some_valid = 0;
+	memset(color, 0, sizeof color);
+	memset(valid, 0, sizeof valid);
+	for (i = 0; i < 1 << x_depth; i++) {
+		color[i].pixel = i;
+		x_prepare_for_failure();
+		XQueryColor(x_display,XDefaultColormap(x_display,x_screen), &color[i]);
+		if (!x_test_for_failure()) {
+			valid[i] = 1;
+			some_valid = 1;
+		}
+	}
+	if (!some_valid)
+		return stracpy(cast_uchar "Could not query static colormap\n");
+	for (i = 0; i < 1 << x_depth; i++) {
+		double best_distance = 0;
+		int best = -1;
+		unsigned rgb[3];
+		q_palette(1U << x_depth, i, 65535, rgb);
+		for (j = 0; j < 1 << x_depth; j++) {
+			double distance;
+			if (!valid[j]) continue;
+			distance = rgb_distance(rgb[0], rgb[1], rgb[2], color[j].red, color[j].green, color[j].blue);
+			if (best == -1 || distance < best_distance) {
+				best = j;
+				best_distance = distance;
+			}
+		}
+		static_color_table[i] = (unsigned char)best;
+	}
+	use_static_color_table = 1;
 	return NULL;
 }
 
@@ -1163,9 +1152,9 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 	/* find best visual */
 	{
 #define DEPTHS 5
-#define CLASSES 2
+#define CLASSES 3
 		int depths[DEPTHS]={24, 16, 15, 8, 4};
-		int classes[CLASSES]={TrueColor, PseudoColor}; /* FIXME: dodelat DirectColor */
+		int classes[CLASSES]={TrueColor, PseudoColor, StaticColor}; /* FIXME: dodelat DirectColor */
 		int a,b;
 
 		for (a=0;a<DEPTHS;a++)
@@ -1173,26 +1162,27 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 			{
 				if (XMatchVisualInfo(x_display, x_screen,depths[a],classes[b], &vinfo))
 				{
+					XPixmapFormatValues *pfm;
+					int n,i;
+
 					x_default_visual=vinfo.visual;
 					x_depth=vinfo.depth;
 
-					/* determine bytes per pixel */
-					{
-						XPixmapFormatValues *pfm;
-						int n,i;
-
-						pfm=XListPixmapFormats(x_display,&n);
-						for (i=0;i<n;i++)
-							if (pfm[i].depth==x_depth)
-							{
-								x_bitmap_bpp=pfm[i].bits_per_pixel<8?1:((pfm[i].bits_per_pixel)>>3);
-								x_bitmap_scanline_pad=(pfm[i].scanline_pad)>>3;
-								XFree(pfm);
-								goto bytes_per_pixel_found;
-							}
-						if(n) XFree(pfm);
+					if (classes[b] == StaticColor && depths[a] > 8)
 						continue;
-					}
+
+					/* determine bytes per pixel */
+					pfm=XListPixmapFormats(x_display,&n);
+					for (i=0;i<n;i++)
+						if (pfm[i].depth==x_depth)
+						{
+							x_bitmap_bpp=pfm[i].bits_per_pixel<8?1:((pfm[i].bits_per_pixel)>>3);
+							x_bitmap_scanline_pad=(pfm[i].scanline_pad)>>3;
+							XFree(pfm);
+							goto bytes_per_pixel_found;
+						}
+					if(n) XFree(pfm);
+					continue;
 bytes_per_pixel_found:
 
 					/* test misordered flag */
@@ -1299,12 +1289,18 @@ visual_found:;
 
 	x_colors=1<<x_depth;
 	x_have_palette=0;
+	use_static_color_table = 0;
 	if (vinfo.class==DirectColor||vinfo.class==PseudoColor)
 	{
 		unsigned char *t;
 
 		x_have_palette=1;
 		if((t=x_set_palette())){x_free_hash_table(); return t;}
+	}
+	if (vinfo.class==StaticColor)
+	{
+		unsigned char *t;
+		if((t=x_query_palette())){x_free_hash_table(); return t;}
 	}
 
 	x_black_pixel=BlackPixel(x_display,x_screen);
@@ -1567,6 +1563,18 @@ static void x_shutdown_device(struct graphics_device *gd)
 	mem_free(gd);
 }
 
+static void x_translate_colors(unsigned char *data, int x, int y, int skip)
+{
+	int i, j;
+	if (!use_static_color_table)
+		return;
+	for (j = 0; j < y; j++) {
+		for (i = 0; i < x; i++)
+			data[i] = static_color_table[data[i]];
+		data += skip;
+	}
+}
+
 static int x_get_empty_bitmap(struct bitmap *bmp)
 {
 	int pad;
@@ -1591,7 +1599,7 @@ static void x_register_bitmap(struct bitmap *bmp)
 {
 	struct x_pixmapa *p;
 	XImage *image;
-	Pixmap *pixmap;
+	Pixmap *pixmap = NULL;	/* shut up warning */
 	int can_create_pixmap;
 
 #ifdef X_DEBUG
@@ -1600,6 +1608,8 @@ static void x_register_bitmap(struct bitmap *bmp)
 
 	X_FLUSH();
 	if (!bmp->data||!bmp->x||!bmp->y) goto cant_create;
+
+	x_translate_colors(bmp->data, bmp->x, bmp->y, bmp->skip);
 
 	/* alloc struct x_bitmapa */
 	p=mem_alloc(sizeof(struct x_pixmapa));
@@ -1704,7 +1714,9 @@ static long x_get_color(int rgb)
 	b = (unsigned char *)&block;
 	/*fprintf(stderr, "bitmap bpp %d\n", x_bitmap_bpp);*/
 	switch (x_bitmap_bpp) {
-		case 1:		return b[0];
+		case 1:		if (use_static_color_table)
+					return static_color_table[b[0]];
+				return b[0];
 		case 2:		if (x_bitmap_bit_order == LSBFirst)
 					return b[0] | (b[1] << 8);
 				else
@@ -2109,11 +2121,13 @@ static void x_commit_strip(struct bitmap *bmp, int top, int lines)
 		/* send image to pixmap in xserver */
 		case X_TYPE_PIXMAP:
 		if (!bmp->data) return;
+		x_translate_colors((unsigned char *)((XImage*)bmp->data)->data, bmp->x, lines, bmp->skip);
 		XPutImage(x_display,*(XPIXMAPP(bmp->flags)->data.pixmap),x_copy_gc,(XImage*)bmp->data,0,0,0,top,bmp->x,lines);
 		XDestroyImage((XImage *)bmp->data);
 		return;
 
 		case X_TYPE_IMAGE:
+		x_translate_colors((unsigned char *)p->data.image->data+(bmp->skip*top), bmp->x, lines, bmp->skip);
 		/* everything has been done by user */
 		return;
 	}
@@ -2437,6 +2451,8 @@ struct graphics_driver x_driver={
 	x_shutdown_driver,
 	dummy_emergency_shutdown,
 	x_get_driver_param,
+	NULL,
+	NULL,
 	x_get_empty_bitmap,
 	/*x_get_filled_bitmap,*/
 	x_register_bitmap,

@@ -42,7 +42,7 @@ static struct list_description blocks_ld={
 static void* block_new_item(void* ignore)
 {
 	/*Default constructor*/
-	struct block *neww; 
+	struct block *neww;
 
 	neww = mem_alloc(sizeof(struct block));
 	neww->url = stracpy(cast_uchar "");
@@ -82,19 +82,18 @@ static unsigned char *block_type_item(struct terminal *term, void *data, int x)
 
 	if ((struct list*)item==(&blocks)) return stracpy(_(TEXT_(T_BLOCK_LIST),term));
 	txt=stracpy(item->url);
-	
 
 	/*I have no idea what this does, but it os copied from working code in types.c*/
 	table=get_translation_table(blocks_ld.codepage,term->spec->charset);
 	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	mem_free(txt);
-			
+
 	return txt1;
 }
 
 struct assoc_ok_struct{
 	void (*fn)(struct dialog_data *,void *,void *,struct list_description *);
-	void *data;	
+	void *data;
 	struct dialog_data *dlg;
 };
 
@@ -121,7 +120,7 @@ static void block_edit_done(void *data)
 
 	/*See block_edit_item*/
 	url=(unsigned char *)&d->items[4];
-	
+
 	table=get_translation_table(s->dlg->win->term->spec->charset,blocks_ld.codepage);
 	txt=convert_string(table,url,(int)strlen(cast_const_char url),NULL);
 	mem_free(item->url); item->url=txt;
@@ -131,7 +130,7 @@ static void block_edit_done(void *data)
 }
 
 static void block_edit_item_fn(struct dialog_data *dlg)
-{	
+{
 	/*Copied from input_field. I don't know how most of it works.*/
 #define LL gf_val(1, G_BFU_FONT_SIZE)
 	struct terminal *term = dlg->win->term;
@@ -186,14 +185,14 @@ static void block_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	/*Set up this string */
 	url=(unsigned char *)&d->items[4];
 	if (neww->url)safe_strncpy(url,neww->url,MAX_STR_LEN);
-	
+
 	/* Create the dialog */
 	s = mem_alloc(sizeof(struct assoc_ok_struct));
 
 	s->fn=ok_fn;
 	s->data=ok_arg;
 	s->dlg=dlg;
-		
+
 	switch (dlg_title)
 	{
 		case TITLE_EDIT:
@@ -250,7 +249,7 @@ static void *block_find_item(void *start, unsigned char *str, int direction)
 				if (e->url && casestrstr(e->url,str)) return e;
 			}
 	}
-	
+
 	if (e==s&&e->depth>-1&&e->url && casestrstr(e->url,str)) return e;
 
 	return NULL;
@@ -274,12 +273,12 @@ void *block_url_add(struct session *ses, unsigned char *url)
 
 	new_b = block_new_item(0);
 
-	if (new_b->url) 
+	if (new_b->url)
 		mem_free(new_b->url);
-	
+
 	new_b->url = stracpy(url);
 	new_b->type = 0;
-	
+
 	add_at_pos((struct block *)blocks_ld.list->prev, new_b);
 	return NULL;
 }
@@ -327,7 +326,7 @@ static int simple_glob_match(unsigned char *s, unsigned char *p)
 
 int is_url_blocked(unsigned char* url)
 {
-	struct block* b;	
+	struct block* b;
 
 	foreach(b, blocks)
 	{
@@ -349,7 +348,7 @@ void free_blocks(void)
 	}
 
 	free_list(blocks);
-	free_list(block_search_histroy.items);	
+	free_list(block_search_histroy.items);
 }
 
 

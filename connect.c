@@ -700,9 +700,11 @@ void write_to_socket(struct connection *c, int s, unsigned char *data, int len, 
 }
 
 #define READ_SIZE	64240
+#define TOTAL_READ	(4193008 - READ_SIZE)
 
 static void read_select(struct connection *c)
 {
+	int total_read = 0;
 	struct read_buffer *rb;
 	int rd;
 	if (!(rb = c->buffer)) {
@@ -712,14 +714,17 @@ static void read_select(struct connection *c)
 		return;
 	}
 	set_handlers(rb->sock, NULL, NULL, NULL, NULL);
+
+read_more:
 	if ((unsigned)rb->len > MAXINT - sizeof(struct read_buffer) - READ_SIZE) overalloc();
 	rb = mem_realloc(rb, sizeof(struct read_buffer) + rb->len + READ_SIZE);
 	c->buffer = rb;
 
 #ifdef HAVE_SSL
-	if(c->ssl) {
+	if (c->ssl) {
 		if ((rd = SSL_read(c->ssl, rb->data + rb->len, READ_SIZE)) <= 0) {
 			int err;
+			if (total_read) goto success;
 			if ((err = SSL_get_error(c->ssl, rd)) == SSL_ERROR_WANT_READ) {
 				read_from_socket(c, rb->sock, rb, rb->done);
 				return;
@@ -742,6 +747,7 @@ static void read_select(struct connection *c)
 	{
 		EINTRLOOP(rd, (int)read(rb->sock, rb->data + rb->len, READ_SIZE));
 		if (rd <= 0) {
+			if (total_read) goto success;
 			if (rb->close && !rd) {
 				rb->close = 2;
 				rb->done(c, rb);
@@ -771,6 +777,17 @@ static void read_select(struct connection *c)
 	}
 	log_data(rb->data + rb->len, rd);
 	rb->len += rd;
+	total_read += rd;
+
+	if ((rd == READ_SIZE
+#ifdef HAVE_SSL
+	    || c->ssl
+#endif
+	    ) && total_read <= TOTAL_READ) {
+		if (can_read(rb->sock))
+			goto read_more;
+	}
+success:
 	rb->done(c, rb);
 }
 

@@ -6,8 +6,10 @@
 
 #include "cfg.h"
 
-#if 0
-#define debug_call(x) printf x; fflush(stdout);
+/*#define PM_DEBUG*/
+
+#ifdef PM_DEBUG
+#define debug_call(x) do { printf("%016llx, %d: ", (unsigned long long)get_time(), _gettid()); printf x; putchar('\n'); fflush(stdout); } while (0)
 #else
 #define debug_call(x)
 #endif
@@ -30,6 +32,17 @@ extern struct graphics_driver pmshell_driver;
 #include <sys/fmutex.h>
 
 #define PM_SPAWN_SUBPROC
+
+/* Links on OS/2 crashes with 24-bit bpp and bitmaps wider than 10921 pixels,
+   apparently there is something that expects 15-bit line stride in bitmap
+   handling code in pmshell.
+   We set this limit lower, to 128, so that we don't exhaust shared memory with
+   big images */
+#define OS2_MAX_BITMAP_SIZE	128
+
+/* GpiDrawBits can't draw images with more than 32767 pixes in X direction.
+   We'd better draw them line-by-line */
+#define OS2_MAX_LINE_SIZE	8191
 
 extern PPIB os2_pib;
 
@@ -185,7 +198,7 @@ static int pm_lock_init(void)
 
 static void pm_lock_close(void)
 {
-	if (!CloseHandle(winapi_semaphore)) 
+	if (!CloseHandle(winapi_semaphore))
 		fatal_exit("CloseHandle failed");
 }
 
@@ -211,7 +224,7 @@ static int pm_event_init(void)
 
 static void pm_event_close(void)
 {
-	if (!CloseHandle(winapi_event)) 
+	if (!CloseHandle(winapi_event))
 		fatal_exit("CloseHandle failed");
 }
 
@@ -228,6 +241,53 @@ static inline void pm_event_signal(void)
 }
 
 #endif
+
+
+#define PM_ALLOC_ZERO		1
+#define PM_ALLOC_MAYFAIL	2
+
+#if defined(WIN32) && !defined(USE_WIN32_HEAP)
+
+/* space allocated with malloc may span multiple mapped areas
+   and SetDIBitsToDevice doesn't like it. So use HeapAlloc/HeapFree */
+
+static void *pm_alloc(size_t size, int flags)
+{
+	void *data;
+again:
+	data = HeapAlloc(GetProcessHeap(), flags & PM_ALLOC_ZERO ? HEAP_ZERO_MEMORY : 0, size);
+	if (!data) {
+		if (out_of_memory(0, flags & PM_ALLOC_MAYFAIL ? NULL : cast_uchar "pm_alloc", size))
+			goto again;
+	}
+	return data;
+}
+
+static void pm_free(void *ptr)
+{
+	HeapFree(GetProcessHeap(), 0, ptr);
+}
+
+#else
+
+static void *pm_alloc(size_t size, int flags)
+{
+	if (!(flags & PM_ALLOC_MAYFAIL))
+		if (!(flags & PM_ALLOC_ZERO))
+			return mem_alloc(size);
+		else
+			return mem_calloc(size);
+	else
+		if (!(flags & PM_ALLOC_ZERO))
+			return mem_alloc_mayfail(size);
+		else
+			return mem_calloc_mayfail(size);
+}
+
+#define pm_free	mem_free
+
+#endif
+
 
 static BITMAPINFO *pm_bitmapinfo;
 static int icon_set;
@@ -276,18 +336,10 @@ struct pm_window {
 
 #define WIN_HASH	64
 
-#ifdef OS2
-static int HASH_VALUE(HWND hw)
-{
-	return hw & (WIN_HASH - 1);
-}
-#endif
-#ifdef WIN32
 static int HASH_VALUE(HWND hw)
 {
 	return (unsigned long)hw & (WIN_HASH - 1);
 }
-#endif
 
 static struct pm_window *pm_windows[WIN_HASH];
 
@@ -454,6 +506,7 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 #endif
 {
 #ifdef OS2
+	MRESULT ret;
 	int k_usch;
 	int scancode;
 #endif
@@ -463,17 +516,23 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 	long key;
 	struct pm_window *win;
 	RECTL wr, ur;
-	/*fprintf(stderr, "%08x %08x %08x\n", (int)msg, (int)mp1, (int)mp2);*/
+	debug_call(("T: pm_window_proc: %lx %lx %p %p", hwnd, msg, mp1, mp2));
 	if (hwnd == hwnd_hidden) {
+		debug_call(("T: pm_user_msg"));
 		pm_user_msg(msg, (void *)mp1, (void *)mp2);
 	} else switch (msg) {
 		case WM_PAINT:
+			debug_call(("T: WM_PAINT: pm_lock"));
 			pm_lock();
 #ifdef OS2
+			debug_call(("T: WM_PAINT: WinQueryUpdateRect"));
 			WinQueryUpdateRect(hwnd, &ur);
+			debug_call(("T: WM_PAINT: WinQueryWindowRect"));
 			if (!WinQueryWindowRect(hwnd, &wr)) {
+				debug_call(("T: WM_PAINT: WinQueryWindowRect failed"));
 				memset(&wr, 0, sizeof wr);
 			}
+			debug_call(("T: WM_PAINT: WinValidateRect"));
 			WinValidateRect(hwnd, &ur, FALSE);
 #endif
 #ifdef WIN32
@@ -486,12 +545,17 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 			if (!ValidateRect(hwnd, &ur))
 				fatal_exit("ValidateRect failed");
 #endif
+			debug_call(("T: WM_PAINT: pm_lookup_window"));
 			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: WM_PAINT: pm_lookup_window failed"));
 				pm_unlock();
+				debug_call(("T: WM_PAINT: return 0"));
 				return 0;
 			}
 			if (win->minimized) {
+				debug_call(("T: WM_PAINT: win->minimized"));
 				pm_unlock();
+				debug_call(("T: WM_PAINT: break"));
 				break;
 			}
 #ifdef WIN32
@@ -505,37 +569,56 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 					pm_default_window_height = wr.yTop;
 				}
 #endif
+				debug_call(("T: WM_PAINT: pm_resize"));
 				pm_resize(win, &wr);
 			} else {
+				debug_call(("T: WM_PAINT: pm_redraw"));
 				pm_redraw(win, &ur);
 			}
+			debug_call(("T: WM_PAINT: pm_unlock"));
 			pm_unlock();
+			debug_call(("T: WM_PAINT: return 0"));
 			return 0;
 #ifdef OS2
 		case WM_MINMAXFRAME:
+			debug_call(("T: WM_MINMAXFRAME: pm_lock"));
 			pm_lock();
+			debug_call(("T: WM_MINMAXFRAME: pm_lookup_window"));
 			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: WM_MINMAXFRAME: pm_lookup_window failed"));
 				pm_unlock();
+				debug_call(("T: WM_MINMAXFRAME: return 0"));
 				return 0;
 			}
 			if (((SWP *)mp1)->fl & (SWP_HIDE | SWP_MINIMIZE))
 				win->minimized = 1;
 			else
 				win->minimized = 0;
+			debug_call(("T: WM_MINMAXFRAME: minimized: %d, win->minimized", win->minimized));
 			pm_unlock();
+			debug_call(("T: WM_MINMAXFRAME: break"));
 			break;
 #endif
 		case WM_CLOSE:
+			debug_call(("T: WM_CLOSE"));
 		case WM_QUIT:
+			debug_call(("T: WM_QUIT: pm_lock"));
 			pm_lock();
+			debug_call(("T: WM_QUIT: pm_lookup_window"));
 			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: WM_QUIT: pm_lookup_window failed"));
 				pm_unlock();
+				debug_call(("T: WM_QUIT: return 0"));
 				return 0;
 			}
+			debug_call(("T: WM_QUIT: pm_send_event"));
 			pm_send_event(win, E_KEY, KBD_CTRL_C, 0, 0, 0);
+			debug_call(("T: WM_QUIT: pm_unlock"));
 			pm_unlock();
+			debug_call(("T: WM_QUIT: return 0"));
 			return 0;
 		case WM_CHAR:
+			debug_call(("T: WM_CHAR"));
 #ifdef WIN32
 		case WM_SYSCHAR:
 		case WM_KEYDOWN:
@@ -554,11 +637,16 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 			if ((k_fsflags & (KC_VIRTUALKEY | KC_CHAR)) == KC_VIRTUALKEY && k_usvk == 0x20)
 				k_fsflags ^= KC_KEYUP;
 
-			if (k_fsflags & (KC_KEYUP | KC_DEADKEY | KC_INVALIDCOMP))
+			if (k_fsflags & (KC_KEYUP | KC_DEADKEY | KC_INVALIDCOMP)) {
+				debug_call(("T: WM_CHAR: return 0 @ 1"));
 				return 0;
+			}
 
 			flags = (k_fsflags & KC_SHIFT ? KBD_SHIFT : 0) | (k_fsflags & KC_CTRL ? KBD_CTRL : 0) | (k_fsflags & KC_ALT ? KBD_ALT : 0);
-			if (k_fsflags & KC_ALT && ((scancode >= 0x47 && scancode <= 0x49) || (scancode >= 0x4b && scancode <= 0x4d) || (scancode >= 0x4f && scancode <= 0x52))) return 0;
+			if (k_fsflags & KC_ALT && ((scancode >= 0x47 && scancode <= 0x49) || (scancode >= 0x4b && scancode <= 0x4d) || (scancode >= 0x4f && scancode <= 0x52))) {
+				debug_call(("T: WM_CHAR: return 0 @ 2"));
+				return 0;
+			}
 			if ((k_fsflags & (KC_VIRTUALKEY | KC_CHAR)) == KC_VIRTUALKEY) {
 				if (k_usvk < N_VK && (key = pm_vk_table[k_usvk].x)) {
 					flags |= pm_vk_table[k_usvk].y;
@@ -578,10 +666,16 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 			} else key = os2xtd[k_usch >> 8].x, flags |= os2xtd[k_usch >> 8].y;
 			if ((key & 0xdf) == 'C' && (flags & KBD_CTRL)) key = KBD_CTRL_C, flags &= ~KBD_CTRL;
 			s:
-			if (!key) return 0;
+			if (!key) {
+				debug_call(("T: WM_CHAR: return 0 @ 3"));
+				return 0;
+			}
 			/*if (key >= 0) flags &= ~KBD_SHIFT;*/
 			if (key >= 0x80 && pm_cp) {
-				if ((key = cp2u(key, pm_cp)) < 0) return 0;
+				if ((key = cp2u(key, pm_cp)) < 0) {
+					debug_call(("T: WM_CHAR: return 0 @ 4"));
+					return 0;
+				}
 			}
 #endif
 #ifdef WIN32
@@ -640,79 +734,94 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 				}
 			}
 #endif
+			debug_call(("T: WM_CHAR: pm_lock"));
 			pm_lock();
+			debug_call(("T: WM_CHAR: pm_lookup_window"));
 			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: WM_CHAR: pm_lookup_window failed"));
 				pm_unlock();
+				debug_call(("T: WM_CHAR: return 0"));
 				return 0;
 			}
+			debug_call(("T: WM_CHAR: pm_send_event"));
 			pm_send_event(win, E_KEY, key, flags, 0, 0);
+			debug_call(("T: WM_CHAR: pm_unlock"));
 			pm_unlock();
+			debug_call(("T: WM_CHAR: return 0"));
 			return 0;
 		case WM_BUTTON1DOWN:
 		case WM_BUTTON1DBLCLK:
-			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			win->button |= 1 << B_LEFT;
-			win->lastpos = mouse_pos;
-			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_DOWN | B_LEFT, 0);
-			pm_unlock();
-			SetCapture(hwnd);
-			break;
+			flags = B_LEFT;
+			goto button_down;
 		case WM_BUTTON2DOWN:
 		case WM_BUTTON2DBLCLK:
-			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			win->button |= 1 << B_RIGHT;
-			win->lastpos = mouse_pos;
-			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_DOWN | B_RIGHT, 0);
-			pm_unlock();
-			SetCapture(hwnd);
-			break;
+			flags = B_RIGHT;
+			goto button_down;
 		case WM_BUTTON3DOWN:
 		case WM_BUTTON3DBLCLK:
+			flags = B_MIDDLE;
+			goto button_down;
+		button_down:
+			debug_call(("T: BUTTON_DOWN: pm_lock"));
 			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			win->button |= 1 << B_MIDDLE;
+			debug_call(("T: BUTTON_DOWN: pm_lookup_window"));
+			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: BUTTON_DOWN: pm_lookup_window failed"));
+				pm_unlock();
+				debug_call(("T: BUTTON_DOWN: break"));
+				break;
+			}
+			win->button |= 1 << flags;
 			win->lastpos = mouse_pos;
-			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_DOWN | B_MIDDLE, 0);
+			debug_call(("T: BUTTON_DOWN: pm_send_event (%d)", flags));
+			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_DOWN | flags, 0);
+			debug_call(("T: BUTTON_DOWN: pm_unlock"));
 			pm_unlock();
+			debug_call(("T: BUTTON_DOWN: SetCapture"));
 			SetCapture(hwnd);
+			debug_call(("T: BUTTON_DOWN: break"));
 			break;
 		case WM_BUTTON1UP:
 #ifdef OS2
 		case WM_BUTTON1MOTIONEND:
 #endif
-			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			if (msg == WM_BUTTON1UP) win->lastpos = mouse_pos;
-			if (win->button & (1 << B_LEFT)) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | B_LEFT, 0);
-			win->button &= ~(1 << B_LEFT);
-			pm_unlock();
-			if (!win->button) ReleaseCapture();
-			break;
+			flags = B_LEFT;
+			goto button_up;
 		case WM_BUTTON2UP:
 #ifdef OS2
 		case WM_BUTTON2MOTIONEND:
 #endif
-			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			if (msg == WM_BUTTON2UP) win->lastpos = mouse_pos;
-			if (win->button & (1 << B_RIGHT)) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | B_RIGHT, 0);
-			win->button &= ~(1 << B_RIGHT);
-			pm_unlock();
-			if (!win->button) ReleaseCapture();
-			break;
+			flags = B_RIGHT;
+			goto button_up;
 		case WM_BUTTON3UP:
 #ifdef OS2
 		case WM_BUTTON3MOTIONEND:
 #endif
+			flags = B_MIDDLE;
+			goto button_up;
+		button_up:
+			debug_call(("T: BUTTON_UP: pm_lock"));
 			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			if (msg == WM_BUTTON3UP) win->lastpos = mouse_pos;
-			if (win->button & (1 << B_MIDDLE)) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | B_MIDDLE, 0);
-			win->button &= ~(1 << B_MIDDLE);
+			debug_call(("T: BUTTON_UP: pm_lookup_window"));
+			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: BUTTON_UP: pm_lookup_window failed"));
+				pm_unlock();
+				debug_call(("T: BUTTON_UP: break"));
+				break;
+			}
+			if (msg == WM_BUTTON1UP) win->lastpos = mouse_pos;
+			if (win->button & (1 << flags)) {
+				debug_call(("T: BUTTON_UP: pm_send_event (%d)", flags));
+				pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | flags, 0);
+			}
+			win->button &= ~(1 << flags);
+			debug_call(("T: BUTTON_UP: pm_unlock"));
 			pm_unlock();
-			if (!win->button) ReleaseCapture();
+			if (!win->button) {
+				debug_call(("T: BUTTON_UP: ReleaseCapture"));
+				ReleaseCapture();
+			}
+			debug_call(("T: BUTTON_UP: break"));
 			break;
 #ifdef WIN32
 		case WM_XBUTTONDOWN:
@@ -722,42 +831,43 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 			else if (HIWORD(mp1) == XBUTTON2)
 				flags = B_FIFTH;
 			else break;
-			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			win->button |= 1 << flags;
-			win->lastpos = mouse_pos;
-			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_DOWN | flags, 0);
-			pm_unlock();
-			SetCapture(hwnd);
-			break;
+			goto button_down;
 		case WM_XBUTTONUP:
 			if (HIWORD(mp1) == XBUTTON1)
 				flags = B_FOURTH;
 			else if (HIWORD(mp1) == XBUTTON2)
 				flags = B_FIFTH;
 			else break;
-			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			win->lastpos = mouse_pos;
-			if (win->button & flags) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | flags, 0);
-			win->button &= ~(1 << flags);
-			pm_unlock();
-			if (!win->button) ReleaseCapture();
-			break;
+			goto button_up;
 #endif
 		case WM_MOUSEMOVE:
+			debug_call(("T: WM_MOUSEMOVE: pm_lock"));
 			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
+			debug_call(("T: WM_MOUSEMOVE: pm_lookup_window"));
+			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: WM_MOUSEMOVE: pm_lookup_window failed"));
+				pm_unlock();
+				debug_call(("T: WM_MOUSEMOVE: break"));
+				break;
+			}
 #ifdef OS2
+			debug_call(("T: WM_MOUSEMOVE: %x -> WinQueryCapture", win->button));
 			if (win->button && WinQueryCapture(HWND_DESKTOP) != hwnd) {
+				debug_call(("T: WM_MOUSEMOVE: clear buttons"));
 				for (flags = B_LEFT; flags <= B_SIXTH; flags++)
 					if (win->button & (1 << flags))
 						pm_send_event(win, E_MOUSE, win_x(win), win_y(win), B_UP | flags, 0);
 				win->button = 0;
 			}
 #endif
-			if (win->lastpos == mouse_pos) { pm_unlock(); break; }
+			if (win->lastpos == mouse_pos) {
+				debug_call(("T: WM_MOUSEMOVE: pm_unlock"));
+				pm_unlock();
+				debug_call(("T: WM_MOUSEMOVE: break"));
+				break;
+			}
 			win->lastpos = mouse_pos;
+			debug_call(("T: WM_MOUSEMOVE: pm_send_mouse_event"));
 			pm_send_mouse_event(win, win_x(win), win_y(win),
 				(win->button ? B_DRAG : B_MOVE) |
 				(win->button & (1 << B_LEFT) ? B_LEFT :
@@ -767,7 +877,9 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 				win->button & (1 << B_FIFTH) ? B_FIFTH :
 				win->button & (1 << B_SIXTH) ? B_SIXTH :
 				0));
+			debug_call(("T: WM_MOUSEMOVE: pm_unlock"));
 			pm_unlock();
+			debug_call(("T: WM_MOUSEMOVE: break"));
 			break;
 #ifdef WIN32
 		case WM_CAPTURECHANGED:
@@ -783,16 +895,40 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 #endif
 #ifdef OS2
 		case WM_VSCROLL:
+			debug_call(("T: VM_VSCROLL: pm_lock"));
 			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			if ((unsigned long)mp2 == SB_LINEUP << 16 || (unsigned long)mp2 == SB_LINEDOWN << 16) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), ((unsigned long)mp2 == SB_LINEUP << 16 ? B_WHEELUP1 : B_WHEELDOWN1) | B_MOVE, 0);
+			debug_call(("T: VM_VSCROLL: pm_lookup_window"));
+			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: VM_VSCROLL: pm_lookup_window failed"));
+				pm_unlock();
+				debug_call(("T: VM_VSCROLL: break"));
+				break;
+			}
+			if ((unsigned long)mp2 == SB_LINEUP << 16 || (unsigned long)mp2 == SB_LINEDOWN << 16) {
+				debug_call(("T: VM_VSCROLL: pm_send_event"));
+				pm_send_event(win, E_MOUSE, win_x(win), win_y(win), ((unsigned long)mp2 == SB_LINEUP << 16 ? B_WHEELUP1 : B_WHEELDOWN1) | B_MOVE, 0);
+			}
+			debug_call(("T: VM_VSCROLL: pm_unlock"));
 			pm_unlock();
+			debug_call(("T: VM_VSCROLL: break"));
 			break;
 		case WM_HSCROLL:
+			debug_call(("T: VM_HSCROLL: pm_lock"));
 			pm_lock();
-			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			if ((unsigned long)mp2 == SB_LINELEFT << 16 || (unsigned long)mp2 == SB_LINERIGHT << 16) pm_send_event(win, E_MOUSE, win_x(win), win_y(win), ((unsigned long)mp2 == SB_LINELEFT << 16 ? B_WHEELLEFT1 : B_WHEELRIGHT1) | B_MOVE, 0);
+			debug_call(("T: VM_HSCROLL: pm_lookup_window"));
+			if (!(win = pm_lookup_window(hwnd))) {
+				debug_call(("T: VM_HSCROLL: pm_lookup_window failed"));
+				pm_unlock();
+				debug_call(("T: VM_HSCROLL: break"));
+				break;
+			}
+			if ((unsigned long)mp2 == SB_LINELEFT << 16 || (unsigned long)mp2 == SB_LINERIGHT << 16) {
+				debug_call(("T: VM_HSCROLL: pm_send_event"));
+				pm_send_event(win, E_MOUSE, win_x(win), win_y(win), ((unsigned long)mp2 == SB_LINELEFT << 16 ? B_WHEELLEFT1 : B_WHEELRIGHT1) | B_MOVE, 0);
+			}
+			debug_call(("T: VM_HSCROLL: pm_unlock"));
 			pm_unlock();
+			debug_call(("T: VM_HSCROLL: break"));
 			break;
 #endif
 #ifdef WIN32
@@ -807,7 +943,10 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 #endif
 	}
 #ifdef OS2
-	return WinDefWindowProc(hwnd, msg, mp1, mp2);
+	debug_call(("T: WinDefWindowProc: %lx %lx %p %p", hwnd, msg, mp1, mp2));
+	ret = WinDefWindowProc(hwnd, msg, mp1, mp2);
+	debug_call(("T: WinDefWindowProc returned %p", ret));
+	return ret;
 #endif
 #ifdef WIN32
 	if (!unicode_supported)
@@ -831,9 +970,15 @@ static void pm_user_msg(unsigned long msg, void *mp1, void *mp2)
 		case MSG_CREATE_WINDOW:
 			win = mp1;
 #ifdef OS2
+			debug_call(("T: WinCreateStdWindow"));
 			win->h = WinCreateStdWindow(HWND_DESKTOP, 0, &pm_frame, pm_class_name, "Links", 0, 0, 0, &win->hc);
+			debug_call(("T: WinCreateStdWindow: %lx", win->h));
 			if (win->h != NULLHANDLE) {
-				if (icon != NULLHANDLE) WinSendMsg(win->h, WM_SETICON, (void *)icon, 0);
+				if (icon != NULLHANDLE) {
+					debug_call(("T: WinSendMsg"));
+					WinSendMsg(win->h, WM_SETICON, (void *)icon, 0);
+				}
+				debug_call(("T: WinSetWindowPos"));
 				if (!WinSetWindowPos(win->h, HWND_TOP, 0, 0, 0, 0, SWP_ACTIVATE | SWP_SHOW | SWP_ZORDER))
 					error("WinSetWindowPos failed");
 			}
@@ -855,12 +1000,16 @@ static void pm_user_msg(unsigned long msg, void *mp1, void *mp2)
 				ShowWindow(win->hc, SW_SHOW);
 			}
 #endif
+			debug_call(("T: pm_lock"));
 			pm_lock();
+			debug_call(("T: pm_event_signal"));
 			pm_event_signal();
+			debug_call(("T: break"));
 			break;
 		case MSG_DELETE_WINDOW:
 			win = mp1;
 #ifdef OS2
+			debug_call(("T: WinDestroyWindow"));
 			if (!WinDestroyWindow(win->h))
 				fatal_exit("WinDestroyWindow failed");
 #endif
@@ -868,12 +1017,16 @@ static void pm_user_msg(unsigned long msg, void *mp1, void *mp2)
 			if (!DestroyWindow(win->hc))
 				fatal_exit("DestroyWindow failed");
 #endif
+			debug_call(("T: pm_lock"));
 			pm_lock();
+			debug_call(("T: pm_event_signal"));
 			pm_event_signal();
+			debug_call(("T: break"));
 			break;
 		case MSG_SET_WINDOW_TITLE:
 			win = mp1;
 #ifdef OS2
+			debug_call(("T: WinSetWindowText"));
 			WinSetWindowText(win->h, mp2);
 #endif
 #ifdef WIN32
@@ -882,10 +1035,14 @@ static void pm_user_msg(unsigned long msg, void *mp1, void *mp2)
 			else
 				SetWindowTextA(win->hc, mp2);
 #endif
+			debug_call(("T: pm_lock"));
 			pm_lock();
+			debug_call(("T: pm_event_signal"));
 			pm_event_signal();
+			debug_call(("T: break"));
 			break;
 		case MSG_SHUTDOWN_THREAD:
+			debug_call(("T: pm_thread_shutdown"));
 			pm_thread_shutdown = 1;
 			break;
 	}
@@ -894,14 +1051,17 @@ static void pm_user_msg(unsigned long msg, void *mp1, void *mp2)
 static void pm_send_msg(int msg, void *param, void *param2)
 {
 #ifdef OS2
+	debug_call(("M: calling WinPostMsg(%d, %p, %p)", msg, param, param2));
 	while (!WinPostMsg(hwnd_hidden, msg, (MPARAM)param, (MPARAM)param2)) {
+		debug_call(("M: WinPostMsg failed: %lx", WinGetLastError(hab)));
 		sleep(1);
 	}
+	debug_call(("M: WinPostMsg succeeded"));
 #endif
 #ifdef WIN32
 	BOOL r;
 	if (!GdiFlush())
-		{/*error("GdiFlush failed")*/}
+		{/*error("GdiFlush failed: %u", (unsigned)GetLastError());*/}
 	retry:
 	if (!unicode_supported)
 		r = PostMessageA(hwnd_hidden, msg, (unsigned long)param, (unsigned long)param2);
@@ -917,6 +1077,7 @@ static void pm_send_msg(int msg, void *param, void *param2)
 	}
 #endif
 	pm_event_wait();
+	debug_call(("M: pm_event_wait succeeded"));
 #ifdef WIN32
 	if (msg == MSG_SHUTDOWN_THREAD) {
 		if (pthread_join(pthread_handle, NULL))
@@ -940,6 +1101,7 @@ static void pm_dispatcher(void *p)
 	pm_status = NULL;
 #ifdef OS2
 	/*DosSetPriority(PRTYS_THREAD, PRTYC_FOREGROUNDSERVER, 1, 0);*/
+	/*DosSetPriority(PRTYS_THREAD, PRTYC_TIMECRITICAL, 1, 0);*/
 	DosSetPriority(PRTYS_THREAD, PRTYC_NOCHANGE, 1, 0);
 	if ((hab_disp = WinInitialize(0)) == NULLHANDLE) {
 		pm_status = cast_uchar "WinInitialize failed in pm thread.\n";
@@ -1031,7 +1193,19 @@ static void pm_dispatcher(void *p)
 	pm_event_signal();
 	while (!pm_thread_shutdown) {
 #ifdef OS2
+		/*BOOL ret;
+		debug_call(("T: calling WinPeekMsg"));
+		ret = WinPeekMsg(hab_disp, &msg, 0L, 0, 0, PM_REMOVE);
+		debug_call(("T: WinPeekMsg: %ld", ret));
+		if (!ret) {
+			debug_call(("T: calling WinWaitMsg"));
+			ret = WinWaitMsg(hab_disp, 0, 0);
+			debug_call(("T: WinWaitMsg: %ld", ret));
+			continue;
+		}*/
+		debug_call(("T: calling WinGetMsg"));
 		WinGetMsg(hab_disp, &msg, 0L, 0, 0);
+		debug_call(("T: WinGetMsg: %lx, %lx, %p, %p, %lx, %lx.%lx, %lx", msg.hwnd, msg.msg, msg.mp1, msg.mp2, msg.time, msg.ptl.x, msg.ptl.y, msg.reserved));
 		WinDispatchMsg(hab_disp, &msg);
 #endif
 #ifdef WIN32
@@ -1066,7 +1240,7 @@ static void pm_dispatcher(void *p)
 #endif
 #ifdef WIN32
 	if (!DestroyWindow(hwnd_hidden))
-		error("DestroyWindow failed");
+		error("DestroyWindow failed: %u", (unsigned)GetLastError());
 	win32_fail:
 #endif
 	pm_event_signal();
@@ -1092,7 +1266,9 @@ static void pm_handler(void *p)
 	unsigned char c;
 	struct pm_window *win = NULL;
 	struct pm_event *ev = NULL;
+	debug_call(("M: pm_handler: pm_lock"));
 	pm_lock();
+	debug_call(("M: pm_handler: pm_locked"));
 	if (!list_empty(pm_event_windows)) {
 		win = pm_event_windows.prev;
 		if (!list_empty(win->queue)) {
@@ -1106,11 +1282,15 @@ static void pm_handler(void *p)
 	}
 	if (list_empty(pm_event_windows)) {
 		int rd;
+		debug_call(("M: pm_handler: read"));
 		EINTRLOOP(rd, read(pm_pipe[0], &c, 1));
 		if (rd != 1) pm_pipe_error(NULL);
 	}
+	debug_call(("M: pm_handler: pm_unlock"));
 	pm_unlock();
+	debug_call(("M: pm_handler: pm_unlocked: %p", ev));
 	if (!ev) return;
+	debug_call(("M: pm_handler: event: %d", ev->type));
 	switch (ev->type) {
 		struct rect r;
 		case E_KEY:
@@ -1135,7 +1315,9 @@ static void pm_handler(void *p)
 				win->dev->resize_handler(win->dev);
 			}
 	}
+	debug_call(("M: pm_handler: free ev"));
 	free(ev);
+	debug_call(("M: pm_handler: done"));
 }
 
 #ifdef OS2
@@ -1153,7 +1335,7 @@ static void pm_do_flush(void *ignore)
 {
 	flush_in_progress = 0;
 	if (!GdiFlush())
-		{/*error("GdiFlush failed")*/}
+		{/*error("GdiFlush failed: %u", (unsigned)GetLastError());*/}
 }
 
 static inline void PM_FLUSH(void)
@@ -1184,6 +1366,8 @@ static void pm_setup_console(void)
 {
 	int rs;
 	if (pm_cons_ok) goto fail9;
+	set_bin(1);
+	set_bin(2);
 	EINTRLOOP(pm_sin, dup(0));
 	if (pm_sin < 0) goto fail;
 	EINTRLOOP(pm_sout, dup(1));
@@ -1382,7 +1566,7 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 #ifdef OS2
 	pmshell_driver.depth = 0xc3;
 
-	pm_bitmapinfo = mem_calloc(sizeof(BITMAPINFOHEADER));
+	pm_bitmapinfo = pm_alloc(sizeof(BITMAPINFOHEADER), PM_ALLOC_ZERO);
 	pm_bitmapinfo->cbFix = sizeof(BITMAPINFOHEADER);
 	pm_bitmapinfo->cPlanes = 1;
 	pm_bitmapinfo->cBitCount = 24;
@@ -1420,7 +1604,7 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 		else
 			pmshell_driver.depth = 0xc3;
 
-		pm_bitmapinfo = mem_calloc(sizeof(BITMAPINFO));
+		pm_bitmapinfo = pm_alloc(sizeof(BITMAPINFO), PM_ALLOC_ZERO);
 		pm_bitmapinfo->bmiHeader.biSize = sizeof(pm_bitmapinfo->bmiHeader);
 		pm_bitmapinfo->bmiHeader.biPlanes = 1;
 		pm_bitmapinfo->bmiHeader.biBitCount = bpp < 24 ? 16 : 24;
@@ -1441,7 +1625,7 @@ static unsigned char *pm_init_driver(unsigned char *param, unsigned char *displa
 		error("DevCloseDC failed");
 #endif
 	r5:
-	mem_free(pm_bitmapinfo);
+	pm_free(pm_bitmapinfo);
 	pm_send_msg(MSG_SHUTDOWN_THREAD, NULL, NULL);
 	r4:
 	pm_lock_close();
@@ -1476,14 +1660,14 @@ static void pm_shutdown_driver(void)
 #ifdef WIN32
 	if (icon_small != NULL)
 		if (!DestroyIcon(icon_small))
-			error("DestroIcon failed");
+			error("DestroIcon failed: %u", (unsigned)GetLastError());
 	if (icon_big != NULL)
 		if (!DestroyIcon(icon_big))
-			error("DestroIcon failed");
+			error("DestroIcon failed: %u", (unsigned)GetLastError());
 	if (!ReleaseDC(NULL, screen_dc))
-		error("ReleaseDC failed");
+		error("ReleaseDC failed: %u", (unsigned)GetLastError());
 #endif
-	mem_free(pm_bitmapinfo);
+	pm_free(pm_bitmapinfo);
 	pm_lock_close();
 	set_handlers(pm_pipe[0], NULL, NULL, NULL, NULL);
 	EINTRLOOP(rs, close(pm_pipe[0]));
@@ -1511,7 +1695,7 @@ static HPOINTER pmshell_create_icon(void)
 
 	get_links_icon(&icon_data, &icon_w, &icon_h, &icon_skip, 4);
 	size = icon_h * icon_skip;
-	icon_data_2 = mem_alloc(size * 2);
+	icon_data_2 = pm_alloc(size * 2, 0);
 	for (i = 0; i < icon_h; i++)
 		memcpy(icon_data_2 + i * icon_skip, icon_data + (icon_h - 1 - i) * icon_skip, icon_skip);
 	free(icon_data);
@@ -1527,7 +1711,7 @@ static HPOINTER pmshell_create_icon(void)
 	pm_bitmapinfo->cx = icon_w;
 	pm_bitmapinfo->cy = icon_h * 2;
 	hbm = GpiCreateBitmap(hps_hidden, (PBITMAPINFOHEADER2)pm_bitmapinfo, CBM_INIT, icon_data_2, (PBITMAPINFO2)pm_bitmapinfo);
-	mem_free(icon_data_2);
+	pm_free(icon_data_2);
 	if (hbm == GPI_ERROR)
 		return NULLHANDLE;
 	hicon = WinCreatePointer(HWND_DESKTOP, hbm, FALSE, 0, 0);
@@ -1556,48 +1740,53 @@ static HICON win32_create_icon(int x, int y)
 	HGDIOBJ prev_obj;
 
 	get_links_icon(&icon_data, &icon_w, &icon_h, &icon_skip, 4);
-	zero_data = mem_calloc(icon_h * icon_skip);
+	zero_data = pm_alloc(icon_h * icon_skip, 0);
+	memcpy(zero_data, icon_data, icon_h * icon_skip);
+	free(icon_data);
+	icon_data = zero_data;
+
+	zero_data = pm_alloc(icon_h * icon_skip, PM_ALLOC_ZERO);
 
 	memory_dc = CreateCompatibleDC(NULL);
 	if (!memory_dc) {
-		error("CreateCompatibleDC failed");
+		error("CreateCompatibleDC failed: %u", (unsigned)GetLastError());
 		goto ret1;
 	}
 
 	hbm_icon = CreateCompatibleBitmap(screen_dc, x, y);
 	if (!hbm_icon) {
-		error("CreateBitmap failed");
+		error("CreateBitmap failed: %u", (unsigned)GetLastError());
 		goto ret2;
 	}
 	prev_obj = SelectObject(memory_dc, hbm_icon);
 	if (!prev_obj) {
-		error("SelectObject failed");
+		error("SelectObject failed: %u", (unsigned)GetLastError());
 		goto ret3;
 	}
 	pm_bitmapinfo->bmiHeader.biWidth = icon_w;
 	pm_bitmapinfo->bmiHeader.biHeight = -icon_h;
 	if (!StretchDIBits(memory_dc, 0, 0, x, y, 0, 0, icon_w, icon_h, icon_data, pm_bitmapinfo, DIB_RGB_COLORS, SRCCOPY)) {
-		error("StretchDIBits failed");
+		error("StretchDIBits failed: %u", (unsigned)GetLastError());
 		prev_obj = SelectObject(memory_dc, prev_obj);
 		if (!prev_obj) {
-			error("SelectObject failed");
+			error("SelectObject failed: %u", (unsigned)GetLastError());
 			goto ret3;
 		}
 		goto ret3;
 	}
 	prev_obj = SelectObject(memory_dc, prev_obj);
 	if (!prev_obj) {
-		error("SelectObject failed");
+		error("SelectObject failed: %u", (unsigned)GetLastError());
 		goto ret3;
 	}
 	hbm_mask = CreateBitmap(x, y, 1, 1, zero_data);
 	if (!hbm_mask) {
-		error("CreateCompatibleBitmap failed");
+		error("CreateCompatibleBitmap failed: %u", (unsigned)GetLastError());
 		goto ret3;
 	}
 	prev_obj = SelectObject(memory_dc, hbm_mask);
 	if (!prev_obj) {
-		error("SelectObject failed");
+		error("SelectObject failed %u", (unsigned)GetLastError());
 		goto ret4;
 	}
 	if (x == 16 && y == 16) {
@@ -1615,7 +1804,7 @@ static HICON win32_create_icon(int x, int y)
 	for (j = 0; j < y; j++) for (i = x - left; i < x; i++) SetPixel(memory_dc, i, j, 0xffffff);
 	prev_obj = SelectObject(memory_dc, prev_obj);
 	if (!prev_obj) {
-		error("SelectObject failed");
+		error("SelectObject failed %u", (unsigned)GetLastError());
 		goto ret4;
 	}
 	memset(&ic, 0, sizeof ic);
@@ -1624,22 +1813,21 @@ static HICON win32_create_icon(int x, int y)
 	ic.hbmColor = hbm_icon;
 	hicon = CreateIconIndirect(&ic);
 	if (!hicon)
-		error("CreateIconIndirect failed");
+		error("CreateIconIndirect failed %u", (unsigned)GetLastError());
 
 ret4:
 	if (!DeleteBitmap(hbm_mask))
-		error("DeleteBitmap failed");
+		error("DeleteBitmap failed %u", (unsigned)GetLastError());
 ret3:
 	if (!DeleteBitmap(hbm_icon))
-		error("DeleteBitmap failed");
+		error("DeleteBitmap failed %u", (unsigned)GetLastError());
 ret2:
 	if (!DeleteDC(memory_dc))
-		error("DeleteDC failed");
+		error("DeleteDC failed %u", (unsigned)GetLastError());
 ret1:
-	free(icon_data);
-	mem_free(zero_data);
+	pm_free(icon_data);
+	pm_free(zero_data);
 	return hicon;
-	return NULL;
 }
 
 #endif
@@ -1667,11 +1855,14 @@ static struct graphics_device *pm_init_device(void)
 	init_list(win->queue);
 	win->in = 0;
 	win->minimized = 0;
+	debug_call(("M: pm_init_device: pm_send_msg"));
 	pm_send_msg(MSG_CREATE_WINDOW, win, NULL);
+	debug_call(("M: pm_init_device: pm_send_msg done"));
 #ifdef OS2
 	if (win->h == NULLHANDLE) {
 		goto r1;
 	}
+	debug_call(("M: pm_init_device: WinGetPS"));
 	if ((win->ps = WinGetPS(win->hc)) == NULLHANDLE) {
 		goto r2;
 	}
@@ -1693,6 +1884,7 @@ static struct graphics_device *pm_init_device(void)
 	dev->driver_data = win;
 	win->dev = dev;
 #ifdef OS2
+	debug_call(("M: pm_init_device: WinQueryWindowRect"));
 	if (!WinQueryWindowRect(win->hc, &wr)) {
 		memset(&wr, 0, sizeof wr);
 	}
@@ -1709,10 +1901,14 @@ static struct graphics_device *pm_init_device(void)
 	dev->clip.x2 = dev->size.x2;
 	dev->clip.y2 = dev->size.y2;
 #ifdef OS2
+	debug_call(("M: pm_init_device: GpiCreateLogColorTable"));
 	GpiCreateLogColorTable(win->ps, 0, LCOLF_RGB, 0, 0, NULL);
 #endif
+	debug_call(("M: pm_init_device: pm_hash_window"));
 	pm_hash_window(win);
+	debug_call(("M: pm_init_device: pm_unlock"));
 	pm_unlock();
+	debug_call(("M: pm_init_device: return"));
 	return dev;
 
 	r2:	pm_unlock();
@@ -1727,30 +1923,35 @@ static void pm_shutdown_device(struct graphics_device *dev)
 {
 	struct pm_window *win = pm_win(dev);
 #ifdef OS2
+	debug_call(("M: pm_shutdown_device: WinReleasePS"));
 	if (!WinReleasePS(win->ps))
 		error("WinReleasePS failed");
 #endif
 #ifdef WIN32
 	if (win->pen_orig)
 		if (!SelectObject(win->dc, win->pen_orig))
-			error("SelectObject failed for original pen");
+			error("SelectObject failed for original pen %u", (unsigned)GetLastError());
 	if (!GdiFlush())
-		{/*error("GdiFlush failed")*/}
+		{/*error("GdiFlush failed %u", (unsigned)GetLastError());*/}
 	if (!ReleaseDC(win->hc, win->dc))
-		error("ReleaseDC failed");
+		error("ReleaseDC failed %u", (unsigned)GetLastError());
 #endif
+	debug_call(("M: pm_shutdown_device: pm_send_msg"));
 	pm_send_msg(MSG_DELETE_WINDOW, win, NULL);
 #ifdef WIN32
 	if (win->pen_cache)
 		if (!DeleteObject(win->pen_cache))
-			error("DeleteObject failed for pen cache");
+			error("DeleteObject failed for pen cache %u", (unsigned)GetLastError());
 	if (win->brush_cache)
 		if (!DeleteObject(win->brush_cache))
-			error("DeleteObject failed for brush cache");
+			error("DeleteObject failed for brush cache %u", (unsigned)GetLastError());
 #endif
+	debug_call(("M: pm_shutdown_device: pm_unhash_window"));
 	pm_unhash_window(win);
 	if (win->in) del_from_list(win);
+	debug_call(("M: pm_shutdown_device: pm_unlock"));
 	pm_unlock();
+	debug_call(("M: pm_shutdown_device: free"));
 	while (!list_empty(win->queue)) {
 		struct pm_event *ev = win->queue.next;
 		del_from_list(ev);
@@ -1758,6 +1959,7 @@ static void pm_shutdown_device(struct graphics_device *dev)
 	}
 	mem_free(win);
 	mem_free(dev);
+	debug_call(("M: pm_shutdown_device: return"));
 }
 
 #define MAX_TITLE_SIZE	512
@@ -1765,6 +1967,7 @@ static void pm_shutdown_device(struct graphics_device *dev)
 static void pm_set_window_title(struct graphics_device *dev, unsigned char *title)
 {
 	unsigned char *text;
+	debug_call(("M: pm_set_window_title: start"));
 #if defined(WIN32)
 	if (unicode_supported && unicode_title_supported) {
 		int l = 0;
@@ -1787,16 +1990,20 @@ static void pm_set_window_title(struct graphics_device *dev, unsigned char *titl
 		if (strlen(cast_const_char text) > MAX_TITLE_SIZE) text[MAX_TITLE_SIZE] = 0;
 	}
 
+	debug_call(("M: pm_set_window_title: pm_send_msg"));
 	pm_send_msg(MSG_SET_WINDOW_TITLE, pm_win(dev), text);
+	debug_call(("M: pm_set_window_title: pm_unlock"));
 	pm_unlock();
 	/*SendMessage(pm_win(dev)->hc, WM_SETTEXT, NULL, text);*/
+	debug_call(("M: pm_set_window_title: mem_free"));
 	mem_free(text);
+	debug_call(("M: pm_set_window_title: return"));
 }
 
 static int pm_get_empty_bitmap(struct bitmap *bmp)
 {
 	unsigned size;
-	debug_call(("get_empty_bitmap (%dx%d)\n", bmp->x, bmp->y));
+	debug_call(("M: get_empty_bitmap (%dx%d)", bmp->x, bmp->y));
 	if ((unsigned)bmp->x > (unsigned)MAXINT / (pmshell_driver.depth & 7) - 4) {
 over:
 		bmp->data = NULL;
@@ -1807,25 +2014,17 @@ over:
 	size = (unsigned)bmp->skip * (unsigned)bmp->y;
 	if (bmp->skip && size / (unsigned)bmp->skip != (unsigned)bmp->y) goto over;
 	if (size > MAXINT) goto over;
-#ifdef OS2
-	bmp->data = mem_alloc_mayfail(size);
+	bmp->data = pm_alloc(size, PM_ALLOC_MAYFAIL);
 	if (!bmp->data) goto over;
-#endif
-#ifdef WIN32
-again:
-	/* space allocated with malloc may span multiple mapped areas
-	   and SetDIBitsToDevice doesn't like it. So use HeapAlloc/HeapFree */
-	bmp->data = HeapAlloc(GetProcessHeap(), 0, size);
-	if (!bmp->data) {
-		if (out_of_memory(0, NULL, 0))
-			goto again;
-		goto over;
-	}
-#endif
 	bmp->data = (unsigned char *)bmp->data + size - bmp->skip;
 	bmp->skip = -bmp->skip;
-	debug_call(("done\n"));
+	debug_call(("M: get_empty_bitmap done"));
 	return 0;
+}
+
+static inline unsigned char *bmp_base_pointer(struct bitmap *bmp)
+{
+	return (unsigned char *)bmp->data + bmp->skip * (bmp->y - 1);
 }
 
 static void pm_register_bitmap(struct bitmap *bmp)
@@ -1834,45 +2033,58 @@ static void pm_register_bitmap(struct bitmap *bmp)
 	HBITMAP hbm;
 	unsigned char *pointer;
 #endif
-	debug_call(("register_bitmap (%dx%d)\n", bmp->x, bmp->y));
+	debug_call(("M: register_bitmap (%dx%d)", bmp->x, bmp->y));
 	pm_bitmap_count++;
 #ifdef OS2
 	if (!bmp->data) {
 		bmp->flags = (void *)GPI_ERROR;
 		return;
 	}
-	pointer = (unsigned char *)bmp->data + bmp->skip * (bmp->y - 1);
-	pm_bitmapinfo->cx = bmp->x;
-	pm_bitmapinfo->cy = bmp->y;
+	pointer = bmp_base_pointer(bmp);
 again:
-	hbm = GpiCreateBitmap(hps_hidden, (PBITMAPINFOHEADER2)pm_bitmapinfo, CBM_INIT, pointer, (PBITMAPINFO2)pm_bitmapinfo);
-	if (hbm == GPI_ERROR) {
-		if (out_of_memory(MF_GPI, NULL, 0))
-			goto again;
+	if (bmp->x > OS2_MAX_BITMAP_SIZE || bmp->y > OS2_MAX_BITMAP_SIZE) {
+		hbm = GPI_ERROR;
+	} else {
+		pm_bitmapinfo->cx = bmp->x;
+		pm_bitmapinfo->cy = bmp->y;
+		hbm = GpiCreateBitmap(hps_hidden, (PBITMAPINFOHEADER2)pm_bitmapinfo, CBM_INIT, pointer, (PBITMAPINFO2)pm_bitmapinfo);
+		if (hbm == GPI_ERROR) {
+			if (out_of_memory(MF_GPI, NULL, 0))
+				goto again;
+		}
 	}
-	mem_free(pointer);
 	bmp->flags = (void *)hbm;
-	debug_call(("done\n"));
+	if (hbm != GPI_ERROR) {
+		mem_free(pointer);
+		bmp->data = NULL;
+		mem_freed_large(-bmp->skip * bmp->y);
+	}
+	debug_call(("M: register_bitmap done"));
 #endif
 }
 
 static void *pm_prepare_strip(struct bitmap *bmp, int top, int lines)
 {
 #ifdef OS2
+	debug_call(("M: prepare_strip (%dx%d)", bmp->x, bmp->y));
 	if (bmp->flags == (void *)GPI_ERROR) {
+		if (bmp->data)
+			goto return_data;
 		over:
 		bmp->data = NULL;
 		return NULL;
 	}
+	if (bmp->data)
+		internal("pm_prepare_strip: bmp->data should not be set here");
 	if (-bmp->skip && (unsigned)-bmp->skip * (unsigned)lines / (unsigned)-bmp->skip != (unsigned)lines) goto over;
 	if ((unsigned)-bmp->skip * (unsigned)lines > MAXINT) goto over;
-	bmp->data = mem_alloc(-bmp->skip * lines);
+	bmp->data = pm_alloc(-bmp->skip * lines, PM_ALLOC_MAYFAIL);
 	if (!bmp->data) goto over;
+	debug_call(("M: prepare_strip done"));
 	return (unsigned char *)bmp->data - bmp->skip * (lines - 1);
+return_data:
 #endif
-#ifdef WIN32
 	return ((unsigned char *)bmp->data) + bmp->skip * top;
-#endif
 }
 
 static void pm_commit_strip(struct bitmap *bmp, int top, int lines)
@@ -1881,8 +2093,10 @@ static void pm_commit_strip(struct bitmap *bmp, int top, int lines)
 	LONG r;
 	HBITMAP old;
 	HBITMAP new = (HBITMAP)bmp->flags;
+	debug_call(("M: commit_strip (%dx%d)", bmp->x, bmp->y));
 	if (new == GPI_ERROR || !bmp->data)
 		return;
+	debug_call(("M: commit_strip done"));
 	old = GpiSetBitmap(hps_mem, new);
 	if (old == HBM_ERROR)
 		goto ret;
@@ -1896,34 +2110,36 @@ again:
 	}
 	GpiSetBitmap(hps_mem, old);
 	ret:
-	mem_free(bmp->data);
+	pm_free(bmp->data);
+	bmp->data = NULL;
+	debug_call(("M: commit_strip done"));
 #endif
 }
 
 static void pm_unregister_bitmap(struct bitmap *bmp)
 {
-	debug_call(("unregister_bitmap (%dx%d)\n", bmp->x, bmp->y));
+	debug_call(("M: unregister_bitmap (%dx%d)", bmp->x, bmp->y));
 	pm_bitmap_count--;
 #ifdef OS2
-	if ((HBITMAP)bmp->flags != GPI_ERROR)
+	if ((HBITMAP)bmp->flags != GPI_ERROR) {
+		if (bmp->data)
+			internal("pm_unregister_bitmap: bmp->data should not be set here");
 		if (!GpiDeleteBitmap((HBITMAP)bmp->flags))
 			error("GpiDeleteBitmap failed");
+	} else
 #endif
-#ifdef WIN32
-	HeapFree(GetProcessHeap(), 0, (unsigned char *)bmp->data + bmp->skip * (bmp->y - 1));
-#endif
-	debug_call(("done\n"));
+	if (bmp->data) {
+		pm_free(bmp_base_pointer(bmp));
+		mem_freed_large(-bmp->skip * bmp->y);
+	}
+	debug_call(("M: unregister_bitmap done"));
 }
 
 static void pm_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int x, int y)
 {
 	POINTL p;
 	RECTL r;
-	debug_call(("draw_bitmap (%dx%d -> %x,%x)\n", bmp->x, bmp->y, x, y));
-#ifdef OS2
-	if ((HBITMAP)bmp->flags == GPI_ERROR)
-		return;
-#endif
+	debug_call(("M: draw_bitmap (%dx%d -> %x,%x)", bmp->x, bmp->y, x, y));
 	r.xLeft = x < dev->clip.x1 ? dev->clip.x1 - x : 0;
 	r.xRight = x + bmp->x > dev->clip.x2 ? dev->clip.x2 - x : bmp->x;
 	r.yTop = bmp->y - (y < dev->clip.y1 ? dev->clip.y1 - y : 0);
@@ -1933,15 +2149,53 @@ static void pm_draw_bitmap(struct graphics_device *dev, struct bitmap *bmp, int 
 	p.x = x + r.xLeft;
 	p.y = pm_win(dev)->y - y - bmp->y + r.yBottom;
 #ifdef OS2
-	WinDrawBitmap(pm_win(dev)->ps, (HBITMAP)bmp->flags, &r, &p, 0, 1, DBM_NORMAL);
+	if ((HBITMAP)bmp->flags != GPI_ERROR) {
+		WinDrawBitmap(pm_win(dev)->ps, (HBITMAP)bmp->flags, &r, &p, 0, 1, DBM_NORMAL);
+	} else if (!bmp->data) {
+		return;
+	} else {
+		POINTL pp[4];
+		if (bmp->x > OS2_MAX_LINE_SIZE) {
+			int i;
+			unsigned char *data_ptr = (unsigned char *)bmp->data + bmp->skip * (bmp->y - r.yTop) + r.xLeft * (pmshell_driver.depth & 7);
+			for (i = r.yTop - r.yBottom - 1; i >= 0; i--) {
+				pm_bitmapinfo->cx = r.xRight - r.xLeft;
+				pm_bitmapinfo->cy = 1;
+				pp[0].x = p.x;
+				pp[0].y = p.y + i;
+				pp[1].x = p.x + (r.xRight - r.xLeft) - 1;
+				pp[1].y = p.y + i;
+				pp[2].x = 0;
+				pp[2].y = 0;
+				pp[3].x = r.xRight - r.xLeft;
+				pp[3].y = 1;
+				GpiDrawBits(pm_win(dev)->ps, data_ptr, (PBITMAPINFO2)pm_bitmapinfo, 4, pp, ROP_SRCCOPY, 0);
+				data_ptr += bmp->skip;
+			}
+		} else {
+			pm_bitmapinfo->cx = bmp->x;
+			pm_bitmapinfo->cy = r.yTop - r.yBottom;
+			pp[0].x = p.x;
+			pp[0].y = p.y;
+			pp[1].x = p.x + (r.xRight - r.xLeft) - 1;
+			pp[1].y = p.y + (r.yTop - r.yBottom) - 1;
+			pp[2].x = r.xLeft;
+			pp[2].y = 0;
+			pp[3].x = r.xRight;
+			pp[3].y = r.yTop - r.yBottom;
+			GpiDrawBits(pm_win(dev)->ps, (unsigned char *)bmp->data + bmp->skip * (bmp->y - 1 - r.yBottom), (PBITMAPINFO2)pm_bitmapinfo, 4, pp, ROP_SRCCOPY, 0);
+		}
+	}
 #endif
 #ifdef WIN32
+	if (!bmp->data)
+		return;
 	pm_bitmapinfo->bmiHeader.biWidth = bmp->x;
 	pm_bitmapinfo->bmiHeader.biHeight = r.yTop - r.yBottom;
 	SetDIBitsToDevice(pm_win(dev)->dc, p.x, pm_win(dev)->y - p.y - (r.yTop - r.yBottom), r.xRight - r.xLeft, r.yTop - r.yBottom, r.xLeft, 0, 0, r.yTop - r.yBottom, (unsigned char *)bmp->data + bmp->skip * (bmp->y - 1 - r.yBottom), pm_bitmapinfo, DIB_RGB_COLORS);
 #endif
 	PM_FLUSH();
-	debug_call(("done\n"));
+	debug_call(("M: draw_bitmap done"));
 }
 
 static long pm_get_color(int rgb)
@@ -1967,12 +2221,12 @@ static int win32_select_brush(struct pm_window *win, int color)
 		return 0;
 	hbrush = CreateSolidBrush(color);
 	if (!hbrush) {
-		error("CreateSolidBrush failed");
+		error("CreateSolidBrush failed %u", (unsigned)GetLastError());
 		return -1;
 	}
 	if (win->brush_cache != NULL)
 		if (!DeleteObject(win->brush_cache))
-			error("DeleteObject failed for previous brush");
+			error("DeleteObject failed for previous brush %u", (unsigned)GetLastError());
 	win->brush_cache = hbrush;
 	win->brush_cache_color = color;
 	return 0;
@@ -1986,20 +2240,20 @@ static int win32_select_pen(struct pm_window *win, int color)
 		return 0;
 	hpen = CreatePen(PS_SOLID, 0, color);
 	if (!hpen) {
-		error("CreatePen failed");
+		error("CreatePen failed %u", (unsigned)GetLastError());
 		return -1;
 	}
 	orig = SelectObject(win->dc, hpen);
 	if (!orig) {
-		error("SelectObject failed for pen");
+		error("SelectObject failed for pen %u", (unsigned)GetLastError());
 		if (!DeleteObject(hpen))
-			error("DeleteObject failed for pen");
+			error("DeleteObject failed for pen %u", (unsigned)GetLastError());
 		return -1;
 	}
 	if (!win->pen_orig)
 		win->pen_orig = orig;
 	else if (!DeleteObject(orig))
-		error("DeleteObject failed for previous pen");
+		error("DeleteObject failed for previous pen %u", (unsigned)GetLastError());
 	win->pen_cache = hpen;
 	win->pen_cache_color = color;
 	return 0;
@@ -2010,7 +2264,7 @@ static int win32_select_pen(struct pm_window *win, int color)
 static void pm_fill_area(struct graphics_device *dev, int x1, int y1, int x2, int y2, long color)
 {
 	RECTL r;
-	debug_call(("fill_area (%d,%d)->(%d,%d)\n", x1, y1, x2, y2));
+	debug_call(("M: fill_area (%d,%d)->(%d,%d)", x1, y1, x2, y2));
 	if (x1 < dev->clip.x1) x1 = dev->clip.x1;
 	if (x2 > dev->clip.x2) x2 = dev->clip.x2;
 	if (y1 < dev->clip.y1) y1 = dev->clip.y1;
@@ -2029,10 +2283,10 @@ static void pm_fill_area(struct graphics_device *dev, int x1, int y1, int x2, in
 	if (win32_select_brush(pm_win(dev), color))
 		return;
 	if (!FillRect(pm_win(dev)->dc, &r, pm_win(dev)->brush_cache))
-		error("FillRect failed");
+		error("FillRect failed %u", (unsigned)GetLastError());
 #endif
 	PM_FLUSH();
-	debug_call(("done\n"));
+	debug_call(("M: fill_area done"));
 }
 
 static void pm_draw_hline(struct graphics_device *dev, int x1, int y, int x2, long color)
@@ -2041,7 +2295,7 @@ static void pm_draw_hline(struct graphics_device *dev, int x1, int y, int x2, lo
 	HPS ps = pm_win(dev)->ps;
 	POINTL p;
 #endif
-	debug_call(("draw_hline (%d,%d)->(%d)\n", x1, y, x2));
+	debug_call(("M: draw_hline (%d,%d)->(%d)", x1, y, x2));
 	if (y < dev->clip.y1) return;
 	if (y >= dev->clip.y2) return;
 	if (x1 < dev->clip.x1) x1 = dev->clip.x1;
@@ -2059,13 +2313,13 @@ static void pm_draw_hline(struct graphics_device *dev, int x1, int y, int x2, lo
 	if (win32_select_pen(pm_win(dev), color))
 		return;
 	if (!MoveToEx(pm_win(dev)->dc, x1, y, NULL)) {
-		error("MoveToEx failed");
+		error("MoveToEx failed %u", (unsigned)GetLastError());
 	} else if (!LineTo(pm_win(dev)->dc, x2, y)) {
-		error("LineTo failed");
+		error("LineTo failed %u", (unsigned)GetLastError());
 	}
 #endif
 	PM_FLUSH();
-	debug_call(("done\n"));
+	debug_call(("M: draw_hline done"));
 }
 
 static void pm_draw_vline(struct graphics_device *dev, int x, int y1, int y2, long color)
@@ -2074,7 +2328,7 @@ static void pm_draw_vline(struct graphics_device *dev, int x, int y1, int y2, lo
 	HPS ps = pm_win(dev)->ps;
 	POINTL p;
 #endif
-	debug_call(("draw_vline (%d,%d)->(%d)\n", x, y1, y2));
+	debug_call(("M: draw_vline (%d,%d)->(%d)", x, y1, y2));
 	if (x < dev->clip.x1) return;
 	if (x >= dev->clip.x2) return;
 	if (y1 < dev->clip.y1) y1 = dev->clip.y1;
@@ -2092,13 +2346,13 @@ static void pm_draw_vline(struct graphics_device *dev, int x, int y1, int y2, lo
 	if (win32_select_pen(pm_win(dev), color))
 		return;
 	if (!MoveToEx(pm_win(dev)->dc, x, y1, NULL)) {
-		error("MoveToEx failed");
+		error("MoveToEx failed %u", (unsigned)GetLastError());
 	} else if (!LineTo(pm_win(dev)->dc, x, y2)) {
-		error("LineTo failed");
+		error("LineTo failed %u", (unsigned)GetLastError());
 	}
 #endif
 	PM_FLUSH();
-	debug_call(("done\n"));
+	debug_call(("M: draw_vline done"));
 }
 
 static void pm_hscroll_redraws(struct pm_window *win, struct rect *r, int dir)
@@ -2123,7 +2377,7 @@ static int pm_hscroll(struct graphics_device *dev, struct rect_set **ignore, int
 {
 	RECTL r;
 
-	debug_call(("hscroll (%d)\n", sc));
+	debug_call(("M: hscroll (%d)", sc));
 	r.xLeft = dev->clip.x1;
 	r.yBottom = dev->clip.y2;
 	r.xRight = dev->clip.x2;
@@ -2136,12 +2390,12 @@ static int pm_hscroll(struct graphics_device *dev, struct rect_set **ignore, int
 #endif
 #ifdef WIN32
 	if (ScrollWindowEx(pm_win(dev)->hc, sc, 0, &r, &r, NULL, NULL, SW_INVALIDATE) == ERROR)
-		error("ScrollWindowEx failed");
+		error("ScrollWindowEx failed %u", (unsigned)GetLastError());
 #endif
 	pm_hscroll_redraws(pm_win(dev), &dev->clip, sc);
 	pm_unlock();
 	PM_FLUSH();
-	debug_call(("done\n"));
+	debug_call(("M: hscroll done"));
 	return 0;
 }
 
@@ -2167,7 +2421,7 @@ static int pm_vscroll(struct graphics_device *dev, struct rect_set **ignore, int
 {
 	RECTL r;
 
-	debug_call(("vscroll (%d)\n", sc));
+	debug_call(("M: vscroll (%d)", sc));
 	r.xLeft = dev->clip.x1;
 	r.yBottom = dev->clip.y2;
 	r.xRight = dev->clip.x2;
@@ -2180,12 +2434,12 @@ static int pm_vscroll(struct graphics_device *dev, struct rect_set **ignore, int
 #endif
 #ifdef WIN32
 	if (ScrollWindowEx(pm_win(dev)->hc, 0, sc, &r, &r, NULL, NULL, SW_INVALIDATE) == ERROR)
-		error("ScrollWindowEx failed");
+		error("ScrollWindowEx failed %u", (unsigned)GetLastError());
 #endif
 	pm_vscroll_redraws(pm_win(dev), &dev->clip, sc);
 	pm_unlock();
 	PM_FLUSH();
-	debug_call(("done\n"));
+	debug_call(("M: vscroll done"));
 	return 0;
 }
 
@@ -2202,6 +2456,8 @@ struct graphics_driver pmshell_driver = {
 	pm_shutdown_driver,
 	dummy_emergency_shutdown,
 	pm_get_driver_param,
+	NULL,
+	NULL,
 	pm_get_empty_bitmap,
 	pm_register_bitmap,
 	pm_prepare_strip,

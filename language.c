@@ -7,11 +7,11 @@
 
 struct translation {
 	int code;
-	char *name;
+	const char *name;
 };
 
 struct translation_desc {
-	struct translation *t;
+	const struct translation *t;
 };
 
 unsigned char dummyarray[T__N_TEXTS];
@@ -92,7 +92,7 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 			goto tr;
 		}
 		if (!(trn = cast_uchar translations[current_language].t[text - dummyarray].name)) {
-			trn = cast_uchar(translations[current_language].t[text - dummyarray].name = translation_english[text - dummyarray].name);	/* modifying translation structure */
+			trn = cast_uchar translation_english[text - dummyarray].name;
 		}
 	}
 	return trn;

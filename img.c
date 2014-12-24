@@ -2,7 +2,7 @@
  * Generic image decoding and PNG and JPG decoders.
  * (c) 2002 Karel 'Clock' Kulhavy
  * This is a part of the Links program, released under GPL.
- 
+
  * Used in graphics mode of Links only
  TODO: odstranit zbytecne ditherovani z strip_optimized header_dimensions_known,
        protoze pozadi obrazku musi byt stejne jako pozadi stranky, a to se nikdy
@@ -106,10 +106,16 @@ static void destroy_decoder (struct cached_image *cimg)
 	}
 }
 
+static void mem_free_buffer(struct cached_image *cimg)
+{
+	mem_free(cimg->buffer);
+	mem_freed_large(cimg->width * cimg->height * cimg->buffer_bytes_per_pixel);
+}
+
 static void img_destruct_image(struct g_object *object)
 {
 	struct g_object_image *goi=(struct g_object_image *)object;
-	
+
 	if (goi->orig_src)mem_free(goi->orig_src);
 	if (goi->alt)mem_free(goi->alt);
 	if (goi->name)mem_free(goi->name);
@@ -134,17 +140,17 @@ void img_destruct_cached_image(struct cached_image *cimg)
 		case 9:
 		case 11:
 		break;
-		
+
 		case 12:
 		case 14:
 		if (cimg->gamma_table) mem_free(cimg->gamma_table);
-		if (cimg->bmp.user){
+		if (cimg->bmp_used){
 			drv->unregister_bitmap(&(cimg->bmp));
 		}
 		if (cimg->strip_optimized){
 			if (cimg->dregs) mem_free(cimg->dregs);
 		}else{
-			mem_free(cimg->buffer);
+			mem_free_buffer(cimg);
 		}
 		case 8:
 		case 10:
@@ -155,7 +161,7 @@ void img_destruct_cached_image(struct cached_image *cimg)
 		case 15:
 		drv->unregister_bitmap(&(cimg->bmp));
 		break;
-		
+
 #ifdef DEBUG
 		default:
 		fprintf(stderr,"img_destruct_cached_image: state=%d\n",cimg->state);
@@ -200,7 +206,7 @@ static int img_scale_v(unsigned scale, int in){
 }
 
 /* Returns height (pixels) for prescribed width (pixels). Honours aspect. */
-static int width2height(float width_px, float width_mm, float height_mm)
+static int width2height(double width_px, double width_mm, double height_mm)
 {
 	int height_px;
 
@@ -212,7 +218,7 @@ static int width2height(float width_px, float width_mm, float height_mm)
 }
 
 /* Returns width (pixels) for prescribed height (pixels). Honours aspect. */
-static int height2width(float height_px, float width_mm, float height_mm)
+static int height2width(double height_px, double width_mm, double height_mm)
 {
 	int width_px;
 
@@ -243,10 +249,10 @@ void compute_background_8(unsigned char *rgb, struct cached_image *cimg)
  * in state 8 and 10.
  * Allocates right amount of memory into buffer, formats it (with background or
  * zeroes, depens on buffer_bytes_per_pixel). Updates dimensions (xww and yww)
- * according to newly known header dimensions. Fills in gamma_stamp, bmp.user
- * (NULL because we not bother with generating bitmap here)
+ * according to newly known header dimensions. Fills in gamma_stamp, bmp_used
+ * (zero because we not bother with generating bitmap here)
  * and rows_added.
- * Resets strip_optimized if image will be scaled or 
+ * Resets strip_optimized if image will be scaled or
  * Allocates dregs if on exit strip_optimized is nonzero.
  * Allocates and computes gamma_table, otherwise
  * 	sets gamma_table to NULL. Also doesn't make gamma table if image contains less
@@ -290,7 +296,7 @@ int header_dimensions_known(struct cached_image *cimg)
 			cimg->xww=height2width(cimg->yww,
 					cimg->width, cimg->height);
 			if (cimg->xww<=0) cimg->xww=1;
-			
+
 		}
 	}else{
 		/* Specified width */
@@ -312,7 +318,7 @@ int header_dimensions_known(struct cached_image *cimg)
 				cimg->yww=width2height(cimg->xww,
 						cimg->width, cimg->height);
 			}
-			
+
 			/* Some sanity checks */
 			if (cimg->xww<=0) cimg->xww=1;
 			if (cimg->yww<=0) cimg->yww=1;
@@ -370,7 +376,7 @@ int header_dimensions_known(struct cached_image *cimg)
 		skip_img:
 		drv->register_bitmap(&(cimg->bmp));
 		if(cimg->dregs) memset(cimg->dregs,0,cimg->width*sizeof(*cimg->dregs)*3);
-		cimg->bmp.user=(void *)&end_callback_hit; /* Nonzero value */
+		cimg->bmp_used=1; /* Nonzero value */
 		/* This ensures the dregs are none and because strip
 		 * optimization is unusable in interlaced pictures,
 		 * this saves the zeroing out at the beginning of the
@@ -378,7 +384,7 @@ int header_dimensions_known(struct cached_image *cimg)
 		 */
 	}else {
 		cimg->rows_added=1;
-		cimg->bmp.user=NULL;
+		cimg->bmp_used=0;
 		if (cimg->width && (unsigned)cimg->width * (unsigned)cimg->height / (unsigned)cimg->width != (unsigned)cimg->height) overalloc();
 		if ((unsigned)cimg->width * (unsigned)cimg->height > (unsigned)MAXINT / cimg->buffer_bytes_per_pixel) overalloc();
 		cimg->buffer=mem_alloc_mayfail(cimg->width*cimg->height
@@ -388,7 +394,7 @@ int header_dimensions_known(struct cached_image *cimg)
 		if (cimg->buffer_bytes_per_pixel==4
 			 	||cimg->buffer_bytes_per_pixel==4
 				*sizeof(unsigned short))
-			{	
+			{
 			/* Make the buffer contain full transparency */
 			memset(cimg->buffer,0,cimg->width*cimg->height
 				*cimg->buffer_bytes_per_pixel);
@@ -412,7 +418,7 @@ int header_dimensions_known(struct cached_image *cimg)
 					,green, blue);
 			}else{
 				unsigned char rgb[3];
-				
+
 				/* 8-bit */
 				compute_background_8(rgb,cimg);
 				mix_one_color_24(cimg->buffer
@@ -475,7 +481,7 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 		break;
 
 		/* Alpha's: */
-		case 4: 
+		case 4:
 		{
 
 			round_color_sRGB_to_48(&red,&green,&blue,cimg->background_color);
@@ -484,7 +490,6 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 						tmp, buffer, cimg->width *height,
 						cimg->gamma_table, red, green, blue);
 			}else{
-				
 				agx_and_uc_32_to_48(tmp,buffer
 					,cimg->width*height
 					,(float)(user_gamma/cimg->red_gamma)
@@ -513,7 +518,7 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 			}
 		}
 		break;
-		
+
 #ifdef DEBUG
 		default:
 		internal("buffer_to_16: unknown mem organization");
@@ -532,7 +537,7 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
  * dregs must be externally allocated and contain required value or must be
  * NULL.
  * if !dregs then rounding is performed instead of dithering.
- * dregs are not freed. 
+ * dregs are not freed.
  * bottom dregs are placed back into dregs.
  * Before return the bitmap will be in registered state and changes will be
  * commited.
@@ -584,7 +589,6 @@ not_enough:
 	       	dither_restart(tmp, &tmpbmp, dregs);
 	}
 	else {
-		
 		(*round_fn)(tmp, &tmpbmp);
 	}
 	if (use_strip) {
@@ -595,7 +599,7 @@ not_enough:
 	if (!height) goto end;
 	buffer+=add2;
 	yoff+=tmpbmp.y;
-	tmpbmp.data=(unsigned char *)tmpbmp.data+add1; 
+	tmpbmp.data=(unsigned char *)tmpbmp.data+add1;
 	/* This has no effect if use_strip but it's faster
 	 * to add to bogus value than to play with
 	 * conditional jumps.
@@ -603,12 +607,13 @@ not_enough:
 	goto not_enough;
 end:
 	mem_free(tmp);
+	mem_freed_large(cimg->width*(height<max_height?height:max_height)*3*sizeof(*tmp));
 	if (!use_strip) drv->register_bitmap(&(cimg->bmp));
 }
 
 /* Takes the buffer and resamples the data into the bitmap. Automatically
  * destroys the previous bitmap. Must be called only when cimg->buffer is valid.
- * Sets bmp->user to non-NULL
+ * Sets bmp_used to non-zero.
  * If gamma_table is used, it must be still allocated here (take care if you
  * want to destroy gamma table and call buffer_to_bitmap, first call buffer_to_bitmap
  * and then destroy gamma_table).
@@ -647,31 +652,34 @@ buffer_to_bitmap");
 		gonna_be_smart=0;
 		if (ix && (unsigned)ix * (unsigned)iy / (unsigned)ix != (unsigned)iy) overalloc();
 		if ((unsigned)ix * (unsigned)iy > MAXINT / sizeof(*tmp) / 3) overalloc();
-		tmp=mem_alloc(ix*iy*3*sizeof(*tmp));
-		buffer_to_16(tmp,cimg,cimg->buffer,iy);
+		tmp=mem_alloc_mayfail(ix*iy*3*sizeof(*tmp));
+		if (tmp) buffer_to_16(tmp,cimg,cimg->buffer,iy);
 		if (!cimg->decoder){
-			mem_free(cimg->buffer);
+			mem_free_buffer(cimg);
 			cimg->buffer=NULL;
 		}
-	
+
 		/* Scale the image to said size */
 #ifdef DEBUG
 		if (ox<=0||oy<=0){
 			internal("ox or oy <=0 before resampling image");
 		}
 #endif /* #ifdef DEBUG */
-		if (ix!=ox||iy!=oy){
+		if (tmp && (ix!=ox || iy!=oy)) {
 			/* We must really scale */
 			tmp1=tmp;
 			scale_color(tmp1,ix,iy,&tmp,ox,oy);
 		}
 	}
-	if (cimg->bmp.user) drv->unregister_bitmap(&cimg->bmp);
+	if (cimg->bmp_used) drv->unregister_bitmap(&cimg->bmp);
 	cimg->bmp.x=ox;
 	cimg->bmp.y=oy;
 	if (drv->get_empty_bitmap(&(cimg->bmp))) {
 		if (!gonna_be_smart) {
-			mem_free(tmp);
+			if (tmp) {
+				mem_free(tmp);
+				mem_freed_large(ix*iy*3*sizeof(*tmp));
+			}
 		}
 		goto bitmap_failed;
 	}
@@ -686,15 +694,25 @@ buffer_to_bitmap");
 			0, dregs, 0);
 		if (dregs) mem_free(dregs);
 	}else{
-		if (dither_images)
-			dither(tmp,&(cimg->bmp));
-		else
-			(*round_fn)(tmp,&(cimg->bmp));
-		mem_free(tmp);
+		if (tmp) {
+			if (dither_images)
+				dither(tmp,&(cimg->bmp));
+			else
+				(*round_fn)(tmp,&(cimg->bmp));
+			mem_free(tmp);
+			mem_freed_large(ix*iy*3*sizeof(*tmp));
+		} else {
+			int i;
+			unsigned char *ptr = cimg->bmp.data;
+			for (i = 0; i < cimg->bmp.y; i++) {
+				memset(ptr, 0, cimg->bmp.x * (drv->depth & 7));
+				ptr += cimg->bmp.skip;
+			}
+		}
 		bitmap_failed:
 		drv->register_bitmap(&(cimg->bmp));
 	}
-	cimg->bmp.user=(void *)&end_callback_hit;
+	cimg->bmp_used=1;
 	/* Indicate that the bitmap is valid. The value is just any
 	   nonzero value */
 	cimg->rows_added=0;
@@ -713,7 +731,7 @@ void img_end(struct cached_image *cimg)
 		}
 		else{
 			buffer_to_bitmap(cimg);
-			mem_free(cimg->buffer);
+			mem_free_buffer(cimg);
 		}
 		if (cimg->gamma_table) mem_free(cimg->gamma_table);
 		case 8:
@@ -721,13 +739,13 @@ void img_end(struct cached_image *cimg)
 		destroy_decoder(cimg);
 		case 0:
 		case 1:
-		case 2:	
+		case 2:
 		case 3:
 		case 9:
 		case 11:
 		case 13:
 		case 15:
-		break;	
+		break;
 #ifdef DEBUG
 		default:
 		fprintf(stderr,"state=%d\n",cimg->state);
@@ -761,9 +779,9 @@ static void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
 		if (cimg->strip_optimized){
 			if (cimg->dregs) mem_free(cimg->dregs);
 		}else{
-			mem_free(cimg->buffer);
+			mem_free_buffer(cimg);
 		}
-		if (cimg->bmp.user){
+		if (cimg->bmp_used){
 			case 13:
 			drv->unregister_bitmap(&cimg->bmp);
 		}
@@ -777,9 +795,9 @@ static void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
 		if (cimg->strip_optimized){
 			if (cimg->dregs) mem_free(cimg->dregs);
 		}else{
-			mem_free(cimg->buffer);
+			mem_free_buffer(cimg);
 		}
-		if (cimg->bmp.user){
+		if (cimg->bmp_used){
 			case 15:
 			drv->unregister_bitmap(&cimg->bmp);
 		}
@@ -836,7 +854,7 @@ static void type(struct cached_image *cimg, unsigned char *content_type)
 	}else if (dtest(cast_uchar "image/pjpg",content_type)){
 		cimg->image_type=IM_JPG;
 		jpeg_start(cimg);
-	}else 
+	}else
 #endif /* #ifdef HAVE_JPEG */
 		if (dtest(cast_uchar "image/png",content_type)){
 		cimg->image_type=IM_PNG;
@@ -909,7 +927,7 @@ static int img_process_download(struct g_object_image *goi, struct f_data_c *fda
 		if (!ctype) ctype = stracpy(cast_uchar "application/octet-stream");
 		type(cimg,ctype);
 	}
-		
+
 	/* Now, if we are in state where decoder is running (8, 10, 12, 14), we may feed
 	 * some data into it.
 	 */
@@ -959,7 +977,7 @@ img_process_download.\n");
 		cimg->last_length+=length;
 	}
 	end:
-	
+
 	/* Test end */
 	if (!is_entry_used(goi->af->rq->ce) && (goi->af->rq->state < 0
 		||(goi->af->rq->ce&&goi->af->rq->stat.state<0))){
@@ -1002,9 +1020,7 @@ int get_foreground(int rgb)
 	return (r<<16)|(g<<8)|b;
 }
 
-static void draw_frame_mark (struct graphics_driver *drv, struct 
-	graphics_device *dev, int x, int y, int xw, int yw
-	, long bg, long fg, int broken)
+static void draw_frame_mark(struct graphics_device *dev, int x, int y, int xw, int yw, long bg, long fg, int broken)
 {
 #ifdef DEBUG
 	if (xw<1||yw<1) internal("zero dimension in draw_frame_mark");
@@ -1014,7 +1030,7 @@ static void draw_frame_mark (struct graphics_driver *drv, struct
 		 * side (0-1)
 		 */
 		 int xl, xh, yl, yh;
-		 
+
 		 xh=xw-(xl=xw>>2);
 		 yh=yw-(yl=yw>>2);
 		/* Draw full sides and the box inside */
@@ -1060,7 +1076,7 @@ static void draw_frame_mark (struct graphics_driver *drv, struct
 			drv->draw_hline(dev,x,y+yw-1,x+xw,fg);
 		}
 		if (broken == 2 && xw > 2 && yw > 2) {
-			draw_frame_mark(drv, dev, x + 1, y + 1, xw - 2, yw - 2, bg, fg, 3);
+			draw_frame_mark(dev, x + 1, y + 1, xw - 2, yw - 2, bg, fg, 3);
 		}
 	}
 }
@@ -1084,11 +1100,11 @@ static void draw_picture(struct f_data_c *fdatac, struct g_object_image *goi,
 	}
 #endif /* #ifdef DEBUG */
 	if (!(cimg->state&1)){
-		if (!cimg->bmp.user)
+		if (!cimg->bmp_used)
 			buffer_to_bitmap(cimg);
 	}
 #ifdef DEBUG
-	else if (!cimg->bmp.user){
+	else if (!cimg->bmp_used){
 		fprintf(stderr,"cimg->state=%d\n",cimg->state);
 		internal("Nonexistent bitmap in said cimg->state in draw_picture");
 	}
@@ -1127,7 +1143,7 @@ static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 	 * navod, jak se vola to refresh_image.  Nicmene ja jsem milostive
 	 * usoudil, ze zadnejch 1000, ale 0.
 	 */
-	
+
 	if (cimg) {
 		color_bg=dip_get_color_sRGB(cimg->background_color);
 		color_fg=dip_get_color_sRGB(get_foreground(cimg->background_color));
@@ -1141,7 +1157,7 @@ static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 
 	memcpy(&r, &fdatac->ses->term->dev->clip, sizeof(struct rect));
 	if (fdatac->vs->g_display_link && fdatac->active && fdatac->vs->current_link != -1 && fdatac->vs->current_link == goi->link_num) {
-		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
+		draw_frame_mark(fdatac->ses->term->dev,x,y,goi->xw,
 			goi->yw,color_bg,color_fg,2);
 		restrict_clip_area(fdatac->ses->term->dev, &r, x + 2, y + 2, x + goi->xw - 2, y + goi->yw - 2);
 	}
@@ -1151,9 +1167,9 @@ static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 	if (img_process_download(goi, fdatac)) goto ret; /* Choked with data, will not
 							* draw. */
 	/* Now we will only draw... */
-	if (cimg->state<12){
-		draw_frame_mark(drv, fdatac->ses->term->dev,x,y,goi->xw, 
-			goi->yw,color_bg,color_fg,cimg->state&1);
+	if (!cimg || cimg->state<12){
+		draw_frame_mark(fdatac->ses->term->dev,x,y,goi->xw,
+			goi->yw,color_bg,color_fg,!cimg || cimg->state&1);
 	}else
 #ifdef DEBUG
 	if (cimg->state<16){
@@ -1182,7 +1198,7 @@ static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
  * image -> yw (<0 means not known)
  * image -> xyw meaning (MEANING_AUTOSCALE or MEANING_DIMS)
  * image -> background
- * 
+ *
  * The URL will not be freed.
  */
 static void find_or_make_cached_image(struct g_object_image *image, unsigned char *url,

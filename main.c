@@ -325,6 +325,9 @@ static void init(void)
 		handle_trm(get_input_handle(), get_output_handle(), uh, uh, get_ctl_handle(), info, len);
 		handle_basic_signals(NULL);	/* OK, this is race condition, but it must be so; GPM installs it's own buggy TSTP handler */
 		mem_free(info);
+#if defined(HAVE_MALLOC_TRIM)
+		malloc_trim(0);
+#endif
 		return;
 	}
 	if ((dds.assume_cp = get_cp_index(cast_uchar "ISO-8859-1")) == -1) dds.assume_cp = 0;
@@ -423,6 +426,7 @@ static void terminate_all_subsystems(void)
 	abort_all_connections();
 
 	free_all_caches();
+	free_format_text_cache();
 	if (init_b) save_url_history();
 	free_history_lists();
 	free_term_specs();
@@ -438,15 +442,18 @@ static void terminate_all_subsystems(void)
 	free_strerror_buf();
 	shutdown_trans();
 	GF(shutdown_graphics());
-	terminate_osdep();
-	if (clipboard) mem_free(clipboard);
+	GF(free_dither());
+	if (clipboard) mem_free(clipboard), clipboard = NULL;
 	if (fg_poll_timer != -1) kill_timer(fg_poll_timer), fg_poll_timer = -1;
+	terminate_osdep();
 }
 
 int main(int argc, char *argv[])
 {
 	g_argc = argc;
 	g_argv = (unsigned char **)argv;
+
+	init_heap();
 
 	init_os();
 

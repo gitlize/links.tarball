@@ -479,6 +479,21 @@ static unsigned char *get_token(unsigned char **line)
 	return s;
 }
 
+static int get_token_num(unsigned char **line)
+{
+	long l;
+	unsigned char *end;
+	unsigned char *t = get_token(line);
+	if (!t) return -1;
+	l = strtolx(t, &end);
+	if (*end || end == t || l < 0 || l != (int)l) {
+		mem_free(t);
+		return -1;
+	}
+	mem_free(t);
+	return (int)l;
+}
+
 static void parse_config_file(unsigned char *name, unsigned char *file, struct option **opt)
 {
 	struct option *options;
@@ -499,7 +514,6 @@ static void parse_config_file(unsigned char *name, unsigned char *file, struct o
 			if (file[0]) file++;
 			continue;
 		}
-		nl = (int)(file - n);
 		while (file[0] == 9 || file[0] == ' ') file++;
 		p = file;
 		while (file[0] && file[0] != 10 && file[0] != 13) file++;
@@ -596,13 +610,13 @@ try_new_count:
 	add_num_to_str(&tmp_name, &tmp_namel, count);
 	EINTRLOOP(h, open(cast_const_char tmp_name, O_WRONLY | O_NOCTTY | O_CREAT | O_TRUNC | O_EXCL, 0600));
 	if (h == -1) {
-		if (errno == EEXIST && count < MAXINT) {
+		err = errno;
+		if (err == EEXIST && count < MAXINT) {
 			count++;
 			mem_free(tmp_name);
 			goto try_new_count;
 		}
-		mem_free(tmp_name);
-		return get_error_from_errno(errno);
+		goto free_err;
 	}
 	set_bin(h);
 	rr = (int)strlen(cast_const_char c);
@@ -635,6 +649,7 @@ try_new_count:
 
 	unlink_err:
 	EINTRLOOP(rs, unlink(cast_const_char tmp_name));
+	free_err:
 	mem_free(tmp_name);
 	return get_error_from_errno(err);
 }
@@ -900,7 +915,7 @@ static unsigned char *dbl_rd(struct option *o, unsigned char *c)
 		mem_free(tok);
 		return cast_uchar "Number expected";
 	}
-	if (100*d < o->min || 100*d > o->max) {
+	if (d < 0 || d > o->max || 100*d < o->min || 100*d > o->max) {
 		mem_free(tok);
 		return cast_uchar "Out of range";
 	}
@@ -1131,12 +1146,9 @@ static unsigned char *term_rd(struct option *o, unsigned char *c)
 {
 	struct term_spec *ts;
 	unsigned char *w;
-	int i;
+	int i, l;
 	if (!(w = get_token(&c))) goto err;
-	if (!(ts = new_term_spec(w))) {
-		mem_free(w);
-		goto end;
-	}
+	ts = new_term_spec(w);
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
 	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '4') goto err_f;
@@ -1162,7 +1174,23 @@ static unsigned char *term_rd(struct option *o, unsigned char *c)
 #endif
 	ts->charset = i;
 	mem_free(w);
-	end:
+	l = get_token_num(&c);
+	if (l < 0) goto ret;
+	if (l > 999) goto err;
+	ts->left_margin = l;
+	l = get_token_num(&c);
+	if (l < 0) goto err;
+	if (l > 999) goto err;
+	ts->right_margin = l;
+	l = get_token_num(&c);
+	if (l < 0) goto err;
+	if (l > 999) goto err;
+	ts->top_margin = l;
+	l = get_token_num(&c);
+	if (l < 0) goto err;
+	if (l > 999) goto err;
+	ts->bottom_margin = l;
+	ret:
 	return NULL;
 	err_f:
 	mem_free(w);
@@ -1176,10 +1204,7 @@ static unsigned char *term2_rd(struct option *o, unsigned char *c)
 	unsigned char *w;
 	int i;
 	if (!(w = get_token(&c))) goto err;
-	if (!(ts = new_term_spec(w))) {
-		mem_free(w);
-		goto end;
-	}
+	ts = new_term_spec(w);
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
 	if (strlen(cast_const_char w) != 1 || w[0] < '0' || w[0] > '3') goto err_f;
@@ -1206,7 +1231,6 @@ static unsigned char *term2_rd(struct option *o, unsigned char *c)
 #endif
 	ts->charset = i;
 	mem_free(w);
-	end:
 	return NULL;
 	err_f:
 	mem_free(w);
@@ -1228,6 +1252,16 @@ static void term_wr(struct option *o, unsigned char **s, int *l)
 		add_num_to_str(s, l, !!ts->col + !!ts->restrict_852 * 2 + !!ts->block_cursor * 4);
 		add_to_str(s, l, cast_uchar " ");
 		add_to_str(s, l, get_cp_mime_name(ts->charset));
+		if (ts->left_margin || ts->right_margin || ts->top_margin || ts->bottom_margin) {
+			add_to_str(s, l, cast_uchar " ");
+			add_num_to_str(s, l, ts->left_margin);
+			add_to_str(s, l, cast_uchar " ");
+			add_num_to_str(s, l, ts->right_margin);
+			add_to_str(s, l, cast_uchar " ");
+			add_num_to_str(s, l, ts->top_margin);
+			add_to_str(s, l, cast_uchar " ");
+			add_num_to_str(s, l, ts->bottom_margin);
+		}
 	}
 }
 
@@ -1629,6 +1663,10 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    (default 0)\n"
 "  Retry on internal server errors (50x).\n"
 "\n"
+" -http.fake-firefox <0>/<1>\n"
+"    (default 0)\n"
+"  Fake Firefox in the HTTP header.\n"
+"\n"
 " -http.do-not-track <0>/<1>\n"
 "    (default 0)\n"
 "  Send do not track request in the HTTP header.\n"
@@ -1718,9 +1756,6 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -bfu-aspect <fp-value>\n"
 "  Display aspect ration.\n"
 "\n"
-" -aspect-on <0>/<1>\n"
-"  Enable aspect ratio correction.\n"
-"\n"
 " -dither-letters <0>/<1>\n"
 "  Do letter dithering.\n"
 "\n"
@@ -1781,6 +1816,9 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -html-frames <0>/<1>\n"
 "  Render frames. (0) causes frames  rendered like in lynx.\n"
+"\n"
+" -html-break-long-lines <0>/<1>\n"
+"  Break long lines in <pre> sections.\n"
 "\n"
 " -html-images <0>/<1>\n"
 "  Display links to unnamed images as [IMG].\n"
@@ -1946,7 +1984,7 @@ int aggressive_cache = 1;
 
 struct ipv6_options ipv6_options = { ADDR_PREFERENCE_DEFAULT };
 struct proxies proxies = { "", "", "", "", "", 0 };
-struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { 0, REFERER_REAL_SAME_SERVER, "", "", "" } };
+struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { 0, 0, REFERER_REAL_SAME_SERVER, "", "", "" } };
 struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 0, 1 };
 struct smb_options smb_options = { 0 };
 
@@ -1992,6 +2030,7 @@ struct document_setup dds = {
 	0, /* ignore codepage from server */
 	1, /* tables */
 	1, /* frames */
+	0, /* break_long_lines */
 	0, /* images */
 	0, /* image_names */
 	3, /* margin */
@@ -2065,6 +2104,7 @@ static struct option links_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.no_accept_charset, "http_bugs.no_accept_charset", "http-bugs.bug-no-accept-charset"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.no_compression, "http_bugs.no_compression", "http-bugs.no-compression"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.retry_internal_errors, "http_bugs.retry_internal_errors", "http-bugs.retry-internal-errors"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.header.fake_firefox, "fake_firefox", "http.fake-firefox"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.header.do_not_track, "http_do_not_track", "http.do-not-track"},
 	{1, gen_cmd, num_rd, num_wr, 0, 4, &http_options.header.referer, "http_referer", "http.referer"},
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &http_options.header.fake_referer, "fake_referer", "http.fake-referer"},
@@ -2124,6 +2164,7 @@ static struct option html_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.hard_assume, "html_hard_assume", "html-hard-assume"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.tables, "html_tables", "html-tables"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.frames, "html_frames", "html-frames"},
+	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.break_long_lines, "html_break_long_lines", "html-break-long-lines"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.images, "html_images", "html-images"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.image_names, "html_image_names", "html-image-names"},
 	{1, gen_cmd, num_rd, num_wr, 0, 9, &dds.margin, "html_margin", "html-margin"},
@@ -2132,7 +2173,7 @@ static struct option html_options[] = {
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.auto_refresh, "html_auto_refresh", "html-auto-refresh"},
 	{1, gen_cmd, num_rd, num_wr, 1, MAX_FONT_SIZE, &dds.font_size, "html_font_size", "html-user-font-size"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.display_images, "html_display_images", "html-display-images"},
-	{1, gen_cmd, num_rd, num_wr, 1, 500, &dds.image_scale, "html_image_scale", "html-image-scale"},
+	{1, gen_cmd, num_rd, num_wr, 1, 999, &dds.image_scale, "html_image_scale", "html-image-scale"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.porn_enable, "html_bare_image_autoscale", "html-bare-image-autoscale"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &dds.target_in_new_window, "html_target_in_new_window", "html-target-in-new-window"},
 	{1, gen_cmd, num_rd, num_wr, 0, 15, &dds.t_text_color, "html_text_color", "html-text-color"},

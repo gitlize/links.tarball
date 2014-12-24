@@ -1,14 +1,14 @@
 <WARPIN>
 <HEAD>
 <PCK INDEX="1"
-      PACKAGEID="Mikulas Patocka\Links\Base package\2\8"
+      PACKAGEID="Mikulas Patocka\Links\Base package\2\9"
       TARGET="?:\Links"
       SELECT
       TITLE="Links"
       CREATEOBJECT="WPFolder|Links|<WP_DESKTOP>|OBJECTID=<Links_Folder>;"
-      CREATEOBJECT="WPProgram|Links Window|<Links_Folder>|EXENAME=$(1)\Links.exe;PROGTYPE=WINDOWABLEVIO;STARTUPDIR=$(1);OBJECTID=<Links_Window>;"
-      CREATEOBJECT="WPProgram|Links Full Screen|<Links_Folder>|EXENAME=$(1)\Links.exe;PROGTYPE=FULLSCREEN;STARTUPDIR=$(1);OBJECTID=<Links_Full_Screen>;"
-      CREATEOBJECT="WPProgram|Links Graphics|<Links_Folder>|EXENAME=$(1)\Links.exe;PARAMETERS=-g;PROGTYPE=PM;STARTUPDIR=$(1);OBJECTID=<Links_PMShell>;"
+      CREATEOBJECT="WPProgram|Links Window|<Links_Folder>|EXENAME=$(1)\links.exe;PROGTYPE=WINDOWABLEVIO;STARTUPDIR=$(1);OBJECTID=<Links_Window>;"
+      CREATEOBJECT="WPProgram|Links Full Screen|<Links_Folder>|EXENAME=$(1)\links.exe;PROGTYPE=FULLSCREEN;STARTUPDIR=$(1);OBJECTID=<Links_Full_Screen>;"
+      CREATEOBJECT="WPProgram|Links Graphics|<Links_Folder>|EXENAME=$(1)\links.exe;PARAMETERS=-g;PROGTYPE=PM;STARTUPDIR=$(1);ICONFILE=$(1)\linksos2.ico;OBJECTID=<Links_PMShell>;"
       CONFIGSYS="SET PATH=$(1) | ADDRIGHT"
       CONFIGSYS="LIBPATH=$(1) | ADDRIGHT"
       >Links is a WWW browser</PCK>

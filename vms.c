@@ -846,7 +846,7 @@ int vms_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t)
 				increase_dynamic_time();
 			/*fprintf(stderr, "wait time: %d\n", wait_time);*/
 			get_abstime(0, wait_time, &ts2);
-			if (t && 
+			if (t &&
 			    (ts2.tv_sec > ts.tv_sec ||
 			    (ts2.tv_sec == ts.tv_sec && ts2.tv_nsec > ts.tv_nsec)))
 				goto full_wait;
@@ -1010,7 +1010,7 @@ void init_os(void)
 	{
 		int i;
 		unsigned char **new_argv = malloc((g_argc + 1) * sizeof(unsigned char *));
-		if (!new_argv) fatal_exit("can't allocate argv");
+		if (!new_argv) vms_fatal_exit("can't allocate argv");
 		for (i = 0; i <= g_argc; i++)
 			new_argv[i] = (unsigned char *)(my_intptr_t)(((unsigned *)g_argv)[i]);
 		g_argv = new_argv;

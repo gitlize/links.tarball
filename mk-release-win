@@ -18,10 +18,11 @@ else
 	fi
 fi
 if [ "`uname -m`" != x86_64 ]; then
-	CFLAGS="-O3 -march=pentiumpro -mtune=generic $LTO_ARGS -Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wmissing-declarations -Wstrict-prototypes"
+	ARCH_CFLAGS="-O3 -march=pentiumpro -mtune=generic"
 else
-	CFLAGS="-O3 -mtune=generic $LTO_ARGS -Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wmissing-declarations -Wstrict-prototypes"
+	ARCH_CFLAGS="-O3 -mtune=generic"
 fi
+CFLAGS="$ARCH_CFLAGS $LTO_ARGS -shared-libgcc -Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wmissing-declarations -Wstrict-prototypes"
 export CFLAGS
 windres -O coff ../links-current/linkswin.rc linkswin.res
 LIBS=../linkswin.res

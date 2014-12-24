@@ -108,6 +108,14 @@ void detach_cache_entry(struct cache_entry *e)
 	e->url[0] = 0;
 }
 
+static void mem_free_fragment(struct fragment *f)
+{
+	size_t s = (size_t)f->length;
+	mem_free(f);
+	s += sizeof(struct fragment);
+	mem_freed_large(s);
+}
+
 #define sf(x) e->data_size += (x), cache_size += (my_uintptr_t)(x)
 
 int page_size = 4096;
@@ -185,7 +193,7 @@ have_f:
 		nf = f->next;
 		del_from_list(nf);
 		sf(-nf->length);
-		mem_free(nf);
+		mem_free_fragment(nf);
 	}
 	if (trunc) truncate_entry(e, offset + length, 0);
 	/*{
@@ -247,7 +255,7 @@ int defrag_entry(struct cache_entry *e)
 		x = h;
 		h = h->prev;
 		del_from_list(x);
-		mem_free(x);
+		mem_free_fragment(x);
 	}
 	add_to_list(e->frag, n);
 	/*{
@@ -270,7 +278,7 @@ void truncate_entry(struct cache_entry *e, off_t off, int final)
 				sf(-f->length);
 				g = f->next;
 				del_from_list(f);
-				mem_free(f);
+				mem_free_fragment(f);
 				f = g;
 			}
 			goto ret;
@@ -309,7 +317,7 @@ void free_entry_to(struct cache_entry *e, off_t off)
 			g = f;
 			f = f->prev;
 			del_from_list(g);
-			mem_free(g);
+			mem_free_fragment(g);
 		} else if (f->offset < off) {
 			sf(f->offset - off);
 			memmove(f->data, f->data + (off - f->offset), (size_t)(f->length -= off - f->offset));

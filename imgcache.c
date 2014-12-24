@@ -35,14 +35,14 @@ struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
 				&& !strcmp(cast_const_char i->url, cast_const_char url)
 				&& i->wanted_xw==xw
 				&& i->wanted_yw==yw
-				&& i->wanted_xyw_meaning==xyw_meaning 
+				&& i->wanted_xyw_meaning==xyw_meaning
 				&& i->scale==scale
 				&& i->aspect==aspect) goto hit;
 		}
 	}
 	return NULL;
 
-hit:		
+hit:
 	i->refcount++;
 	del_from_list(i);
 	add_to_list(image_cache, i);
@@ -65,15 +65,15 @@ static unsigned long image_size(struct cached_image *cimg)
 		case 8:
 		case 9:
 		case 10:
-		case 11:			
+		case 11:
 		break;
 
 		case 12:
 		case 14:
 		siz+=(unsigned long)cimg->width*cimg->height*cimg->buffer_bytes_per_pixel;
-		if (cimg->bmp.user){
+		if (cimg->bmp_used){
 			case 13:
-			case 15:	
+			case 15:
 			siz+=(unsigned long)cimg->bmp.x*cimg->bmp.y*(drv->depth&7);
 		}
 		break;

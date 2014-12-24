@@ -32,7 +32,7 @@ void lru_insert(struct lru *cache, void *entry, struct lru_entry ** row,
 	*row=new_entry;
 	cache->top=new_entry;
 	cache->bytes+=bytes_consumed;
-	cache->items++;		
+	cache->items++;
 }
 
 /* Returns bottom (or NULL if the cache is empty) but doesn't
@@ -50,12 +50,12 @@ void * lru_get_bottom(struct lru *cache)
 void lru_destroy_bottom(struct lru* cache)
 {
 	struct lru_entry *it=cache->bottom;
-	
+
 	cache->bytes-=cache->bottom->bytes_consumed;
 	cache->items--;
 	cache->bottom=it->above;
 	if (cache->bottom) cache->bottom->below=NULL; else cache->top=NULL;
-	
+
 	if (it->next){
 		it->next->previous=it->previous;
 	}

@@ -38,7 +38,7 @@ static void alloc_color_map(int colors)
  deco->color_map=mem_alloc(colors*3*sizeof(*(deco->color_map)));
 }
 
-/* 
+/*
    Initialize code table: construct codes 0...(1<<code_size)-1 with values
    0...(1<<code_size)-1 Codes (1<<code_size) and (1<<code_size)+1 are
    left intact -- they are of no use.
@@ -69,17 +69,17 @@ static void init_table(void)
  deco->table_pos=i+2;
  for (;i<4096;i++)
  {
-  deco->table[i].pointer=-2; 
+  deco->table[i].pointer=-2;
  }
  deco->code_size++;
  deco->last_code=0;
 }
 
-/* 
+/*
    Outputs a single pixel.
    if end_callback_hit gets set, do not send any more data in.
 */
-static inline void 
+static inline void
 output_pixel(int c)
 {
 	struct gif_decoder *deco;
@@ -99,7 +99,7 @@ output_pixel(int c)
 		deco->xoff=0;
 		global_cimg->rows_added=1;
 		if (deco->interl_dist==1)
-		{ 
+		{
 			if (global_cimg->strip_optimized){
 				buffer_to_bitmap_incremental(cimg
 					,deco->actual_line, 1, deco->yoff,
@@ -162,7 +162,7 @@ find_first(int c)
 }
 
 /* GIF code
-   Supply a code and it outputs the string for c. 
+   Supply a code and it outputs the string for c.
    if end_callback_hit is set then it should not be called anymore.
 */
 static inline void
@@ -170,7 +170,7 @@ output_string(int c)
 {
 	int pos=0;
 	struct gif_decoder *deco;
- 
+
 	deco=global_cimg->decoder;
 	while(1){
 		if (pos==4096){
@@ -200,7 +200,8 @@ static inline void
 add_table(struct gif_decoder *deco,int end_char,short pointer)
 {
 	if (deco->table_pos>=4096){
-	 	end_callback_hit=1;
+		/* ignore overflows because they may happen */
+	 	/*end_callback_hit=1;*/
 	 	return; /* Overflow */
  	}
 	deco->table[deco->table_pos].end_char=(unsigned char)end_char;
@@ -222,19 +223,19 @@ static inline void
 accept_code(struct gif_decoder *deco,int c)
 {
  int k;
- 
+
  if (c>4096||c<0) return; /* Erroneous code word will be ignored */
  if (c==deco->CC) {
   init_table();
   return;
  }
- 
+
  if (c==deco->EOI)
  {
   end_callback_hit=1;
   return;
  }
- 
+
  if (deco->first_code)
  {
   deco->first_code=0;
@@ -245,7 +246,7 @@ accept_code(struct gif_decoder *deco,int c)
   deco->last_code=c;
   return;
  }
- 
+
  if (c>=deco->table_pos)
  {
   /* The code is not in the table */
@@ -256,10 +257,10 @@ accept_code(struct gif_decoder *deco,int c)
   /* The code is in code table */
   k=find_first(c);
  }
-  
+
  add_table(deco,k,deco->last_code);
  if (end_callback_hit) return;
- 
+
  /* Output the string for code */
  output_string(c);
  if (end_callback_hit) return;
@@ -276,7 +277,7 @@ accept_byte(unsigned char c)
 {
  int original_code_size;
  struct gif_decoder *deco;
- 
+
  deco=global_cimg->decoder;
  deco->read_code|=(int)((unsigned long)c<<deco->bits_read);
  deco->bits_read+=8;
@@ -299,7 +300,7 @@ static void implant_transparent(struct gif_decoder *deco)
 	if (deco->transparent>=0&&deco->transparent<(1<<deco->im_bpp)){
 		if (global_cimg->strip_optimized){
 			compute_background_8(deco->color_map+3*deco->transparent,
-				global_cimg);	
+				global_cimg);
 		}else{
 			memcpy(deco->color_map+3*deco->transparent
 				,deco->actual_line,3);
@@ -323,12 +324,12 @@ static int gif_dimensions_known(void)
 	/* Run strip_optimized only from 65536 pixels up */
 	return header_dimensions_known(global_cimg);
 }
-	
+
 /* Accepts one byte from GIF codestream
    Caller is responsible for destorying the decoder when
    end_callback_hit is 1.
 */
-static inline void 
+static inline void
 gif_accept_byte(unsigned char c)
 {
 	struct gif_decoder *deco;
@@ -343,7 +344,6 @@ gif_accept_byte(unsigned char c)
 		if (deco->tlen>=13){
 			if (strncmp(cast_const_char deco->tbuf,"GIF87a",6)
 				&&strncmp(cast_const_char deco->tbuf,"GIF89a",6)){
-				bad_file:
 	   			end_callback_hit=1;
 	   			return; /* Invalid GIF header */
 			}
@@ -357,10 +357,9 @@ gif_accept_byte(unsigned char c)
 				alloc_color_map(1<<deco->im_bpp);
 				deco->state=1;
 			}
-			if (deco->tbuf[10] & 8 || deco->tbuf[12]) {
-				/* Test for corrupted file */
+			/*if (deco->tbuf[10] & 8 || deco->tbuf[12]) {
 	   			goto bad_file;
-			}
+			}*/
 		}
 		break;
 
@@ -372,7 +371,7 @@ gif_accept_byte(unsigned char c)
 			deco->tlen=0;
 		}
 		break;
-  
+
 		case 2: /* Reading garbage before and one ',' or '!' in GIF */
 		switch (c){
 			case ',':
@@ -384,7 +383,7 @@ gif_accept_byte(unsigned char c)
 			deco->state=3;
 			deco->tlen=0;
 			break;
-   
+
 			case '!':
 			deco->state=7;
 			break;
@@ -403,7 +402,7 @@ gif_accept_byte(unsigned char c)
 			}
 			if (deco->tbuf[8]&64){
 				/* Interlaced order */
-				deco->interl_dist=24; /* Actually 8, the 16 indicates 
+				deco->interl_dist=24; /* Actually 8, the 16 indicates
 						       * it is the first pass. */
 			}else
 				deco->interl_dist=1;
@@ -428,7 +427,7 @@ gif_accept_byte(unsigned char c)
 				deco->xoff=0;
 				deco->yoff=0;
 			}
-	 	}	 
+	 	}
 		break;
 
 		case 4: /* Reading local colormap in GIF */
@@ -469,7 +468,7 @@ gif_accept_byte(unsigned char c)
     end_callback_hit=1; /* Don't send any following data */
     return;
    }
-  } 
+  }
   else
   {
    accept_byte(c);
@@ -477,7 +476,7 @@ gif_accept_byte(unsigned char c)
    deco->remains--;
   }
   break;
-  
+
   case 7: /* Reading a byte after '!' in GIF */
   if (c==0xf9) deco->state=9;
   else deco->state=8;

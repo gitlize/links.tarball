@@ -30,7 +30,7 @@ struct font{
 	unsigned char *adstyl;
 	unsigned char *spacing;
 	int n_letters; /* Number of letters in this font */
-	struct letter *letters; 
+	struct letter *letters;
 };
 
 struct font *fonts;
@@ -53,7 +53,7 @@ int file_select(const struct dirent * entry)
 	f=fopen(s,"r");
 	if (!f) return 0; /* If it can't be open as a file then it's probably
 		           * a directory
-			   */ 
+			   */
 	fclose(f);
 	return 1;
 }
@@ -239,7 +239,7 @@ two:
 				fprintf(output,"%c",c);
 				char_pos++;
 				forbidden_0_to_7=0;
-			
+
 			}
 			break;
 	}
@@ -274,7 +274,7 @@ void process_file(unsigned char *name, FILE *output, int char_number)
 		fonts[n_fonts-1].letters[char_number].begin=stamp;
 	}
 	char_pos = 38;
-	fprintf(output,"static unsigned char letter_%d[] = \"", stamp);
+	fprintf(output,"static const unsigned char letter_%d[] = \"", stamp);
 	forbidden_0_to_7=0;
 
 	while(EOF!=(c=fgetc(f))){
@@ -296,7 +296,7 @@ void process_letters(FILE *output)
 	struct dirent **namelist;
 	struct dirent **ptr;
 	int nr,a;
-	
+
 	nr=scandir(".",&namelist,file_select,alphasort);
 	if (nr<0){
 		perror(PROGNAME);
@@ -304,23 +304,31 @@ void process_letters(FILE *output)
 	}
 	fonts[n_fonts-1].n_letters=nr;
 	if (!nr) return;
-	if (nr<0){
-		perror(PROGNAME);
-		exit(1);
-	}
 	n_letters+=nr;
 	fonts[n_fonts-1].letters=malloc(sizeof(struct letter)*nr);
 	if (!(fonts[n_fonts-1].letters)){
 		fprintf(stderr,"%s: Out of memory", PROGNAME);
 		exit(1);
 	}
-	ptr=namelist;                                    
+	ptr=namelist;
 	for(a=0;a<nr;a++){
 		process_file((unsigned char *)(*ptr)->d_name,output,a);
 		free(*ptr);
 		ptr++;
-	}	
+	}
 	free(namelist);
+}
+
+int dir_select(const struct dirent *directory_entry)
+{
+	struct stat stat0;
+	if (!strcmp(directory_entry->d_name, ".")) return 0;
+	if (!strcmp(directory_entry->d_name, "..")) return 0;
+	if (0>stat(directory_entry->d_name,&stat0)) return 0;
+		/* Can't be stated
+		 */
+	if (!S_ISDIR(stat0.st_mode)) return 0; /* Is no directory */
+	return 1;
 }
 
 /* build_font_table:
@@ -337,10 +345,10 @@ void build_font_table(FILE *output)
 {
 	struct dirent *directory_entry;
 	unsigned char *directory_name;
-	DIR *dir;
-	struct stat stat0;
 	unsigned char *family, *weight, *slant, *adstyl, *spacing;
-	
+	struct dirent **namelist;
+	int j, nr;
+
 	directory_name=(unsigned char *)"system_font";
 	if (0>chdir((const char *)directory_name)){
 		fprintf(stderr,"%s: can't change into directory %s.\n",
@@ -354,28 +362,28 @@ void build_font_table(FILE *output)
 		perror(PROGNAME);
 		exit(1);
 	}
-	
+
 	directory_name=(unsigned char *)"font";
-	dir=opendir((const char *)directory_name);
 	if (0>chdir((const char *)directory_name)){
 		fprintf(stderr,"%s can't change into directory %s.\n",
 				PROGNAME,directory_name);
 		perror(PROGNAME);
 		exit(1);
 	}
-	if (!dir){
-		fprintf(stderr,"%s can't opendir() directory %s.\n",PROGNAME,
-				directory_name);
+	nr=scandir(".",&namelist,dir_select,alphasort);
+	if (nr < 0) {
+		fprintf(stderr, "scanlist failed\n");
 		perror(PROGNAME);
 		exit(1);
 	}
-	while((directory_entry=readdir(dir))){
+	if (!nr) {
+		fprintf(stderr, "no fonts\n");
+		exit(1);
+	}
+	for (j = 0; j < nr; j++) {
 		unsigned char *name;
 		int i;
-		if (0>stat(directory_entry->d_name,&stat0)) continue; 
-			/* Can't be stated
-			 */
-		if (!S_ISDIR(stat0.st_mode)) continue; /* Is no directory */
+		directory_entry = namelist[j];
 		/* Process the directory */
 		name = malloc(strlen(directory_entry->d_name) + 1);
 		if (!name){
@@ -385,6 +393,7 @@ void build_font_table(FILE *output)
 		for (i = 0; directory_entry->d_name[i]; i++)
 			name[i] = tolower(directory_entry->d_name[i]);
 		name[i] = 0;
+		free(directory_entry);
 		if (parse_font_name(name,&family,&weight,&slant,
 			&adstyl,&spacing))
 		{
@@ -406,6 +415,7 @@ void build_font_table(FILE *output)
 			exit(1);
 		}
 	}
+	free(namelist);
 	fprintf(output,"\n");
 }
 
@@ -485,7 +495,7 @@ int main(int argc, char **argv)
 		perror("font_inc.c");
 		exit(1);
 	}
-	
+
 	fprintf(output,"#include \"cfg.h\"\n\n");
 	fprintf(output,"#ifdef G\n\n");
 	fprintf(output,"#include \"links.h\"\n\n");

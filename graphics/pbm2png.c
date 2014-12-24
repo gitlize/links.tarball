@@ -16,7 +16,7 @@
                         Without pbm2png         0:28
                         Without libpng          0:51
                         Without grayscaling     0:32
-                        
+
  */
 
 #include <stdio.h>
@@ -87,7 +87,7 @@ void
 make_index(void)
 {
 	FILE *f;
-	
+
 	f=fopen("index.html","w");
 
 	fprintf(f,"<html><head><title>%s</title></head><body bgcolor=\"#000000\" text=\"#00ff00\" link=\"#ffff00\""
@@ -99,7 +99,7 @@ make_index(void)
 		int n;
 		unsigned char *t;
 		FILE *g;
-	
+
 		fprintf(f,"<table cellspacing=0 cellpadding=0 border=1>\n<tr>");
 		for (n=0;n<filenumber;n++){
 			if (!(n%40)&&n){
@@ -107,11 +107,11 @@ make_index(void)
 			}
 			fprintf(f,"<td><a href=\"%s%d.html\">%d</a></td>\n",basename_,n,n+pageoffset);
 		}
-		
+
 		fprintf(f,"</tr></table><h2>");
 		g=fopen("index.dir","rb");
 		if (g)
-		{	
+		{
 			t=malloc(65536);
 			fprintf(f,"Contents Index</h2><table border=0 cellspacing=0 cellpadding=0>");
 			while(fgets(t,65536,g)){
@@ -124,7 +124,7 @@ make_index(void)
 					val*=10;
 					val+=*u-'0';
 					u++;
-				}	
+				}
 				val--;
 				u++; /* The char behind the number is ignored */
 				fprintf(f,"<tr><td>%d </td><td><a href=\"%s%d.html\">%s</a></td></tr>\n",val+pageoffset
@@ -136,7 +136,7 @@ make_index(void)
 		}
 		fprintf(f,"</body></html>");
 		fclose(f);
-			
+
 	}
 }
 
@@ -145,7 +145,7 @@ void
 make_page(int index)
 {
  FILE *f;
- 
+
  sprintf(string,"%s%d.html",basename_,index);
  f=fopen(string,"w");
 
@@ -178,7 +178,7 @@ make_page(int index)
 }
 
 /* Returns 0 is OK, exit(1) on error, returns 1 on broken pipe */
-int 
+int
 sure_read(unsigned char *dest, size_t len)
 {
         ssize_t rd;
@@ -224,19 +224,19 @@ eat_up_whitespace_and_comments(void)
 int
 read_header(void)
 {
-        
+
 
         /*
         if (filenumber)
         {
                 int a;
-                
+
                 for (a=0;a<256;a++){
                         sure_read(string,1);
                         printf("%d ", *string);
                         fflush(stdout);
                 }
-                exit(0); 
+                exit(0);
         }
         */
         if (sure_read(string,2)) return 1; /* P1 */
@@ -293,7 +293,7 @@ move_2_to_4(void)
         unsigned long long bit4;
         unsigned long bit2;
         int index;
-                
+
         for (index=lw-1;index>=0;index--){
                 bit2=l2[index];
                 bit4=t2[bit2&255];
@@ -317,7 +317,7 @@ add_2_to_4(void)
         unsigned long long bit4;
         unsigned long bit2;
         int index;
-                
+
         for (index=lw-1;index>=0;index--){
                 bit2=l2[index];
                 bit4=t2[bit2&255];
@@ -339,7 +339,7 @@ void
 move_1_to_2(void)
 {
         int index;
-        
+
         for (index=lw-1;index>=0;index--)
                 l2[index]=(t1[l1[index<<1]]<<16)|t1[l1[(index<<1)+1]];
 }
@@ -349,7 +349,7 @@ void
 add_1_to_2(void)
 {
         int index;
-        
+
         for (index=lw-1;index>=0;index--)
                 l2[index]+=(t1[l1[index<<1]]<<16)|t1[l1[(index<<1)+1]];
 }
@@ -370,7 +370,7 @@ load_to_2(void)
         load();
         add_1_to_2();
         load();
-        add_1_to_2(); 
+        add_1_to_2();
 }
 
 /* Loads 15 lines into l4 */
@@ -423,7 +423,7 @@ int
 main(int argc, char **argv)
 {
         int a,z;
- 
+
         if (argc<7){
                 fprintf(stderr,"Usage: pbm2png <hundred_dpi> <basename_> <titlestring> <bottom_html_code> <pageoffset> <ifname> [starting_filenumber]\n");
         return 0;
@@ -475,7 +475,7 @@ main(int argc, char **argv)
                 if (!(z&15)){
                         fprintf(stderr,".");
                         fflush(stderr);
-                } 
+                }
                 load_to_4();
                 export_from_4();
         }

@@ -30,7 +30,7 @@
 /* This source does dithering and rounding of images (in photon space) into
  * struct bitmap. It also computes colors given r,g,b.
  */
- 
+
 /* No dither function destroys the passed bitmap */
 /* All dither functions take format in booklike order without inter-line gaps.
  * red, green, blue order. Input bytes=3*y*x. Takes x and y from bitmap.
@@ -54,7 +54,9 @@
  */
 
 /* We assume here int holds at least 32 bits */
-static int red_table[65536],green_table[65536],blue_table[65536];
+static int *red_table = DUMMY, *green_table = DUMMY, *blue_table = DUMMY;
+static int table_16 = 1;
+
 /* If we want to represent some 16-bit from-screen-light, it would require certain display input
  * value (0-255 red, 0-255 green, 0-255 blue), possibly not a whole number. [red|green|blue]_table
  * translares 16-bit light to the nearest index (that should be fed into the
@@ -64,14 +66,14 @@ static int red_table[65536],green_table[65536],blue_table[65536];
  * bits 16-31, real light value is in bits 0-15. real light value is 0 (no
  * photons) to 65535 (maximum photon flux). This is subtracted from wanted
  * value and error remains which is the distributed into some neighboring
- * pixels.  
+ * pixels.
  *
- * Index memory organization 
- * ------------------------- 
+ * Index memory organization
+ * -------------------------
  * 	1 byte per pixel: obvious. The output byte is OR of all three LSB's from red_table,
- * 		green_table, blue_table 
- * 	2 bytes per pixel: cast all three values to unsigned  short, OR them together 
- * 		and dump the short into the memory 
+ * 		green_table, blue_table
+ * 	2 bytes per pixel: cast all three values to unsigned  short, OR them together
+ * 		and dump the short into the memory
  * 	3 and 4 bytes per pixel: LSB's contain the red, green, and blue bytes.
  */
 
@@ -146,16 +148,22 @@ int slow_fpu = -1;
 		if ((unsigned)rc>65535) rc=rc<0?0:65535;\
 		if ((unsigned)gc>65535) gc=gc<0?0:65535;\
 		if ((unsigned)bc>65535) bc=bc<0?0:65535;\
-		rt=red_table[rc];\
-		gt=green_table[gc];\
-		bt=blue_table[bc];\
+		if (table_16) {\
+			rt=red_table[rc];\
+			gt=green_table[gc];\
+			bt=blue_table[bc];\
+		} else {\
+			rt=red_table[rc >> 8];\
+			gt=green_table[gc >> 8];\
+			bt=blue_table[bc >> 8];\
+		}\
 	}\
 	SAVE_CODE\
 	rt=r-(rt&65535);\
 	gt=g-(gt&65535);\
 	bt=b-(bt&65535);\
 
-	
+
 #define BODY \
 	LIN\
 	LTABLES\
@@ -221,7 +229,7 @@ int slow_fpu = -1;
 	bptr[-2]+=3*gt;\
 	bptr[-1]+=3*bt;\
 	bptr+=3;
-	
+
 #define DITHER_TEMPLATE(template_name) \
 	static void template_name(unsigned short *in, struct bitmap *out, int *dregs)\
 		{\
@@ -265,15 +273,28 @@ int slow_fpu = -1;
 		int skip=out->skip-SKIP_CODE;\
 	\
 		o=0;o=o; /*warning go away */\
-		for (y=out->y;y;y--){\
-			for (x=out->x;x;x--){\
-				rt=red_table[in[0]];\
-				gt=green_table[in[1]];\
-				bt=blue_table[in[2]];\
-				in+=3;\
-				SAVE_CODE\
+		if (table_16) {\
+			for (y=out->y;y;y--){\
+				for (x=out->x;x;x--){\
+					rt=red_table[limit_16(in[0])];\
+					gt=green_table[limit_16(in[1])];\
+					bt=blue_table[limit_16(in[2])];\
+					in+=3;\
+					SAVE_CODE\
+				}\
+				outp+=skip;\
 			}\
-			outp+=skip;\
+		} else {\
+			for (y=out->y;y;y--){\
+				for (x=out->x;x;x--){\
+					rt=red_table[limit_16(in[0]) >> 8];\
+					gt=green_table[limit_16(in[1]) >> 8];\
+					bt=blue_table[limit_16(in[2]) >> 8];\
+					in+=3;\
+					SAVE_CODE\
+				}\
+				outp+=skip;\
+			}\
 		}\
 	}
 
@@ -287,7 +308,7 @@ int slow_fpu = -1;
 #define SAVE_CODE \
 	o=rt|gt|bt;\
 	*outp++=(o>>16);
-		
+
 DITHER_TEMPLATE(dither_1byte)
 ROUND_TEMPLATE(round_1byte)
 
@@ -308,7 +329,7 @@ ROUND_TEMPLATE(round_1byte)
 	((unsigned char *)outp)[1]=o>>8;\
 	outp+=2;
 #endif /* #ifdef t2c */
-		
+
 DITHER_TEMPLATE(dither_2byte)
 ROUND_TEMPLATE(round_2byte)
 #undef SAVE_CODE
@@ -346,7 +367,7 @@ ROUND_TEMPLATE(round_451)
 DITHER_TEMPLATE(dither_196)
 ROUND_TEMPLATE(round_196)
 #undef SAVE_CODE
-#undef SKIP_CODE 
+#undef SKIP_CODE
 
 /* 0 B G R */
 #define SKIP_CODE out->x*4;
@@ -358,7 +379,7 @@ ROUND_TEMPLATE(round_196)
 DITHER_TEMPLATE(dither_452)
 ROUND_TEMPLATE(round_452)
 #undef SAVE_CODE
-#undef SKIP_CODE 
+#undef SKIP_CODE
 
 /* 0 R G B */
 #define SKIP_CODE out->x*4;
@@ -370,7 +391,7 @@ ROUND_TEMPLATE(round_452)
 DITHER_TEMPLATE(dither_708)
 ROUND_TEMPLATE(round_708)
 #undef SAVE_CODE
-#undef SKIP_CODE 
+#undef SKIP_CODE
 
 
 
@@ -437,7 +458,7 @@ static void pass_bgr(unsigned short *in, struct bitmap *out)
 {
 	int skip=out->skip-3*out->x,y,x;
 	unsigned char *outp=out->data;
-	
+
 	for (y=out->y;y;y--){
 		for (x=out->x;x;x--){
 			outp[0]=in[2];
@@ -448,7 +469,6 @@ static void pass_bgr(unsigned short *in, struct bitmap *out)
 		}
 		outp+=skip;
 	}
-		
 }
 #endif
 
@@ -500,7 +520,7 @@ static void pass_0bgr(unsigned short *in, struct bitmap *out)
 {
 	int skip=out->skip-4*out->x,y,x;
 	unsigned char *outp=out->data;
-	
+
 	for (y=out->y;y;y--){
 		for (x=out->x;x;x--){
 			outp[0]=0;
@@ -512,7 +532,6 @@ static void pass_0bgr(unsigned short *in, struct bitmap *out)
 		}
 		outp+=skip;
 	}
-		
 }
 #endif
 
@@ -659,7 +678,7 @@ static void make_8_table(int *table, double gamma)
 	int i,light0;
 	float_double light;
 	const float_double inv_255=1/255.;
-	
+
 	for (i=0;i<256;i++){
 		light=fd_pow((float_double)i*inv_255,gamma);
 		/* Long live the Nipkow Disk */
@@ -681,7 +700,7 @@ static void make_16_table(int *table, int bits, int pos, float_double gamma, int
 	int j,light_val,grades=(1<<bits)-1,grade;
 	float_double voltage;
 	float_double rev_gamma=1/gamma;
-	const float_double inv_65535=1/65535.;
+	const float_double inv_65535=(float_double)(1/65535.);
 	int last_grade, last_content;
 	ttime start_time = get_time();
 	int sample_state = 0;
@@ -733,7 +752,7 @@ static void make_16_table(int *table, int bits, int pos, float_double gamma, int
 		 * signal. This is only marginal enhancement however it sounds
 		 * kool ;-) (and is kool)
 		 */
-		 
+
 		light_val=(int)(fd_pow(voltage,gamma)*65535+0.5);
 		/* Find out what photon flux this index represents */
 
@@ -742,12 +761,12 @@ static void make_16_table(int *table, int bits, int pos, float_double gamma, int
 		/* Clip photon flux for safety */
 
 		if (bigendian) {
-			int val, val2;
+			unsigned val, val2;
 			val = grade<<pos;
 			val2 = (val>>8) | ((val&0xff)<<8);
-			last_content=light_val|(val2<<16U);
+			last_content=light_val|((unsigned)val2<<16U);
 		}else{
-			last_content=light_val|(grade<<(pos+16U));
+			last_content=light_val|((unsigned)grade<<(pos+16U));
 		}
 
 		table[j]=last_content;
@@ -760,23 +779,26 @@ static void make_16_table(int *table, int bits, int pos, float_double gamma, int
 
 static void make_red_table(int bits, int pos, int dump_t2c, int be)
 {
+	red_table = mem_realloc(red_table, 65536 * sizeof(*red_table));
 	make_16_table(red_table,bits,pos,(float_double)display_red_gamma,dump_t2c, be);
 }
 
 static void make_green_table(int bits, int pos, int dump_t2c, int be)
 {
+	green_table = mem_realloc(green_table, 65536 * sizeof(*green_table));
 	make_16_table(green_table,bits,pos,(float_double)display_green_gamma,dump_t2c, be);
 }
 
 static void make_blue_table(int bits, int pos,int dump_t2c, int be)
 {
+	blue_table = mem_realloc(blue_table, 65536 * sizeof(*blue_table));
 	make_16_table(blue_table,bits,pos,(float_double)display_blue_gamma, dump_t2c, be);
 }
 
 void dither(unsigned short *in, struct bitmap *out)
 {
 	int *dregs;
-	
+
 	if ((unsigned)out->x > MAXINT / 3 / sizeof(*dregs)) overalloc();
 	dregs=mem_calloc(out->x*3*sizeof(*dregs));
 	(*dither_fn_internal)(in, out, dregs);
@@ -788,7 +810,7 @@ void dither(unsigned short *in, struct bitmap *out)
 int *dither_start(unsigned short *in, struct bitmap *out)
 {
 	int *dregs;
-	
+
 	if ((unsigned)out->x > MAXINT / 3 / sizeof(*dregs)) overalloc();
 	dregs=mem_calloc(out->x*3*sizeof(*dregs));
 	(*dither_fn_internal)(in, out, dregs);
@@ -803,16 +825,49 @@ void dither_restart(unsigned short *in, struct bitmap *out, int *dregs)
 static void make_round_tables(void)
 {
 	int a;
+#ifdef __ICC
+	volatile	/* ICC bug */
+#endif
 	unsigned short v;
 
 	for (a=0;a<256;a++){
 		/* a is sRGB coordinate */
 		v=ags_8_to_16((unsigned char)a,(float)(user_gamma/sRGB_gamma));
-		round_red_table[a]=red_table[v];
-		round_green_table[a]=green_table[v];
-		round_blue_table[a]=blue_table[v];
+		round_red_table[a]=red_table[v >> (8 - 8 * table_16)] & 0xffff;
+		round_green_table[a]=green_table[v >> (8 - 8 * table_16)] & 0xffff;
+		round_blue_table[a]=blue_table[v >> (8 - 8 * table_16)] & 0xffff;
 	}
+}
 
+static void compress_tables(void)
+{
+	int i;
+	int *rt, *gt, *bt;
+	/*for (i = 0; i < 65536; i++) {
+		fprintf(stderr, "16: %03d: %08x %08x %08x\n", i, red_table[i], green_table[i], blue_table[i]);
+	}*/
+	for (i = 0; i < 65536; i++) {
+		if (red_table[i] != red_table[i & 0xff00] ||
+		    green_table[i] != green_table[i & 0xff00] ||
+		    blue_table[i] != blue_table[i & 0xff00])
+			return;
+	}
+	table_16 = 0;
+	rt = mem_alloc(256 * sizeof(*rt));
+	gt = mem_alloc(256 * sizeof(*gt));
+	bt = mem_alloc(256 * sizeof(*bt));
+	for (i = 0; i < 256; i++) {
+		rt[i] = red_table[i << 8];
+		gt[i] = green_table[i << 8];
+		bt[i] = blue_table[i << 8];
+		/*fprintf(stderr, "8: %03d: %08x %08x %08x\n", i, rt[i], gt[i], bt[i]);*/
+	}
+	mem_free(red_table);
+	mem_free(green_table);
+	mem_free(blue_table);
+	red_table = rt;
+	green_table = gt;
+	blue_table = bt;
 }
 
 /* Also makes up the dithering tables.
@@ -820,6 +875,7 @@ static void make_round_tables(void)
  */
 void init_dither(int depth)
 {
+	table_16 = 1;
 	switch(depth){
 		case 33:
 		/* 4bpp, 1Bpp */
@@ -912,7 +968,7 @@ void init_dither(int depth)
 		break;
 
 		case 196:
-		/* 24bpp, 4Bpp 
+		/* 24bpp, 4Bpp
 		 * Even this is dithered!
 		 * B G R 0
 		 */
@@ -924,7 +980,7 @@ void init_dither(int depth)
 		break;
 
 		case 708:
-		/* 24bpp, 4Bpp 
+		/* 24bpp, 4Bpp
 		 * Even this is dithered!
 		 * 0 R G B
 		 */
@@ -935,10 +991,11 @@ void init_dither(int depth)
 		round_fn=round_708;
 		break;
 
-		default: 
+		default:
 		internal("Graphics driver returned unsupported \
 pixel memory organisation %d",depth);
 	}
+	compress_tables();
 	make_round_tables();
 }
 
@@ -952,6 +1009,13 @@ void round_color_sRGB_to_48(unsigned short *red, unsigned short *green,
 	*red=round_red_table[(rgb>>16)&255];
 	*green=round_green_table[(rgb>>8)&255];
 	*blue=round_blue_table[rgb&255];
+}
+
+void free_dither(void)
+{
+	if (red_table) mem_free(red_table), red_table = DUMMY;
+	if (green_table) mem_free(green_table), green_table = DUMMY;
+	if (blue_table) mem_free(blue_table), blue_table = DUMMY;
 }
 
 #endif

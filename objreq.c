@@ -98,7 +98,7 @@ static int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 		unsigned char *uid, *passwd;
 		get_dialog_data(dlg);
 		ses = ((struct window *)dlg->win->term->windows.prev)->data;
-		ct = get_convert_table(rq->ce_internal->head, dlg->win->term->spec->charset, ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
+		get_convert_table(rq->ce_internal->head, dlg->win->term->spec->charset, ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
 		ct = get_translation_table(dlg->win->term->spec->charset, net_cp);
 		uid = convert_string(ct, a->uid, (int)strlen(cast_const_char a->uid), NULL);
 		passwd = convert_string(ct, a->passwd, (int)strlen(cast_const_char a->passwd), NULL);
@@ -140,7 +140,7 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 		}
 	}
 	urealm = convert_string(ct, realm, (int)strlen(cast_const_char realm), NULL);
-	d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog) + strlen(cast_const_char _(TEXT_(T_ENTER_USERNAME), term)) + strlen(cast_const_char urealm) + 1 + strlen(cast_const_char _(TEXT_(T_AT), term)) + strlen(cast_const_char host) + + 1);
+	d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog) + strlen(cast_const_char _(TEXT_(T_ENTER_USERNAME), term)) + strlen(cast_const_char urealm) + 1 + strlen(cast_const_char _(TEXT_(T_AT), term)) + strlen(cast_const_char host));
 	memset(d, 0, sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog));
 	a = (struct auth_dialog *)((unsigned char *)d + sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
 	strcpy(cast_char a->msg, cast_const_char _(TEXT_(T_ENTER_USERNAME), term));

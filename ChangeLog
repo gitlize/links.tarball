@@ -1,3 +1,91 @@
+=== RELEASE 2.9 ===
+
+Sun Dec 21 15:08:30 CET 2014 mikulas:
+
+	Work around some screen-corruption bugs in the OpenVMS terminal driver
+
+Sun Nov 30 18:57:30 CET 2014 mikulas:
+
+	Support mouse wheel in framebuffer (unfortunatelly we can't support it
+	in text mode because when we instruct gpm to send us the wheel event,
+	gpm stops drawing the cursor when the mouse is moved).
+
+Tue Nov 25 22:07:12 CET 2014 mikulas:
+
+	Pring "^" and "_" for <sub> and <sup> tags in text mode
+
+Wed Nov  5 20:11:12 CET 2014 mikulas:
+
+	An option to fake Firefox in the HTTP header. It modifies User-Agent and
+	several other options to be more Firefox-like. This option is also
+	automatically turned on when "Connect only via proxies or Socks (useful
+	for tor)" is selected. It makes it safer to use Links with tor.
+
+Sat Jul 26 16:16:15 CEST 2014 mikulas:
+
+	Fixed quadratic complexity in the text renderer when exteremely long
+	lines were used
+
+Tue Jun 24 22:26:47 CEST 2014 mikulas:
+
+	Do not print the character 0x9b if the display character set doesn't
+	have it, because it is interpreted as a control character on the Linux
+	console
+
+Sat May 17 16:51:18 CEST 2014 mikulas:
+
+	An option to break long lines in <pre> sections
+
+Thu May 15 20:02:52 CEST 2014 mikulas:
+
+	Consume less memory when 8-bit gamma correction is used
+
+Wed Apr 16 20:59:57 CEST 2014 mikulas:
+
+	Updated the list of top level domains
+
+Sat Apr  5 04:19:56 CEST 2014 mikulas:
+
+	Use malloc_trim to return unused memory to the system
+
+Thu Mar 27 02:25:09 CET 2014 mikulas:
+
+	Support RFC5987 for filenames
+
+Wed Mar 26 02:32:50 CET 2014 mikulas:
+
+	Support StaticColor in the X-window driver
+
+Tue Mar 25 03:58:45 cet 2014 mikulas:
+
+	Fix crash on OS/2 if image is wider than 10921 pixels
+
+Wed Mar 19 19:49:57 CET 2014 mikulas:
+
+	Use clock_gettime if available
+
+Sun Mar  2 03:54:47 CET 2014 mikulas:
+
+	The ability to set screen margins for text mode and framebuffer
+
+Mon Feb 24 18:15:08 CET 2014 mikulas:
+
+	Fix palette corruption on framebuffer when links instance was terminated
+	while it was not active
+
+Sun Feb  2 21:50:48 CET 2014 mikulas:
+
+	Improve the gif decoder to accept more images
+
+Sun Feb  2 18:29:30 CET 2014 mikulas:
+
+	Increase the amount of data read from the socket, it improves speed when
+	loading big images
+
+Fri Nov 29 01:22:43 CET 2013 mikulas:
+
+	Accept "text/xml" as html type
+
 === RELEASE 2.8 ===
 
 Sat Sep 14 22:42:15 CEST 2013 mikulas:
@@ -2464,7 +2552,7 @@ Wed Sep 18 9:30:15 cet 2002 Brain:
 
 	Fixed Solaris keyboard translation bug.
 
-=== RELEASE 2.1pre3
+=== RELEASE 2.1pre3 ===
 
 Wed Sep 11 13:29:25 cet 2002 PerM:
 
@@ -2491,7 +2579,7 @@ Mon Jul 16 11:45:17 cet 2002 Chris Lightfoot:
 
 	\xab parsing as hex-number in Javascript
 
-=== RELEASE 2.1pre2
+=== RELEASE 2.1pre2 ===
 	
 Sat Jun 29 02:41:50 cet 2002 mikulas:
 
@@ -2541,13 +2629,13 @@ Mon Jun 17 10:20:03 MET DST 2002 brain:
 	
 	Small change in x.c to work on some 8-bit displays.
 	
-=== RELEASE 2.1pre1
+=== RELEASE 2.1pre1 ===
 
 Tue Jun 11 14:23:52 MET DST 2002 brain:
 
 	Fixed mem_free(NULL) in x.c:1001
 
-=== RELEASE 2.0
+=== RELEASE 2.0 ===
 
 Mon Jun 10 01:15:33 MET DST 2002 mikulas:
 
@@ -2574,20 +2662,20 @@ Mon Jun  3 23:25:04 CEST 2002 mpat7421:
 
 	Fixed crash in text-mode html renderer
 
-=== RELEASE 2.0pre6
+=== RELEASE 2.0pre6 ===
 
 Thu May 30 22:41:43 MET DST 2002 "Varga Balázs" <vinnui@broadband.hu>:
 
 	Updated Hungarian translation
 
-=== RELEASE 2.0pre5
+=== RELEASE 2.0pre5 ===
 
 Tue May 28 18:00:43 CEST 2002 clock:
 
 	fixed segfault on big 16-bit png's (when gamma table is
 	used)
 
-=== RELEASE 2.0pre4
+=== RELEASE 2.0pre4 ===
 
 Sun May 26 23:53:31 CEST 2002 brain:
 
@@ -2625,7 +2713,7 @@ Thu May 23 22:21:03 CEST 2002 brain:
 	Frame->top upcall fixed
 	Removed possible null-pointer-dereferencing bugs in jsint.c
 	
-=== RELEASE 2.0pre3
+=== RELEASE 2.0pre3 ===
 
 Thu May 23 18:13:25 CEST 2002 PerM:
 
@@ -2640,7 +2728,7 @@ Thu May 23 15:23:10 CEST 2002 brain:
 	
 	Added calibration into help menu
 
-=== RELEASE 2.0pre2
+=== RELEASE 2.0pre2 ===
 
 Thu May 23 08:47:13 CEST 2002 clock:
 	
@@ -2660,7 +2748,7 @@ Wed May 22 14:39:58 CEST 2002 clock:
 	Moved fonts from 9 directories to just 5 to make font
 	matching faster during runtime.
 
-=== RELEASE 2.0pre1
+=== RELEASE 2.0pre1 ===
 
 Mon May 20 14:29:13 CEST 2002 Miroslav Rudisin <miero@atrey.karlin.mff.cuni.cz>:
 	

@@ -291,8 +291,8 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 			 * understand and maintain.  If possible an alternative
 			 * should be used. Hahaha :) ;-)
 			 */
-			/* Free will makes people hard to understand 
-			 * and maintain. If possible an alternative should be 
+			/* Free will makes people hard to understand
+			 * and maintain. If possible an alternative should be
 			 * used.
 			 */
 			/* With our new LongJump(TM) your jumps will be longer
@@ -341,19 +341,19 @@ susp0:
 				*global_cinfo->output_width*cimg->
 					buffer_bytes_per_pixel;
 			}
-		
+
 	 		if ((lines=
 				jpeg_read_scanlines(
 				global_cinfo,deco->scanlines,1))){
 				/* Some lines were written into cimg buffer */
 				cimg->rows_added=1;
-				
+
 				fix_data(deco, lines);
 			}else{
 				/* No lines have been written into cimg
 				 * buffer */
 			 	/* We are suspended and we want more data */
-	 	 		goto susp0; /* Break the outer 
+	 	 		goto susp0; /* Break the outer
 					     * switch statement */
 			}
 		}

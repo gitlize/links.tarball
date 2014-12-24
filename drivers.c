@@ -96,7 +96,7 @@ void dummy_emergency_shutdown(void)
 
 #if 0
 static unsigned char *list_graphics_drivers(void)
-{ 
+{
 	unsigned char *d = init_str();
 	int l = 0;
 	struct graphics_driver **gd;
@@ -223,7 +223,6 @@ void generic_set_clip_area(struct graphics_device *dev, struct rect *r)
 
 #if defined(GRDRV_SVGALIB) || defined(GRDRV_FB) || defined(GRDRV_GRX)
 
-static struct graphics_driver *virtual_device_driver;
 struct graphics_device **virtual_devices;
 int n_virtual_devices = 0;
 struct graphics_device *current_virtual_device;
@@ -239,7 +238,6 @@ int init_virtual_devices(struct graphics_driver *drv, int n)
 	if ((unsigned)n > MAXINT / sizeof(struct graphics_device *)) overalloc();
 	virtual_devices = mem_calloc(n * sizeof(struct graphics_device *));
 	n_virtual_devices = n;
-	virtual_device_driver = drv;
 	virtual_device_timer = -1;
 	current_virtual_device = NULL;
 	return 0;
@@ -251,10 +249,10 @@ struct graphics_device *init_virtual_device(void)
 	for (i = 0; i < n_virtual_devices; i++) if (!virtual_devices[i]) {
 		struct graphics_device *dev;
 		dev = mem_calloc(sizeof(struct graphics_device));
-		dev->size.x2 = virtual_device_driver->x;
-		dev->size.y2 = virtual_device_driver->y;
+		dev->size.x2 = drv->x;
+		dev->size.y2 = drv->y;
 		current_virtual_device = virtual_devices[i] = dev;
-		virtual_device_driver->set_clip_area(dev, &dev->size);
+		drv->set_clip_area(dev, &dev->size);
 		return dev;
 	}
 	return NULL;
@@ -309,6 +307,21 @@ void shutdown_virtual_device(struct graphics_device *dev)
 	}
 	mem_free(dev);
 	/*internal("shutdown_virtual_device: device not initialized");*/
+}
+
+void resize_virtual_devices(int x, int y)
+{
+	int i;
+	drv->x = x;
+	drv->y = y;
+	for (i = 0; i < n_virtual_devices; i++) {
+		struct graphics_device *dev = virtual_devices[i];
+		if (dev) {
+			dev->size.x2 = x;
+			dev->size.y2 = y;
+			dev->resize_handler(dev);
+		}
+	}
 }
 
 void shutdown_virtual_devices(void)

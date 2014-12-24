@@ -27,7 +27,7 @@
 #endif /* #ifndef C_BIG_ENDIAN */
 #endif /* #ifndef C_LITTLE_ENDIAN */
 #endif /* #ifndef REPACK_16 */
-	  
+
 /* Decoder structs */
 
 /* Warning for from-web PNG images */
@@ -128,7 +128,7 @@ static void a2char_from_unsigned_short(unsigned char *chr, unsigned short *shrt,
 static void unsigned_short_from_2char(unsigned short *shrt, unsigned char *chr, int len)
 {
 	unsigned short s;
-	
+
 	for (;len;len--,shrt++,chr+=2){
 		s=((*chr)<<8)|chr[1];
 		*shrt=s;

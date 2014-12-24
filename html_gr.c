@@ -15,7 +15,7 @@ static int g_nobreak;
 static int get_real_font_size(int size)
 {
 	int fs=d_opt->font_size;
-	
+
 	if (size < 1) size = 1;
 	if (size > 7) size = 7;
 	switch (size) {
@@ -83,7 +83,7 @@ static unsigned char *make_html_font_name(int attr)
 {
 	unsigned char *str;
 	int len;
-	
+
 	str=init_str();len=0;
 	add_to_str(&str, &len, cast_uchar G_HTML_DEFAULT_FAMILY);
 	add_to_str(&str, &len, attr & AT_BOLD ? cast_uchar "-bold" : cast_uchar "-medium");
@@ -104,7 +104,7 @@ static struct style *get_style_by_ta(struct text_attrib *ta)
 	fg_b=ta->fg.b;
 	separate_fg_bg(&fg_r,&fg_g,&fg_b,ta->bg.r,ta->bg.g,ta->bg.b);
 	stl = g_get_style((fg_r << 16) + (fg_g << 8) + fg_b, (ta->bg.r << 16) +
-			(ta->bg.g << 8) + ta->bg.b, fs, 
+			(ta->bg.g << 8) + ta->bg.b, fs,
 			fontname=make_html_font_name(ta->attr),
 			ta->attr & AT_UNDERLINE ? FF_UNDERLINE : 0);
 	mem_free(fontname);
@@ -288,8 +288,6 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 	if (p->line) for (n = 0; n < p->line->n_entries; n++) if (p->line->entries[n] == (struct g_object *)text) goto found;
 	if (text != p->text) {
 		internal("split_line_object: bad wrap");
-		t2->destruct(t2);
-		mem_free(t2);
 		return;
 	}
 	if (0) {
@@ -368,7 +366,7 @@ static void g_line_break(void *p_)
 		return;
 	}
 	flush_pending_text_to_line(p);
-	if (!p->line || par_format.align == AL_NO) {
+	if (!p->line || par_format.align == AL_NO || par_format.align == AL_NO_BREAKABLE) {
 		add_object_to_line(p, &p->line, NULL);
 		empty_line:
 		flush_pending_line_to_obj(p, get_real_font_size(format_.fontsize));
@@ -710,13 +708,17 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 
 	if (l < 0) overalloc();
 
-again:
-	if (l > 2 && (sh = memchr(s + 1, 0xad, l - 2)) && sh[-1] == 0xc2) {
+	while (l > 2 && (sh = memchr(s + 1, 0xad, l - 2)) && sh[-1] == 0xc2) {
 		sh++;
 		g_put_chars(p_, s, (int)(sh - s));
 		l -= (int)(sh - s);
 		s = sh;
-		goto again;
+	}
+	while (par_format.align != AL_NO && l >= 2 && (sh = memchr(s, ' ', l - 1))) {
+		sh++;
+		g_put_chars(p_, s, (int)(sh - s));
+		l -= (int)(sh - s);
+		s = sh;
 	}
 
 	/*fprintf(stderr, "%d: '%.*s'\n", l, l, s);*/
@@ -727,7 +729,7 @@ again:
 		link = NULL;
 		goto check_link;
 	}
-	while (par_format.align != AL_NO && p->cx == -1 && l && *s == ' ') s++, l--;
+	while (par_format.align != AL_NO && par_format.align != AL_NO_BREAKABLE && p->cx == -1 && l && *s == ' ') s++, l--;
 	if (!l) return;
 	g_nobreak = 0;
 	if (p->cx < par_format.leftmargin * G_HTML_MARGIN) p->cx = par_format.leftmargin * G_HTML_MARGIN;
@@ -748,7 +750,7 @@ again:
 		}
 		html_format_changed = 0;
 	}
-	/*if (p->cx <= par_format.leftmargin * G_HTML_MARGIN && *s == ' ' && par_format.align != AL_NO) s++, l--;*/
+	/*if (p->cx <= par_format.leftmargin * G_HTML_MARGIN && *s == ' ' && par_format.align != AL_NO && par_format.align != AL_NO_BREAKABLE) s++, l--;*/
 	if (!p->text) {
 		link = NULL;
 		t = mem_calloc(sizeof(struct g_object_text) + ALLOC_GR);
@@ -765,7 +767,7 @@ again:
 			if (format_.baseline > 0) t->y = get_real_font_size(format_.baseline) - (t->style->height / 2);
 		}
 		check_link:
-		if (last_link || last_image || last_form || format_.link || format_.image || format_.form 
+		if (last_link || last_image || last_form || format_.link || format_.image || format_.form
 		|| format_.js_event || last_js_event
 		) goto process_link;
 		back_link:
@@ -805,7 +807,7 @@ again:
 	memcpy(p->text->text + p->pending_text_len, s, l), p->text->text[p->pending_text_len = safe_add(p->pending_text_len, l)] = 0;
 	qw = g_text_width(p->text->style, p->text->text + p->pending_text_len - l);
 	p->text->xw = safe_add(p->text->xw, qw); /* !!! FIXME: move to g_wrap_text */
-	if (par_format.align != AL_NO) {
+	if (par_format.align != AL_NO /*&& par_format.align != AL_NO_BREAKABLE*/) {
 		p->w.text = p->text->text + p->pending_text_len - l;
 		p->w.style = p->text->style;
 		p->w.obj = p->text;
@@ -905,6 +907,14 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	struct form_control *fc;
 	int lm = margin;
 
+	if (par_format.implicit_pre_wrap) {
+		int limit = d_opt->xw - G_SCROLL_BAR_WIDTH;
+		if (table_level) limit -= 2 * G_HTML_MARGIN * d_opt->margin;
+		if (limit < 0) limit = d_opt->xw;
+		if (width > limit)
+			width = limit;
+	}
+
 	if (!f_d) {
 		p = find_table_cache_entry(start, end, align, m, width, 0, link_num);
 		if (p) return p;
@@ -951,9 +961,11 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	par_format.list_level = 0;
 	par_format.list_number = 0;
 	par_format.dd_margin = 0;
+	if (align == AL_NO || align == AL_NO_BREAKABLE)
+		format_.attr |= AT_FIXED;
 	p->cx = -1;
 	p->cx_w = 0;
-	g_nobreak = align != AL_NO;
+	g_nobreak = align != AL_NO && par_format.align != AL_NO_BREAKABLE;
 	g_do_format(start, end, p, head);
 	g_nobreak = 0;
 	line_breax = 1;
@@ -1033,7 +1045,7 @@ void g_x_extend_area(struct g_object_area *a, int width, int height, int align)
 	for (i = 0; i < a->n_lines; i++) {
 		a->lines[i]->xw = width;
 	}
-	if (align != AL_NO) for (i = a->n_lines - 1; i >= 0; i--) {
+	if (align != AL_NO && par_format.align != AL_NO_BREAKABLE) for (i = a->n_lines - 1; i >= 0; i--) {
 		l = a->lines[i];
 		if (!l->n_entries) {
 			a->yw -= l->yw;

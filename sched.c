@@ -416,7 +416,7 @@ static void run_connection(struct connection *c)
 		del_connection(c);
 		return;
 	}
-	
+
 	if (!(func = get_protocol_handle(c->url))) {
 		s_bad_url:
 		if (!casecmp(c->url, cast_uchar "proxy://", 8)) setcstate(c, S_BAD_PROXY);
@@ -774,7 +774,6 @@ void load_url(unsigned char *url, unsigned char *prev_url, struct status *stat, 
 				break;
 			c->from += frag->length;
 		}
-		
 	}
 	memset(c->pri, 0, sizeof c->pri);
 	c->pri[pri] = 1;

@@ -30,7 +30,7 @@ void read_png(unsigned char *filename)
 	int y1,number_of_passes;
 	unsigned char **ptrs;
 	FILE *f;
-	
+
 	f=fopen(filename,"r");
 	png_ptr=png_create_read_struct(PNG_LIBPNG_VER_STRING,
 			NULL, NULL, NULL);
@@ -79,7 +79,7 @@ void read_png(unsigned char *filename)
 			color_type==PNG_COLOR_TYPE_RGB_ALPHA){
 			png_set_rgb_to_gray(png_ptr, 1, 54.0/256, 183.0/256);
 		}
-		
+
 	}
 	/* If the depth is different from 8 bits/gray, make the libpng expand
 	 * it to 8 bit gray.
@@ -309,7 +309,7 @@ void mirror(void){
 
 void append(int lines, int value){
 	int *ptr;
-	
+
 	if (lines<=0) return;
 	image=realloc(image,xs*(ys+lines)*sizeof(*image));
 	if (!image){
@@ -344,7 +344,7 @@ void blurbox(int pixels)
 	int divisor=pixels*2+1;
 	int y,x;
 	int val;
-	
+
 	templine=malloc((2*pixels+xs)*sizeof(*templine));
 	if (!templine){
 		fprintf(stderr,"Out of memory when box blurring.\n");
@@ -385,7 +385,7 @@ void perform_command_line(unsigned char *command)
 {
 	char *ptr;
 	int param1, param2;
-	
+
 	/* Find the first space, newline, tab or null */
 	ptr=command;
 	while(!(*ptr==0||*ptr==10||*ptr==32||*ptr==9)) ptr++;

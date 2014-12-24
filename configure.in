@@ -5,13 +5,12 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.8)
+AM_INIT_AUTOMAKE(links, 2.9)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
 AUTOMAKE="./missing automake"
 AUTOHEADER="./missing autoheader"
-image_formats="GIF PNG XBM"
 
 AM_CONFIG_HEADER(config.h)
 
@@ -22,6 +21,8 @@ dnl AC_PROG_CXX
 dnl AC_PROG_AWK
 dnl AM_PROG_LEX
 dnl AC_PROG_YACC
+
+image_formats="GIF PNG XBM"
 
 static_link=0
 if test -n "`echo "$CC" "$LDFLAGS" "$CFLAGS" "$LIBS" | grep 'static\>'`"; then
@@ -146,50 +147,7 @@ fi
 dnl Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS(alloca.h)
-AC_CHECK_HEADERS(arpa/inet.h)
-AC_CHECK_HEADERS(cygwin/process.h)
-AC_CHECK_HEADERS(cygwin/version.h)
-AC_CHECK_HEADERS(endian.h)
-AC_CHECK_HEADERS(fcntl.h)
-AC_CHECK_HEADERS(grp.h)
-AC_CHECK_HEADERS(ieee.h)
-AC_CHECK_HEADERS(interix/interix.h)
-AC_CHECK_HEADERS(inttypes.h)
-AC_CHECK_HEADERS(io.h)
-AC_CHECK_HEADERS(langinfo.h)
-AC_CHECK_HEADERS(limits.h)
-AC_CHECK_HEADERS(malloc.h)
-AC_CHECK_HEADERS(math.h)
-AC_CHECK_HEADERS(net/socket.h)
-AC_CHECK_HEADERS(netinet/dhcp.h)
-AC_CHECK_HEADERS(netinet/in_system.h)
-AC_CHECK_HEADERS(netinet/in_systm.h)
-AC_CHECK_HEADERS(netinet/ip.h)
-AC_CHECK_HEADERS(process.h)
-AC_CHECK_HEADERS(pwd.h)
-AC_CHECK_HEADERS(setjmp.h)
-AC_CHECK_HEADERS(sgtty.h)
-AC_CHECK_HEADERS(stdarg.h)
-AC_CHECK_HEADERS(string.h)
-AC_CHECK_HEADERS(strings.h)
-AC_CHECK_HEADERS(sys/cygwin.h)
-AC_CHECK_HEADERS(sys/file.h)
-AC_CHECK_HEADERS(sys/fmutex.h)
-AC_CHECK_HEADERS(sys/ioctl.h)
-AC_CHECK_HEADERS(sys/resource.h)
-AC_CHECK_HEADERS(sys/select.h)
-AC_CHECK_HEADERS(sys/time.h)
-AC_CHECK_HEADERS(sys/un.h)
-AC_CHECK_HEADERS(sys/utsname.h)
-AC_CHECK_HEADERS(termios.h)
-AC_CHECK_HEADERS(time.h)
-AC_CHECK_HEADERS(umalloc.h)
-AC_CHECK_HEADERS(unistd.h)
-AC_CHECK_HEADERS(unixlib.h)
-AC_CHECK_HEADERS(utime.h)
-AC_CHECK_HEADERS(uwin.h)
-AC_CHECK_HEADERS(values.h)
+AC_CHECK_HEADERS(alloca.h arpa/inet.h cygwin/process.h cygwin/version.h endian.h fcntl.h grp.h ieee.h interix/interix.h inttypes.h io.h langinfo.h limits.h malloc.h math.h net/socket.h netinet/dhcp.h netinet/in_system.h netinet/in_systm.h netinet/ip.h process.h pwd.h setjmp.h sgtty.h stdarg.h string.h strings.h sys/cygwin.h sys/file.h sys/fmutex.h sys/ioctl.h sys/resource.h sys/select.h sys/time.h sys/un.h sys/utsname.h termios.h time.h umalloc.h unistd.h unixlib.h utime.h uwin.h values.h)
 dnl javascript AC_CHECK_HEADERS(md5.h)
 
 if test "$ac_cv_header_stdarg_h" != yes; then
@@ -311,53 +269,8 @@ dnl Checks for library functions.
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_HAVE_FUNCS(bcmp)
-AC_HAVE_FUNCS(bcopy)
-AC_HAVE_FUNCS(bzero)
-AC_HAVE_FUNCS(calloc)
-AC_HAVE_FUNCS(chmod)
-AC_HAVE_FUNCS(getcwd)
-AC_HAVE_FUNCS(getgrgid)
-AC_HAVE_FUNCS(getpagesize)
-AC_HAVE_FUNCS(getpid)
-AC_HAVE_FUNCS(getpwuid)
-AC_HAVE_FUNCS(getrlimit)
-AC_HAVE_FUNCS(gettimeofday)
-AC_HAVE_FUNCS(mkdir)
-AC_HAVE_FUNCS(mktime)
-AC_HAVE_FUNCS(nl_langinfo)
-AC_HAVE_FUNCS(popen)
-AC_HAVE_FUNCS(pthread_sigmask)
-AC_HAVE_FUNCS(raise)
-AC_HAVE_FUNCS(select)
-AC_HAVE_FUNCS(setlocale)
-AC_HAVE_FUNCS(setpgid)
-AC_HAVE_FUNCS(setrlimit)
-AC_HAVE_FUNCS(sigaction)
-AC_HAVE_FUNCS(sigblock)
-AC_HAVE_FUNCS(sigdelset)
-AC_HAVE_FUNCS(sigfillset)
-AC_HAVE_FUNCS(sigprocmask)
-AC_HAVE_FUNCS(sigsetmask)
-AC_HAVE_FUNCS(snprintf)
-AC_HAVE_FUNCS(strdup)
-AC_HAVE_FUNCS(strptime)
-AC_HAVE_FUNCS(strtod)
-AC_HAVE_FUNCS(strtoimax)
-AC_HAVE_FUNCS(strtol)
-AC_HAVE_FUNCS(strtoll)
-AC_HAVE_FUNCS(__strtoll)
-AC_HAVE_FUNCS(strtoq)
-AC_HAVE_FUNCS(strtoul)
-AC_HAVE_FUNCS(tempnam)
-AC_HAVE_FUNCS(uname)
-AC_HAVE_FUNCS(utime)
-AC_HAVE_FUNCS(utimes)
-AC_HAVE_FUNCS(_heapmin)
-AC_HAVE_FUNCS(_ucreate)
-AC_HAVE_FUNCS(_udefault)
-AC_HAVE_FUNCS(_udestroy)
-AC_HAVE_FUNCS(_uopen)
+AC_HAVE_FUNCS(bcmp bcopy bzero calloc cfmakeraw chmod cygwin_conv_path cygwin_conv_to_full_win32_path getcwd getgrgid getpagesize getpid getpwuid getrlimit gettimeofday malloc_trim mkdir mktime nl_langinfo popen raise select setlocale setpgid setrlimit sigaction sigblock sigdelset sigfillset sigprocmask sigsetmask snprintf strdup strptime strtod strtoimax strtol strtoll __strtoll strtoq strtoul tempnam uname unixpath2win utime utimes uwin_path winpath2unix _heapmin _ucreate _udefault _udestroy _uopen)
+
 
 AC_HAVE_FUNCS(strlen)
 AC_CACHE_CHECK([for strlen], ac_cv_have_strlen,
@@ -575,6 +488,14 @@ dnl Checks for libraries.
 dnl javascript AC_CHECK_LIB(md, MD5Data)
 dnl javascript AC_HAVE_FUNCS(MD5Init MD5Data)
 
+AC_HAVE_FUNCS(clock_gettime)
+if test $ac_cv_func_clock_gettime = no; then
+	AC_CHECK_LIB(rt, clock_gettime)
+	if test $ac_cv_lib_rt_clock_gettime = yes; then
+		AC_DEFINE(HAVE_CLOCK_GETTIME)
+	fi
+fi
+
 AC_CHECK_FUNC(socket, cf_result=yes, cf_result=no)
 if test "$cf_result" = no; then
 	AC_CHECK_LIB(socket, socket)
@@ -620,9 +541,7 @@ fi
 AC_ARG_WITH(getaddrinfo, [  --without-getaddrinfo   compile without getaddrinfo function],[if test "$withval" = no; then disable_getaddrinfo=yes; else disable_getaddrinfo=no; fi])
 
 if test "$disable_getaddrinfo" != yes; then
-	AC_HAVE_FUNCS(getaddrinfo)
-	AC_HAVE_FUNCS(freeaddrinfo)
-	AC_HAVE_FUNCS(gai_strerror)
+	AC_HAVE_FUNCS(getaddrinfo freeaddrinfo gai_strerror)
 	if test "$ac_cv_func_getaddrinfo" = yes -a "$ac_cv_func_freeaddrinfo" = yes; then
 		cf_have_getaddrinfo=yes
 	else
@@ -632,8 +551,7 @@ else
 	cf_have_getaddrinfo=no
 fi
 
-AC_HAVE_FUNCS(inet_ntop)
-AC_HAVE_FUNCS(inet_pton)
+AC_HAVE_FUNCS(inet_ntop inet_pton dhcp_option herror)
 
 AC_ARG_WITH(ipv6, [  --without-ipv6          compile without ipv6],[if test "$withval" = no; then disable_ipv6=yes; else disable_ipv6=no; fi])
 
@@ -665,19 +583,6 @@ AC_CACHE_CHECK([for sockaddr_in6.sin6_scope_id], ac_cv_have_sin6_scope_id,
 )
 test "$ac_cv_have_sin6_scope_id" = yes && AC_DEFINE(SUPPORT_IPV6_SCOPE)
 
-AC_HAVE_FUNCS(dhcp_option)
-
-AC_HAVE_FUNCS(herror)
-AC_HAVE_FUNCS(cfmakeraw)
-
-AC_HAVE_FUNCS(cygwin_conv_to_full_win32_path)
-AC_HAVE_FUNCS(cygwin_conv_path)
-
-AC_HAVE_FUNCS(uwin_path)
-
-AC_HAVE_FUNCS(unixpath2win)
-AC_HAVE_FUNCS(winpath2unix)
-
 if test "$cf_use_graphics" != no; then
 	AC_CHECK_LIB(m, pow)
 	if test "$ac_cv_lib_m_pow" = no; then
@@ -702,11 +607,21 @@ fi
 
 AC_ARG_WITH(gpm, [  --without-gpm           compile without gpm mouse],[if test "$withval" = no; then disable_gpm=yes; else disable_gpm=no; fi])
 
-if test "$disable_gpm" != yes; then
+if test "$disable_gpm" != yes -a "$ac_cv_have_djgpp" != yes; then
 	AC_CHECK_HEADERS(gpm.h)
 	AC_CHECK_LIB(gpm, Gpm_Open)
 	AC_HAVE_FUNCS(Gpm_GetLibVersion)
-	if test "$ac_cv_lib_gpm_Gpm_Open" = yes && test "$ac_cv_header_gpm_h" = yes; then cf_have_gpm=yes; else cf_have_gpm=no; fi
+	if test "$ac_cv_lib_gpm_Gpm_Open" = yes && test "$ac_cv_header_gpm_h" = yes; then
+		cf_have_gpm=yes
+		AC_CACHE_CHECK([for Gpm_Event wdx and wdy], ac_cv_have_wdx_wdy,
+			AC_TRY_COMPILE([#include <gpm.h>], [Gpm_Event e; e.wdx = 1; e.wdy = 2; return e.wdx + e.wdy], ac_cv_have_wdx_wdy=yes, ac_cv_have_wdx_wdy=no)
+		)
+		if test "$ac_cv_have_wdx_wdy" = yes; then
+			AC_DEFINE(HAVE_WDX_WDY)
+		fi
+	else
+		cf_have_gpm=no
+	fi
 else
 	cf_have_gpm=no
 fi
@@ -722,12 +637,9 @@ if test "$ac_cv_have_beginthread" = yes; then
 	AC_DEFINE(HAVE_BEGINTHREAD)
 fi
 AC_CHECK_HEADERS(atheos/threads.h)
-AC_HAVE_FUNCS(spawn_thread)
-AC_HAVE_FUNCS(resume_thread)
+AC_HAVE_FUNCS(spawn_thread resume_thread)
 
-AC_HAVE_FUNCS(MouOpen)
-AC_HAVE_FUNCS(_read_kbd)
-
+AC_HAVE_FUNCS(MouOpen _read_kbd)
 AC_CACHE_CHECK([for XFree for OS/2], ac_cv_have_x2,
 	CPPFLAGS_X="$CPPFLAGS"
 	LIBS_X="$LIBS"
@@ -986,10 +898,7 @@ if test "$disable_x" != yes; then
 
 	AC_CHECK_HEADERS(X11/Xlib.h X11/X.h X11/Xutil.h X11/Xatom.h X11/Xlocale.h X11/keysymdef.h)
 
-	AC_HAVE_FUNCS(XOpenDisplay)
-	AC_HAVE_FUNCS(XOpenIM XCloseIM XCreateIC XDestroyIC XwcLookupString)
-	AC_HAVE_FUNCS(Xutf8LookupString)
-	AC_HAVE_FUNCS(XSupportsLocale XmbTextListToTextProperty)
+	AC_HAVE_FUNCS(XOpenDisplay XOpenIM XCloseIM XCreateIC XDestroyIC XwcLookupString Xutf8LookupString XSupportsLocale XmbTextListToTextProperty)
 
 	AC_CACHE_CHECK([for Xsetlocale], ac_cv_have_Xsetlocale,
 		AC_TRY_LINK([#include <X11/Xlocale.h>], [setlocale(0, NULL); return 0;], ac_cv_have_Xsetlocale=yes, ac_cv_have_Xsetlocale=no)
@@ -1170,9 +1079,7 @@ fi
 		AC_ERROR([You need libpng to compile Links in graphics mode])
 	fi
 
-	AC_HAVE_FUNCS(png_set_rgb_to_gray)
-	AC_HAVE_FUNCS(png_get_libpng_ver)
-	AC_HAVE_FUNCS(png_get_image_width png_get_image_height png_get_gAMA png_get_color_type png_get_bit_depth png_set_strip_alpha png_get_valid png_get_sRGB)
+	AC_HAVE_FUNCS(png_set_rgb_to_gray png_get_libpng_ver png_get_image_width png_get_image_height png_get_gAMA png_get_color_type png_get_bit_depth png_set_strip_alpha png_get_valid png_get_sRGB)
 	if test "$ac_cv_func_png_get_image_width" != yes ||
 	   test "$ac_cv_func_png_get_image_height" != yes ||
 	   test "$ac_cv_func_png_get_gAMA" != yes ||
@@ -1232,6 +1139,8 @@ fi
 AM_CONDITIONAL(ATHEOS_GR, test "$cf_have_atheos" = yes)
 
 test "$ac_cv_have_emx" = yes && LDFLAGS="$LDFLAGS -Zexe"
+
+AC_HAVE_FUNCS(pthread_sigmask)
 
 AC_OUTPUT(Makefile)
 

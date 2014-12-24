@@ -49,38 +49,38 @@ unsigned aspect=65536; /* aspect=65536 for 320x240
  * The numers in the comments denote which height the line applies for.
  */
 static float fancy_constants[64]={
-	0,3,		/*  1 */
-	.1,3,   	/*  2 */
-	.2,3,   	/*  3 */
-	.3,2.9,   	/*  4 */
-	.4,2.7,   	/*  5 */
-	.4,2.5,   	/*  6 */
-	.4,2,   	/*  7 */
-	.5,2, 		/*  8 */
-	.4,2, 		/*  9 */
-	.38,1.9, 	/* 10 */
-	.36,1.8, 	/* 11 */
-	.33,1.7, 	/* 12 */
-	.30,1.6, 	/* 13 */
-	.25,1.5, 	/* 14 */
-	.20,1.5, 	/* 15 */
-	.15,1.5, 	/* 16 */
-	.14,1.5, 	/* 17 */
-	.13,1.5, 	/* 18 */
-	.12,1.5, 	/* 19 */
-	.12,1.5, 	/* 20 */
-	.12,1.5, 	/* 21 */
-	.12,1.5, 	/* 22 */
-	.11,1.5, 	/* 23 */
-	.10,1.4, 	/* 24 */
-	.09,1.3, 	/* 25 */
-	.08,1.3, 	/* 26 */
-	.04,1.2, 	/* 27 */
-	.04,1.2, 	/* 28 */
-	.02,1.1, 	/* 29 */
-	.02,1.1, 	/* 30 */
-	.01,1, 		/* 31 */
-	.01,1  		/* 32 */
+	(float)0,(float)3,	/*  1 */
+	(float).1,(float)3,   	/*  2 */
+	(float).2,(float)3,   	/*  3 */
+	(float).3,(float)2.9,  	/*  4 */
+	(float).4,(float)2.7,  	/*  5 */
+	(float).4,(float)2.5,  	/*  6 */
+	(float).4,(float)2,   	/*  7 */
+	(float).5,(float)2, 	/*  8 */
+	(float).4,(float)2, 	/*  9 */
+	(float).38,(float)1.9, 	/* 10 */
+	(float).36,(float)1.8, 	/* 11 */
+	(float).33,(float)1.7, 	/* 12 */
+	(float).30,(float)1.6, 	/* 13 */
+	(float).25,(float)1.5, 	/* 14 */
+	(float).20,(float)1.5, 	/* 15 */
+	(float).15,(float)1.5, 	/* 16 */
+	(float).14,(float)1.5, 	/* 17 */
+	(float).13,(float)1.5, 	/* 18 */
+	(float).12,(float)1.5, 	/* 19 */
+	(float).12,(float)1.5, 	/* 20 */
+	(float).12,(float)1.5, 	/* 21 */
+	(float).12,(float)1.5, 	/* 22 */
+	(float).11,(float)1.5, 	/* 23 */
+	(float).10,(float)1.4, 	/* 24 */
+	(float).09,(float)1.3, 	/* 25 */
+	(float).08,(float)1.3, 	/* 26 */
+	(float).04,(float)1.2, 	/* 27 */
+	(float).04,(float)1.2, 	/* 28 */
+	(float).02,(float)1.1, 	/* 29 */
+	(float).02,(float)1.1, 	/* 30 */
+	(float).01,(float)1, 	/* 31 */
+	(float).01,(float)1  	/* 32 */
 };
 
 
@@ -118,12 +118,13 @@ static struct lru font_cache;
 			 * for letters with an image under them )
 			 */
 
-#if defined(__i686__) || defined(__athlon__) || defined(__SSE2__) || defined(__x86_64__)
+#if defined(__i686__) || defined(__athlon__) || defined(__SSE2__) || defined(__x86_64__) || defined(__alpha__)
 /*
  * On modern processors it is faster to do this in floating point.
  * Do it only if we are sure that the coprocessor is present.
  */
 typedef double scale_t;
+#define USE_FP_SCALE
 #elif defined(HAVE_LONG_LONG)
 typedef unsigned long long scale_t;
 #else
@@ -149,20 +150,6 @@ static inline void add_col_gray(unsigned *col_buf, unsigned char *ptr, int
 	}
 }
 
-/* line_skip is in pixels. The column contains the whole pixels (R G B)
- * We assume unsigned short holds at least 16 bits. */
-static inline void add_col_color(scale_t *col_buf, unsigned short *ptr,
-	int line_skip, int n, unsigned weight)
-{
-	for (;n;n--){
-		col_buf[0]+=(scale_t)weight*ptr[0];
-		col_buf[1]+=(scale_t)weight*ptr[1];
-		col_buf[2]+=(scale_t)weight*ptr[2];
-		ptr+=line_skip;
-		col_buf+=3;
-	}
-}
-
  /* We assume unsigned short holds at least 16 bits. */
 static inline void add_row_gray(unsigned *row_buf, unsigned char *ptr, int n,
 	unsigned weight)
@@ -174,16 +161,61 @@ static inline void add_row_gray(unsigned *row_buf, unsigned char *ptr, int n,
 	}
 }
 
+/* line_skip is in pixels. The column contains the whole pixels (R G B)
+ * We assume unsigned short holds at least 16 bits. */
+static inline void add_col_color(scale_t *col_buf, unsigned short *ptr,
+	int line_skip, int n, ulonglong weight)
+{
+#ifndef USE_FP_SCALE
+	if (weight < 0x10000) {
+		unsigned short weight_16 = (unsigned short)weight;
+		for (;n;n--){
+			col_buf[0]+=(scale_t)((unsigned)weight_16*(unsigned)ptr[0]);
+			col_buf[1]+=(scale_t)((unsigned)weight_16*(unsigned)ptr[1]);
+			col_buf[2]+=(scale_t)((unsigned)weight_16*(unsigned)ptr[2]);
+			ptr+=line_skip;
+			col_buf+=3;
+		}
+	} else
+#endif
+	{
+		scale_t w = (scale_t)weight;
+		for (;n;n--){
+			col_buf[0]+=w*ptr[0];
+			col_buf[1]+=w*ptr[1];
+			col_buf[2]+=w*ptr[2];
+			ptr+=line_skip;
+			col_buf+=3;
+		}
+	}
+}
+
 /* n is in pixels. pixel is 3 unsigned shorts in series */
  /* We assume unsigned short holds at least 16 bits. */
-static inline void add_row_color(scale_t *row_buf, unsigned short *ptr, int n, unsigned weight)
+static inline void add_row_color(scale_t *row_buf, unsigned short *ptr,
+	int n, ulonglong weight)
 {
-	for (;n;n--){
-		row_buf[0]+=(scale_t)weight*ptr[0];
-		row_buf[1]+=(scale_t)weight*ptr[1];
-		row_buf[2]+=(scale_t)weight*ptr[2];
-		ptr+=3;
-		row_buf+=3;
+#ifndef USE_FP_SCALE
+	if (weight < 0x10000) {
+		unsigned short weight_16 = (unsigned short)weight;
+		for (;n;n--){
+			row_buf[0]+=(scale_t)((unsigned)weight_16*(unsigned)ptr[0]);
+			row_buf[1]+=(scale_t)((unsigned)weight_16*(unsigned)ptr[1]);
+			row_buf[2]+=(scale_t)((unsigned)weight_16*(unsigned)ptr[2]);
+			ptr+=3;
+			row_buf+=3;
+		}
+	} else
+#endif
+	{
+		scale_t w = (scale_t)weight;
+		for (;n;n--){
+			row_buf[0]+=w*ptr[0];
+			row_buf[1]+=w*ptr[1];
+			row_buf[2]+=w*ptr[2];
+			ptr+=3;
+			row_buf+=3;
+		}
 	}
 }
 
@@ -197,6 +229,18 @@ static inline void emit_and_bias_col_gray(unsigned *col_buf, unsigned char *out,
 		*out=*col_buf/weight;
 		out+=line_skip;
 		*col_buf++=half;
+	}
+}
+
+/* We assume unsigned holds at least 32 bits */
+static inline void emit_and_bias_row_gray(unsigned *row_buf, unsigned char *out,
+	int n, unsigned weight)
+{
+	unsigned half=weight>>1;
+
+	for (;n;n--){
+		*out++=*row_buf/weight;
+		*row_buf++=half;
 	}
 }
 
@@ -218,6 +262,12 @@ static inline void bias_buf_color(scale_t *col_buf, int n, scale_t half)
 	/* System activated */
 }
 
+#ifdef USE_FP_SCALE
+#define	op(x)	((x) * inv_weight)
+#else
+#define op(x)	(sizeof(unsigned long) < sizeof(scale_t) && (x) == (unsigned long)(x) ? (unsigned long)(x) / weight : (x) / weight)
+#endif
+
 /* line skip is in pixels. Pixel is 3*unsigned short */
 /* We assume unsigned holds at least 32 bits */
 /* We assume unsigned short holds at least 16 bits. */
@@ -225,33 +275,23 @@ static inline void emit_and_bias_col_color(scale_t *col_buf,
 	unsigned short *out, int line_skip, int n, unsigned weight)
 {
 	scale_t half=(scale_t)weight / 2;
-
+#ifdef USE_FP_SCALE
+	scale_t inv_weight = (scale_t)1 / weight;
+#endif
 	for (;n;n--){
-		out[0]=col_buf[0]/weight;
+		out[0]=(unsigned short)op(col_buf[0]);
 		col_buf[0]=half;
-		out[1]=col_buf[1]/weight;
+		out[1]=(unsigned short)op(col_buf[1]);
 		col_buf[1]=half;
 		/* The following line is an enemy of the State and will be
 		 * prosecuted according to the Constitution of The United States
 		 * Cap. 20/3 ix. Sel. Bill 12/1920
 		 * Moses 12/20 Erizea farizea 2:2:1:14
 		 */
-		out[2]=col_buf[2]/weight;
+		out[2]=(unsigned short)op(col_buf[2]);
 		col_buf[2]=half;
 		out+=line_skip;
 		col_buf+=3;
-	}
-}
-
-/* We assume unsigned holds at least 32 bits */
-static inline void emit_and_bias_row_gray(unsigned *row_buf, unsigned char *out,
-	int n, unsigned weight)
-{
-	unsigned half=weight>>1;
-
-	for (;n;n--){
-		*out++=*row_buf/weight;
-		*row_buf++=half;
 	}
 }
 
@@ -262,18 +302,22 @@ static inline void emit_and_bias_row_color(scale_t *row_buf,
 	unsigned short *out, int n, unsigned weight)
 {
 	scale_t half=(scale_t)weight / 2;
-
+#ifdef USE_FP_SCALE
+	scale_t inv_weight = (scale_t)1 / weight;
+#endif
 	for (;n;n--){
-		out[0]=row_buf[0]/weight;
+		out[0]=(unsigned short)op(row_buf[0]);
 		row_buf[0]=half;
-		out[1]=row_buf[1]/weight;
+		out[1]=(unsigned short)op(row_buf[1]);
 		row_buf[1]=half;
-		out[2]=row_buf[2]/weight;
+		out[2]=(unsigned short)op(row_buf[2]);
 		row_buf[2]=half;
 		out+=3;
 		row_buf+=3;
 	}
 }
+
+#undef op
 
 /* For enlargement only -- does linear filtering.
  * Allocates output and frees input.
@@ -364,14 +408,23 @@ static inline void enlarge_color_horizontal(unsigned short *ina, int ix, int y,
 	unsigned oskip=3*ox;
 	unsigned short *out, *in;
 
+	if (!ina) {
+		*outa = NULL;
+		return;
+	}
+
 	if (ix==ox){
 		*outa=ina;
 		return;
 	}
 	if (ox && (unsigned)ox * (unsigned)y / (unsigned)ox != (unsigned)y) overalloc();
 	if ((unsigned)ox * (unsigned)y > MAXINT / 3 / sizeof(*out)) overalloc();
-	out=mem_alloc(sizeof(*out)*3*ox*y);
+	out=mem_alloc_mayfail(sizeof(*out)*3*ox*y);
 	*outa=out;
+	if (!out) {
+		mem_free(ina);
+		return;
+	}
 	in=ina;
 	if (ix==1){
 		for (;y;y--,in+=3) for (a=ox;a;a--,out+=3){
@@ -384,7 +437,13 @@ static inline void enlarge_color_horizontal(unsigned short *ina, int ix, int y,
 	}
 	total=multiply_int(ix-1,ox-1);
 	if ((unsigned)y > MAXINT / 3 / sizeof(*col_buf)) overalloc();
-	col_buf=mem_alloc(y*3*sizeof(*col_buf));
+	col_buf=mem_alloc_mayfail(y*3*sizeof(*col_buf));
+	if (!col_buf) {
+		mem_free(ina);
+		mem_free(out);
+		*outa = NULL;
+		return;
+	}
 	bias_buf_color(col_buf,y,(scale_t)(ox-1) / 2);
 	out_pos=0;
 	in_pos=0;
@@ -478,6 +537,11 @@ static inline void scale_color_horizontal(unsigned short *ina, int ix, int y,
 	unsigned oskip=3*ox;
 	unsigned short *in, *out;
 
+	if (!ina) {
+		*outa = NULL;
+		return;
+	}
+
 	if (ix==ox){
 		*outa=ina;
 		return;
@@ -489,11 +553,21 @@ static inline void scale_color_horizontal(unsigned short *ina, int ix, int y,
 	total=multiply_int(ix,ox);
 	if (ox && (unsigned)ox * (unsigned)y / (unsigned)ox != (unsigned)y) overalloc();
 	if ((unsigned)ox * (unsigned)y > MAXINT / 3 / sizeof(*out)) overalloc();
-	out=mem_alloc(sizeof(*out)*3*ox*y);
+	out=mem_alloc_mayfail(sizeof(*out)*3*ox*y);
 	*outa=out;
+	if (!out) {
+		mem_free(ina);
+		return;
+	}
 	in=ina;
 	if ((unsigned)y > MAXINT / 3 / sizeof(*col_buf)) overalloc();
-	col_buf=mem_alloc(y*3*sizeof(*col_buf));
+	col_buf=mem_alloc_mayfail(y*3*sizeof(*col_buf));
+	if (!col_buf) {
+		mem_free(ina);
+		mem_free(out);
+		*outa = NULL;
+		return;
+	}
 	bias_buf_color(col_buf,y,(scale_t)ix / 2);
 	out_pos=0;
 	in_pos=0;
@@ -587,6 +661,11 @@ static inline void enlarge_color_vertical(unsigned short *ina, int x, int iy,
 	ulonglong total,out_pos,in_pos,in_begin,in_end;
 	unsigned short *out, *in;
 
+	if (!ina) {
+		*outa = NULL;
+		return;
+	}
+
 	if (iy==oy){
 		*outa=ina;
 		return;
@@ -594,8 +673,12 @@ static inline void enlarge_color_vertical(unsigned short *ina, int x, int iy,
 	/* Rivendell */
 	if (x && (unsigned)x * (unsigned)oy / (unsigned)x != (unsigned)oy) overalloc();
 	if ((unsigned)x * (unsigned)oy > MAXINT / 3 / sizeof(*out)) overalloc();
-	out=mem_alloc(sizeof(*out)*3*oy*x);
+	out=mem_alloc_mayfail(sizeof(*out)*3*oy*x);
 	*outa=out;
+	if (!out) {
+		mem_free(ina);
+		return;
+	}
 	in=ina;
 	if (iy==1){
 		for (;oy;oy--){
@@ -607,7 +690,13 @@ static inline void enlarge_color_vertical(unsigned short *ina, int x, int iy,
 	}
 	total=multiply_int(iy-1,oy-1);
 	if ((unsigned)x > MAXINT / 3 / sizeof(*row_buf)) overalloc();
-	row_buf=mem_alloc(x*3*sizeof(*row_buf));
+	row_buf=mem_alloc_mayfail(x*3*sizeof(*row_buf));
+	if (!row_buf) {
+		mem_free(ina);
+		mem_free(out);
+		*outa = NULL;
+		return;
+	}
 	bias_buf_color(row_buf,x,(scale_t)(oy-1) / 2);
 	out_pos=0;
 	in_pos=0;
@@ -701,6 +790,11 @@ static inline void scale_color_vertical(unsigned short *ina, int x, int iy,
 	ulonglong total,out_pos,in_pos,in_begin,in_end,out_end;
 	unsigned short *in, *out;
 
+	if (!ina) {
+		*outa = NULL;
+		return;
+	}
+
 	if (iy==oy){
 		*outa=ina;
 		return;
@@ -712,11 +806,21 @@ static inline void scale_color_vertical(unsigned short *ina, int x, int iy,
 	total=multiply_int(iy,oy);
 	if (x && (unsigned)x * (unsigned)oy / (unsigned)x != (unsigned)oy) overalloc();
 	if ((unsigned)x * (unsigned)oy > MAXINT / 3 / sizeof(*out)) overalloc();
-	out=mem_alloc(sizeof(*out)*3*oy*x);
+	out=mem_alloc_mayfail(sizeof(*out)*3*oy*x);
 	*outa=out;
+	if (!out) {
+		mem_free(ina);
+		return;
+	}
 	in=ina;
 	if ((unsigned)x > MAXINT / 3 / sizeof(*row_buf)) overalloc();
-	row_buf=mem_alloc(x*3*sizeof(*row_buf));
+	row_buf=mem_alloc_mayfail(x*3*sizeof(*row_buf));
+	if (!row_buf) {
+		mem_free(ina);
+		mem_free(out);
+		*outa = NULL;
+		return;
+	}
 	bias_buf_color(row_buf,x,(scale_t)iy / 2);
 	out_pos=0;
 	in_pos=0;
@@ -783,6 +887,8 @@ static void decimate_3(unsigned short **data0, int x, int y)
 	unsigned short *data=*data0;
 	unsigned short *ahead=data;
 	int i, futuresize;
+	if (!data)
+		return;
 	if (x && (unsigned)x * (unsigned)y / (unsigned)x != (unsigned)y) overalloc();
 	if ((unsigned)x * (unsigned)y > MAXINT / 3 / sizeof(**data0)) overalloc();
 	futuresize=x*y*3*(int)sizeof(**data0);
@@ -858,7 +964,7 @@ void scale_color(unsigned short *in, int ix, int iy, unsigned short **out,
 		if (in) mem_free(in);
 		if (ox && (unsigned)ox * (unsigned)oy / (unsigned)ox != (unsigned)oy) overalloc();
 		if ((unsigned)ox * (unsigned)oy > MAXINT / 3 / sizeof(**out)) overalloc();
-		*out=mem_calloc(ox*oy*sizeof(**out)*3);
+		*out=mem_calloc_mayfail(ox*oy*sizeof(**out)*3);
 		return;
 	}
 	if (display_optimize&&ox*3<=ix){
@@ -874,6 +980,10 @@ void scale_color(unsigned short *in, int ix, int iy, unsigned short **out,
 		scale_color_vertical(intermediate_buffer,ox,iy,out,oy);
 	}
 	if (do_optimize) decimate_3(out, ox0, oy);
+	mem_freed_large(
+		3 * sizeof(short) * ix * iy > 3 * sizeof(short) * ox * oy ?
+		3 * sizeof(short) * ix * iy : 3 * sizeof(short) * ox * oy
+	);
 }
 
 /* Fills a block with given color. length is number of pixels. pixel is a
@@ -942,7 +1052,7 @@ static inline void mix_two_colors(unsigned short *dest, unsigned char *alpha,
 
 /* We assume unsigned short holds at least 16 bits. */
 void agx_and_uc_32_to_48_table(unsigned short *dest,
-		unsigned char *src, int lenght, unsigned short *table,
+		const unsigned char *src, int lenght, unsigned short *table,
 		unsigned short rb, unsigned short gb, unsigned short bb)
 {
 	unsigned char alpha, calpha;
@@ -982,14 +1092,14 @@ void agx_and_uc_32_to_48_table(unsigned short *dest,
  */
 /* We assume unsigned short holds at least 16 bits. */
 void agx_and_uc_32_to_48(unsigned short *dest,
-		unsigned char *src, int lenght, float red_gamma,
+		const unsigned char *src, int lenght, float red_gamma,
 		float green_gamma, float blue_gamma, unsigned short rb,
 		unsigned short gb, unsigned short bb)
 {
 	float_double r,g,b;
 	unsigned char alpha, calpha;
 	unsigned short ri,gi,bi;
-	const float_double inv_255=1/255.0;
+	const float_double inv_255=(float_double)(1/255.);
 
 	for (;lenght;lenght--)
 	{
@@ -1007,13 +1117,9 @@ void agx_and_uc_32_to_48(unsigned short *dest,
 		ri=(unsigned)((r*65535)+0.5);
 		gi=(unsigned)((g*65535)+0.5);
 		bi=(unsigned)((b*65535)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		/* To prevent segfaults in case of crappy floating arithmetics
-		 */
-		if (ri>=65535) ri=65535;
-		if (gi>=65535) gi=65535;
-		if (bi>=65535) bi=65535;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+		cmd_limit_16(ri);
+		cmd_limit_16(gi);
+		cmd_limit_16(bi);
 		if (((alpha+1)&255)>=2){
 			calpha=255-alpha;
 			dest[0]=(unsigned short)((ri*alpha+calpha*rb+127U)/255U);
@@ -1040,14 +1146,14 @@ void agx_and_uc_32_to_48(unsigned short *dest,
  */
 /* We assume unsigned short holds at least 16 bits. */
 void agx_and_uc_64_to_48(unsigned short *dest,
-		unsigned short *src, int lenght, float red_gamma,
+		const unsigned short *src, int lenght, float red_gamma,
 		float green_gamma, float blue_gamma, unsigned short rb,
 		unsigned short gb, unsigned short bb)
 {
 	float_double r,g,b;
 	unsigned short alpha, calpha;
 	unsigned short ri,gi,bi;
-	const float_double inv_65535=1/65535.;
+	const float_double inv_65535=(float_double)(1/65535.);
 
 	for (;lenght;lenght--)
 	{
@@ -1065,13 +1171,9 @@ void agx_and_uc_64_to_48(unsigned short *dest,
 		ri=(unsigned short)(r*65535+0.5);
 		gi=(unsigned short)(g*65535+0.5);
 		bi=(unsigned short)(b*65535+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		/* To prevent segfaults in case of crappy floating arithmetics
-		 */
-		if (ri>=65535) ri=65535;
-		if (gi>=65535) gi=65535;
-		if (bi>=65535) bi=65535;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+		cmd_limit_16(ri);
+		cmd_limit_16(gi);
+		cmd_limit_16(bi);
 		if (((alpha+1)&65535)>=2){
 			calpha=65535-alpha;
 			dest[0]=(unsigned short)((ri*alpha+calpha*rb+32767U)/65535U);
@@ -1098,7 +1200,7 @@ void agx_and_uc_64_to_48(unsigned short *dest,
  * in linear monitor output photon space. alpha 255 means full image no background.
  * We assume unsigned short holds at least 16 bits. */
 void agx_and_uc_64_to_48_table(unsigned short *dest,
-		unsigned short *src, int lenght, unsigned short *gamma_table,
+		const unsigned short *src, int lenght, unsigned short *gamma_table,
 		unsigned short rb, unsigned short gb, unsigned short bb)
 {
 	unsigned short alpha, calpha;
@@ -1136,11 +1238,11 @@ void agx_and_uc_64_to_48_table(unsigned short *dest,
  * dest. src and dest may be identical and it will work.
  * We assume unsigned short holds at least 16 bits. */
 void agx_48_to_48(unsigned short *dest,
-		unsigned short *src, int lenght, float red_gamma,
+		const unsigned short *src, int lenght, float red_gamma,
 		float green_gamma, float blue_gamma)
 {
 	float_double a;
-	const float_double inv_65535=1/65535.;
+	const float_double inv_65535=(float_double)(1/65535.);
 
 	for (;lenght;lenght--,src+=3,dest+=3)
 	{
@@ -1148,23 +1250,17 @@ void agx_48_to_48(unsigned short *dest,
 		a*=inv_65535;
 		a=fd_pow(a,red_gamma);
 		dest[0]=(unsigned short)((a*65535)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[0]>=0xffff) *dest=0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+		cmd_limit_16(dest[0]);
 		a=src[1];
 		a*=inv_65535;
 		a=fd_pow(a,green_gamma);
 		dest[1]=(unsigned short)((a*65535)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[1]>=0xffff) dest[1]=0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+		cmd_limit_16(dest[1]);
 		a=src[2];
 		a*=inv_65535;
 		a=fd_pow(a,blue_gamma);
 		dest[2]=(unsigned short)((a*65535)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[2]>=0xffff) dest[2]=0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+		cmd_limit_16(dest[2]);
 	}
 }
 
@@ -1173,7 +1269,7 @@ void agx_48_to_48(unsigned short *dest,
  * dest. src and dest may be identical and it will work.
  * We assume unsigned short holds at least 16 bits. */
 void agx_48_to_48_table(unsigned short *dest,
-		unsigned short *src, int lenght, unsigned short *table)
+		const unsigned short *src, int lenght, unsigned short *table)
 {
 	for (;lenght;lenght--,src+=3,dest+=3)
 	{
@@ -1187,12 +1283,12 @@ void agx_48_to_48_table(unsigned short *dest,
  * number of triples. output is input powered to the given gamma, passed into
  * dest. src and dest may be identical and it will work.
  * We assume unsigned short holds at least 16 bits. */
-void agx_24_to_48(unsigned short *dest, unsigned char *src, int
+void agx_24_to_48(unsigned short *dest, const unsigned char *src, int
 			  lenght, float red_gamma, float green_gamma, float
 			  blue_gamma)
 {
 	float_double a;
-	const float_double inv_255=1/255.;
+	const float_double inv_255=(float_double)(1/255.);
 
 	for (;lenght;lenght--,src+=3,dest+=3)
 	{
@@ -1200,23 +1296,17 @@ void agx_24_to_48(unsigned short *dest, unsigned char *src, int
 		a*=inv_255;
 		a=fd_pow(a,red_gamma);
 		dest[0]=(unsigned short)((a*65535)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[0]>=0xffff) *dest=0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+		cmd_limit_16(dest[0]);
 		a=src[1];
 		a*=inv_255;
 		a=fd_pow(a,green_gamma);
 		dest[1]=(unsigned short)((a*65535)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[1]>=0xffff) dest[1]=0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+		cmd_limit_16(dest[1]);
 		a=src[2];
 		a*=inv_255;
 		a=fd_pow(a,blue_gamma);
 		dest[2]=(unsigned short)((a*65535)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		if (dest[2]>=0xffff) dest[2]=0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+		cmd_limit_16(dest[2]);
 	}
 }
 
@@ -1231,8 +1321,8 @@ void make_gamma_table(struct cached_image *cimg)
 	int a;
 	unsigned short *ptr_16;
 	unsigned short last_val;
-	const float_double inv_255=1/255.;
-	const float_double inv_65535=1/65535.;
+	const float_double inv_255=(float_double)(1/255.);
+	const float_double inv_65535=(float_double)(1/65535.);
 
 	if (cimg->buffer_bytes_per_pixel<=4){
 		/* 8-bit */
@@ -1240,24 +1330,17 @@ void make_gamma_table(struct cached_image *cimg)
 		cimg->gamma_table=ptr_16;
 		for (a=0;a<256;a++,ptr_16++){
 			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,rg)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-		/* To test against crappy arithmetics */
-			if (last_val >= 0xffff) *ptr_16 = 0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+			cmd_limit_16(last_val);
 			*ptr_16 = last_val;
 		}
 		for (a=0;a<256;a++,ptr_16++){
 			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,gg)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (last_val >= 0xffff) *ptr_16 = 0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+			cmd_limit_16(last_val);
 			*ptr_16 = last_val;
 		}
 		for (a=0;a<256;a++,ptr_16++){
 			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,bg)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-			if (last_val >= 0xffff) *ptr_16 = 0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+			cmd_limit_16(last_val);
 			*ptr_16 = last_val;
 		}
 	}else{
@@ -1273,27 +1356,21 @@ void make_gamma_table(struct cached_image *cimg)
 		for (a=0;a<0x10000;a++,ptr_16++){
 			if (!x_slow_fpu || !(a & 0xff)) {
 				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,rg)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-				if (last_val >= 0xffff) *last_val = 0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+				cmd_limit_16(last_val);
 			}
 			*ptr_16 = last_val;
 		}
 		for (a=0;a<0x10000;a++,ptr_16++){
 			if (!x_slow_fpu || !(a & 0xff)) {
 				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,gg)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-				if (last_val >= 0xffff) last_val = 0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+				cmd_limit_16(last_val);
 			}
 			*ptr_16 = last_val;
 		}
 		for (a=0;a<0x10000;a++,ptr_16++){
 			if (!x_slow_fpu || !(a & 0xff)) {
 				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,bg)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-				if (last_val >= 0xffff) last_val = 0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+				cmd_limit_16(last_val);
 			}
 			*ptr_16 = last_val;
 		}
@@ -1301,7 +1378,7 @@ void make_gamma_table(struct cached_image *cimg)
 }
 
 /* We assume unsigned short holds at least 16 bits. */
-void agx_24_to_48_table(unsigned short *dest, unsigned char *src, int
+void agx_24_to_48_table(unsigned short *dest, const unsigned char *src, int
 			  lenght, unsigned short *table)
 {
 	for (;lenght;lenght--,src+=3,dest+=3)
@@ -1327,15 +1404,13 @@ unsigned short ags_8_to_16(unsigned char input, float gamma)
 {
 	float_double a=input;
 	unsigned short retval;
-	const float_double inv_255=1/255.;
+	const float_double inv_255=(float_double)(1/255.);
 
 	a*=inv_255;
 	a=fd_pow(a,gamma);
 	a*=65535;
 	retval = (unsigned short)(a+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-	if (retval>=0xffff) retval=0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+	cmd_limit_16(retval);
 	return retval;
 }
 
@@ -1343,7 +1418,7 @@ unsigned short ags_8_to_16(unsigned char input, float gamma)
 /* We assume unsigned short holds at least 16 bits. */
 unsigned char ags_16_to_8(unsigned short input, float gamma)
 {
-	const float_double inv_65535=1/65535.;
+	const float_double inv_65535=(float_double)(1/65535.);
 	return (unsigned char)(fd_pow((float_double)input*inv_65535,gamma)*255+0.5);
 }
 
@@ -1351,12 +1426,10 @@ unsigned char ags_16_to_8(unsigned short input, float gamma)
 unsigned short ags_16_to_16(unsigned short input, float gamma)
 {
 	unsigned short retval;
-	const float_double inv_65535=1/65535.;
+	const float_double inv_65535=(float_double)(1/65535.);
 
 	retval = (unsigned short)(65535*fd_pow((float_double)input*inv_65535,gamma)+0.5);
-#if !SIZEOF_UNSIGNED_SHORT || SIZEOF_UNSIGNED_SHORT > 2
-	if (retval>=0xffff) retval=0xffff;
-#endif /* #if SIZEOF_UNSIGNED_SHORT > 2 */
+	cmd_limit_16(retval);
 	return retval;
 }
 
@@ -1399,6 +1472,11 @@ static struct letter *find_stored_letter(int *style_table, int letter_number)
 #endif /* #ifdef REPORT_UNKNOWN */
 	return letter_data+font_table[0].begin;
 }
+
+struct read_work {
+	const unsigned char *pointer;
+	int length;
+};
 
 static void read_stored_data(png_structp png_ptr, png_bytep data, png_uint_32 length)
 {
@@ -1455,7 +1533,7 @@ void my_png_free(png_structp png_ptr, void *ptr)
  * The multiplications and additions take place in photon space.
  */
 static void load_char(unsigned char **dest, int *x, int *y,
-unsigned char *png_data, int png_length)
+const unsigned char *png_data, int png_length)
 {
 	png_structp png_ptr;
 	png_infop info_ptr;
@@ -1558,7 +1636,7 @@ unsigned char *png_data, int png_length)
 /* Like load_char, but we dictate the y.
  */
 static void load_scaled_char(void **dest, int *x, int y,
-unsigned char *png_data, int png_length, struct style *style)
+const unsigned char *png_data, int png_length, struct style *style)
 {
 	unsigned char *interm;
 	unsigned char *interm2;
@@ -1621,8 +1699,7 @@ static struct font_cache_entry *locked_color_entry = NULL;
 /* Adds required entry into font_cache and returns pointer to the entry.
  * We assume the entry is FC_COLOR.
  */
-static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
-*gd, struct style *style, struct letter *letter)
+static struct font_cache_entry *supply_color_cache_entry(struct style *style, struct letter *letter)
 {
 	struct font_cache_entry *found, *neww;
 	unsigned short *primary_data;
@@ -1682,7 +1759,7 @@ static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 		decimate_3(&primary_data,neww->bitmap.x,neww->bitmap.y);
 	}
 	/* We have a buffer with photons */
-	if (gd->get_empty_bitmap(&(neww->bitmap)))
+	if (drv->get_empty_bitmap(&(neww->bitmap)))
 		goto skip_dither;
 	if (dither_letters)
 		dither(primary_data, &(neww->bitmap));
@@ -1690,14 +1767,14 @@ static struct font_cache_entry *supply_color_cache_entry (struct graphics_driver
 		(*round_fn)(primary_data,&(neww->bitmap));
 	skip_dither:
 	mem_free(primary_data);
-	gd->register_bitmap(&(neww->bitmap));
+	drv->register_bitmap(&(neww->bitmap));
 	if (do_free){
 		mem_free(found->bitmap.data);
 		mem_free(found);
 	} else {
 		locked_bw_entry = NULL;
 	}
-	bytes_consumed=neww->bitmap.x*neww->bitmap.y*(gd->depth&7);
+	bytes_consumed=neww->bitmap.x*neww->bitmap.y*(drv->depth&7);
 	/* Number of bytes per pixel in passed bitmaps */
 	bytes_consumed+=(int)sizeof(*neww);
 	bytes_consumed+=(int)sizeof(struct lru_entry);
@@ -1739,9 +1816,7 @@ static int prune_font_cache(void)
 
 /* Prints a letter to the specified position and
  * returns the width of the printed letter */
-static inline int print_letter(struct graphics_driver *gd, struct
-	graphics_device *device, int x, int y, struct style *style,
-	int char_number)
+static inline int print_letter(struct graphics_device *device, int x, int y, struct style *style, int char_number)
 
 {
 	int xw;
@@ -1766,9 +1841,9 @@ static inline int print_letter(struct graphics_driver *gd, struct
 	templat.mono_height=style->mono_height;
 
 	found=lru_lookup(&font_cache, &templat, letter->color_list);
-	if (!found) found=supply_color_cache_entry(gd, style, letter);
+	if (!found) found=supply_color_cache_entry(style, letter);
 	else locked_color_entry = found;
-	gd->draw_bitmap(device, &(found->bitmap), x, y);
+	drv->draw_bitmap(device, &(found->bitmap), x, y);
 	xw = found->bitmap.x;
 	if (locked_color_entry != found) internal("bad letter lock");
 	locked_color_entry = NULL;
@@ -1794,8 +1869,7 @@ static void get_underline_pos(int height, int *top, int *bottom)
 }
 
 /* *width will be advanced by the width of the text */
-void g_print_text(struct graphics_driver *gd, struct graphics_device *device,
-int x, int y, struct style *style, unsigned char *text, int *width)
+void g_print_text(struct graphics_device *device, int x, int y, struct style *style, unsigned char *text, int *width)
 {
 	int original_flags, top_underline, bottom_underline, original_width,
 		my_width;
@@ -1814,8 +1888,8 @@ int x, int y, struct style *style, unsigned char *text, int *width)
 		get_underline_pos(style->height, &top_underline, &bottom_underline);
 		restrict_clip_area(device, &saved_clip, 0, 0, device->size.x2, y+
 			top_underline);
-		g_print_text(gd, device, x, y, style, text, width);
-		gd->set_clip_area(device, &saved_clip);
+		g_print_text(device, x, y, style, text, width);
+		drv->set_clip_area(device, &saved_clip);
 		if (bottom_underline-top_underline==1){
 			/* Line */
 			drv->draw_hline(device, x, y+top_underline,
@@ -1836,8 +1910,8 @@ int x, int y, struct style *style, unsigned char *text, int *width)
 			restrict_clip_area(device, &saved_clip, 0,
 				y+bottom_underline, device->size.x2,
 				device->size.y2);
-			g_print_text(gd, device, x, y, style, text, width);
-			gd->set_clip_area(device, &saved_clip);
+			g_print_text(device, x, y, style, text, width);
+			drv->set_clip_area(device, &saved_clip);
 		}
 		style -> flags=original_flags;
 		return;
@@ -1867,7 +1941,7 @@ int x, int y, struct style *style, unsigned char *text, int *width)
 		/* stare Mikulasovo patchovani, musim to opravit    -- Brain */
 		if (!u || u == 0xad) continue;
 		if (u == 0x01 || u == 0xa0) u = ' ';
-		p=print_letter(gd,device,x,y,style, u);
+		p=print_letter(device,x,y,style, u);
 		x += p;
 		if (width) {
 			*width = safe_add(*width, p);
@@ -2248,6 +2322,8 @@ long real_dip_get_color_sRGB(int rgb)
 	return gamma_cache_color = drv->get_color(new_rgb);
 }
 
+#include "links_ic.inc"
+
 /* ATTENTION!!! allocates using malloc. Due to braindead Xlib, which
  * frees it using free and thus it is not possible to use mem_alloc. */
 void get_links_icon(unsigned char **data, int *width, int *height, int *skip, int pad)
@@ -2272,6 +2348,48 @@ void get_links_icon(unsigned char **data, int *width, int *height, int *skip, in
 	agx_24_to_48(tmp1,links_icon,b.x*b.y,g,g,g);
 	dither(tmp1, &b);
 	mem_free(tmp1);
+}
+
+static inline void qb_palette(unsigned r_max, unsigned g_max, unsigned b_max, unsigned r, unsigned g, unsigned b, unsigned scale, unsigned rgb[3])
+{
+	rgb[0] = (r * scale + r_max / 2) / r_max;
+	rgb[1] = (g * scale + g_max / 2) / g_max;
+	rgb[2] = (b * scale + b_max / 2) / b_max;
+}
+
+void q_palette(unsigned size, unsigned color, unsigned scale, unsigned rgb[3])
+{
+	switch (size) {
+		case 16:
+			qb_palette(1, 3, 1, color >> 3, (color >> 1) & 3, color & 1, scale, rgb);
+			break;
+		case 256:
+			qb_palette(7, 7, 3, color >> 5, (color >> 2) & 7, color & 3, scale, rgb);
+			break;
+		case 32768:
+			qb_palette(31, 31, 31, color >> 10, (color >> 5) & 31, color & 31, scale, rgb);
+			break;
+		case 65536:
+			qb_palette(31, 63, 31, color >> 11, (color >> 5) & 63, color & 31, scale, rgb);
+			break;
+		case 16777216:
+			qb_palette(255, 255, 255, color >> 16, (color >> 8) & 255, color & 255, scale, rgb);
+			break;
+		default:
+			internal("q_palette: invalid size %u", size);
+	}
+}
+
+double rgb_distance(int r1, int g1, int b1, int r2, int g2, int b2)
+{
+	double diff_r, diff_g, diff_b;
+	diff_r = (r1 - r2) * .30;
+	diff_r *= diff_r;
+	diff_g = (g1 - g2) * .59;
+	diff_g *= diff_g;
+	diff_b = (b1 - b2) * .11;
+	diff_b *= diff_b;
+	return diff_r + diff_g + diff_b;
 }
 
 #endif /* G */

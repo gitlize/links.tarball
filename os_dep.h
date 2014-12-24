@@ -110,6 +110,9 @@ static inline int dir_sep(unsigned char x) { return x == '/' || x == '\\'; }
 #else
 #define DONT_USE_AF_UNIX
 #endif
+#if defined(_UWIN) || 1
+#define USE_WIN32_HEAP
+#endif
 
 #elif defined(INTERIX)
 

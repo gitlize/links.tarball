@@ -74,6 +74,7 @@ File links.exe
 File links-g.exe
 File c:\cygwin64\bin\cygbz2-1.dll
 File c:\cygwin64\bin\cygcrypto-1.0.0.dll
+File c:\cygwin64\bin\cygjbig-2.dll
 File c:\cygwin64\bin\cygjpeg-8.dll
 File c:\cygwin64\bin\cyglzma-5.dll
 File c:\cygwin64\bin\cygpng15-15.dll
@@ -112,6 +113,7 @@ Delete "$INSTDIR\links.exe"
 Delete "$INSTDIR\links-g.exe"
 Delete "$INSTDIR\cygbz2-1.dll"
 Delete "$INSTDIR\cygcrypto-1.0.0.dll"
+Delete "$INSTDIR\cygbig-2.dll"
 Delete "$INSTDIR\cygjpeg-8.dll"
 Delete "$INSTDIR\cyglzma-5.dll"
 Delete "$INSTDIR\cygpng15-15.dll"

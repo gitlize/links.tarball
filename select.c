@@ -43,15 +43,6 @@ struct timer {
 static struct list_head timers = {&timers, &timers};
 
 
-ttime get_time(void)
-{
-	struct timeval tv;
-	int rs;
-	EINTRLOOP(rs, gettimeofday(&tv, NULL));
-	if (rs) fatal_exit("gettimeofday failed: %d", errno);
-	return (uttime)tv.tv_sec * 1000 + tv.tv_usec / 1000;
-}
-
 #ifndef OPENVMS
 void portable_sleep(unsigned msec)
 {
@@ -182,7 +173,7 @@ void check_bottom_halves(void)
 }
 
 #define CHK_BH if (!list_empty(bottom_halves)) check_bottom_halves()
-		
+
 static ttime last_time;
 
 static void check_timers(void)

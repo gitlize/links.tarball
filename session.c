@@ -183,7 +183,7 @@ static void x_print_screen_status(struct terminal *term, struct session *ses)
 #ifdef G
 	} else {
 		int l = 0;
-		if (ses->st) g_print_text(drv, term->dev, 0, term->y - G_BFU_FONT_SIZE, bfu_style_wb_mono, ses->st, &l);
+		if (ses->st) g_print_text(term->dev, 0, term->y - G_BFU_FONT_SIZE, bfu_style_wb_mono, ses->st, &l);
 		drv->fill_area(term->dev, l, term->y - G_BFU_FONT_SIZE, term->x, term->y, bfu_bg_color);
 #endif
 	}
@@ -533,10 +533,10 @@ void download_window_function(struct dialog_data *dlg)
 			p = w - s - ss;
 			if (p < 0) p = 0;
 			m = download_meter(p, stat);
-			g_print_text(drv, term->dev, x, y, bfu_style_bw_mono, cast_uchar "[", NULL);
+			g_print_text(term->dev, x, y, bfu_style_bw_mono, cast_uchar "[", NULL);
 			drv->fill_area(term->dev, x + s, y, x + s + m, y + G_BFU_FONT_SIZE, bfu_fg_color);
 			drv->fill_area(term->dev, x + s + m, y, x + s + p, y + G_BFU_FONT_SIZE, bfu_bg_color);
-			g_print_text(drv, term->dev, x + w - ss, y, bfu_style_bw_mono, q, NULL);
+			g_print_text(term->dev, x + w - ss, y, bfu_style_bw_mono, q, NULL);
 			if (dlg->s) exclude_from_set(&dlg->s, x, y, x + w, y + G_BFU_FONT_SIZE);
 			mem_free(q);
 			y += G_BFU_FONT_SIZE;
@@ -591,7 +591,7 @@ time_t parse_http_date(unsigned char *date)	/* this functions is bad !!! */
 #ifdef HAVE_MKTIME
 	static unsigned char *months[12] = {
 		cast_uchar "Jan",
-		cast_uchar "Feb", 
+		cast_uchar "Feb",
 		cast_uchar "Mar",
 		cast_uchar "Apr",
 		cast_uchar "May",
@@ -1532,7 +1532,7 @@ static void html_interpret(struct f_data_c *fd)
 	o.bfu_aspect=0;
 #endif
 	o.plain = fd->vs->plain;
-	if (o.plain == 1) {
+	if (o.plain == 1 && !o.break_long_lines) {
 		o.xp = 0;
 		o.yp = 0;
 		o.xw = MAXINT;
@@ -2343,7 +2343,7 @@ static void type_query_multiple_programs(struct session *ses, unsigned char *ct,
 		unsigned char *bla = stracpy(_(TEXT_(T_OPEN_WITH),ses->term));
 		add_to_strn(&bla, cast_uchar " ");
 		add_to_strn(&bla, a[i].label);
-		
+
 		d->items[i].type = D_BUTTON;
 		d->items[i].fn = prog_sel_open;
 		d->items[i].udata = a + i;
@@ -2384,7 +2384,7 @@ static void type_query(struct session *ses, unsigned char *ct, struct assoc *a, 
 		type_query_multiple_programs(ses, ct, a, n);
 		return;
 	}
-	
+
 	if (a) ses->tq_prog = stracpy(a[0].prog), ses->tq_prog_flag_block = a[0].block, ses->tq_prog_flag_direct = direct_download_possible(ses->tq, a);
 	if (a && !a[0].ask) {
 		tp_open(ses);
@@ -2873,7 +2873,8 @@ void win_func(struct window *win, struct event *ev, int fw)
   Gets the url being viewed by this session. Writes it into str.
   A maximum of str_size bytes (including null) will be written.
 */
-unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t str_size) {
+unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t str_size)
+{
 	unsigned char *here, *end_of_url;
 	size_t url_len = 0;
 
@@ -2904,7 +2905,8 @@ unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t s
   Gets the title of the page being viewed by this session. Writes it into str.
   A maximum of str_size bytes (including null) will be written.
 */
-unsigned char *get_current_title(struct session *ses, unsigned char *str, size_t str_size) {
+unsigned char *get_current_title(struct session *ses, unsigned char *str, size_t str_size)
+{
 	struct f_data_c *fd;
 	fd = (struct f_data_c *)current_frame(ses);
 
@@ -2920,24 +2922,25 @@ unsigned char *get_current_title(struct session *ses, unsigned char *str, size_t
   Gets the url of the link currently selected. Writes it into str.
   A maximum of str_size bytes (including null) will be written.
 */
-unsigned char *get_current_link_url(struct session *ses, unsigned char *str, size_t str_size) {
+unsigned char *get_current_link_url(struct session *ses, unsigned char *str, size_t str_size)
+{
 	struct f_data_c *fd;
-    struct link *l;
-	
+	struct link *l;
+
 	fd = (struct f_data_c *)current_frame(ses);
 	/* What the hell is an 'fd'? */
 	if (!fd)
 		return NULL;
-	
+
 	/* Nothing selected? */
-    if (fd->vs->current_link == -1 || fd->vs->current_link >= fd->f_data->nlinks)
+	if (fd->vs->current_link == -1 || fd->vs->current_link >= fd->f_data->nlinks)
 		return NULL;
 
-    l = &fd->f_data->links[fd->vs->current_link];
+	l = &fd->f_data->links[fd->vs->current_link];
 	/* Only write a link */
-    if (l->type != L_LINK)
+	if (l->type != L_LINK)
 		return NULL;
-	
+
 	return safe_strncpy(str, l->where, str_size);
 }
 #endif

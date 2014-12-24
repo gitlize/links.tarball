@@ -10,6 +10,7 @@
 
 #define USE_GPM_DX
 /*#define USE_FB_ACCEL*/
+/*#define USE_FB_ACCEL_FILLRECT*/
 
 /* #define FB_DEBUG */
 /* #define SC_DEBUG */
@@ -192,8 +193,7 @@ static int last_mouse_buttons;
 		INC_IN_GR \
 		if (!fb_active) { END_GR return; }
 #define START_GR_0 \
-		in_gr_operation++; \
-		do_not_optimize_here(&fb_vmem); \
+		INC_IN_GR \
 		if (!fb_active) { END_GR return 0; }
 
 
@@ -336,7 +336,7 @@ static void fb_key_in(void *p, unsigned char *ev_, int size)
 	else if (!ev->y && ev->x == KBD_F6) fb_mouse_move(0, 3);
 	else if (!ev->y && ev->x == KBD_F7) fb_mouse_move(0, -3);
 	else if (!ev->y && ev->x == KBD_F8) fb_mouse_move(3, 0);
-	else 
+	else
 	{
 		if (fb_driver.codepage!=utf8_table&&(ev->x)>=128&&(ev->x)<=255)
 			if ((ev->x=cp2u(ev->x,fb_driver.codepage)) == -1) return;
@@ -350,6 +350,16 @@ static void fb_key_in(void *p, unsigned char *ev_, int size)
 #define mouse_getscansegment(buf,x,y,w) memcpy(buf,fb_vmem+y*fb_linesize+x*fb_pixelsize,w)
 #define mouse_drawscansegment(ptr,x,y,w) memcpy(fb_vmem+y*fb_linesize+x*fb_pixelsize,ptr,w);
 
+#define do_with_mouse_device(cmd)				\
+do {								\
+	struct graphics_device *current_virtual_device_backup;	\
+								\
+	current_virtual_device_backup = current_virtual_device;	\
+	current_virtual_device = mouse_graphics_device;		\
+	cmd;							\
+	current_virtual_device = current_virtual_device_backup;	\
+} while (0)
+
 /* Flushes the background_buffer onscreen where it was originally taken from. */
 static void place_mouse_background(void)
 {
@@ -360,15 +370,7 @@ static void place_mouse_background(void)
 	bmp.skip=arrow_width*fb_pixelsize;
 	bmp.data=background_buffer;
 
-	{
-		struct graphics_device * current_virtual_device_backup;
-
-		current_virtual_device_backup=current_virtual_device;
-		current_virtual_device=mouse_graphics_device;
-		fb_draw_bitmap(mouse_graphics_device, &bmp, background_x,
-			background_y);
-		current_virtual_device=current_virtual_device_backup;
-	}
+	do_with_mouse_device(fb_draw_bitmap(mouse_graphics_device, &bmp, background_x, background_y));
 
 }
 
@@ -377,7 +379,6 @@ static void place_mouse_background(void)
  */
 static void hide_mouse(void)
 {
-	accel_sync();
 	global_mouse_hidden=1;
 	place_mouse_background();
 }
@@ -397,6 +398,8 @@ static void get_mouse_background(unsigned char *buffer_ptr)
 	width=fb_pixelsize*(arrow_width+x>fb_xsize?fb_xsize-x:arrow_width);
 	height=arrow_height+y>fb_ysize?fb_ysize-y:arrow_height;
 
+	accel_sync();
+
 	for (;height;height--){
 		mouse_getscansegment(buffer_ptr,x,y,width);
 		buffer_ptr+=skip;
@@ -411,7 +414,7 @@ static void render_mouse_arrow(void)
 {
 	int x,y, reg0, reg1;
 	unsigned char *mouse_ptr=mouse_buffer;
-	unsigned *arrow_ptr=arrow;
+	const unsigned *arrow_ptr=arrow;
 
 	for (y=arrow_height;y;y--){
 		reg0=*arrow_ptr;
@@ -438,14 +441,7 @@ static void place_mouse(void)
 	bmp.y=arrow_height;
 	bmp.skip=arrow_width*fb_pixelsize;
 	bmp.data=mouse_buffer;
-	{
-		struct graphics_device * current_graphics_device_backup;
-
-		current_graphics_device_backup=current_virtual_device;
-		current_virtual_device=mouse_graphics_device;
-		fb_draw_bitmap(mouse_graphics_device, &bmp, mouse_x, mouse_y);
-		current_virtual_device=current_graphics_device_backup;
-	}
+	do_with_mouse_device(fb_draw_bitmap(mouse_graphics_device, &bmp, mouse_x, mouse_y));
 	global_mouse_hidden=0;
 }
 
@@ -454,7 +450,6 @@ static void place_mouse(void)
  */
 static void show_mouse(void)
 {
-	accel_sync();
 	get_mouse_background(background_buffer);
 	background_x=mouse_x;
 	background_y=mouse_y;
@@ -518,6 +513,8 @@ static inline void place_mouse_composite(void)
 
 	if (mouse_bottom>fb_ysize) mouse_bottom=fb_ysize;
 	if (background_bottom>fb_ysize) background_bottom=fb_ysize;
+
+	accel_sync();
 
 	/* Let's do the top part */
 	if (background_top<mouse_top){
@@ -619,7 +616,6 @@ static inline void redraw_mouse_sophisticated(void)
 static void redraw_mouse(void)
 {
 	if (!fb_active) return; /* We are not drawing */
-	accel_sync();
 	if (mouse_x!=background_x||mouse_y!=background_y){
 		if (RECTANGLES_INTERSECT(
 			background_x, background_x+arrow_width,
@@ -647,7 +643,7 @@ static void redraw_mouse(void)
  * Good white purity
  * Correct rounding and dithering prediction
  * And this is the cabbala:
- * 063 021 063 
+ * 063 021 063
  * 009 009 021
  * 255 085 255
  * 036 036 084
@@ -659,18 +655,14 @@ static void generate_palette(struct palette *palette)
 	switch (fb_colors)
 	{
 		case 16:
+		case 256:
 	       	for (a=0;a<fb_palette_colors;a++)
 		{
-       			palette->red[a]=(a&8)?65535:0;
-	       		palette->green[a]=((a>>1)&3)*(65535/3);
-		       	palette->blue[a]=(a&1)?65535:0;
-		}
-		break;
-		case 256:
-		for (a=0;a<fb_palette_colors;a++){
-		       	palette->red[a]=((a>>5)&7)*(65535./7.);
-			palette->green[a]=((a>>2)&7)*(65535./7.);
-       			palette->blue[a]=(a&3)*(65535/3);
+			unsigned rgb[3];
+			q_palette(fb_colors, a, 65535, rgb);
+			palette->red[a] = rgb[0];
+	       		palette->green[a] = rgb[1];
+		       	palette->blue[a] = rgb[2];
 		}
 		break;
 		case 32768:
@@ -815,7 +807,7 @@ static void fb_clear_videoram(void)
 {
 	int rs;
 	START_GR
-#ifdef USE_FB_ACCEL
+#ifdef USE_FB_ACCEL_FILLRECT
 	if (accel_flags & FB_ACCEL_FILLRECT_ACCELERATED) {
 		struct fb_fillrect f;
 		f.dx = 0;
@@ -943,7 +935,8 @@ static void fb_shutdown_palette(void)
 {
 	if (have_cmap)
 	{
-		set_palette(&old_palette);
+		if (fb_active)
+			set_palette(&old_palette);
 		free_palette(&old_palette);
 		free_palette(&global_pal);
 	}
@@ -994,7 +987,7 @@ static void fb_gpm_in(void *nic)
 		unhandle_fb_mouse();
 		return;
 	}
-	/*fprintf(stderr, "%d %d\n", gev.x, gev.y);*/
+	/*fprintf(stderr, "%x %x %d %d %d %d\n", gev.type, gev.buttons, gev.dx, gev.dy, gev.wdx, gev.wdy);*/
 #ifndef USE_GPM_DX
 	if (gev.x != lx || gev.y != ly) {
 		mouse_x = (gev.x - 1) * fb_xsize / fb_txt_xsize + fb_xsize / fb_txt_xsize / 2 - 1;
@@ -1040,6 +1033,27 @@ static void fb_gpm_in(void *nic)
 	else if ((int)gev.type & GPM_UP) ev.b |= B_UP;
 	else if ((int)gev.type & GPM_DRAG) ev.b |= B_DRAG;
 	else ev.b |= B_MOVE;
+
+#ifdef HAVE_WDX_WDY
+	if ((ev.b & BM_ACT) == B_DRAG || (ev.b & BM_ACT) == B_MOVE) {
+		if (gev.wdy < 0) {
+			ev.b &= ~BM_BUTT;
+			ev.b |= B_WHEELDOWN;
+		} else if (gev.wdy > 0) {
+			ev.b &= ~BM_BUTT;
+			ev.b |= B_WHEELUP;
+		}
+#if 0
+	/* it doesn't work anyway - the exps2 protocol doesn't support it and evdev support in gpm is buggy */
+		else if (gev.wdx < 0) {
+			ev.b &= ~BM_BUTT;
+			ev.b |= B_WHEELRIGHT;
+		} else if (gev.wdx > 0) {
+			ev.b &= ~BM_BUTT;
+			ev.b |= B_WHEELLEFT;
+#endif
+	}
+#endif
 
 #ifndef USE_GPM_DX
 	if (fb_msetsize < 0) {
@@ -1524,6 +1538,76 @@ static unsigned char *fb_get_driver_param(void)
 	return fb_driver_param;
 }
 
+static void fb_get_margin(int *left, int *right, int *top, int *bottom)
+{
+	*left = border_left;
+	*right = border_right;
+	*top = border_top;
+	*bottom = border_bottom;
+}
+
+static int fb_set_margin(int left, int right, int top, int bottom)
+{
+	struct rect_set *rs;
+	int i, l;
+	struct rect r;
+
+	if (left + right >= fb_xsize + border_left + border_right)
+		return -1;
+	if (top + bottom >= fb_ysize + border_top + border_bottom)
+		return -1;
+
+	hide_mouse();
+
+	rs = init_rect_set();
+	add_to_rect_set(&rs, &mouse_graphics_device->size);
+	r.x1 = left - border_left;
+	r.y1 = top - border_top;
+	r.x2 = fb_xsize - (right - border_right);
+	r.y2 = fb_ysize - (bottom - border_bottom);
+	exclude_rect_from_set(&rs, &r);
+	do_with_mouse_device(
+	for (i = 0; i < rs->m; i++) if (is_rect_valid(&rs->r[i]))
+		drv->fill_area(current_virtual_device, rs->r[i].x1, rs->r[i].y1, rs->r[i].x2, rs->r[i].y2, 0);
+	);
+	mem_free(rs);
+
+	mouse_x += border_left - left;
+	mouse_y += border_top - top;
+	fb_xsize = fb_xsize + border_left + border_right - (left + right);
+	fb_ysize = fb_ysize + border_top + border_bottom - (top + bottom);
+	border_left = left;
+	border_right = right;
+	border_top = top;
+	border_bottom = bottom;
+
+	if (mouse_x >= fb_xsize) mouse_x = fb_xsize - 1;
+	if (mouse_x < 0) mouse_x = 0;
+	if (mouse_y >= fb_ysize) mouse_y = fb_ysize - 1;
+	if (mouse_y < 0) mouse_y = 0;
+
+	fb_vmem = fb_mem + border_left * fb_pixelsize + border_top * fb_linesize;
+
+	mouse_graphics_device->size.x2 = mouse_graphics_device->clip.x2 = fb_xsize;
+	mouse_graphics_device->size.y2 = mouse_graphics_device->clip.y2 = fb_ysize;
+
+	show_mouse();
+
+	if (fb_driver_param) mem_free(fb_driver_param);
+	fb_driver_param = init_str();
+	l = 0;
+	add_num_to_str(&fb_driver_param, &l, left);
+	add_chr_to_str(&fb_driver_param, &l, ',');
+	add_num_to_str(&fb_driver_param, &l, top);
+	add_chr_to_str(&fb_driver_param, &l, ',');
+	add_num_to_str(&fb_driver_param, &l, right);
+	add_chr_to_str(&fb_driver_param, &l, ',');
+	add_num_to_str(&fb_driver_param, &l, bottom);
+
+	resize_virtual_devices(fb_xsize, fb_ysize);
+
+	return 0;
+}
 
 /* Return value:        0 alloced on heap
  *                      1 alloced in vidram
@@ -1579,7 +1663,7 @@ static void fb_draw_bitmap(struct graphics_device *dev,struct bitmap* hndl, int 
 }
 
 
-#ifdef USE_FB_ACCEL
+#ifdef USE_FB_ACCEL_FILLRECT
 static inline unsigned fb_accel_color(void *ptr)
 {
 	return *(unsigned char *)ptr;
@@ -1595,7 +1679,7 @@ static void fb_fill_area(struct graphics_device *dev, int left, int top, int rig
 
 	FILL_CLIP_PREFACE
 
-#ifdef USE_FB_ACCEL
+#ifdef USE_FB_ACCEL_FILLRECT
 	if (accel_flags & FB_ACCEL_FILLRECT_ACCELERATED) {
 		struct fb_fillrect f;
 		f.dx = left + border_left;
@@ -1634,7 +1718,7 @@ static void fb_draw_hline(struct graphics_device *dev, int left, int y, int righ
 
 	HLINE_CLIP_PREFACE
 
-#ifdef USE_FB_ACCEL
+#ifdef USE_FB_ACCEL_FILLRECT
 	if (accel_flags & FB_ACCEL_FILLRECT_ACCELERATED) {
 		struct fb_fillrect f;
 		f.dx = left + border_left;
@@ -1671,7 +1755,7 @@ static void fb_draw_vline(struct graphics_device *dev, int x, int top, int botto
 
 	VLINE_CLIP_PREFACE
 
-#ifdef USE_FB_ACCEL
+#ifdef USE_FB_ACCEL_FILLRECT
 	if (accel_flags & FB_ACCEL_FILLRECT_ACCELERATED) {
 		struct fb_fillrect f;
 		f.dx = x + border_left;
@@ -1880,6 +1964,8 @@ struct graphics_driver fb_driver={
 	fb_shutdown_driver,
 	dummy_emergency_shutdown,
 	fb_get_driver_param,
+	fb_get_margin,
+	fb_set_margin,
 	fb_get_empty_bitmap,
 	fb_register_bitmap,
 	fb_prepare_strip,

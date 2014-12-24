@@ -74,13 +74,11 @@ void xbm_start(struct cached_image *cimg)
 	deco->barvicky[0]=ags_16_to_8(r,(float)display_red_gamma);
 	deco->barvicky[1]=ags_16_to_8(g,(float)display_green_gamma);
 	deco->barvicky[2]=ags_16_to_8(b,(float)display_blue_gamma);
-	
+
 	round_color_sRGB_to_48(&r,&g,&b,get_foreground(cimg->background_color));
 	deco->barvicky[3]=ags_16_to_8(r,(float)display_red_gamma);
 	deco->barvicky[4]=ags_16_to_8(g,(float)display_green_gamma);
 	deco->barvicky[5]=ags_16_to_8(b,(float)display_blue_gamma);
-	
-			
 }
 
 /* vrati cislo, nebo -1, kdyz to neni cislo, a nastavi p a l na posledni necislici */
@@ -176,7 +174,7 @@ restart_again:
 		int *d;
 		int a;
 		int base, digits;
-		
+
 		p=my_memmem(deco->buffer,deco->buffer_pos,cast_uchar "width",5);
 		q=my_memmem(deco->buffer,deco->buffer_pos,cast_uchar "height",6);
 
@@ -224,7 +222,7 @@ restart_again:
 			cimg->blue_gamma=(float)display_blue_gamma;
 			cimg->strip_optimized=0;
 			if (header_dimensions_known(cimg)) {img_end(cimg);return 1;}
-			
+
 			deco->in_data_block=1;
 			p++;
 			memmove(deco->buffer,p,deco->buffer_pos+deco->buffer-p);	/* sezereme to pred width/height */
@@ -244,7 +242,6 @@ restart_again:
 		else put_eight(cimg,(b==16&&d>2)||(b==10&&deco->actual_eight>255)?16:8);
 		if (deco->image_pos>=deco->pixels) {img_end(cimg);return 1;}
 		goto restart_again;
-		
 	}
 }
 

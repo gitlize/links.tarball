@@ -258,9 +258,14 @@ that has broken compression support.
 Retry on internal server errors (50x).
 
 .TP
+\f3-http.fake-firefox \f2<0>/<1>\f1
+(default 0)
+Fake that the browser is Firefox in the HTTP header.
+
+.TP
 \f3-http.do-not-track \f2<0>/<1>\f1
 (default 0)
-Send do not track request in the HTTP header.
+Send "do not track" request in the HTTP header.
 
 .TP
 \f3-http.referer \f2<0>/<1>/<2>/<3>/<4>\f1
@@ -368,10 +373,6 @@ Additional gamma. (defult 1)
 Display aspect ration.
 
 .TP
-\f3-aspect-on \f2<0>/<1>\f1
-Enable aspect ratio correction.
-
-.TP
 \f3-dither-letters \f2<0>/<1>\f1
 Do letter dithering.
 
@@ -447,6 +448,10 @@ Render tables. (0) causes tables being rendered like in lynx.
 .TP
 \f3-html-frames \f2<0>/<1>\f1
 Render frames. (0) causes frames  rendered like in lynx.
+
+.TP
+\f3-html-break-long-lines \f2<0>/<1>\f1
+Break long lines in <pre> sections.
 
 .TP
 \f3-html-images \f2<0>/<1>\f1

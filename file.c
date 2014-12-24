@@ -167,7 +167,7 @@ static void stat_date(unsigned char **p, int *l, struct stat *stp)
 	}
 	when = stp->st_mtime;
 	when_local = localtime(&when);
-	if ((ulonglong)current_time > (ulonglong)when + 6L * 30L * 24L * 60L * 60L || 
+	if ((ulonglong)current_time > (ulonglong)when + 6L * 30L * 24L * 60L * 60L ||
 	    (ulonglong)current_time < (ulonglong)when - 60L * 60L) fmt = fmt1;
 	else fmt = fmt2;
 #ifdef HAVE_STRFTIME

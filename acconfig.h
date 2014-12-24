@@ -89,10 +89,10 @@
 #undef HAVE_SIGSETJMP
 
 /* */
-#undef HAVE_POW
+#undef DEBUGLEVEL
 
 /* */
-#undef HAVE_POWF
+#undef HAVE_CLOCK_GETTIME
 
 /* */
 #undef HAVE_GETHOSTBYNAME
@@ -107,7 +107,10 @@
 #undef SUPPORT_IPV6_SCOPE
 
 /* */
-#undef DEBUGLEVEL
+#undef HAVE_POW
+
+/* */
+#undef HAVE_POWF
 
 /* */
 #undef JS
@@ -189,3 +192,6 @@
 
 /* Tiff by Brain */
 #undef HAVE_TIFF
+
+/* Gpm_Event has wdx and wdy */
+#undef HAVE_WDX_WDY

@@ -23,12 +23,29 @@ int shrink_memory(int type, int flags)
 		if (flags && !(c->flags & flags)) continue;
 		a |= c->upcall(type);
 	}
-#if defined(HAVE__HEAPMIN)
+#if defined(HAVE__HEAPMIN) || defined(HAVE_MALLOC_TRIM)
 	{
-		static time_t last_heapmin = 0;
-		if (a & ST_SOMETHING_FREED || time(NULL) - last_heapmin >= 10) {
+		static uttime last_heapmin = 0;
+		static uttime min_interval = 0;
+		uttime now = get_time();
+		/* malloc_trim degrades performance (unlike _heapmin), so we call it less often */
+		if (type == SH_FREE_ALL || (now - last_heapmin >= min_interval &&
+#if defined(HAVE_MALLOC_TRIM)
+		    now - last_heapmin >= MALLOC_TRIM_INTERVAL
+#else
+		    (a & ST_SOMETHING_FREED || now - last_heapmin >= HEAPMIN_INTERVAL)
+#endif
+		   )) {
+			uttime after;
+#if defined(HAVE__HEAPMIN)
 			_heapmin();
-			time(&last_heapmin);
+#endif
+#if defined(HAVE_MALLOC_TRIM)
+			malloc_trim(0);
+#endif
+			after = get_time();
+			min_interval = HEAPMIN_FACTOR * (after - now);
+			last_heapmin = after;
 		}
 	}
 #endif

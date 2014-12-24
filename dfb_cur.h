@@ -1,7 +1,7 @@
 /* DirectFB surface dump created by directfb-csource 0.9.14 */
 
 /* This arrow cursor surface is based on a cursor drawn by Ville Pätsi. */
-static unsigned char arrow_data[] = 
+static const unsigned char arrow_data[] =
   "\0\0\0\0\0\0\0#\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
   "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
   "\0\0\0\0\0\0/\253\253\253\320\0\0\0N\0\0\0\3\0\0\0\0\0\0\0\0\0\0\0\0"
@@ -69,7 +69,7 @@ static unsigned char arrow_data[] =
 static DFBSurfaceDescription *directfb_get_arrow_desc(void)
 {
 	static DFBSurfaceDescription arrow_desc;
- 
+
   arrow_desc.flags        = (DFBSurfaceDescriptionFlags)(
   			    DSDESC_WIDTH | DSDESC_HEIGHT | DSDESC_PIXELFORMAT |
                             DSDESC_PREALLOCATED),

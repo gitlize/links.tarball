@@ -208,7 +208,6 @@ px:
 					__dpmi_int(0x33, &r);
 					if ((dos_mouse_last_button ^ r.x.ax) & (1 << i))
 						goto px;
-						
 				}
 			}
 		}
@@ -237,7 +236,7 @@ x:
 }
 
 void *handle_mouse(int cons, void (*fn)(void *, unsigned char *, int), void *data)
-{ 
+{
 	dos_mouse_init(screen_backbuffer_x * 8, screen_backbuffer_y * 8);
 	if (!dos_mouse_initialized) return NULL;
 	dos_mouse_show();

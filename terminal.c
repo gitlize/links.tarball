@@ -73,23 +73,43 @@ unsigned char get_attribute(int fg, int bg)
 
 struct list_head terminals = {&terminals, &terminals};
 
-static void alloc_term_screen(struct terminal *term, int x, int y)
+static void set_margin(struct terminal *term)
+{
+	struct term_spec *ts = term->spec;
+	if (term->real_x <= ts->left_margin + ts->right_margin) {
+		term->left_margin = 0;
+		term->x = term->real_x;
+	} else {
+		term->left_margin = ts->left_margin;
+		term->x = term->real_x - (ts->left_margin + ts->right_margin);
+	}
+	if (term->real_y <= ts->top_margin + ts->bottom_margin) {
+		term->top_margin = 0;
+		term->y = term->real_y;
+	} else {
+		term->top_margin = ts->top_margin;
+		term->y = term->real_y - (ts->top_margin + ts->bottom_margin);
+	}
+}
+
+
+static void alloc_term_screen(struct terminal *term)
 {
 	chr *s, *t;
 	NO_GFX;
-	if (x < 0) x = 1;
-	if (y < 0) y = 1;
-	if (x && (unsigned)x * (unsigned)y / (unsigned)x != (unsigned)y) overalloc();
-	if ((unsigned)x * (unsigned)y > MAXINT / sizeof(*term->screen)) overalloc();
-	s = mem_realloc(term->screen, x * y * sizeof(*term->screen));
-	t = mem_realloc(term->last_screen, x * y * sizeof(*term->screen));
-	memset(t, -1, x * y * sizeof(*term->screen));
-	term->x = x;
-	term->y = y;
+	if (term->x < 0) term->x = 1;
+	if (term->y < 0) term->y = 1;
+	if (term->x && (unsigned)term->x * (unsigned)term->y / (unsigned)term->x != (unsigned)term->y) overalloc();
+	if ((unsigned)term->x * (unsigned)term->y > MAXINT / sizeof(*term->screen)) overalloc();
+	s = mem_realloc(term->screen, term->x * term->y * sizeof(*term->screen));
+	t = mem_realloc(term->last_screen, term->x * term->y * sizeof(*term->screen));
+	memset(t, -1, term->x * term->y * sizeof(*term->screen));
 	term->last_screen = t;
-	memset(s, 0, x * y * sizeof(*term->screen));
+	memset(s, 0, term->x * term->y * sizeof(*term->screen));
 	term->screen = s;
 	term->dirty = 1;
+	term->lcx = -1;
+	term->lcy = -1;
 }
 
 static void clear_terminal(struct terminal *term)
@@ -157,7 +177,8 @@ static void redraw_terminal_cls(struct terminal *term)
 {
 	NO_GFX;
 	erase_screen(term);
-	alloc_term_screen(term, term->x, term->y);
+	set_margin(term);
+	alloc_term_screen(term);
 	redraw_terminal_all(term);
 }
 
@@ -505,7 +526,7 @@ void free_term_specs(void)
 
 struct list_head term_specs = {&term_specs, &term_specs};
 
-static struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0, 0 };
+static struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static struct term_spec *get_term_spec(unsigned char *term)
 {
@@ -558,7 +579,6 @@ struct terminal *init_term(int fdin, int fdout, void (*root_window)(struct windo
 	win->handler = root_window;
 	win->term = term;
 	add_to_list(term->windows, win);
-	/*alloc_term_screen(term, 80, 25);*/
 	add_to_list(terminals, term);
 	set_handlers(fdin, (void (*)(void *))in_term, NULL, (void (*)(void *))destroy_terminal, term);
 	return term;
@@ -593,7 +613,7 @@ static int process_utf_8(struct terminal *term, struct event *ev)
 
 #ifdef G
 
-static struct term_spec gfx_term = { NULL, NULL, "", 0, 0, 0, 0, 0, 0, 0 };
+static struct term_spec gfx_term = { NULL, NULL, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 struct terminal *init_gfx_term(void (*root_window)(struct window *, struct event *, int), void *info, int len)
 {
@@ -768,17 +788,27 @@ static void in_term(struct terminal *term)
 	}
 	if (ev->ev == EV_REDRAW || ev->ev == EV_RESIZE || ev->ev == EV_INIT) {
 		struct window *win;
+
+		term->real_x = ev->x;
+		term->real_y = ev->y;
+
+		set_margin(term);
+
 		send_redraw:
 		if (ev->x < 0 || ev->y < 0) {
 			error("ERROR: bad terminal size: %d, %d", (int)ev->x, (int)ev->y);
 			goto mm;
 		}
-		alloc_term_screen(term, ev->x, ev->y);
+		alloc_term_screen(term);
 		clear_terminal(term);
 		erase_screen(term);
 		term->redrawing = 1;
 		foreachback(win, term->windows) win->handler(win, ev, 0);
 		term->redrawing = 0;
+	}
+	if (ev->ev == EV_MOUSE) {
+		ev->x -= term->left_margin;
+		ev->y -= term->top_margin;
 	}
 	if (ev->ev == EV_KBD || ev->ev == EV_MOUSE) {
 		if (ev->ev == EV_KBD && upcase(ev->x) == 'L' && ev->y & KBD_CTRL) {
@@ -862,9 +892,9 @@ static inline char_t utf8_hack(char_t c)
 #define SETPOS(x, y)							\
 {									\
 	add_to_str(&a, &l, cast_uchar "\033[");				\
-	add_num_to_str(&a, &l, (y) + 1);				\
+	add_num_to_str(&a, &l, (y) + 1 + term->top_margin);		\
 	add_to_str(&a, &l, cast_uchar ";");				\
-	add_num_to_str(&a, &l, (x) + 1);				\
+	add_num_to_str(&a, &l, (x) + 1 + term->left_margin);		\
 	add_to_str(&a, &l, cast_uchar "H");				\
 	n_chars = 0;							\
 }
@@ -910,7 +940,8 @@ static inline char_t utf8_hack(char_t c)
 		if (attrib & 0100) add_to_str(&a, &l, cast_uchar ";1");	\
 		add_to_str(&a, &l, cast_uchar "m");			\
 	}								\
-	if (c >= ' ' && c != 127 /*&& c != 155*/) {			\
+	if (c >= ' ' && c != 127 && (c != 155 ||			\
+	    (term->spec->charset != utf8_table && cp2u(155, term->spec->charset) != -1))) {\
 		if (c < 128 || frm || term->spec->charset != utf8_table) {\
 			add_chr_to_str(&a, &l, (unsigned char)c);	\
 		} else {						\
@@ -978,7 +1009,7 @@ void redraw_screen(struct terminal *term)
 			/*fprintf(stderr, "%d.%d : %d-%d -> %d-%d\n", x, y, term->last_screen[p].ch, term->last_screen[p].at, term->screen[p].ch, term->screen[p].at);*/
 			memcpy(&term->last_screen[p], &term->screen[p], sizeof(chr));
 #ifdef OPENVMS
-			if (n_chars >= 16) cy = -1;
+			if (n_chars >= term->x - 6) cy = -1;
 #endif
 			if (cx == x && cy == y) goto pc;/*PRINT_CHAR(p)*/
 			else if (cy == y && x - cx < 10 && x - cx > 0) {
@@ -1007,13 +1038,36 @@ void redraw_screen(struct terminal *term)
 		term->lcx = term->cx;
 		term->lcy = term->cy;
 		add_to_str(&a, &l, cast_uchar "\033[");
-		add_num_to_str(&a, &l, term->cy + 1);
+		add_num_to_str(&a, &l, term->cy + 1 + term->top_margin);
 		add_to_str(&a, &l, cast_uchar ";");
-		add_num_to_str(&a, &l, term->cx + 1);
+		add_num_to_str(&a, &l, term->cx + 1 + term->left_margin);
 		add_to_str(&a, &l, cast_uchar "H");
 	}
 	if (l && term->master) want_draw();
+#ifdef OPENVMS
+	{
+/*
+ * OpenVMS/VAX has some bug in the terminal driver and corrupts long strings.
+ * Also, we need to avoid breaking escape sequences.
+ */
+#define PRINT_BATCH	2000
+		int i, q;
+		for (i = 0; i < l; i += q) {
+			int qq;
+			q = PRINT_BATCH;
+			if (q > l - i) q = l - i;
+			for (qq = q - 1; qq > 0; qq--) {
+				if (a[i + qq] == 27) {
+					q = qq;
+					break;
+				}
+			}
+			hard_write(term->fdout, a + i, q);
+		}
+	}
+#else
 	hard_write(term->fdout, a, l);
+#endif
 	if (l && term->master) done_draw();
 	mem_free(a);
 	term->dirty = 0;
@@ -1292,6 +1346,9 @@ void exec_on_terminal(struct terminal *term, unsigned char *path, unsigned char 
 				}
 #endif
 			}
+#if defined(HAVE_MALLOC_TRIM)
+			malloc_trim(0);
+#endif
 			if ((blockh = start_thread((void (*)(void *, int))exec_thread, param, (int)strlen(cast_const_char path) + (int)strlen(cast_const_char delet) + 3)) == -1) {
 				if (fg == 1) {
 					if (!F) unblock_itrm(term->fdin);

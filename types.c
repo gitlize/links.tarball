@@ -24,7 +24,7 @@ static struct history assoc_search_history = { 0, { &assoc_search_history.items,
 
 struct assoc_ok_struct{
 	void (*fn)(struct dialog_data *,void *,void *,struct list_description *);
-	void *data;	
+	void *data;
 	struct dialog_data *dlg;
 };
 
@@ -131,7 +131,7 @@ static unsigned char *assoc_type_item(struct terminal *term, void *data, int x)
 	table=get_translation_table(assoc_ld.codepage,term->spec->charset);
 	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	mem_free(txt);
-			
+
 	return txt1;
 }
 
@@ -269,13 +269,13 @@ static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 	if (neww->label)safe_strncpy(label,neww->label,MAX_STR_LEN);
 	if (neww->ct)safe_strncpy(ct,neww->ct,MAX_STR_LEN);
 	if (neww->prog)safe_strncpy(prog,neww->prog,MAX_STR_LEN);
-	
+
 	/* Create the dialog */
 	s=mem_alloc(sizeof(struct assoc_ok_struct));
 	s->fn=ok_fn;
 	s->data=ok_arg;
 	s->dlg=dlg;
-		
+
 	switch (dlg_title)
 	{
 		case TITLE_EDIT:
@@ -346,7 +346,7 @@ static void assoc_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(s
 static void *assoc_find_item(void *start, unsigned char *str, int direction)
 {
 	struct assoc *a,*s=(struct assoc *)start;
-	
+
 	if (direction==1)
 	{
 		for (a=s->next; a!=s; a=a->next)
@@ -505,7 +505,7 @@ static unsigned char *ext_type_item(struct terminal *term, void *data, int x)
 	table=get_translation_table(assoc_ld.codepage,term->spec->charset);
 	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	mem_free(txt);
-			
+
 	return txt1;
 }
 
@@ -616,7 +616,7 @@ static void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(str
 	s->fn=ok_fn;
 	s->data=ok_arg;
 	s->dlg=dlg;
-		
+
 	switch (dlg_title)
 	{
 		case TITLE_EDIT:
@@ -662,8 +662,7 @@ static void ext_edit_item(struct dialog_data *dlg, void *data, void (*ok_fn)(str
 static void *ext_find_item(void *start, unsigned char *str, int direction)
 {
 	struct extension *e,*s=(struct extension *)start;
-	
-	
+
 	if (direction==1)
 	{
 		for (e=s->next; e!=s; e=e->next)
@@ -762,6 +761,7 @@ void create_initial_extensions(void)
 	ext.ext=cast_uchar "pcb",ext.ct=cast_uchar "application/pcb",update_ext(&ext);
 	ext.ext=cast_uchar "pbm",ext.ct=cast_uchar "image/x-portable-bitmap",update_ext(&ext);
 	ext.ext=cast_uchar "mpeg,mpg,mpe",ext.ct=cast_uchar "video/mpeg",update_ext(&ext);
+	ext.ext=cast_uchar "mp3",ext.ct=cast_uchar "audio/mpeg",update_ext(&ext);
 	ext.ext=cast_uchar "mid,midi",ext.ct=cast_uchar "audio/midi",update_ext(&ext);
 	ext.ext=cast_uchar "jpg,jpeg,jpe",ext.ct=cast_uchar "image/jpeg",update_ext(&ext);
 	ext.ext=cast_uchar "grb",ext.ct=cast_uchar "application/gerber",update_ext(&ext);
@@ -1062,7 +1062,7 @@ struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 	struct assoc *assoc_array;
 	struct assoc *a;
 	int count=0;
-	foreach(a, assoc) 
+	foreach(a, assoc)
 		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, (int)strlen(cast_const_char type))) {
 			if (count == MAXINT) overalloc();
 			count++;
@@ -1072,8 +1072,8 @@ struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 	if ((unsigned)count > MAXINT / sizeof(struct assoc)) overalloc();
 	assoc_array = mem_alloc(count*sizeof(struct assoc));
 	count = 0;
-	foreach(a, assoc) 
-		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, (int)strlen(cast_const_char type))) 
+	foreach(a, assoc)
+		if (a->system == SYSTEM_ID && (term->environment & ENV_XWIN ? a->xwin : a->cons) && is_in_list(a->ct, type, (int)strlen(cast_const_char type)))
 			assoc_array[count++] = *a;
 	return assoc_array;
 }
@@ -1082,14 +1082,21 @@ int is_html_type(unsigned char *ct)
 {
 	return	!strcasecmp(cast_const_char ct, "text/html") ||
 		!strcasecmp(cast_const_char ct, "text/x-server-parsed-html") ||
+		!strcasecmp(cast_const_char ct, "text/xml") ||
 		!casecmp(ct, cast_uchar "application/xhtml", strlen("application/xhtml"));
 }
 
 unsigned char *get_filename_from_header(unsigned char *head)
 {
-	unsigned char *ct, *x, *y;
+	int extended = 0;
+	unsigned char *ct, *x, *y, *codepage;
+	int ly;
+	int cp_idx;
+	struct conv_table *tbl;
 	if ((ct = parse_http_header(head, cast_uchar "Content-Disposition", NULL))) {
-		x = parse_header_param(ct, cast_uchar "filename", 1);
+		x = parse_header_param(ct, cast_uchar "filename*", 1);
+		if (x) extended = 1;
+		else x = parse_header_param(ct, cast_uchar "filename", 1);
 		mem_free(ct);
 		if (x) {
 			if (*x) goto ret_x;
@@ -1097,7 +1104,9 @@ unsigned char *get_filename_from_header(unsigned char *head)
 		}
 	}
 	if ((ct = parse_http_header(head, cast_uchar "Content-Type", NULL))) {
-		x = parse_header_param(ct, cast_uchar "name", 0);
+		x = parse_header_param(ct, cast_uchar "name*", 0);
+		if (x) extended = 1;
+		else x = parse_header_param(ct, cast_uchar "name", 0);
 		mem_free(ct);
 		if (x) {
 			if (*x) goto ret_x;
@@ -1105,7 +1114,41 @@ unsigned char *get_filename_from_header(unsigned char *head)
 		}
 	}
 	return NULL;
-	ret_x:
+ret_x:
+	codepage = NULL;
+	if (extended) {
+		unsigned char *ap1, *ap2;
+		ap1 = cast_uchar strchr(cast_const_char x, '\'');
+		if (!ap1)
+			goto no_extended;
+		ap2 = cast_uchar strchr(cast_const_char (ap1 + 1), '\'');
+		if (ap2) ap2++;
+		else ap2 = ap1 + 1;
+		codepage = memacpy(x, ap1 - x);
+		memmove(x, ap2, strlen(cast_const_char ap2) + 1);
+	}
+
+no_extended:
+	y = init_str();
+	ly = 0;
+	add_conv_str(&y, &ly, x, (int)strlen(cast_const_char x), -2);
+	mem_free(x);
+	x = y;
+
+	cp_idx = -1;
+	if (codepage) {
+		cp_idx = get_cp_index(codepage);
+		mem_free(codepage);
+	}
+	if (cp_idx < 0) {
+		cp_idx = get_cp_index(cast_uchar "iso-8859-1");
+		if (cp_idx < 0) cp_idx = 0;
+	}
+	tbl = get_translation_table(cp_idx, 0);
+	y = convert_string(tbl, x, (int)strlen(cast_const_char x), NULL);
+	mem_free(x);
+	x = y;
+
 	for (y = x; *y; y++) if (dir_sep(*y)
 #if defined(DOS_FS) || defined(SPAD)
 		|| *y == ':'

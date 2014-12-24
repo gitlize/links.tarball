@@ -536,6 +536,8 @@ struct graphics_driver grx_driver = {
 	grx_shutdown_driver,
 	grx_emergency_shutdown,
 	grx_get_driver_param,
+	NULL,
+	NULL,
 	grx_get_empty_bitmap,
 	/*grx_get_filled_bitmap,*/
 	grx_register_bitmap,

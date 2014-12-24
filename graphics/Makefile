@@ -5,7 +5,7 @@ LDFLAGS=
 all: improcess genps pbm2png clip generate_font arrow
 
 clean:
-	rm -f improcess gepns core pbm2png clip generate_font arrow
+	rm -f improcess genps core pbm2png clip generate_font arrow
 
 improcess: improcess.c
 	gcc -o improcess improcess.c $(CFLAGS) $(LDFLAFGS) -lpng -lz -lm

@@ -68,7 +68,7 @@ static struct graphics_device * directfb_lookup_in_table (DFBWindowID  id);
 
 
 static unsigned char *
-directfb_fb_init_driver (unsigned char *param, unsigned char *display)
+directfb_init_driver (unsigned char *param, unsigned char *display)
 {
   DFBDisplayLayerConfig  config;
   DFBResult              ret;
@@ -439,12 +439,14 @@ directfb_vscroll (struct graphics_device *gd, struct rect_set **set, int sc)
 struct graphics_driver directfb_driver =
 {
   cast_uchar "directfb",
-  directfb_fb_init_driver,
+  directfb_init_driver,
   directfb_init_device,
   directfb_shutdown_device,
   directfb_shutdown_driver,
   dummy_emergency_shutdown,
   directfb_get_driver_param,
+  NULL,
+  NULL,
   directfb_get_empty_bitmap,
   directfb_register_bitmap,
   directfb_prepare_strip,
@@ -748,7 +750,7 @@ directfb_add_to_table (struct graphics_device *gd)
   int i;
 
   i = data->id % DIRECTFB_HASH_TABLE_SIZE;
- 
+
   devices = directfb_hash_table[i];
 
   if (devices)

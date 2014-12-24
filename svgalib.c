@@ -580,7 +580,7 @@ static void redraw_mouse(void);
  * Good white purity
  * Correct rounding and dithering prediction
  * And this is the cabbala:
- * 063 021 063 
+ * 063 021 063
  * 009 009 021
  * 255 085 255
  * 036 036 084
@@ -617,19 +617,18 @@ static void generate_palette(struct irgb *palette)
 		}else{
 			/* palette_depth==8 */
 			for (a=0;a<256;a++,palette++){
-				palette->r=((a>>5)&7)*(255./7.);
-				palette->g=((a>>2)&7)*(255./7.);
+				palette->r=(((a>>5)&7)*255+3)/7;
+				palette->g=(((a>>2)&7)*255+3)/7;
 				palette->b=(a&3)*85;
 			}
 		}
 	}
-			
 }
 
 static void set_palette(struct irgb *palette)
 {
 	int r,g,b,c;
-	
+
 	for (c=0;c<vga_colors;c++){
 		r=palette[c].r;
 		g=palette[c].g;
@@ -675,7 +674,7 @@ static void svga_unregister_bitmap(struct bitmap *bmp)
 }
 
 #define SYNC if (do_sync) vga_accel(ACCEL_SYNC);
-	
+
 /* This assures that x, y, xs, ys, data will be sane according to clipping
  * rectangle. If nothing lies within this rectangle, the current function
  * returns. The data pointer is automatically advanced by this macro to reflect
@@ -709,7 +708,7 @@ static inline void draw_bitmap_accel(struct graphics_device *dev,
 	struct bitmap* hndl, int x, int y)
 {
 	CLIP_PREFACE
-	
+
 	if (xs*fb_pixelsize==hndl->skip) vga_accel(ACCEL_PUTIMAGE,x,y,xs,ys,data);
 	else for(;ys;ys--){
 		vga_accel(ACCEL_PUTIMAGE,x,y,xs,1,data);
@@ -732,7 +731,7 @@ static inline void paged_memcpy(int lina, unsigned char *src, int len)
 	int page=lina>>16;
 	int paga=lina&0xffff;
 	int remains;
-	
+
 	my_setpage(page);
 	remains=65536-paga;
 	again:
@@ -779,8 +778,6 @@ static inline void draw_bitmap_paged(struct graphics_device *dev, struct bitmap*
 		scr_start+=vga_linewidth;
 	}
 	END_MOUSE
-		
-		
 }
 
 static inline void draw_bitmap_linear(struct graphics_device *dev,struct bitmap* hndl, int x, int y)
@@ -814,20 +811,20 @@ static inline void draw_bitmap_linear(struct graphics_device *dev,struct bitmap*
 	if (bottom>dev->clip.y2) bottom=dev->clip.y2;\
 	TEST_MOUSE(left,right,top,bottom)
 
-	
+
 static void fill_area_accel_box(struct graphics_device *dev, int left, int top, int right, int bottom, long color)
 {
 	FILL_CLIP_PREFACE
-	
+
 	vga_accel(ACCEL_SETFGCOLOR,color);
 	vga_accel(ACCEL_FILLBOX,left,top,right-left,bottom-top);
 	END_MOUSE
 }
-	
+
 static void fill_area_accel_lines(struct graphics_device *dev, int left, int top, int right, int bottom, long color)
 {
 	int y;
-	
+
 	FILL_CLIP_PREFACE
 	vga_accel(ACCEL_SETFGCOLOR,color);
 	for (y=top;y<bottom;y++) vga_accel(ACCEL_DRAWLINE,left,y,right-1,y);
@@ -865,7 +862,7 @@ static void pixel_set_paged(int lina, int len, void * color)
 
 	memcpy(color0,color,vga_bytes);
 	memcpy(color0+vga_bytes,color,vga_bytes-1);
-	
+
 	my_setpage(page);
 	again:
 	if (remains>=len){
@@ -907,7 +904,7 @@ static void fill_area_paged(struct graphics_device *dev, int left, int top, int 
 	}
 	END_MOUSE
 }
-	
+
 #define HLINE_CLIP_PREFACE \
 	int mouse_hidden;\
 	TEST_INACTIVITY\
@@ -916,7 +913,7 @@ static void fill_area_paged(struct graphics_device *dev, int left, int top, int 
 	if (left<dev->clip.x1) left=dev->clip.x1;\
 	if (right>dev->clip.x2) right=dev->clip.x2;\
 	TEST_MOUSE (left,right,y,y+1)
-	
+
 #define VLINE_CLIP_PREFACE \
 	int mouse_hidden;\
 	TEST_INACTIVITY\
@@ -925,7 +922,7 @@ static void fill_area_paged(struct graphics_device *dev, int left, int top, int 
 	if (top<dev->clip.y1) top=dev->clip.y1;\
 	if (bottom>dev->clip.y2) bottom=dev->clip.y2;\
 	TEST_MOUSE(x,x+1,top,bottom)
-	
+
 static void draw_hline_accel_line(struct graphics_device *dev, int left, int y, int right, long color)
 {
 	HLINE_CLIP_PREFACE
@@ -966,7 +963,7 @@ static void draw_hline_linear(struct graphics_device *dev, int left, int y, int 
 {
 	unsigned char *dest;
 	HLINE_CLIP_PREFACE
-	SYNC	
+	SYNC
 	dest=my_graph_mem+y*vga_linewidth+left*vga_bytes;
 	pixel_set(dest,(right-left)*vga_bytes,&color);
 	END_MOUSE
@@ -990,7 +987,7 @@ static void draw_hline_paged(struct graphics_device *dev, int left, int y, int r
 {
 	int dest;
 	int len;
-	HLINE_CLIP_PREFACE	
+	HLINE_CLIP_PREFACE
 	SYNC
 	len=(right-left)*vga_bytes;
 
@@ -1032,7 +1029,7 @@ static void draw_vline_paged_1(struct graphics_device *dev, int x, int top, int 
 		goto again;
 	}
 }
-			
+
 #ifdef t2c
 /* Works only for pixel length 2 */
 static void draw_vline_paged_2(struct graphics_device *dev, int x, int top, int bottom, long color)
@@ -1068,7 +1065,7 @@ static void draw_vline_paged_2(struct graphics_device *dev, int x, int top, int 
 	}
 }
 #endif /* #ifdef t2c */
-			
+
 #ifdef t4c
 /* Works only for pixel length 4 */
 static void draw_vline_paged_4(struct graphics_device *dev, int x, int top, int bottom, long color)
@@ -1105,7 +1102,7 @@ static void draw_vline_paged_4(struct graphics_device *dev, int x, int top, int 
 	}
 }
 #endif /*t4c*/
-			
+
 /* Works only for pixel lengths power of two */
 static void draw_vline_paged_aligned(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
@@ -1138,7 +1135,7 @@ static void draw_vline_paged_aligned(struct graphics_device *dev, int x, int top
 		goto again;
 	}
 }
-			
+
 /* Works for any pixel length */
 static void draw_vline_paged(struct graphics_device *dev, int x, int top, int bottom, long color)
 {
@@ -1192,7 +1189,7 @@ end:
 		goto again;
 	}
 }
-		
+
 #define HSCROLL_CLIP_PREFACE \
 	int mouse_hidden;\
 	TEST_INACTIVITY_0\
@@ -1200,8 +1197,8 @@ end:
 	if (sc>(dev->clip.x2-dev->clip.x1)||-sc>(dev->clip.x2-dev->clip.x1))\
 		return 1;\
 	TEST_MOUSE (dev->clip.x1,dev->clip.x2,dev->clip.y1,dev->clip.y2)
-		
-							
+
+
 /* When sc is <0, moves the data left. Scrolls the whole clip window */
 static int hscroll_accel(struct graphics_device *dev, struct rect_set **ignore, int sc)
 {
@@ -1226,7 +1223,7 @@ static int hscroll_accel(struct graphics_device *dev, struct rect_set **ignore, 
 	if (!sc) return 0;\
 	if (sc>dev->clip.y2-dev->clip.y1||-sc>dev->clip.y2-dev->clip.y1) return 1;\
 	TEST_MOUSE (dev->clip.x1, dev->clip.x2, dev->clip.y1, dev->clip.y2)
-	
+
 /* Positive sc means data move down */
 static int vscroll_accel(struct graphics_device *dev, struct rect_set **ignore, int sc)
 {
@@ -1250,7 +1247,7 @@ static int hscroll_scansegment(struct graphics_device *dev, struct rect_set **ig
 	int y;
 	int len;
 	HSCROLL_CLIP_PREFACE
-	SYNC	
+	SYNC
 	if (sc>0){
 		/* Right */
 		len=dev->clip.x2-dev->clip.x1-sc;
@@ -1360,7 +1357,7 @@ static inline void get_row(unsigned char *bptr, int lina, int len)
 	int page=lina>>16;
 	int paga=lina&0xffff;
 	int remains;
-	
+
 	my_setpage(page);
 	remains=65536-paga;
 	again:
@@ -1419,7 +1416,7 @@ static int hscroll_paged(struct graphics_device *dev, struct rect_set **ignore, 
 	int len;
 
 	HSCROLL_CLIP_PREFACE
-	SYNC	
+	SYNC
 	if (sc>0){
 		len=(dev->clip.x2-dev->clip.x1-sc)*vga_bytes;
 		src=vga_linewidth*dev->clip.y1+dev->clip.x1*vga_bytes;
@@ -1450,7 +1447,7 @@ static inline void fill_area_drawscansegment(struct graphics_device *dev, int le
 {
 	int xs;
 	int col=*(unsigned char *)&color;
-	
+
 	FILL_CLIP_PREFACE
 	SYNC
 	xs=right-left;
@@ -1538,7 +1535,6 @@ static void svga_draw_bitmaps(struct graphics_device *dev, struct bitmap **hndls
 		n--;
 		hndls++;
 	}
-		
 }
 #endif
 
@@ -1591,13 +1587,13 @@ static void setup_functions(void)
 		}else{
 			svga_driver.draw_bitmap=draw_bitmap_paged;
 		}
-		
+
 		if (accel_avail&ACCELFLAG_FILLBOX) svga_driver.fill_area=fill_area_accel_box;
 		else if (accel_avail&ACCELFLAG_DRAWLINE) svga_driver.fill_area=fill_area_accel_lines;
 		else if (vga_linear) svga_driver.fill_area=fill_area_linear;
 		else if (mode_x) svga_driver.fill_area=fill_area_drawscansegment;
 		else svga_driver.fill_area=fill_area_paged;
-		
+
 		if (accel_avail&ACCELFLAG_DRAWLINE){
 			svga_driver.draw_hline=draw_hline_accel_line;
 			svga_driver.draw_vline=draw_vline_accel_line;
@@ -1752,7 +1748,7 @@ static void mouse_event_handler(int button, int dx, int dy, int dz, int drx, int
 	int moved,old_mouse_x,old_mouse_y;
 	void (*mh)(struct graphics_device *, int, int, int);
 	struct graphics_device *cd=current_virtual_device;
-	
+
 	mh=cd?cd->mouse_handler:NULL;
 	old_mouse_x=mouse_x;
 	old_mouse_y=mouse_y;
@@ -1768,13 +1764,13 @@ static void mouse_event_handler(int button, int dx, int dy, int dz, int drx, int
 	redraw_mouse();
 
 	moved=(old_mouse_x!=mouse_x||old_mouse_y!=mouse_y);
-	
+
 	/* Test movement without buttons */
 	if (!(mouse_buttons & BUTTON_MASK) && moved) {
 		mouse_aggregate_flag=1;
 		mouse_aggregate_action=B_MOVE;
 	}
-			
+
 	/* Test presses */
 	if ((button&MOUSE_LEFTBUTTON)&&!(mouse_buttons&MOUSE_LEFTBUTTON)){
 		mouse_aggregate_flush();
@@ -1827,7 +1823,7 @@ static void mouse_event_handler(int button, int dx, int dy, int dz, int drx, int
 		mouse_aggregate_flush();
 		/*if (mh) mh(cd,mouse_x, mouse_y,B_SIXTH|B_UP);*/
 	}
-	
+
 	if (drx < 0 && mh) mh(cd, mouse_x, mouse_y, B_MOVE | B_WHEELUP);
 	if (drx > 0 && mh) mh(cd, mouse_x, mouse_y, B_MOVE | B_WHEELDOWN);
 
@@ -1914,7 +1910,7 @@ static void render_mouse_arrow(void)
 {
 	int x,y, reg0, reg1;
 	unsigned char *mouse_ptr=mouse_buffer;
-	unsigned *arrow_ptr=arrow;
+	const unsigned *arrow_ptr=arrow;
 
 	for (y=arrow_height;y;y--){
 		reg0=*arrow_ptr;
@@ -1940,7 +1936,7 @@ static void place_mouse(void)
 	bmp.x=arrow_width;
 	bmp.y=arrow_height;
 	bmp.skip=arrow_width*fb_pixelsize;
-	bmp.data=mouse_buffer;	
+	bmp.data=mouse_buffer;
 	{
 		struct graphics_device * current_graphics_device_backup;
 
@@ -2031,7 +2027,7 @@ static inline void place_mouse_composite(void)
 	if (vga_colors>=256)
 		vga_waitretrace();
 	*/
-	
+
 	if (mouse_bottom>ysize) mouse_bottom=ysize;
 	if (background_bottom>ysize) background_bottom=ysize;
 
@@ -2050,7 +2046,7 @@ static inline void place_mouse_composite(void)
 				,background_top,background_length*fb_pixelsize);
 			background_ptr+=skip;
 		}
-			
+
 	}else if (background_top>mouse_top){
 		/* Draw the mouse */
 		mouse_length=mouse_right>xsize
@@ -2073,10 +2069,10 @@ static inline void place_mouse_composite(void)
 			mouse_ptr+=skip;
 			background_ptr+=skip;
 		}
-			
+
 	}else{
 		int l1, l2, l3;
-		
+
 		/* Draw mouse, background */
 		mouse_length=mouse_right>xsize?xsize-mouse_left:arrow_width;
 		background_length=background_right-mouse_right;
@@ -2137,8 +2133,8 @@ static inline void redraw_mouse_sophisticated(void)
 	background_y=new_background_y;
 }
 
-static void redraw_mouse(void){
-	
+static void redraw_mouse(void)
+{
 	if (flags) return; /* We are not drawing */
 	if (mouse_x!=background_x||mouse_y!=background_y){
 		if (RECTANGLES_INTERSECT(
@@ -2200,7 +2196,7 @@ static void setup_mode(int mode)
 	mode_x=!!(i->flags&IS_MODEX);
 	vga_linear=!!(i->flags&IS_LINEAR);
 	/*
-	if (!vga_linear && i->flags&CAPABLE_LINEAR && 0<=vga_setlinearaddressing()) vga_linear=1; 
+	if (!vga_linear && i->flags&CAPABLE_LINEAR && 0<=vga_setlinearaddressing()) vga_linear=1;
 	*/
 	my_graph_mem=vga_getgraphmem();
 	svga_driver.x = xsize=i->width;
@@ -2315,7 +2311,6 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 		else add_to_str(&m, &l, cast_uchar "There are no supported video modes. Links can't run on svgalib.\n");
 		if(svga_driver_param)mem_free(svga_driver_param),svga_driver_param=NULL;
 		return m;
-		
 	}
 	found:
 	if (!vga_hasmode(modes[j].number)) {
@@ -2389,7 +2384,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 static int svga_get_filled_bitmap(struct bitmap *dest, long color)
 {
 	int n;
-	
+
 	if (dest->x && (unsigned)dest->x * (unsigned)dest->y / (unsigned)dest->x != (unsigned)dest->y) overalloc();
 	if ((unsigned)dest->x * (unsigned)dest->y > MAXINT / fb_pixelsize) overalloc();
 	n=dest->x*dest->y*fb_pixelsize;
@@ -2530,6 +2525,8 @@ struct graphics_driver svga_driver={
 	svga_shutdown_driver,
 	dummy_emergency_shutdown,
 	svga_get_driver_param,
+	NULL,
+	NULL,
 	svga_get_empty_bitmap,
 	/*svga_get_filled_bitmap,*/
 	svga_register_bitmap,
