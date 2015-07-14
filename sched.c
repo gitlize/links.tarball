@@ -108,7 +108,7 @@ void setcstate(struct connection *c, int state)
 	if (c->state < 0 && state >= 0) c->prev_error = c->state;
 	if ((c->state = state) == S_TRANS) {
 		struct remaining_info *r = &c->prg;
-		if (r->timer == -1) {
+		if (r->timer == NULL) {
 			tcount count = c->count;
 			if (!r->valid) {
 				memset(r, 0, sizeof(struct remaining_info));
@@ -123,7 +123,7 @@ void setcstate(struct connection *c, int state)
 		}
 	} else {
 		struct remaining_info *r = &c->prg;
-		if (r->timer != -1) kill_timer(r->timer), r->timer = -1;
+		if (r->timer != NULL) kill_timer(r->timer), r->timer = NULL;
 	}
 	foreach(stat, c->statuss) {
 		stat->state = state;
@@ -140,7 +140,7 @@ static struct k_conn *is_host_on_keepalive_list(struct connection *c)
 	struct k_conn *h;
 	if ((po = get_port(c->url)) == -1) return NULL;
 	if (!(ph = get_protocol_handle(c->url))) return NULL;
-	if (!(ho = get_host_and_pass(c->url))) return NULL;
+	if (!(ho = get_keepalive_id(c->url))) return NULL;
 	foreach(h, keepalive_connections)
 		if (h->protocol == ph && h->port == po && !strcmp(cast_const_char h->host, cast_const_char ho)) {
 			mem_free(ho);
@@ -158,6 +158,10 @@ int get_keepalive_socket(struct connection *c, int *protocol_data)
 	if (!(k = is_host_on_keepalive_list(c))) return -1;
 	cc = k->conn;
 	if (protocol_data) *protocol_data = k->protocol_data;
+#ifdef HAVE_SSL
+	if (c->ssl && c->ssl != DUMMY) SSL_free(c->ssl);
+	c->ssl = k->ssl;
+#endif
 	del_from_list(k);
 	mem_free(k->host);
 	mem_free(k);
@@ -182,8 +186,7 @@ static void free_connection_data(struct connection *c)
 {
 	struct h_conn *h;
 	int rs;
-	if (c->sock1 != -1) set_handlers(c->sock1, NULL, NULL, NULL, NULL);
-	if (c->sock2 != -1) set_handlers(c->sock2, NULL, NULL, NULL, NULL);
+	if (c->sock1 != -1) set_handlers(c->sock1, NULL, NULL, NULL);
 	close_socket(&c->sock2);
 	if (c->pid) {
 		EINTRLOOP(rs, kill(c->pid, SIGINT));
@@ -208,7 +211,7 @@ static void free_connection_data(struct connection *c)
 		mem_free(c->info);
 		c->info = NULL;
 	}
-	if (c->timer != -1) kill_timer(c->timer), c->timer = -1;
+	if (c->timer != NULL) kill_timer(c->timer), c->timer = NULL;
 	if (--active_connections < 0) {
 		internal("active connections underflow");
 		active_connections = 0;
@@ -273,7 +276,7 @@ void add_keepalive_socket(struct connection *c, ttime timeout, int protocol_data
 	if (c->netcfg_stamp != netcfg_stamp ||
 	    (k->port = get_port(c->url)) == -1 ||
 	    !(k->protocol = get_protocol_handle(c->url)) ||
-	    !(k->host = get_host_and_pass(c->url))) {
+	    !(k->host = get_keepalive_id(c->url))) {
 		mem_free(k);
 		del_connection(c);
 		goto clos;
@@ -282,6 +285,9 @@ void add_keepalive_socket(struct connection *c, ttime timeout, int protocol_data
 	k->timeout = timeout;
 	k->add_time = get_time();
 	k->protocol_data = protocol_data;
+#ifdef HAVE_SSL
+	k->ssl = c->ssl;
+#endif
 	add_to_list(keepalive_connections, k);
 	del:
 	del_connection(c);
@@ -302,16 +308,19 @@ static void del_keepalive_socket(struct k_conn *kc)
 {
 	int rs;
 	del_from_list(kc);
+#ifdef HAVE_SSL
+	if (kc->ssl && kc->ssl != DUMMY) SSL_free(kc->ssl);
+#endif
 	EINTRLOOP(rs, close(kc->conn));
 	mem_free(kc->host);
 	mem_free(kc);
 }
 
-static int keepalive_timeout = -1;
+static struct timer *keepalive_timeout = NULL;
 
 static void keepalive_timer(void *x)
 {
-	keepalive_timeout = -1;
+	keepalive_timeout = NULL;
 	check_keepalive_connections();
 }
 
@@ -320,7 +329,7 @@ static void check_keepalive_connections(void)
 	struct k_conn *kc;
 	ttime ct = get_time();
 	int p = 0;
-	if (keepalive_timeout != -1) kill_timer(keepalive_timeout), keepalive_timeout = -1;
+	if (keepalive_timeout != NULL) kill_timer(keepalive_timeout), keepalive_timeout = NULL;
 	foreach(kc, keepalive_connections) if (can_read(kc->conn) || (uttime)ct - (uttime)kc->add_time > (uttime)kc->timeout) {
 		kc = kc->prev;
 		del_keepalive_socket(kc->next);
@@ -360,13 +369,12 @@ static void sort_queue(void)
 static void interrupt_connection(struct connection *c)
 {
 #ifdef HAVE_SSL
-	if (c->ssl == (void *)-1) c->ssl = NULL;
+	if (c->ssl == DUMMY) c->ssl = NULL;
 	if (c->ssl) {
 		SSL_free(c->ssl);
 		c->ssl = NULL;
 	}
 #endif
-	if (c->sock1 != -1) set_handlers(c->sock1, NULL, NULL, NULL, NULL);
 	close_socket(&c->sock1);
 	free_connection_data(c);
 }
@@ -622,6 +630,16 @@ unsigned char *get_proxy(unsigned char *url)
 	return u;
 }
 
+unsigned char *remove_proxy_prefix(unsigned char *url)
+{
+	unsigned char *x = NULL;
+	if (!casecmp(url, cast_uchar "proxy://", 8))
+		x = get_url_data(url);
+	if (!x)
+		x = url;
+	return x;
+}
+
 int get_allow_flags(unsigned char *url)
 {
 	return	!casecmp(url, cast_uchar "smb://", 6) ? ALLOW_SMB :
@@ -794,8 +812,8 @@ void load_url(unsigned char *url, unsigned char *prev_url, struct status *stat, 
 #else
 	c->no_compress = 1;
 #endif
-	c->prg.timer = -1;
-	c->timer = -1;
+	c->prg.timer = NULL;
+	c->timer = NULL;
 	if (position || must_detach) {
 		if (new_cache_entry(c->url, &c->cache)) {
 			mem_free(c->url);
@@ -910,7 +928,7 @@ void detach_connection(struct status *stat, off_t pos)
 
 static void connection_timeout(struct connection *c)
 {
-	c->timer = -1;
+	c->timer = NULL;
 	setcstate(c, S_TIMEOUT);
 	if (c->dnsquery) abort_connection(c);
 	else retry_connection(c);
@@ -923,7 +941,7 @@ static void connection_timeout_1(struct connection *c)
 
 void set_connection_timeout(struct connection *c)
 {
-	if (c->timer != -1) kill_timer(c->timer);
+	if (c->timer != NULL) kill_timer(c->timer);
 	c->timer = install_timer((c->unrestartable ? unrestartable_receive_timeout : receive_timeout) * 500, (void (*)(void *))connection_timeout_1, c);
 }
 

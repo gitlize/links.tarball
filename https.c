@@ -35,27 +35,20 @@ SSL *getSSL(void)
 		unsigned char *os_pool;
 		unsigned os_pool_size;
 
+#if defined(HAVE_RAND_EGD) && defined(HAVE_RAND_FILE_NAME) && defined(HAVE_RAND_LOAD_FILE) && defined(HAVE_RAND_WRITE_FILE)
 		const unsigned char *f = (const unsigned char *)RAND_file_name(cast_char f_randfile, sizeof(f_randfile));
 		if (f && RAND_egd(cast_const_char f) < 0) {
 			/* Not an EGD, so read and write to it */
 			if (RAND_load_file(cast_const_char f_randfile, -1))
 				RAND_write_file(cast_const_char f_randfile);
 		}
+#endif
 
+#if defined(HAVE_RAND_ADD)
 		os_seed_random(&os_pool, &os_pool_size);
 		if (os_pool_size) RAND_add(os_pool, os_pool_size, os_pool_size);
 		mem_free(os_pool);
-
-/* needed for systems without /dev/random, but obviously kills security. */
-		/*{
-			static unsigned char pool[32768];
-			int i;
-			int rs;
-			struct timeval tv;
-			EINTRLOOP(rs, gettimeofday(&tv, NULL));
-			for (i = 0; i < (int)sizeof pool; i++) pool[i] = random() ^ tv.tv_sec ^ tv.tv_usec;
-			RAND_add(pool, sizeof pool, sizeof pool);
-		}*/
+#endif
 
 		SSLeay_add_ssl_algorithms();
 		m = SSLv23_client_method();
