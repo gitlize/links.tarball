@@ -658,7 +658,7 @@ static void translate_vms_to_unix(unsigned char **str)
 	unsigned char *n;
 	if (!*str || strchr(cast_const_char *str, '/')) return;
 	n = cast_uchar decc$translate_vms(cast_const_char *str);
-	if (!n || (int)n == -1) return;
+	if (!n || (my_intptr_t)n == -1) return;
 	mem_free(*str);
 	*str = stracpy(n);
 }
@@ -989,7 +989,7 @@ static unsigned char *lang_rd(struct option *o, unsigned char *c)
 	int i;
 	unsigned char *tok = get_token(&c);
 	if (!tok) return cast_uchar "Missing argument";
-	for (i = 0; i < n_languages(); i++)
+	for (i = -1; i < n_languages(); i++)
 		if (!(strcasecmp(cast_const_char language_name(i), cast_const_char tok))) {
 			set_language(i);
 			mem_free(tok);
@@ -1171,13 +1171,17 @@ static unsigned char *term_rd(struct option *o, unsigned char *c)
 	ts->block_cursor = !!((w[0] - '0') & 4);
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if ((i = get_cp_index(w)) == -1) goto err_f;
+	if (!strcasecmp(cast_const_char w, "default")) {
+		i = -1;
+	} else {
+		if ((i = get_cp_index(w)) == -1) goto err_f;
+	}
 #ifndef ENABLE_UTF8
 	if (i == utf8_table) {
 		i = 0;
 	}
 #endif
-	ts->charset = i;
+	ts->character_set = i;
 	mem_free(w);
 	l = get_token_num(&c);
 	if (l < 0) goto ret;
@@ -1228,13 +1232,17 @@ static unsigned char *term2_rd(struct option *o, unsigned char *c)
 	ts->col = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if ((i = get_cp_index(w)) == -1) goto err_f;
+	if (!strcasecmp(cast_const_char w, "default")) {
+		i = -1;
+	} else {
+		if ((i = get_cp_index(w)) == -1) goto err_f;
+	}
 #ifndef ENABLE_UTF8
 	if (i == utf8_table) {
 		i = 0;
 	}
 #endif
-	ts->charset = i;
+	ts->character_set = i;
 	mem_free(w);
 	return NULL;
 	err_f:
@@ -1256,7 +1264,8 @@ static void term_wr(struct option *o, unsigned char **s, int *l)
 		add_to_str(s, l, cast_uchar " ");
 		add_num_to_str(s, l, !!ts->col + !!ts->restrict_852 * 2 + !!ts->block_cursor * 4);
 		add_to_str(s, l, cast_uchar " ");
-		add_to_str(s, l, get_cp_mime_name(ts->charset));
+		if (ts->character_set == -1) add_to_str(s, l, cast_uchar "default");
+		else add_to_str(s, l, get_cp_mime_name(ts->character_set));
 		if (ts->left_margin || ts->right_margin || ts->top_margin || ts->bottom_margin) {
 			add_to_str(s, l, cast_uchar " ");
 			add_num_to_str(s, l, ts->left_margin);
@@ -1277,7 +1286,7 @@ struct driver_param *get_driver_param(unsigned char *n)
 	struct driver_param *dp;
 	foreach(dp, driver_params) if (!strcasecmp(cast_const_char dp->name, cast_const_char n)) return dp;
 	dp = mem_calloc(sizeof(struct driver_param) + strlen(cast_const_char n) + 1);
-	dp->codepage = get_cp_index(cast_uchar "iso-8859-1");
+	dp->kbd_codepage = -1;
 	strcpy(cast_char dp->name, cast_const_char n);
 	dp->shell = mem_calloc(1);
 	dp->nosave = 1;
@@ -1306,19 +1315,21 @@ static unsigned char *dp_rd(struct option *o, unsigned char *c)
 		mem_free(shell);
 		goto err;
 	}
-	if ((cc=get_cp_index(cp)) == -1) {
+	if (!strcasecmp(cast_const_char cp, "default")) {
+		cc = -1;
+	} else if ((cc = get_cp_index(cp)) == -1) {
 		mem_free(n);
 		mem_free(param);
 		mem_free(shell);
 		mem_free(cp);
 		goto err;
 	}
-	dp=get_driver_param(n);
-	dp->codepage=cc;
+	dp = get_driver_param(n);
+	dp->kbd_codepage = cc;
 	if (dp->param) mem_free(dp->param);
-	dp->param=param;
+	dp->param = param;
 	if (dp->shell) mem_free(dp->shell);
-	dp->shell=shell;
+	dp->shell = shell;
 	dp->nosave = 0;
 	mem_free(cp);
 	mem_free(n);
@@ -1331,7 +1342,7 @@ static void dp_wr(struct option *o, unsigned char **s, int *l)
 {
 	struct driver_param *dp;
 	foreachback(dp, driver_params) {
-		if ((!dp->param || !*dp->param) && !dp->codepage && !*dp->shell) continue;
+		if ((!dp->param || !*dp->param) && dp->kbd_codepage == -1 && !*dp->shell) continue;
 		if (dp->nosave) continue;
 		add_nm(o, s, l);
 		add_quoted_to_str(s, l, dp->name);
@@ -1340,7 +1351,8 @@ static void dp_wr(struct option *o, unsigned char **s, int *l)
 		add_to_str(s, l, cast_uchar " ");
 		add_quoted_to_str(s, l, dp->shell);
 		add_to_str(s, l, cast_uchar " ");
-		add_to_str(s, l, get_cp_mime_name(dp->codepage));
+		if (dp->kbd_codepage == -1) add_to_str(s, l, cast_uchar "default");
+		else add_to_str(s, l, get_cp_mime_name(dp->kbd_codepage));
 	}
 }
 
@@ -1472,7 +1484,8 @@ static unsigned char *printhelp_cmd(struct option *o, unsigned char ***argv, int
  */
 fprintf(stdout, "%s%s%s%s%s%s\n",
 
-("links [options] URL\n"
+(
+"links [options] URL\n"
 "\n"
 "Options are:\n"
 "\n"
@@ -1547,8 +1560,8 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -max-connections <max>\n"
 "  Maximum number of concurrent connections.\n"
 "    (default: 10)\n"
-"\n"),
-(" -max-connections-to-host <max>\n"
+"\n"),(
+" -max-connections-to-host <max>\n"
 "  Maximum number of concurrent connection to a given host.\n"
 "    (default: 2)\n"
 "\n"
@@ -1559,8 +1572,8 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 " -receive-timeout <sec>\n"
 "  Timeout on receive.\n"
 "    (default: 120)\n"
-"\n"),
-(" -unrestartable-receive-timeout <sec>\n"
+"\n"),(
+" -unrestartable-receive-timeout <sec>\n"
 "  Timeout on non restartable connections.\n"
 "    (default: 600)\n"
 "\n"
@@ -1603,8 +1616,8 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  Always cache everything regardless of server's caching recomendations.\n"
 "    Many servers deny caching even if their content is not changing\n"
 "    just to get more hits and more money from ads.\n"
-"\n"),
-(" -address-preference <0>/<1>/<2>/<3>/<4>\n"
+"\n"),(
+" -address-preference <0>/<1>/<2>/<3>/<4>\n"
 "    (default 0)\n"
 "  0 - use system default.\n"
 "  1 - prefer IPv4.\n"
@@ -1637,8 +1650,14 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "    (default 0)\n"
 "  \"1\" causes that Links won't initiate any non-proxy connection.\n"
 "    It is useful for anonymization with tor or similar networks.\n"
-"\n"),
-(" -http-bugs.http10 <0>/<1>\n"
+"\n"
+" -ssl.certificates <0>/<1>/<2>\n"
+"    (default 1)\n"
+"  0 - ignore invalid certificate\n"
+"  1 - warn on invalid certificate\n"
+"  2 - reject invalid certificate\n"
+"\n"),(
+" -http-bugs.http10 <0>/<1>\n"
 "    (default 0)\n"
 "  \"1\" forces using only HTTP/1.0 protocol. (useful for buggy servers\n"
 "    that claim to be HTTP/1.1 compliant but are not)\n"
@@ -1888,8 +1907,8 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "\n"
 " -html-g-ignore-document-color <0>/<1>\n"
 "  Ignore colors specified in html document in graphics mode.\n"
-"\n"),
-("Keys:\n"
+"\n"),(
+"Keys:\n"
 "	ESC	  display menu\n"
 "	^C	  quit\n"
 "	^P	  scroll up\n"
@@ -1997,6 +2016,7 @@ int aggressive_cache = 1;
 
 struct ipv6_options ipv6_options = { ADDR_PREFERENCE_DEFAULT };
 struct proxies proxies = { "", "", "", "", "", 0 };
+struct ssl_options ssl_options = { SSL_WARN_ON_INVALID_CERTIFICATE };
 struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { 0, 0, REFERER_REAL_SAME_SERVER, "", "", "" } };
 struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 0, 1 };
 struct smb_options smb_options = { 0 };
@@ -2112,6 +2132,7 @@ static struct option links_options[] = {
 	{1, gen_cmd, str_rd, NULL, 0, MAX_STR_LEN, proxies.dns_append, "-append_text_to_dns_lookups", NULL}, /* old version incorrectly saved it with '-' */
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.dns_append, "append_text_to_dns_lookups", "append-text-to-dns-lookups"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &proxies.only_proxies, "only_proxies", "only-proxies"},
+	{1, gen_cmd, num_rd, num_wr, 0, 2, &ssl_options.certificates, "ssl.certificates", "ssl.certificates"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.http10, "http_bugs.http10", "http-bugs.http10"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.allow_blacklist, "http_bugs.allow_blacklist", "http-bugs.allow-blacklist"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},

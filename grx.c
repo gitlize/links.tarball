@@ -95,8 +95,8 @@ static void grx_key_in(void *p, unsigned char *ev_, int size)
 		vd = KBD_F1 - ev->x;
 		goto switch_vd;
 	}
-	if (grx_driver.codepage!=utf8_table&&(ev->x)>=128&&(ev->x)<=255)
-		if ((ev->x=cp2u(ev->x,grx_driver.codepage)) == -1) return;
+	if (g_kbd_codepage(&grx_driver) != utf8_table && ev->x >= 128 && ev->x <= 255)
+		if ((ev->x = cp2u(ev->x, g_kbd_codepage(&grx_driver))) == -1) return;
 	if (current_virtual_device && current_virtual_device->keyboard_handler) current_virtual_device->keyboard_handler(current_virtual_device, ev->x, ev->y);
 	return;
 
@@ -462,12 +462,12 @@ static int grx_hscroll(struct graphics_device *dev, struct rect_set **ignore, in
 	TEST_INACTIVITY_0
 	if (!sc) return 0;
 	if (sc < 0) {
-		if (-sc > dev->clip.x2 - dev->clip.x1) return 1;
+		if (-sc >= dev->clip.x2 - dev->clip.x1) return 1;
 		GrBitBlt(NULL, dev->clip.x1, dev->clip.y1,
 			NULL, dev->clip.x1 - sc, dev->clip.y1,
 			dev->clip.x2 - 1, dev->clip.y2 - 1, GrWRITE);
 	} else {
-		if (sc > dev->clip.x2 - dev->clip.x1) return 1;
+		if (sc >= dev->clip.x2 - dev->clip.x1) return 1;
 		GrBitBlt(NULL, dev->clip.x1 + sc, dev->clip.y1,
 			NULL, dev->clip.x1, dev->clip.y1,
 			dev->clip.x2 - sc - 1, dev->clip.y2 - 1, GrWRITE);
@@ -480,12 +480,12 @@ static int grx_vscroll(struct graphics_device *dev, struct rect_set **ignore, in
 	TEST_INACTIVITY_0
 	if (!sc) return 0;
 	if (sc < 0) {
-		if (-sc > dev->clip.y2 - dev->clip.y1) return 1;
+		if (-sc >= dev->clip.y2 - dev->clip.y1) return 1;
 		GrBitBlt(NULL, dev->clip.x1, dev->clip.y1,
 			NULL, dev->clip.x1, dev->clip.y1 - sc,
 			dev->clip.x2 - 1, dev->clip.y2 - 1, GrWRITE);
 	} else {
-		if (sc > dev->clip.y2 - dev->clip.y1) return 1;
+		if (sc >= dev->clip.y2 - dev->clip.y1) return 1;
 		GrBitBlt(NULL, dev->clip.x1, dev->clip.y1 + sc,
 			NULL, dev->clip.x1, dev->clip.y1,
 			dev->clip.x2 - 1, dev->clip.y2 - sc - 1, GrWRITE);

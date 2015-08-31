@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
-cp ../links-current/links*.nsi ../links-current/COPYING ../links-current/BRAILLE_HOWTO ../links-current/KEYS ../links-current/README .
+cp ../links-current/links*.nsi ../links-current/links.crt ../links-current/COPYING ../links-current/BRAILLE_HOWTO ../links-current/KEYS ../links-current/README .
 unix2dos COPYING BRAILLE_HOWTO KEYS README
 if which gcc-4 2>/dev/null; then
 	CC=gcc-4

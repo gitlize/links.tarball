@@ -336,6 +336,9 @@
 /* Define if you have the setrlimit function.  */
 /* #undef HAVE_SETRLIMIT */
 
+/* Define if you have the setsid function.  */
+/* #undef HAVE_SETSID */
+
 /* Define if you have the sigaction function.  */
 #define HAVE_SIGACTION 1
 
@@ -781,11 +784,11 @@
 #define PACKAGE "links"
 
 /* Version number of package */
-#define VERSION "2.10"
+#define VERSION "2.11"
 
 
 /* */
-#define VERSION "2.10"
+#define VERSION "2.11"
 
 /* */
 /* #undef HAVE_OPENMP */

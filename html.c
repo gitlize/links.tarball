@@ -1374,7 +1374,8 @@ static void html_div(unsigned char *a)
 	unsigned char *al;
 	if ((al = get_attr_val(a, cast_uchar "class"))) {
 		if (!strcmp(cast_const_char al, "commit-msg") ||
-		    !strncmp(cast_const_char al, "diff", 4) /* gitweb hack */) {
+		    !strncmp(cast_const_char al, "diff", 4) /* gitweb hack */ ||
+		    0) {
 			format_.attr |= AT_FIXED;
 			par_format.align = AL_NO;
 		}

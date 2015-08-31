@@ -664,7 +664,7 @@ static int is_in_range(struct f_data *f, int y, int yw, unsigned char *txt, int 
 static int get_searched(struct f_data_c *scr, struct point **pt, int *pl)
 {
 #ifdef ENABLE_UTF8
-	int utf8 = scr->ses->term->spec->charset == utf8_table;
+	int utf8 = term_charset(scr->ses->term) == utf8_table;
 #else
 	const int utf8 = 0;
 #endif
@@ -984,7 +984,7 @@ static void draw_form_entry(struct terminal *t, struct f_data_c *f, struct link 
 					chr = '_';
 				} else {
 #ifdef ENABLE_UTF8
-					if (t->spec->charset == utf8_table) {
+					if (term_charset(t) == utf8_table) {
 						GET_UTF_8(s, chr);
 					} else
 #endif
@@ -2064,7 +2064,7 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 				add_to_str(data, len, ct);
 				if (strlen(cast_const_char ct) >= 4 && !casecmp(ct, cast_uchar "text", 4)) {
 					add_to_str(data, len, cast_uchar "; charset=");
-					if (!F) add_to_str(data, len, get_cp_mime_name(ses->term->spec->charset));
+					if (!F) add_to_str(data, len, get_cp_mime_name(term_charset(ses->term)));
 #ifdef G
 					else add_to_str(data, len, get_cp_mime_name(ses->ds.assume_cp));
 #endif
@@ -2188,7 +2188,7 @@ unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form
 #endif
 	if (!form->action) return NULL;
 	get_succesful_controls(f, form, &submit);
-	cp_from = ses->term->spec->charset;
+	cp_from = term_charset(ses->term);
 	cp_to = f->f_data->cp;
 	if (form->method == FM_GET || form->method == FM_POST)
 		encode_controls(&submit, &data, &len, cp_from, cp_to);
@@ -2702,9 +2702,9 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct lin
 				fs->state = (int)strlen(cast_const_char fs->value);
 				yyyy:;
 			} else fs->state = (int)strlen(cast_const_char fs->value);
-		} else if (!(ev->y & (KBD_CTRL | KBD_ALT)) && (ev->x >= 32 && ev->x < MAXINT && gf_val(cp2u(ev->x, ses->term->spec->charset) != -1, 1))) {
+		} else if (!(ev->y & (KBD_CTRL | KBD_ALT)) && (ev->x >= 32 && ev->x < MAXINT && gf_val(cp2u(ev->x, term_charset(ses->term)) != -1, 1))) {
 			set_br_pos(f, l);
-			if (!form->ro && cp_len(ses->term->spec->charset, fs->value) < form->maxlength) {
+			if (!form->ro && cp_len(term_charset(ses->term), fs->value) < form->maxlength) {
 				unsigned char *v;
 				unsigned char a_[2];
 				unsigned char *nw;
@@ -2750,7 +2750,7 @@ int field_op(struct session *ses, struct f_data_c *f, struct link *l, struct lin
 				unsigned char *nl = clipboard;
 				while ((nl = cast_uchar strchr(cast_const_char nl, '\n'))) *nl = ' ';
 			}
-			if (!form->ro && cp_len(ses->term->spec->charset, fs->value) + cp_len(ses->term->spec->charset, clipboard) <= form->maxlength) {
+			if (!form->ro && cp_len(term_charset(ses->term), fs->value) + cp_len(term_charset(ses->term), clipboard) <= form->maxlength) {
 				unsigned char *v;
 				v = mem_realloc(fs->value, strlen(cast_const_char fs->value) + strlen(cast_const_char clipboard) +1);
 				fs->value = v;
@@ -2885,7 +2885,7 @@ void search_for_back(struct session *ses, unsigned char *str)
 	if (ses->search_word) mem_free(ses->search_word);
 	ses->search_word = stracpy(str);
 	clr_spaces(ses->search_word, 0);
-	charset_upcase_string(&ses->search_word, ses->term->spec->charset);
+	charset_upcase_string(&ses->search_word, term_charset(ses->term));
 	if (ses->last_search_word) mem_free(ses->last_search_word);
 	ses->last_search_word = stracpy(ses->search_word);
 	ses->search_direction = -1;
@@ -2899,7 +2899,7 @@ void search_for(struct session *ses, unsigned char *str)
 	if (ses->search_word) mem_free(ses->search_word);
 	ses->search_word = stracpy(str);
 	clr_spaces(ses->search_word, 0);
-	charset_upcase_string(&ses->search_word, ses->term->spec->charset);
+	charset_upcase_string(&ses->search_word, term_charset(ses->term));
 	if (ses->last_search_word) mem_free(ses->last_search_word);
 	ses->last_search_word = stracpy(ses->search_word);
 	ses->search_direction = 1;
@@ -3251,8 +3251,8 @@ static int call_keyboard_event(struct f_data_c *fd, unsigned char *code, struct 
 	ctrlkey = ev->y & KBD_CTRL ? "true" : "false";
 	altkey = ev->y & KBD_ALT ? "true" : "false";
 	if (ev->x >= 0) {
-		if (ev->x < 0x80 || fd->ses->term->spec->charset == utf8_table) keycode = ev->x;
-		else keycode = cp2u(ev->x, fd->ses->term->spec->charset);
+		if (ev->x < 0x80 || term_charset(fd->ses->term) == utf8_table) keycode = ev->x;
+		else keycode = cp2u(ev->x, term_charset(fd->ses->term));
 	}
 	else if (ev->x == KBD_ENTER) keycode = 13;
 	else if (ev->x == KBD_BS) keycode = 8;
@@ -4053,8 +4053,8 @@ static unsigned char *print_current_titlex(struct f_data_c *fd, int w)
 	}
 	m = init_str();
 	add_to_str(&m, &ml, fd->f_data->title);
-	mul = cp_len(fd->ses->term->spec->charset, m);
-	pul = cp_len(fd->ses->term->spec->charset, p);
+	mul = cp_len(term_charset(fd->ses->term), m);
+	pul = cp_len(term_charset(fd->ses->term), p);
 	if (mul + pul > w) {
 		unsigned char *mm;
 		if ((mul = w - pul) < 0) mul = 0;

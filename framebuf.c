@@ -328,10 +328,9 @@ static void fb_key_in(void *p, unsigned char *ev_, int size)
 	else if (!ev->y && ev->x == KBD_F6) fb_mouse_move(0, 3);
 	else if (!ev->y && ev->x == KBD_F7) fb_mouse_move(0, -3);
 	else if (!ev->y && ev->x == KBD_F8) fb_mouse_move(3, 0);
-	else
-	{
-		if (fb_driver.codepage!=utf8_table&&(ev->x)>=128&&(ev->x)<=255)
-			if ((ev->x=cp2u(ev->x,fb_driver.codepage)) == -1) return;
+	else {
+		if (g_kbd_codepage(&fb_driver) != utf8_table && ev->x >= 128 && ev->x <= 255)
+			if ((ev->x = cp2u(ev->x, g_kbd_codepage(&fb_driver))) == -1) return;
 		if (current_virtual_device->keyboard_handler) current_virtual_device->keyboard_handler(current_virtual_device, ev->x, ev->y);
 	}
 }

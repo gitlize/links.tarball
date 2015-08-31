@@ -70,6 +70,7 @@ File BRAILLE_HOWTO
 File COPYING
 File KEYS
 File README
+File links.crt
 File links.exe
 File links-g.exe
 File c:\cygwin64\bin\cygEGL-1.dll
@@ -148,6 +149,7 @@ Delete "$INSTDIR\BRAILLE_HOWTO"
 Delete "$INSTDIR\COPYING"
 Delete "$INSTDIR\KEYS"
 Delete "$INSTDIR\README"
+Delete "$INSTDIR\links.crt"
 Delete "$INSTDIR\links.exe"
 Delete "$INSTDIR\links-g.exe"
 Delete "$INSTDIR\cygEGL-1.dll"

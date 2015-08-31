@@ -128,7 +128,7 @@ void svg_finish(struct cached_image *cimg)
 #ifdef t4c
 			t4c t = *(t4c *)p;
 			t4c r = (t << 16) | (t >> 16);
-			*(t4c *)p = (t & 0xff00ff00) | (r & 0xff00ff);
+			*(t4c *)p = (t & 0xff00ff00U) | (r & 0xff00ffU);
 #else
 			unsigned char c;
 			c = p[0];

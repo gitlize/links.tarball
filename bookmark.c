@@ -130,7 +130,7 @@ static void *bookmark_default_value(struct session *ses, unsigned char type)
 		{
 			struct conv_table* ct;
 
-			ct=get_translation_table(ses->term->spec->charset,bookmark_ld.codepage);
+			ct=get_translation_table(term_charset(ses->term),bookmark_ld.codepage);
 			zelena->url=convert_string(ct,txt,(int)strlen(cast_const_char txt),NULL);
 			clr_white(zelena->url);
 		}
@@ -141,7 +141,7 @@ static void *bookmark_default_value(struct session *ses, unsigned char type)
 	{
 		struct conv_table* ct;
 
-		ct=get_translation_table(ses->term->spec->charset,bookmark_ld.codepage);
+		ct=get_translation_table(term_charset(ses->term),bookmark_ld.codepage);
 		zelena->title=convert_string(ct,txt,(int)strlen(cast_const_char txt),NULL);
 		clr_white(zelena->title);
 	}
@@ -254,7 +254,7 @@ static void bookmark_edit_done(void *data)
 		struct conv_table* ct;
 
 		mem_free(item->title);
-		ct=get_translation_table(s->dlg->win->term->spec->charset,bookmark_ld.codepage);
+		ct=get_translation_table(term_charset(s->dlg->win->term),bookmark_ld.codepage);
 		item->title=convert_string(ct,title,(int)strlen(cast_const_char title),NULL);
 		clr_white(item->title);
 	}
@@ -264,7 +264,7 @@ static void bookmark_edit_done(void *data)
 		struct conv_table* ct;
 
 		mem_free(item->url);
-		ct=get_translation_table(s->dlg->win->term->spec->charset,bookmark_ld.codepage);
+		ct=get_translation_table(term_charset(s->dlg->win->term),bookmark_ld.codepage);
 		item->url=convert_string(ct,url,(int)strlen(cast_const_char url),NULL);
 		clr_white(item->url);
 	}
@@ -314,7 +314,7 @@ static void bookmark_edit_item(struct dialog_data *dlg,void *data,void (*ok_fn)(
 		unsigned char *txt;
 		struct conv_table* ct;
 
-		ct=get_translation_table(bookmark_ld.codepage,dlg->win->term->spec->charset);
+		ct=get_translation_table(bookmark_ld.codepage,term_charset(dlg->win->term));
 		txt=convert_string(ct,item->title,(int)strlen(cast_const_char item->title),NULL);
 		clr_white(txt);
 		safe_strncpy(title,txt,MAX_STR_LEN);
@@ -435,7 +435,7 @@ static unsigned char *bookmark_type_item(struct terminal *term, void *data, int 
 		add_to_strn(&txt,cast_uchar ")");
 	}
 
-	table=get_translation_table(bookmark_ld.codepage,term->spec->charset);
+	table=get_translation_table(bookmark_ld.codepage,term_charset(term));
 	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	clr_white(txt1);
 	mem_free(txt);

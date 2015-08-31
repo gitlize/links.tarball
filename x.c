@@ -362,7 +362,7 @@ static int x_translate_key(struct graphics_device *gd, XKeyEvent *e,int *key,int
 	static XComposeStatus comp = { NULL, 0 };
 	static unsigned char str[16];
 #define str_size	((int)(sizeof(str) - 1))
-	int table=x_input_encoding<0?drv->codepage:x_input_encoding;
+	int table = x_input_encoding < 0 ? g_kbd_codepage(&x_driver) : x_input_encoding;
 	int len;
 
 #ifdef X_INPUT_METHOD

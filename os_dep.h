@@ -116,6 +116,9 @@ static inline int dir_sep(unsigned char x) { return x == '/' || x == '\\'; }
 #ifdef USE_WIN32_HEAP
 #define NO_FORK_ON_EXIT
 #endif
+#ifndef __CYGWIN__
+#define OS_NO_SYSTEM_CHARSET
+#endif
 
 #elif defined(INTERIX)
 
@@ -137,6 +140,7 @@ static inline int dir_sep(unsigned char x) { return x == '/'; }
 #endif
 #define ASSOC_BLOCK
 #define ASSOC_CONS_XWIN
+#define OS_NO_SYSTEM_CHARSET
 
 #elif defined(BEOS)
 
@@ -154,6 +158,8 @@ static inline int dir_sep(unsigned char x) { return x == '/'; }
 #define SHARED_CONFIG_DIR "/etc/"
 #define NO_FORK_ON_EXIT
 #define ASSOC_BLOCK
+#define OS_NO_SYSTEM_CHARSET
+#define OS_NO_SYSTEM_LANGUAGE
 
 #include <sys/time.h>
 #include <sys/types.h>
@@ -177,6 +183,8 @@ static inline int dir_sep(unsigned char x) { return x == '/' || x == '\\'; }
 #define NO_FILE_SECURITY
 #define NO_FORK_ON_EXIT
 #define DISABLE_SMB
+#define OS_NO_SYSTEM_CHARSET
+#define OS_NO_SYSTEM_LANGUAGE
 
 #elif defined(ATHEOS)
 
@@ -213,6 +221,8 @@ static inline int dir_sep(unsigned char x) { return x == '/'; }
 #define NO_FORK_ON_EXIT
 #define ASSOC_BLOCK
 #define ASSOC_CONS_XWIN
+#define OS_NO_SYSTEM_CHARSET
+#define OS_NO_SYSTEM_LANGUAGE
 
 #elif defined(OPENVMS)
 
@@ -233,6 +243,8 @@ static inline int dir_sep(unsigned char x) { return x == '/'; }
 #define ASSOC_BLOCK
 #define ASSOC_CONS_XWIN
 #define DISABLE_SMB
+#define OS_NO_SYSTEM_CHARSET
+#define OS_NO_SYSTEM_LANGUAGE
 
 #elif defined(DOS)
 

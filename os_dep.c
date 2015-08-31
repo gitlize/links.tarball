@@ -29,6 +29,7 @@
 #define INCL_DOSERRORS
 #define INCL_DOSMODULEMGR
 #define INCL_DOSMISC
+#define INCL_DOSNLS
 #define INCL_WIN
 #define INCL_WINCLIPBOARD
 #define INCL_WINSWITCHLIST
@@ -1774,8 +1775,8 @@ unsigned char *get_clipboard_text(struct terminal *term)
 		unsigned char *d;
 		if (cp == -1) {
 			int c = WinQueryCp(os2_hmq);
-			unsigned char a[64];
-			snprintf(cast_char a, 64, "%d", c);
+			unsigned char a[8];
+			snprintf(cast_char a, sizeof a, "%d", c);
 			if ((cp = get_cp_index(a)) < 0 || cp == utf8_table) cp = 0;
 		}
 		ct = get_translation_table(cp, utf8_table);
@@ -1803,8 +1804,8 @@ void set_clipboard_text(struct terminal *term, unsigned char *data)
 		unsigned char *p;
 		if (cp == -1) {
 			int c = WinQueryCp(os2_hmq);
-			unsigned char a[64];
-			snprintf(a, 64, "%d", c);
+			unsigned char a[8];
+			snprintf(cast_char a, sizeof a, "%d", c);
 			if ((cp = get_cp_index(a)) < 0 || cp == utf8_table) cp = 0;
 		}
 		ct = get_translation_table(utf8_table, cp);
@@ -2971,7 +2972,7 @@ void set_highpri(void)
 }
 
 #if !defined(DOS) && !defined(OPENVMS)
-void os_seed_random(unsigned char **pool, unsigned *pool_size)
+void os_seed_random(unsigned char **pool, int *pool_size)
 {
 	*pool = DUMMY;
 	*pool_size = 0;
@@ -3040,3 +3041,139 @@ void os_detach_console(void)
 	}
 #endif
 }
+
+#if defined(OS2) || defined(DOS)
+
+int get_country_language(int c)
+{
+	static const struct {
+		int code;
+		unsigned char *language;
+	} countries[] = {
+		{ 1, cast_uchar "English" },
+		{ 2, cast_uchar "French" },
+		{ 3, cast_uchar "Spanish" },
+		{ 4, cast_uchar "English" },
+		{ 7, cast_uchar "Russian" },
+		{ 27, cast_uchar "English" },
+		{ 30, cast_uchar "Greek" },
+		{ 31, cast_uchar "Dutch" },
+		{ 32, cast_uchar "Dutch" },
+		{ 33, cast_uchar "French" },
+		{ 34, cast_uchar "Spanish" },
+		{ 36, cast_uchar "Hungarian" },
+		{ 38, cast_uchar "Serbian" },
+		{ 39, cast_uchar "Italian" },
+		{ 40, cast_uchar "Romanian" },
+		{ 41, cast_uchar "Swiss German" },
+		{ 42, cast_uchar "Czech" },
+		{ 43, cast_uchar "German" },
+		{ 44, cast_uchar "English" },
+		{ 45, cast_uchar "Danish" },
+		{ 46, cast_uchar "Swedish" },
+		{ 47, cast_uchar "Norwegian" },
+		{ 48, cast_uchar "Polish" },
+		{ 49, cast_uchar "German" },
+		{ 52, cast_uchar "Spanish" },
+		{ 54, cast_uchar "Spanish" },
+		{ 55, cast_uchar "Brazilian Portuguese" },
+		{ 56, cast_uchar "Spanish" },
+		{ 57, cast_uchar "Spanish" },
+		{ 58, cast_uchar "Spanish" },
+		{ 61, cast_uchar "English" },
+		{ 64, cast_uchar "English" },
+		{ 65, cast_uchar "English" },
+		{ 90, cast_uchar "Turkish" },
+		{ 99, cast_uchar "English" },
+		{ 351, cast_uchar "Portuguese" },
+		{ 353, cast_uchar "English" },
+		{ 354, cast_uchar "Icelandic" },
+		{ 358, cast_uchar "Finnish" },
+		{ 359, cast_uchar "Bulgarian" },
+		{ 371, cast_uchar "Lithuanian" },
+		{ 372, cast_uchar "Estonian" },
+		{ 381, cast_uchar "Serbian" },
+		{ 384, cast_uchar "Croatian" },
+		{ 385, cast_uchar "Croatian" },
+#ifdef DOS
+		{ 421, cast_uchar "Slovak" },
+#else
+		{ 421, cast_uchar "Czech" },
+#endif
+		{ 422, cast_uchar "Slovak" },
+		{ 593, cast_uchar "Spanish" },
+	};
+	int idx, i;
+#define C_EQUAL(a, b)	countries[a].code == (b)
+#define C_ABOVE(a, b)	countries[a].code > (b)
+	BIN_SEARCH(sizeof(countries) / sizeof(*countries), C_EQUAL, C_ABOVE, c, idx);
+	if (idx == -1)
+		return -1;
+	for (i = 0; i < n_languages(); i++)
+		if (!strcasecmp(cast_const_char language_name(i), cast_const_char countries[idx].language))
+			return i;
+	return -1;
+}
+
+#endif
+
+#if defined(OS2)
+
+int os_default_language(void)
+{
+	COUNTRYCODE cc;
+	COUNTRYINFO ci;
+	ULONG ul;
+	int rc;
+	memset(&cc, 0, sizeof cc);
+	rc = DosQueryCtryInfo(sizeof ci, &cc, &ci, &ul);
+	if (!rc)
+		return get_country_language(ci.country);
+	return -1;
+}
+
+#elif !defined(DOS)
+
+int os_default_language(void)
+{
+	return -1;
+}
+
+#endif
+
+#if defined(WIN) && defined(__CYGWIN__) && defined(HAVE_CYGWIN_CONV_PATH)
+
+int os_default_charset(void)
+{
+	unsigned char *term = cast_uchar getenv("TERM");
+	if (term && !casecmp(term, cast_uchar "cygwin", 6))
+		return utf8_table;
+	return -1;
+}
+
+#elif defined(OS2)
+
+int os_default_charset(void)
+{
+	ULONG os2_cp[1];
+	ULONG size = 0;
+	int rc;
+	rc = DosQueryCp(sizeof(os2_cp), os2_cp, &size);
+	if ((!rc || rc == ERROR_CPLIST_TOO_SMALL) && size >= sizeof(ULONG)) {
+		unsigned char a[8];
+		int cp;
+		snprintf(cast_char a, sizeof a, "%lu", os2_cp[0]);
+		if ((cp = get_cp_index(a)) >= 0 && cp != utf8_table)
+			return cp;
+	}
+	return 0;
+}
+
+#elif !defined(DOS)
+
+int os_default_charset(void)
+{
+	return -1;
+}
+
+#endif

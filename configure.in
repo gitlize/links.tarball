@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.10)
+AM_INIT_AUTOMAKE(links, 2.11)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -269,7 +269,7 @@ dnl Checks for library functions.
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_HAVE_FUNCS(bcmp bcopy bzero calloc cfmakeraw chmod cygwin_conv_path cygwin_conv_to_full_win32_path dirfd fallocate getcwd getgrgid getpagesize getpid getpwuid getrlimit gettimeofday kqueue malloc_trim mallopt mkdir mktime nl_langinfo poll popen posix_fallocate raise select setlocale setpgid setrlimit sigaction sigblock sigdelset sigfillset sigprocmask sigsetmask snprintf strdup strptime strtod strtoimax strtol strtoll strtoq strtoul tempnam uname unixpath2win utime utimes uwin_path winpath2unix _heapmin _ucreate _udefault _udestroy _uopen __strtoll)
+AC_HAVE_FUNCS(bcmp bcopy bzero calloc cfmakeraw chmod cygwin_conv_path cygwin_conv_to_full_win32_path dirfd fallocate getcwd getgrgid getpagesize getpid getpwuid getrlimit gettimeofday kqueue malloc_trim mallopt mkdir mktime nl_langinfo poll popen posix_fallocate raise select setlocale setpgid setrlimit setsid sigaction sigblock sigdelset sigfillset sigprocmask sigsetmask snprintf strdup strptime strtod strtoimax strtol strtoll strtoq strtoul tempnam uname unixpath2win utime utimes uwin_path winpath2unix _heapmin _ucreate _udefault _udestroy _uopen __strtoll)
 
 
 AC_HAVE_FUNCS(strlen)
@@ -723,7 +723,8 @@ if test -z "$disable_ssl"; then
 			AC_MSG_CHECKING([for OpenSSL])
 			CPPFLAGS="$CPPFLAGS_XX $OPENSSL_CFLAGS"
 			LIBS="$OPENSSL_LIBS $LIBS_XX"
-			AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
+			AC_TRY_LINK([#include <openssl/ssl.h>
+#include <openssl/x509v3.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
 			AC_MSG_RESULT($cf_result)
 		fi
 	fi
@@ -742,7 +743,8 @@ if test -z "$disable_ssl"; then
 					LIBS="-lssl -lcrypto $LIBS_XX"
 					CPPFLAGS="$CPPFLAGS_XX"
 				fi
-				AC_TRY_LINK([#include <openssl/ssl.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
+				AC_TRY_LINK([#include <openssl/ssl.h>
+#include <openssl/x509v3.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
 			fi
 		done
 		AC_MSG_RESULT($cf_result)
@@ -1281,14 +1283,15 @@ if test "$cf_use_graphics" != no; then
 else echo "Graphics enabled:	NO"; fi
 echo "---------------------------------------------------------"
 if test "$cf_have_ssl" = "nss"; then
-	echo "!!! WARNING !!! NSS encryption library can cause lockup"
-	echo "of the whole browser if the server is not responding."
+	echo "!!! WARNING !!! NSS encryption library doesn't verify"
+	echo "certificates and it can cause lockup of the whole browser"
+	echo "if the server is not responding."
 	echo "It is recommended to use OpenSSL instead."
 	echo "---------------------------------------------------------"
 fi
 if test -n "`echo "$drivers"|grep -w X`" -a "$ac_cv_header_interix_interix_h" = yes; then
-	echo "!!! WARNING !!! Xwindow in Interix is unreliable and"
-	echo "it may cause browser lockup."
+	echo "!!! WARNING !!! Xwindow in Interix is unreliable and it"
+	echo "may cause browser lockup."
 	echo "It is recommended to use Cygwin instead."
 	echo "---------------------------------------------------------"
 fi

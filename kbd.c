@@ -343,7 +343,7 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	struct itrm *itrm;
 	struct links_event ev = { EV_INIT, 80, 24, 0 };
 	unsigned char *ts;
-	int xwin;
+	int xwin, def_charset;
 	if (get_terminal_size(ctl_in, &x, &y)) {
 		error("ERROR: could not get terminal size");
 		return;
@@ -394,6 +394,8 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	}
 	mem_free(ts);
 	queue_event(itrm, (unsigned char *)&xwin, sizeof(int));
+	def_charset = get_default_charset();
+	queue_event(itrm, (unsigned char *)&def_charset, sizeof(int));
 	queue_event(itrm, (unsigned char *)&init_len, sizeof(int));
 	queue_event(itrm, (unsigned char *)init_string, init_len);
 	itrm->orig_title = get_window_title();

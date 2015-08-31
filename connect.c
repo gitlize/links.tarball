@@ -33,7 +33,7 @@ static void log_data(unsigned char *data, int len)
 #define log_data(x, y)
 #endif
 
-#ifdef LOG_SSL
+#if defined(LOG_SSL) && defined(HAVE_OPENSSL)
 #include <openssl/err.h>
 #endif
 
@@ -42,7 +42,18 @@ static inline void log_ssl_error(int line, int ret1, int ret2)
 {
 #ifdef LOG_SSL
 	SSL_load_error_strings();
+#ifdef HAVE_OPENSSL
 	ERR_print_errors_fp(stderr);
+#else
+	{
+		unsigned long err;
+		while ((err = ERR_get_error())) {
+			unsigned char buf[1024];
+			ERR_error_string_n(err, cast_char buf, sizeof buf);
+			fprintf(stderr, "%s\n", buf);
+		}
+	}
+#endif
 	debug("ssl error at %d: %d, %d, %d (%s)", line, ret1, ret2, errno, strerror(errno));
 #endif
 }
@@ -581,8 +592,14 @@ static void connected(struct connection *c)
 #ifdef HAVE_SSL
 	if (c->ssl) {
 		int ret1, ret2;
+		unsigned char *h = get_host_name(remove_proxy_prefix(c->url));
+		if (*h && h[strlen(cast_const_char h) - 1] == '.') {
+			h[strlen(cast_const_char h) - 1] = 0;
+		}
 		c->ssl = getSSL();
 		if (!c->ssl) {
+			ret1 = ret2 = 0;
+			mem_free(h);
 			goto ssl_error;
 		}
 		SSL_set_fd(c->ssl, *b->sock);
@@ -590,21 +607,15 @@ static void connected(struct connection *c)
 		if (c->no_tls) c->ssl->options |= SSL_OP_NO_TLSv1;
 #endif
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-		{
-			unsigned char *u = remove_proxy_prefix(c->url);
-			unsigned char *h = get_host_name(u);
-			if (h) {
-				if (h[0] == '[' || !numeric_ip_address(h, NULL)
+		if (h[0] == '[' || !numeric_ip_address(h, NULL)
 #ifdef SUPPORT_IPV6
-				    || !numeric_ipv6_address(h, NULL, NULL)
+		    || !numeric_ipv6_address(h, NULL, NULL)
 #endif
-				    ) goto skip_numeric_address;
-				SSL_set_tlsext_host_name(c->ssl, h);
+		    ) goto skip_numeric_address;
+		SSL_set_tlsext_host_name(c->ssl, h);
 skip_numeric_address:
-				mem_free(h);
-			}
-		}
 #endif
+		mem_free(h);
 		switch ((ret2 = SSL_get_error(c->ssl, ret1 = SSL_connect(c->ssl)))) {
 			case SSL_ERROR_WANT_READ:
 				setcstate(c, S_SSL_NEG);
@@ -617,8 +628,8 @@ skip_numeric_address:
 			case SSL_ERROR_NONE:
 				break;
 			default:
-				log_ssl_error(__LINE__, ret1, ret2);
 			ssl_error:
+				log_ssl_error(__LINE__, ret1, ret2);
 				c->no_tls++;
 				retry_connect(c, S_SSL_ERROR);
 				return;
@@ -646,6 +657,27 @@ static void update_dns_priority(struct connection *c)
 static void connected_callback(struct connection *c)
 {
 	struct conn_info *b = c->newconn;
+#ifdef HAVE_SSL_CERTIFICATES
+	if (c->ssl) {
+		if (ssl_options.certificates != SSL_ACCEPT_INVALID_CERTIFICATE) {
+			unsigned char *h = get_host_name(remove_proxy_prefix(c->url));
+			int err = verify_ssl_certificate(c->ssl, h);
+			if (err) {
+				if (ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
+					int flags = get_blacklist_flags(h);
+					if (flags & BL_IGNORE_CERTIFICATE)
+						goto ignore_cert;
+				}
+				mem_free(h);
+				setcstate(c, err);
+				abort_connection(c);
+				return;
+			}
+			ignore_cert:
+			mem_free(h);
+		}
+	}
+#endif
 	update_dns_priority(c);
 	c->newconn = NULL;
 	b->func(c);

@@ -222,22 +222,22 @@ void skip_nonprintable(unsigned char *txt)
 /* case insensitive compare of 2 strings */
 /* comparison ends after len (or less) characters */
 /* return value: 1=strings differ, 0=strings are same */
-int casecmp(unsigned char *c1, unsigned char *c2, size_t len)
+int casecmp(const unsigned char *c1, const unsigned char *c2, size_t len)
 {
 	size_t i;
 	for (i = 0; i < len; i++) if (upcase(c1[i]) != upcase(c2[i])) return 1;
 	return 0;
 }
 
-int casestrstr(unsigned char *h, unsigned char *n)
+int casestrstr(const unsigned char *h, const unsigned char *n)
 {
-	unsigned char *p;
+	const unsigned char *p;
 
 	for (p=h;*p;p++)
 	{
 		if (!srch_cmp(*p,*n))  /* same */
 		{
-			unsigned char *q, *r;
+			const unsigned char *q, *r;
 			for (q=n, r=p;*r&&*q;)
 			{
 				if (!srch_cmp(*q,*r)) r++,q++;    /* same */

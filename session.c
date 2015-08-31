@@ -174,10 +174,10 @@ static void x_print_screen_status(struct terminal *term, struct session *ses)
 		if (ses->st) print_text(term, 0, term->y - 1, (int)strlen(cast_const_char ses->st), ses->st, COLOR_STATUS);
 		fill_area(term, 0, 0, term->x, 1, ' ', color);
 		if ((m = print_current_title(ses))) {
-			int p = term->x - 1 - cp_len(ses->term->spec->charset, m);
+			int p = term->x - 1 - cp_len(term_charset(ses->term), m);
 			if (p < 0) p = 0;
 			if (term->spec->braille) p = 0;
-			print_text(term, p, 0, cp_len(ses->term->spec->charset, m), m, color);
+			print_text(term, p, 0, cp_len(term_charset(ses->term), m), m, color);
 			mem_free(m);
 		}
 #ifdef G
@@ -1560,7 +1560,7 @@ static void html_interpret(struct f_data_c *fd)
 				o.col = 0;
 		}
 #endif
-		o.cp = fd->ses->term->spec->charset;
+		o.cp = term_charset(fd->ses->term);
 		o.braille = fd->ses->term->spec->braille;
 	} else {
 		o.col = 3;
@@ -1939,7 +1939,7 @@ priint:
 	hell:;
 	}
 #endif
-	if (rq && (rq->state == O_FAILED || rq->state == O_INCOMPLETE) && (fd->rq == rq || fd->ses->rq == rq)) print_error_dialog(fd->ses, &rq->stat, rq->url);
+	if (rq && (rq->state == O_FAILED || rq->state == O_INCOMPLETE) && (fd->rq == rq || fd->ses->rq == rq) && !rq->dont_print_error) print_error_dialog(fd->ses, &rq->stat, rq->url);
 #ifdef LINKS_TESTMODE_DOCUMENT_AUTO_EXIT
 	if (f_is_finished(fd->f_data))
 		terminate_loop = 1;
@@ -2471,7 +2471,8 @@ static void ses_finished_1st_state(struct object_request *rq, struct session *se
 			print_screen_status(ses);
 			break;
 		case O_FAILED:
-			print_error_dialog(ses, &rq->stat, rq->url);
+			if (!rq->dont_print_error)
+				print_error_dialog(ses, &rq->stat, rq->url);
 			ses_abort_1st_state_loading(ses);
 			break;
 		case O_LOADING:
@@ -2595,7 +2596,7 @@ static void ses_imgmap(struct session *ses)
 	if (!(fd = current_frame(ses)) || !fd->f_data) return;
 	if (get_file(ses->rq, &start, &end)) return;
 	d_opt = &fd->f_data->opt;
-	if (get_image_map(ses->rq->ce && ses->rq->ce->head ? ses->rq->ce->head : (unsigned char *)"", start, end, ses->goto_position, &menu, &ml, ses->imgmap_href_base, ses->imgmap_target_base, ses->term->spec->charset, ses->ds.assume_cp, ses->ds.hard_assume, 0)) {
+	if (get_image_map(ses->rq->ce && ses->rq->ce->head ? ses->rq->ce->head : (unsigned char *)"", start, end, ses->goto_position, &menu, &ml, ses->imgmap_href_base, ses->imgmap_target_base, term_charset(ses->term), ses->ds.assume_cp, ses->ds.hard_assume, 0)) {
 		ses_abort_1st_state_loading(ses);
 		return;
 	}

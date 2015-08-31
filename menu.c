@@ -36,7 +36,7 @@ static unsigned char * const version_texts[] = {
 static void add_and_pad(unsigned char **s, int *l, struct terminal *term, unsigned char *str, int maxlen)
 {
 	unsigned char *x = _(str, term);
-	int len = cp_len(term->spec->charset, x);
+	int len = cp_len(term_charset(term), x);
 	add_to_str(s, l, x);
 	add_to_str(s, l, cast_uchar ":  ");
 	while (len++ < maxlen) add_chr_to_str(s, l, ' ');
@@ -51,7 +51,7 @@ static void menu_version(struct terminal *term)
 	unsigned char * const *text_ptr;
 	for (i = 0; version_texts[i]; i++) {
 		unsigned char *t = _(version_texts[i], term);
-		int tl = cp_len(term->spec->charset, t);
+		int tl = cp_len(term_charset(term), t);
 		if (tl > maxlen)
 			maxlen = tl;
 	}
@@ -120,6 +120,11 @@ static void menu_version(struct terminal *term)
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
 #ifdef HAVE_SSL
 	add_to_str(&s, &l, (unsigned char *)SSLeay_version(SSLEAY_VERSION));
+#ifndef HAVE_SSL_CERTIFICATES
+	add_to_str(&s, &l, " (");
+	add_to_str(&s, &l, _(TEXT_(T_NO_CERTIFICATE_VERIFICATION), term));
+	add_to_str(&s, &l, ")");
+#endif
 #else
 	add_to_str(&s, &l, _(TEXT_(T_NO), term));
 #endif
@@ -662,49 +667,57 @@ static void menu_toggle(struct terminal *term, void *ddd, struct session *ses)
 	toggle(ses, ses->screen, 0);
 }
 
-static void display_codepage(struct terminal *term, void *pcp, struct session *ses)
+static void set_display_codepage(struct terminal *term, void *pcp, void *ptr)
 {
 	int cp = (int)(my_intptr_t)pcp;
 	struct term_spec *t = new_term_spec(term->term);
-	t->charset = cp;
+	t->character_set = cp;
 	cls_redraw_all_terminals();
+}
+
+static void set_val(struct terminal *term, void *ip, void *d)
+{
+	*(int *)d = (int)(my_intptr_t)ip;
+}
+
+static void charset_sel_list(struct terminal *term, int ini, void (*set)(struct terminal *term, void *ip, void *ptr), void *ptr, int utf, int def)
+{
+	int i;
+	unsigned char *n;
+	struct menu_item *mi;
+#ifdef OS_NO_SYSTEM_CHARSET
+	def = 0;
+#endif
+	mi = new_menu(5);
+	for (i = -def; (n = get_cp_name(i)); i++) {
+		unsigned char *n, *r, *p;
+		if (!utf && i == utf8_table) continue;
+		if (i == -1) {
+			n = TEXT_(T_DEFAULT_CHARSET);
+			r = stracpy(get_cp_name(term->default_character_set));
+			p = cast_uchar strstr(cast_const_char r, " (");
+			if (p) *p = 0;
+		} else {
+			n = get_cp_name(i);
+			r = stracpy(cast_uchar "");
+		}
+		add_to_menu(&mi, n, r, cast_uchar "", MENU_FUNC set, (void *)(my_intptr_t)i, 0, i + def);
+	}
+	ini += def;
+	if (ini < 0)
+		ini = term->default_character_set;
+	do_menu_selected(term, mi, ptr, ini, NULL, NULL);
 }
 
 static void charset_list(struct terminal *term, void *xxx, struct session *ses)
 {
-	int i, sel;
-	unsigned char *n;
-	struct menu_item *mi;
-	mi = new_menu(1);
-	for (i = 0; (n = get_cp_name(i)); i++) {
-#ifndef ENABLE_UTF8
-		if (i == utf8_table) continue;
+	charset_sel_list(term, term->spec->character_set, set_display_codepage, NULL,
+#ifdef ENABLE_UTF8
+		1
+#else
+		0
 #endif
-		add_to_menu(&mi, get_cp_name(i), cast_uchar "", cast_uchar "", MENU_FUNC display_codepage, (void *)(my_intptr_t)i, 0, i);
-	}
-	sel = ses->term->spec->charset;
-	if (sel < 0) sel = 0;
-	do_menu_selected(term, mi, ses, sel, NULL, NULL);
-}
-
-static void set_val(struct terminal *term, void *ip, int *d)
-{
-	*d = (int)(my_intptr_t)ip;
-}
-
-static void charset_sel_list(struct terminal *term, int *ptr, int utf)
-{
-	int i, sel;
-	unsigned char *n;
-	struct menu_item *mi;
-	mi = new_menu(1);
-	for (i = 0; (n = get_cp_name(i)); i++) {
-		if (!utf && i == utf8_table) continue;
-		add_to_menu(&mi, get_cp_name(i), cast_uchar "", cast_uchar "", MENU_FUNC set_val, (void *)(my_intptr_t)i, 0, i);
-	}
-	sel = *ptr;
-	if (sel < 0) sel = 0;
-	do_menu_selected(term, mi, ptr, sel, NULL, NULL);
+		, 1);
 }
 
 static void terminal_options_ok(void *p)
@@ -1053,6 +1066,46 @@ static void dlg_ipv6_options(struct terminal *term, void *xxx, void *yyy)
 	d->items[6].fn = cancel_dialog;
 	d->items[6].text = TEXT_(T_CANCEL);
 	d->items[7].type = D_END;
+	do_dialog(term, d, getml(d, NULL));
+}
+
+#endif
+
+#ifdef HAVE_SSL_CERTIFICATES
+
+static unsigned char * const ssl_labels[] = { TEXT_(T_ACCEPT_INVALID_CERTIFICATES), TEXT_(T_WARN_ON_INVALID_CERTIFICATES), TEXT_(T_REJECT_INVALID_CERTIFICATES), NULL };
+
+static void dlg_ssl_options(struct terminal *term, void *xxx, void *yyy)
+{
+	struct dialog *d;
+	d = mem_calloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
+	d->title = TEXT_(T_SSL_OPTIONS);
+	d->fn = checkbox_list_fn;
+	d->udata = (void *)ssl_labels;
+	d->items[0].type = D_CHECKBOX;
+	d->items[0].gid = 1;
+	d->items[0].gnum = SSL_ACCEPT_INVALID_CERTIFICATE;
+	d->items[0].dlen = sizeof(int);
+	d->items[0].data = (void *)&ssl_options.certificates;
+	d->items[1].type = D_CHECKBOX;
+	d->items[1].gid = 1;
+	d->items[1].gnum = SSL_WARN_ON_INVALID_CERTIFICATE;
+	d->items[1].dlen = sizeof(int);
+	d->items[1].data = (void *)&ssl_options.certificates;
+	d->items[2].type = D_CHECKBOX;
+	d->items[2].gid = 1;
+	d->items[2].gnum = SSL_REJECT_INVALID_CERTIFICATE;
+	d->items[2].dlen = sizeof(int);
+	d->items[2].data = (void *)&ssl_options.certificates;
+	d->items[3].type = D_BUTTON;
+	d->items[3].gid = B_ENTER;
+	d->items[3].fn = ok_dialog;
+	d->items[3].text = TEXT_(T_OK);
+	d->items[4].type = D_BUTTON;
+	d->items[4].gid = B_ESC;
+	d->items[4].fn = cancel_dialog;
+	d->items[4].text = TEXT_(T_CANCEL);
+	d->items[5].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
 }
 
@@ -2166,20 +2219,20 @@ static unsigned char * const html_texts[] = {
 
 static int dlg_assume_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	charset_sel_list(dlg->win->term, (int *)di->cdata, 1);
+	charset_sel_list(dlg->win->term, *(int *)di->cdata, set_val, (void *)di->cdata, 1, 0);
 	return 0;
 }
 
 #ifdef G
 static int dlg_kb_cp(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	charset_sel_list(dlg->win->term, (int *)di->cdata,
+	charset_sel_list(dlg->win->term, *(int *)di->cdata, set_val, (void *)di->cdata,
 #ifdef DOS
 		0
 #else
 		1
 #endif
-	);
+		, 1);
 	return 0;
 }
 #endif
@@ -2690,7 +2743,7 @@ static void miscelaneous_options(struct terminal *term, void *xxx, struct sessio
 		d->items[a].gid = 0;
 		d->items[a].fn = dlg_kb_cp;
 		d->items[a].text = TEXT_(T_KEYBOARD_CODEPAGE);
-		d->items[a].data = (unsigned char *) &(drv->codepage);
+		d->items[a].data = (unsigned char *) &(drv->kbd_codepage);
 		d->items[a].dlen = sizeof(int);
 		a++;
 	}
@@ -2716,7 +2769,7 @@ static void miscelaneous_options(struct terminal *term, void *xxx, struct sessio
 	do_dialog(term, d, getml(d, NULL));
 }
 
-static void menu_set_language(struct terminal *term, void *pcp, struct session *ses)
+static void menu_set_language(struct terminal *term, void *pcp, void *ptr)
 {
 	set_language((int)(my_intptr_t)pcp);
 	cls_redraw_all_terminals();
@@ -2724,16 +2777,29 @@ static void menu_set_language(struct terminal *term, void *pcp, struct session *
 
 static void menu_language_list(struct terminal *term, void *xxx, struct session *ses)
 {
+#ifdef OS_NO_SYSTEM_LANGUAGE
+	const int def = 0;
+#else
+	const int def = 1;
+#endif
 	int i, sel;
-	unsigned char *n;
 	struct menu_item *mi;
 	mi = new_menu(1);
-	for (i = 0; i < n_languages(); i++) {
-		n = language_name(i);
-		add_to_menu(&mi, n, cast_uchar "", cast_uchar "", MENU_FUNC menu_set_language, (void *)(my_intptr_t)i, 0, i);
+	for (i = -def; i < n_languages(); i++) {
+		unsigned char *n, *r;
+		if (i == -1) {
+			n = TEXT_(T_DEFAULT_LANG);
+			r = language_name(get_default_language());
+		} else {
+			n = language_name(i);
+			r = cast_uchar "";
+		}
+		add_to_menu(&mi, n, r, cast_uchar "", MENU_FUNC menu_set_language, (void *)(my_intptr_t)i, 0, i + def);
 	}
-	sel = current_language;
-	do_menu_selected(term, mi, ses, sel, NULL, NULL);
+	sel = current_language + def;
+	if (sel < 0)
+		sel = get_default_language();
+	do_menu_selected(term, mi, NULL, sel, NULL, NULL);
 }
 
 static unsigned char * const resize_texts[] = { TEXT_(T_COLUMNS), TEXT_(T_ROWS) };
@@ -3031,6 +3097,9 @@ static const struct menu_item help_menu_g[] = {
 static const struct menu_item net_options_menu[] = {
 	{ TEXT_(T_CONNECTIONS), cast_uchar "", TEXT_(T_HK_CONNECTIONS), MENU_FUNC dlg_net_options, NULL, 0, 0 },
 	{ TEXT_(T_PROXIES), cast_uchar "", TEXT_(T_HK_PROXIES), MENU_FUNC dlg_proxy_options, NULL, 0, 0 },
+#ifdef HAVE_SSL_CERTIFICATES
+	{ TEXT_(T_SSL_OPTIONS), cast_uchar "", TEXT_(T_HK_SSL_OPTIONS), MENU_FUNC dlg_ssl_options, NULL, 0, 0 },
+#endif
 	{ TEXT_(T_HTTP_OPTIONS), cast_uchar "", TEXT_(T_HK_HTTP_OPTIONS), MENU_FUNC dlg_http_options, NULL, 0, 0 },
 	{ TEXT_(T_FTP_OPTIONS), cast_uchar "", TEXT_(T_HK_FTP_OPTIONS), MENU_FUNC dlg_ftp_options, NULL, 0, 0 },
 #ifndef DISABLE_SMB
@@ -3044,6 +3113,9 @@ static const struct menu_item net_options_ipv6_menu[] = {
 	{ TEXT_(T_CONNECTIONS), cast_uchar "", TEXT_(T_HK_CONNECTIONS), MENU_FUNC dlg_net_options, NULL, 0, 0 },
 	{ TEXT_(T_IPV6_OPTIONS), cast_uchar "", TEXT_(T_HK_IPV6_OPTIONS), MENU_FUNC dlg_ipv6_options, NULL, 0, 0 },
 	{ TEXT_(T_PROXIES), cast_uchar "", TEXT_(T_HK_PROXIES), MENU_FUNC dlg_proxy_options, NULL, 0, 0 },
+#ifdef HAVE_SSL_CERTIFICATES
+	{ TEXT_(T_SSL_OPTIONS), cast_uchar "", TEXT_(T_HK_SSL_OPTIONS), MENU_FUNC dlg_ssl_options, NULL, 0, 0 },
+#endif
 	{ TEXT_(T_HTTP_OPTIONS), cast_uchar "", TEXT_(T_HK_HTTP_OPTIONS), MENU_FUNC dlg_http_options, NULL, 0, 0 },
 	{ TEXT_(T_FTP_OPTIONS), cast_uchar "", TEXT_(T_HK_FTP_OPTIONS), MENU_FUNC dlg_ftp_options, NULL, 0, 0 },
 #ifndef DISABLE_SMB

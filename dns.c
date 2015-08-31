@@ -153,6 +153,10 @@ static int do_external_lookup(unsigned char *name, unsigned char *host)
 		return -1;
 	}
 	if (!f) {
+#ifdef HAVE_SETSID
+		/* without setsid it gets stuck when on background */
+		EINTRLOOP(rs, setsid());
+#endif
 		EINTRLOOP(rs, close(pi[0]));
 		EINTRLOOP(rs, dup2(pi[1], 1));
 		if (rs == -1) _exit(1);

@@ -69,7 +69,7 @@ static inline int is_utf_8(struct terminal *term)
 	if (F) return 1;
 #endif
 #ifdef ENABLE_UTF8
-	if (term->spec->charset == utf8_table) return 1;
+	if (term_charset(term) == utf8_table) return 1;
 #endif
 	return 0;
 }
@@ -77,7 +77,7 @@ static inline int is_utf_8(struct terminal *term)
 static inline int ttxtlen(struct terminal *term, unsigned char *s)
 {
 #ifdef ENABLE_UTF8
-	if (term->spec->charset == utf8_table)
+	if (term_charset(term) == utf8_table)
 		return strlen_utf8(s);
 #endif
 	return (int)strlen(cast_const_char s);
@@ -154,16 +154,16 @@ static unsigned select_hotkey(struct terminal *term, unsigned char *text, unsign
 	if (hotkey == M_BAR) return 0;
 	if (text) {
 		text = stracpy(_(text, term));
-		charset_upcase_string(&text, term->spec->charset);
+		charset_upcase_string(&text, term_charset(term));
 	}
 	hotkey = _(hotkey, term);
 	while (1) {
 		int i;
 		c = GET_TERM_CHAR(term, &hotkey);
 		if (!c) break;
-		c = charset_upcase(c, term->spec->charset);
+		c = charset_upcase(c, term_charset(term));
 		for (i = 0; i < n; i++) if (hotkeys[i] == c) goto cont;
-		if (!text || cp_strchr(term->spec->charset, text, c)) break;
+		if (!text || cp_strchr(term_charset(term), text, c)) break;
 		cont:;
 	}
 	if (text) mem_free(text);
@@ -349,7 +349,7 @@ static void display_menu_txt(struct terminal *term, struct menu *menu)
 			for (x = 0; x < menu->xw - 4; x++) {
 				c = GET_TERM_CHAR(term, &tmptext);
 				if (!c) break;
-				set_char(term, menu->x + x + 2 + 2 * !!term->spec->braille, s, c, !h && charset_upcase(c, term->spec->charset) == menu->hotkeys[p] ? h = 1, COLOR_MENU_HOTKEY : co);
+				set_char(term, menu->x + x + 2 + 2 * !!term->spec->braille, s, c, !h && charset_upcase(c, term_charset(term)) == menu->hotkeys[p] ? h = 1, COLOR_MENU_HOTKEY : co);
 			}
 			if (term->spec->braille && menu->hotkeys[p]) {
 				set_char(term, menu->x + 2, s, menu->hotkeys[p], COLOR_MENU_HOTKEY);
@@ -570,7 +570,7 @@ static void menu_func(struct window *win, struct links_event *ev, int fwd)
 			else if (ev->x > ' ') {
 				int i;
 				for (i = 0; i < menu->ni; i++) {
-					if (charset_upcase(ev->x, win->term->spec->charset) == menu->hotkeys[i]) {
+					if (charset_upcase(ev->x, term_charset(win->term)) == menu->hotkeys[i]) {
 						menu->selected = i;
 						scroll_menu(menu, 0);
 						s = 1;
@@ -660,7 +660,7 @@ static void display_mainmenu(struct terminal *term, struct mainmenu *menu)
 			for (;; p++) {
 				c = GET_TERM_CHAR(term, &tmptext);
 				if (!c) break;
-				set_char(term, p, 0, c, !s && charset_upcase(c, term->spec->charset) == menu->hotkeys[i] ? s = 1, COLOR_MAINMENU_HOTKEY : co);
+				set_char(term, p, 0, c, !s && charset_upcase(c, term_charset(term)) == menu->hotkeys[i] ? s = 1, COLOR_MAINMENU_HOTKEY : co);
 			}
 			if (i == menu->selected) {
 				fill_area(term, p, 0, 2, 1, ' ', co);
@@ -766,7 +766,7 @@ static void mainmenu_func(struct window *win, struct links_event *ev, int fwd)
 				int i;
 				s = 1;
 				for (i = 0; i < menu->ni; i++) {
-					if (charset_upcase(ev->x, win->term->spec->charset) == menu->hotkeys[i]) {
+					if (charset_upcase(ev->x, term_charset(win->term)) == menu->hotkeys[i]) {
 						menu->selected = i;
 						s = 2;
 					}
@@ -1429,7 +1429,7 @@ clipbd_paste:
 			gh:
 			if (ev->x > ' ') for (i = 0; i < dlg->n; i++) {
 				unsigned char *tx = _(dlg->dlg->items[i].text, term);
-				if (dlg->dlg->items[i].type == D_BUTTON && charset_upcase(GET_TERM_CHAR(term, &tx), term->spec->charset) == charset_upcase(ev->x, term->spec->charset)) goto sel;
+				if (dlg->dlg->items[i].type == D_BUTTON && charset_upcase(GET_TERM_CHAR(term, &tx), term_charset(term)) == charset_upcase(ev->x, term_charset(term))) goto sel;
 			}
 			if (ev->x == KBD_ENTER) for (i = 0; i < dlg->n; i++)
 				if (dlg->dlg->items[i].type == D_BUTTON && dlg->dlg->items[i].gid & B_ENTER) goto sel;

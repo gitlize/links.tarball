@@ -1082,7 +1082,7 @@ static int redraw_list_element(struct terminal *term, struct dialog_data *dlg, i
 	if (!F)
 	{
 		print_text(term,dlg->x+x+DIALOG_LB,y,w-x,txt,color);
-		x+=cp_len(term->spec->charset, txt);
+		x+=cp_len(term_charset(term), txt);
 		fill_area(term,dlg->x+DIALOG_LB+x,y,w-x,1,' ',0);
 		set_line_color(term,dlg->x+DIALOG_LB+x,y,w-x,color);
 	}
@@ -1291,7 +1291,7 @@ static void list_search_for_back(struct redraw_data *rd, unsigned char *str)
 	if (!ld->open) return;
 
 	if (ld->search_word) mem_free(ld->search_word);
-	ld->search_word = to_utf8_upcase(str, rd->dlg->win->term->spec->charset);
+	ld->search_word = to_utf8_upcase(str, term_charset(rd->dlg->win->term));
 	ld->search_direction = -1;
 
 	list_find_next(rd, ld->search_direction);
@@ -1305,7 +1305,7 @@ static void list_search_for(struct redraw_data *rd, unsigned char *str)
 	if (!ld->open) return;
 
 	if (ld->search_word) mem_free(ld->search_word);
-	ld->search_word = to_utf8_upcase(str, rd->dlg->win->term->spec->charset);
+	ld->search_word = to_utf8_upcase(str, term_charset(rd->dlg->win->term));
 	ld->search_direction = 1;
 
 	list_find_next(rd, ld->search_direction);

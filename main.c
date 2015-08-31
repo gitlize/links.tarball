@@ -247,6 +247,8 @@ err_close:
 
 static void gfx_connection_terminate(void *p)
 {
+	int h = (int)(my_intptr_t)p;
+	set_handlers(h, NULL, NULL, NULL);
 	terminate_loop = 1;
 }
 
@@ -295,7 +297,7 @@ static void end_dump(struct object_request *r, void *p)
 		o.xw = screen_width;
 		o.yw = 25;
 		o.col = 0;
-		o.cp = dump_codepage == -1 ? 0 : dump_codepage;
+		o.cp = dump_codepage == -1 ? get_default_charset() : dump_codepage;
 		ds2do(&dds, &o, 0);
 		o.plain = 0;
 		o.frames = 0;
@@ -450,7 +452,7 @@ static void init(void)
 							goto ttt;
 						}
 						mem_free(info);
-						set_handlers(uh, gfx_connection_terminate, NULL, NULL);
+						set_handlers(uh, gfx_connection_terminate, NULL, (void *)(my_intptr_t)uh);
 						initialize_all_subsystems_2();
 #if defined(HAVE_MALLOC_TRIM)
 						malloc_trim(0);

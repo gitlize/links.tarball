@@ -526,7 +526,7 @@ void free_term_specs(void)
 
 struct list_head term_specs = {&term_specs, &term_specs};
 
-static struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0 };
 
 static struct term_spec *get_term_spec(unsigned char *term)
 {
@@ -588,9 +588,9 @@ struct terminal *init_term(int fdin, int fdout, void (*root_window)(struct windo
 static int process_utf_8(struct terminal *term, struct links_event *ev)
 {
 #if defined(G) || defined(ENABLE_UTF8)
-	if (ev->ev == EV_KBD && ((!F && term->spec->charset == utf8_table)
+	if (ev->ev == EV_KBD && ((!F && term_charset(term) == utf8_table)
 #ifdef G
-	    || (F && drv->codepage == utf8_table)
+	    || (F && g_kbd_codepage(drv) == utf8_table)
 #endif
 	    )) {
 		size_t l;
@@ -640,9 +640,10 @@ struct terminal *init_gfx_term(void (*root_window)(struct window *, struct links
 	term->environment = !(drv->flags & GD_ONLY_1_WINDOW) ? ENV_G : 0;
 	if (!strcasecmp(cast_const_char drv->name, "x")) term->environment |= ENV_XWIN;
 	term->spec = &gfx_term;
+	term->default_character_set = get_default_charset();
 	safe_strncpy(term->cwd, cwd, MAX_CWD_LEN);
-	gfx_term.charset = utf8_table;
-	if (gfx_term.charset == -1) gfx_term.charset = 0;
+	gfx_term.character_set = utf8_table;
+	if (gfx_term.character_set == -1) gfx_term.character_set = 0;
 	init_list(term->windows);
 	term->handle_to_close = -1;
 	win = mem_calloc(sizeof (struct window));
@@ -772,16 +773,17 @@ static void in_term(struct terminal *term)
 	}
 	if (ev->ev == EV_INIT) {
 		int init_len;
-		if ((size_t)term->qlen < sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + 2 * sizeof(int)) return;
-		init_len = *(int *)(iq + sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + sizeof(int));
-		if ((size_t)term->qlen < sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + 2 * sizeof(int) + init_len) return;
+		if ((size_t)term->qlen < sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + 3 * sizeof(int)) return;
+		init_len = *(int *)(iq + sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + 2 * sizeof(int));
+		if ((size_t)term->qlen < sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + 3 * sizeof(int) + init_len) return;
 		memcpy(term->term, iq + sizeof(struct links_event), MAX_TERM_LEN);
 		term->term[MAX_TERM_LEN - 1] = 0;
 		memcpy(term->cwd, iq + sizeof(struct links_event) + MAX_TERM_LEN, MAX_CWD_LEN);
 		term->cwd[MAX_CWD_LEN - 1] = 0;
 		term->environment = *(int *)(iq + sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN);
-		ev->b = (my_intptr_t)(iq + sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + sizeof(int));
-		r = (int)sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + 2 * (int)sizeof(int) + init_len;
+		term->default_character_set = *(int *)(iq + sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + sizeof(int));
+		ev->b = (my_intptr_t)(iq + sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + 2 * sizeof(int));
+		r = (int)sizeof(struct links_event) + MAX_TERM_LEN + MAX_CWD_LEN + 3 * (int)sizeof(int) + init_len;
 		sync_term_specs();
 	}
 	if (ev->ev == EV_REDRAW || ev->ev == EV_RESIZE || ev->ev == EV_INIT) {
@@ -939,8 +941,8 @@ static inline char_t utf8_hack(char_t c)
 		add_to_str(&a, &l, cast_uchar "m");			\
 	}								\
 	if (c >= ' ' && c != 127 && (c != 155 ||			\
-	    (term->spec->charset != utf8_table && cp2u(155, term->spec->charset) != -1))) {\
-		if (c < 128 || frm || term->spec->charset != utf8_table) {\
+	    (term_charset(term) != utf8_table && cp2u(155, term_charset(term)) != -1))) {\
+		if (c < 128 || frm || term_charset(term) != utf8_table) {\
 			add_chr_to_str(&a, &l, (unsigned char)c);	\
 		} else {						\
 		/*							\
@@ -995,7 +997,7 @@ void redraw_screen(struct terminal *term)
 		}
 		for (x = 0; x < term->x; x++, p++) {
 			int i;
-			if (y == term->y - 1 && x == term->x - 1) break;
+			if (y == term->y - 1 && x == term->x - 1 && term->left_margin + term->x == term->real_x && term->top_margin + term->y == term->real_y) break;
 			if (term->screen[p].ch == term->last_screen[p].ch && term->screen[p].at == term->last_screen[p].at) {
 #if defined(ENABLE_UTF8) && !defined(HAVE_ATTR_PACKED)
 				/* make sure that padding is identical */
@@ -1412,7 +1414,7 @@ void set_terminal_title(struct terminal *term, unsigned char *title)
 	{
 		struct conv_table *table;
 		mem_free(title);
-		table = get_translation_table(term->spec->charset, utf8_table);
+		table = get_translation_table(term_charset(term), utf8_table);
 		title = convert_string(table, term->title, strlen(cast_const_char term->title), NULL);
 	}
 #endif

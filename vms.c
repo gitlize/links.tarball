@@ -12,6 +12,11 @@
 #include <lib$routines.h>
 #include <libclidef.h>
 
+#if defined(HAVE_OPENSSL) && !defined(OPENSSL_NO_SHA) && !defined(OPENSSL_NO_SHA1)
+#include <openssl/sha.h>
+#define USE_SHA
+#endif
+
 #ifdef __VAX
 struct _iosb {
 	unsigned short iosb$w_status;
@@ -41,7 +46,7 @@ struct _generic_64 {
 
 #define VIRTUAL_PIPE_SIZE		512
 
-#define GETTIMEOFDAY_POOL		16
+#define GETTIMEOFDAY_POOL		256
 
 /*#define TEST_WAKE_BUG*/
 /*#define TRACE_PIPES*/
@@ -128,10 +133,8 @@ static volatile int must_redraw = 0;
 static volatile int ctrl_c = 0;
 static volatile int ctrl_y = 0;
 
-#ifdef __VAX
 static volatile struct timeval gettimeofday_pool[GETTIMEOFDAY_POOL];
 static volatile unsigned gettimeofday_clock = 0;
-#endif
 
 static void vms_key_handler(int mode, void (*ast)(void))
 {
@@ -510,15 +513,13 @@ static void get_abstime(time_t sec, unsigned usec, struct timespec *ts)
 		tv.tv_usec -= 1000000;
 		tv.tv_sec++;
 	}
-#ifdef __VAX
 	{
 		unsigned c = gettimeofday_clock;
 		if (c >= GETTIMEOFDAY_POOL) c = 0;
 		gettimeofday_clock = c;
-		gettimeofday_pool[c].tv_sec += tv.tv_sec;
-		gettimeofday_pool[c].tv_usec += tv.tv_usec;
+		gettimeofday_pool[c].tv_sec = (unsigned long)gettimeofday_pool[c].tv_sec * 11 + (unsigned long)tv.tv_sec;
+		gettimeofday_pool[c].tv_usec = (unsigned long)gettimeofday_pool[c].tv_usec * 11 + (unsigned long)tv.tv_usec;
 	}
-#endif
 	ts->tv_sec = tv.tv_sec;
 	ts->tv_nsec = tv.tv_usec * 1000;
 #endif
@@ -1054,19 +1055,77 @@ void init_os(void)
 #endif
 }
 
-void os_seed_random(unsigned char **pool, unsigned *pool_size)
+void os_seed_random(unsigned char **pool, int *pool_size)
 {
+	struct history_item *hi;
+	DIR *dir;
+	int n, h;
+
+	*pool = init_str();
+	*pool_size = 0;
+
 	/*
 	 * This is not very secure, but I don't know a better way.
-	 * It is needed only on VAX; Alpha has a better random number seeding.
 	 */
-#ifdef __VAX
-	*pool = memacpy((unsigned char *)(void *)&gettimeofday_pool, sizeof gettimeofday_pool);
-	*pool_size = sizeof gettimeofday_pool;
-#else
-	*pool = DUMMY;
-	*pool_size = 0;
+	add_bytes_to_str(pool, pool_size, (unsigned char *)(void *)&gettimeofday_pool, sizeof gettimeofday_pool);
+
+#ifdef USE_SHA
+	/*
+	 * Make sure that even if the transformation is reversible (due to
+	 * poor randomness on OpenVMS), the adversary won't be able to find
+	 * any URLs in the history.
+	 */
+	n = 0;
+	foreach(hi, goto_url_history.items) {
+		SHA_CTX ctx;
+		unsigned char result[SHA_DIGEST_LENGTH];
+		unsigned char sum;
+		int i;
+
+		SHA1_Init(&ctx);
+		SHA1_Update(&ctx, hi->d, strlen(cast_const_char hi->d));
+		SHA1_Final(result, &ctx);
+
+		sum = 0;
+		for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+			sum += result[i] + (result[i] >> 4);
+		}
+		add_chr_to_str(pool, pool_size, sum & 0xf);
+		if (++n >= 64)
+			break;
+	}
 #endif
+
+	dir = c_opendir(cast_uchar "/SYS$LOGIN");
+	if (dir) {
+		for (n = 0; n < 256; n++) {
+			struct dirent *de;
+			unsigned char *path;
+			struct stat st;
+			ENULLLOOP(de, (void *)readdir(dir));
+			if (!de)
+				break;
+			path = stracpy(cast_uchar "/SYS$LOGIN/");
+			add_to_strn(&path, cast_uchar de->d_name);
+			if (!stat(cast_const_char path, &st)) {
+				add_bytes_to_str(pool, pool_size, (unsigned char *)&st.st_ctime, (int)sizeof st.st_ctime);
+			}
+			mem_free(path);
+		}
+		closedir(dir);
+	}
+
+	h = c_open(cast_uchar "/SYS$LOGIN/SSH2/RANDOM_SEED", O_RDONLY);
+	if (h == -1)
+		h = c_open(cast_uchar "/SYS$LOGIN/SSH/RANDOM_SEED", O_RDONLY);
+	if (h != -1) {
+		unsigned char buffer[512];
+		int r;
+		r = hard_read(h, buffer, (int)sizeof buffer);
+		if (r >= 0)
+			add_bytes_to_str(pool, pool_size, buffer, r);
+		EINTRLOOP(r, close(h));
+	}
 }
 
 void terminate_osdep(void)

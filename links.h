@@ -193,11 +193,15 @@
 
 #ifdef HAVE_SSL
 #ifdef HAVE_OPENSSL
+#ifndef NO_SSL_CERTIFICATES
+#define HAVE_SSL_CERTIFICATES
+#endif
 #if defined(OPENVMS) && defined(__VAX)
 #define OPENSSL_NO_SHA512
 #endif
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
+#include <openssl/x509v3.h>
 #endif
 #ifdef HAVE_NSS
 #include <nss_compat_ossl/nss_compat_ossl.h>
@@ -266,6 +270,9 @@ __cdecl
 #endif
 strtoq(const char *, char **, int);
 #endif
+
+#define stringify_internal(arg)	#arg
+#define stringify(arg)		stringify_internal(arg)
 
 #include "os_depx.h"
 
@@ -753,17 +760,17 @@ static inline int srch_cmp(unsigned char c1, unsigned char c2)
 {
 	return upcase(c1) != upcase(c2);
 }
-int casecmp(unsigned char *c1, unsigned char *c2, size_t len);
-int casestrstr(unsigned char *h, unsigned char *n);
-static inline int xstrcmp(unsigned char *s1, unsigned char *s2)
+int casecmp(const unsigned char *c1, const unsigned char *c2, size_t len);
+int casestrstr(const unsigned char *h, const unsigned char *n);
+static inline int xstrcmp(const unsigned char *s1, const unsigned char *s2)
 {
 	if (!s1 && !s2) return 0;
 	if (!s1) return -1;
 	if (!s2) return 1;
-	return strcmp((char *)s1, (char *)s2);
+	return strcmp(cast_const_char s1, cast_const_char s2);
 }
 
-static inline int cmpbeg(unsigned char *str, unsigned char *b)
+static inline int cmpbeg(const unsigned char *str, const unsigned char *b)
 {
 	while (*str && upcase(*str) == upcase(*b)) str++, b++;
 	return !!*b;
@@ -883,10 +890,12 @@ int vms_x11_fd(int ef);
 
 extern unsigned char *clipboard;
 
-void os_seed_random(unsigned char **pool, unsigned *pool_size);
+void os_seed_random(unsigned char **pool, int *pool_size);
 int os_send_fg_cookie(int);
 int os_receive_fg_cookie(int);
 void os_detach_console(void);
+int os_default_language(void);
+int os_default_charset(void);
 
 /* memory.c */
 
@@ -1199,6 +1208,7 @@ static inline int getpri(struct connection *c)
 #define S_HTTP_100		(-2000000101)
 #define S_HTTP_204		(-2000000102)
 #define S_HTTPS_FWD_ERROR	(-2000000103)
+#define S_INVALID_CERTIFICATE	(-2000000104)
 
 #define S_FILE_TYPE		(-2000000200)
 #define S_FILE_ERROR		(-2000000201)
@@ -1282,6 +1292,7 @@ void free_blacklist(void);
 #define BL_NO_RANGE		0x08
 #define BL_NO_COMPRESSION	0x10
 #define BL_NO_BZIP2		0x20
+#define BL_IGNORE_CERTIFICATE	0x40
 
 /* url.c */
 
@@ -1391,6 +1402,7 @@ void https_func(struct connection *c);
 #ifdef HAVE_SSL
 void ssl_finish(void);
 SSL *getSSL(void);
+int verify_ssl_certificate(SSL *ssl, unsigned char *host);
 #endif
 
 /* data.c */
@@ -1698,7 +1710,7 @@ struct graphics_driver {
 		    */
 	int x, y;	/* size of screen. only for drivers that use virtual devices */
 	int flags;	/* GD_xxx flags */
-	int codepage;
+	int kbd_codepage;
 	unsigned char *shell;
 		/* -if exec is NULL string is unused
 	 	   -otherwise this string describes shell to be executed by the
@@ -1722,6 +1734,7 @@ void add_graphics_drivers(unsigned char **s, int *l);
 unsigned char *init_graphics(unsigned char *, unsigned char *, unsigned char *);
 void shutdown_graphics(void);
 void update_driver_param(void);
+int g_kbd_codepage(struct graphics_driver *drv);
 
 int dummy_block(struct graphics_device *);
 int dummy_unblock(struct graphics_device *);
@@ -2013,6 +2026,7 @@ struct terminal {
 	chr *screen;
 	chr *last_screen;
 	struct term_spec *spec;
+	int default_character_set;
 	int cx;
 	int cy;
 	int lcx;
@@ -2053,7 +2067,7 @@ struct term_spec {
 	int block_cursor;
 	int col;
 	int braille;
-	int charset;
+	int character_set;
 	int left_margin;
 	int right_margin;
 	int top_margin;
@@ -2070,6 +2084,13 @@ struct term_spec {
 
 extern struct list_head term_specs;
 extern struct list_head terminals;
+
+static inline int term_charset(struct terminal *term)
+{
+	if (term->spec->character_set >= 0)
+		return term->spec->character_set;
+	return term->default_character_set;
+}
 
 int hard_write(int, unsigned char *, int);
 int hard_read(int, unsigned char *, int);
@@ -2160,6 +2181,12 @@ extern int current_language;
 
 void init_trans(void);
 void shutdown_trans(void);
+#if defined(OS2) || defined(DOS)
+int get_country_language(int c);
+#endif
+int get_default_language(void);
+int get_default_charset(void);
+int get_current_language(void);
 unsigned char *get_text_translation(unsigned char *, struct terminal *term);
 unsigned char *get_english_translation(unsigned char *);
 void set_language(int);
@@ -2331,6 +2358,8 @@ struct object_request {
 	void *data;
 	int redirect_cnt;
 	int state;
+	int hold;
+	int dont_print_error;
 	struct timer *timer;
 
 	off_t last_bytes;
@@ -3802,7 +3831,7 @@ static inline unsigned GET_TERM_CHAR(struct terminal *term, unsigned char **str)
 {
 	unsigned ch;
 #if defined(G) || defined(ENABLE_UTF8)
-	if (term->spec->charset == utf8_table)
+	if (term_charset(term) == utf8_table)
 		GET_UTF_8(*str, ch);
 	else
 #endif
@@ -4435,7 +4464,7 @@ void save_url_history(void);
 struct driver_param {
 	struct driver_param *next;
 	struct driver_param *prev;
-	int codepage;
+	int kbd_codepage;
 	unsigned char *param;
 	unsigned char *shell;
 	int nosave;
@@ -4507,6 +4536,16 @@ struct proxies {
 };
 
 extern struct proxies proxies;
+
+#define SSL_ACCEPT_INVALID_CERTIFICATE	0
+#define SSL_WARN_ON_INVALID_CERTIFICATE	1
+#define SSL_REJECT_INVALID_CERTIFICATE	2
+
+struct ssl_options {
+	int certificates;
+};
+
+extern struct ssl_options ssl_options;
 
 struct http_header_options {
 	int fake_firefox;

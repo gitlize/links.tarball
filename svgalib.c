@@ -1714,8 +1714,8 @@ static void svgalib_key_in(void *p, unsigned char *ev_, int size)
 		switch_virtual_device((ev->x - '1' + 10) % 10);
 		return;
 	}
-	if (svga_driver.codepage!=utf8_table&&(ev->x)>=128&&(ev->x)<=255)
-		if ((ev->x=cp2u(ev->x,svga_driver.codepage)) == -1) return;
+	if (g_kbd_codepage(&svga_driver) != utf8_table && ev->x >= 128 && ev->x <= 255)
+		if ((ev->x = cp2u(ev->x, g_kbd_codepage(&svga_driver))) == -1) return;
 	if (current_virtual_device && current_virtual_device->keyboard_handler) current_virtual_device->keyboard_handler(current_virtual_device, ev->x, ev->y);
 }
 

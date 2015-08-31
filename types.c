@@ -128,7 +128,7 @@ static unsigned char *assoc_type_item(struct terminal *term, void *data, int x)
 		add_to_strn(&txt,cast_uchar " -> ");
 		if (item->prog)add_to_strn(&txt,item->prog);
 	}
-	table=get_translation_table(assoc_ld.codepage,term->spec->charset);
+	table=get_translation_table(assoc_ld.codepage,term_charset(term));
 	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	mem_free(txt);
 
@@ -227,7 +227,7 @@ static void assoc_edit_done(void *data)
 	ct=label+MAX_STR_LEN;
 	prog=ct+MAX_STR_LEN;
 
-	table=get_translation_table(s->dlg->win->term->spec->charset,assoc_ld.codepage);
+	table=get_translation_table(term_charset(s->dlg->win->term),assoc_ld.codepage);
 	txt=convert_string(table,label,(int)strlen(cast_const_char label),NULL);
 	mem_free(item->label); item->label=txt;
 
@@ -502,7 +502,7 @@ static unsigned char *ext_type_item(struct terminal *term, void *data, int x)
 	if ((struct list*)item==(&extensions)) return stracpy(_(TEXT_(T_FILE_EXTENSIONS),term));
 	txt=stracpy(item->ext);
 	if (item->ct){add_to_strn(&txt,cast_uchar ": ");add_to_strn(&txt,item->ct);}
-	table=get_translation_table(assoc_ld.codepage,term->spec->charset);
+	table=get_translation_table(assoc_ld.codepage,term_charset(term));
 	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	mem_free(txt);
 
@@ -572,7 +572,7 @@ static void ext_edit_done(void *data)
 	ext=(unsigned char *)&d->items[5];
 	ct=ext+MAX_STR_LEN;
 
-	table=get_translation_table(s->dlg->win->term->spec->charset,ext_ld.codepage);
+	table=get_translation_table(term_charset(s->dlg->win->term),ext_ld.codepage);
 	txt=convert_string(table,ext,(int)strlen(cast_const_char ext),NULL);
 	mem_free(item->ext); item->ext=txt;
 
@@ -1081,6 +1081,7 @@ struct assoc *get_type_assoc(struct terminal *term, unsigned char *type, int *n)
 int is_html_type(unsigned char *ct)
 {
 	return	!strcasecmp(cast_const_char ct, "text/html") ||
+		!strcasecmp(cast_const_char ct, "text-html") ||
 		!strcasecmp(cast_const_char ct, "text/x-server-parsed-html") ||
 		!strcasecmp(cast_const_char ct, "text/xml") ||
 		!casecmp(ct, cast_uchar "application/xhtml", strlen("application/xhtml"));

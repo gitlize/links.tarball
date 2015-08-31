@@ -5,6 +5,8 @@
 #include <pc.h>
 #include <dpmi.h>
 #include <bios.h>
+#include <go32.h>
+#include <libc/dosio.h>
 #include <sys/exceptn.h>
 #include <sys/movedata.h>
 
@@ -754,7 +756,7 @@ void setcooked(int ctl)
 
 #define RANDOM_POOL_SIZE	65536
 
-void os_seed_random(unsigned char **pool, unsigned *pool_size)
+void os_seed_random(unsigned char **pool, int *pool_size)
 {
 	unsigned *random_pool, *tmp_pool;
 	int a, i;
@@ -796,6 +798,36 @@ void terminate_osdep(void)
 {
 	if (screen_backbuffer)
 		mem_free(screen_backbuffer);
+}
+
+int os_default_language(void)
+{
+	__dpmi_regs r;
+	memset(&r, 0, sizeof r);
+	r.x.ax = 0x3800;
+	r.x.dx = __tb_offset;
+	r.x.ds = __tb_segment;
+	__dpmi_int(0x21, &r);
+	if (!(r.x.flags & 1)) {
+		return get_country_language(r.x.bx);
+	}
+	return -1;
+}
+
+int os_default_charset(void)
+{
+	__dpmi_regs r;
+	memset(&r, 0, sizeof r);
+	r.x.ax = 0x6601;
+	__dpmi_int(0x21, &r);
+	if (!(r.x.flags & 1)) {
+		unsigned char a[8];
+		int cp;
+		snprintf(cast_char a, sizeof a, "%d", r.x.bx);
+		if ((cp = get_cp_index(a)) >= 0 && cp != utf8_table)
+			return cp;
+	}
+	return 0;
 }
 
 #else

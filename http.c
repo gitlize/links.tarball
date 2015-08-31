@@ -296,6 +296,9 @@ static void http_send_header(struct connection *c)
 	else add_to_str(&hdr, &l, cast_uchar " HTTP/1.0\r\n");
 	if (!info->https_forward && (h = get_host_name(host))) {
 		add_to_str(&hdr, &l, cast_uchar "Host: ");
+		if (*h && h[strlen(cast_const_char h) - 1] == '.') {
+			h[strlen(cast_const_char h) - 1] = 0;
+		}
 		if (h[0] == '[' && h[strlen(cast_const_char h) - 1] == ']') {
 			unsigned char *pc = cast_uchar strchr(cast_const_char h, '%');
 			if (pc) {
@@ -351,7 +354,7 @@ static void add_user_agent(unsigned char **hdr, int *l)
 {
 	add_to_str(hdr, l, cast_uchar "User-Agent: ");
 	if (SCRUB_HEADERS) {
-		add_to_str(hdr, l, cast_uchar "Mozilla/5.0 (Windows NT 6.1; rv:31.0) Gecko/20100101 Firefox/31.0\r\n");
+		add_to_str(hdr, l, cast_uchar "Mozilla/5.0 (Windows NT 6.1; rv:38.0) Gecko/20100101 Firefox/38.0\r\n");
 	} else if (!(*http_options.header.fake_useragent)) {
 		add_to_str(hdr, l, cast_uchar("Links (" VERSION_STRING "; "));
 		add_to_str(hdr, l, system_name);
@@ -451,7 +454,7 @@ static void add_accept_language(unsigned char **hdr, int *l, struct http_connect
 	if (!(info->bl_flags & BL_NO_ACCEPT_LANGUAGE)) {
 		add_to_str(hdr, l, cast_uchar "Accept-Language: ");
 		if (SCRUB_HEADERS) {
-			add_to_str(hdr, l, cast_uchar "en-us,en;q=0.5\r\n");
+			add_to_str(hdr, l, cast_uchar "en-US,en;q=0.5\r\n");
 		} else {
 			int la;
 			la = *l;

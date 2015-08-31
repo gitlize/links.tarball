@@ -1,3 +1,22 @@
+=== RELEASE 2.11 ===
+
+Tue Aug 25 18:44:58 CEST 2015 mikulas:
+
+	Improve entropy collcetion on OpenVMS. It is still far from ideal.
+
+Thu Aug 20 19:35:45 CEST 2015 mikulas:
+
+	Fixed a bug - when a links process attached to another instance in
+	graphics mode, it would occasionally loop, consuming 100% CPU
+
+Sun Jul 26 18:36:44 CEST 2015 mikulas:
+
+	An option to take language and charset from the LANG variable
+
+Sat Jul 25 16:18:16 CEST 2015 mikulas:
+
+	Verify SSL certificates
+
 === RELEASE 2.10 ===
 
 Fri Jul  3 00:40:22 CEST 2015 mikulas:

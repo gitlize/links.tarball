@@ -22,6 +22,7 @@ struct auth_dialog {
 	unsigned char passwd[MAX_UID_LEN];
 	unsigned char *realm;
 	int proxy;
+	tcount count;
 	unsigned char msg[1];
 };
 
@@ -76,8 +77,10 @@ static void auth_fn(struct dialog_data *dlg)
 
 static int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 {
-	struct object_request *rq = find_rq((my_intptr_t)dlg->dlg->udata2);
+	struct auth_dialog *a = dlg->dlg->udata;
+	struct object_request *rq = find_rq(a->count);
 	if (rq) {
+		rq->hold = 0;
 		rq->state = O_OK;
 		if (rq->timer != NULL) kill_timer(rq->timer);
 		rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
@@ -89,22 +92,23 @@ static int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 
 static int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 {
-	struct object_request *rq = find_rq((my_intptr_t)dlg->dlg->udata2);
+	struct auth_dialog *a = dlg->dlg->udata;
+	struct object_request *rq = find_rq(a->count);
 	if (rq) {
-		struct auth_dialog *a = dlg->dlg->udata;
 		struct session *ses;
 		struct conv_table *ct;
 		int net_cp;
 		unsigned char *uid, *passwd;
 		get_dialog_data(dlg);
 		ses = ((struct window *)dlg->win->term->windows.prev)->data;
-		get_convert_table(rq->ce_internal->head, dlg->win->term->spec->charset, ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
-		ct = get_translation_table(dlg->win->term->spec->charset, net_cp);
+		get_convert_table(rq->ce_internal->head, term_charset(dlg->win->term), ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
+		ct = get_translation_table(term_charset(dlg->win->term), net_cp);
 		uid = convert_string(ct, a->uid, (int)strlen(cast_const_char a->uid), NULL);
 		passwd = convert_string(ct, a->passwd, (int)strlen(cast_const_char a->passwd), NULL);
 		add_auth(rq->url, a->realm, uid, passwd, a->proxy);
 		mem_free(uid);
 		mem_free(passwd);
+		rq->hold = 0;
 		change_connection(&rq->stat, NULL, PRI_CANCEL);
 		load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_RELOAD, 0, 0, 0);
 	}
@@ -125,7 +129,7 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 	return -1;
 	ok:
 	ses = ((struct window *)term->windows.prev)->data;
-	ct = get_convert_table(rq->ce_internal->head, term->spec->charset, ses->ds.assume_cp, NULL, NULL, ses->ds.hard_assume);
+	ct = get_convert_table(rq->ce_internal->head, term_charset(term), ses->ds.assume_cp, NULL, NULL, ses->ds.hard_assume);
 	if (rq->ce_internal->http_code == 407) {
 		host = get_proxy_string(rq->url);
 		if (!host) host = cast_uchar "";
@@ -154,8 +158,8 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 	mem_free(urealm);
 	a->proxy = rq->ce_internal->http_code == 407;
 	a->realm = stracpy(realm);
+	a->count = rq->count;
 	d->udata = a;
-	d->udata2 = (void *)(my_intptr_t)rq->count;
 	if (rq->ce_internal->http_code == 401) d->title = TEXT_(T_AUTHORIZATION_REQUIRED);
 	else d->title = TEXT_(T_PROXY_AUTHORIZATION_REQUIRED);
 	d->fn = auth_fn;
@@ -181,6 +185,54 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 	return 0;
 }
 
+#ifdef HAVE_SSL_CERTIFICATES
+
+struct cert_dialog {
+	tcount count;
+	unsigned char *host;
+};
+
+static void cert_yes(void *data)
+{
+	struct cert_dialog *cs = data;
+	struct object_request *rq = find_rq(cs->count);
+	rq->hold = 0;
+	add_blacklist_entry(cs->host, BL_IGNORE_CERTIFICATE);
+	change_connection(&rq->stat, NULL, PRI_CANCEL);
+	load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_CACHE, 0, 0, 0);
+}
+
+static void cert_no(void *data)
+{
+	struct cert_dialog *cs = data;
+	struct object_request *rq = find_rq(cs->count);
+	rq->hold = 0;
+	rq->dont_print_error = 1;
+	rq->state = O_FAILED;
+	if (rq->timer != NULL) kill_timer(rq->timer);
+	rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
+}
+
+static int cert_window(struct object_request *rq)
+{
+	struct terminal *term;
+	unsigned char *host;
+	struct cert_dialog *cs;
+	struct memory_list *ml;
+	foreach(term, terminals) if (rq->term == term->count) goto ok;
+	return -1;
+	ok:
+	host = get_host_name(rq->url);
+	cs = mem_alloc(sizeof(struct cert_dialog));
+	cs->count = rq->count;
+	cs->host = host;
+	ml = getml(cs, host, NULL);
+	msg_box(term, ml, TEXT_(T_INVALID_CERTIFICATE), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_THE_SERVER_), host, TEXT_(T_DOESNT_HAVE_A_VALID_CERTIFICATE), NULL, cs, 2, TEXT_(T_NO), cert_no, B_ESC, TEXT_(T_YES), cert_yes, B_ENTER);
+	return 0;
+}
+
+#endif
+
 /* prev_url is a pointer to previous url or NULL */
 /* prev_url will NOT be deallocated */
 void request_object(struct terminal *term, unsigned char *url, unsigned char *prev_url, int pri, int cache, int allow_flags, void (*upcall)(struct object_request *, void *), void *data, struct object_request **rqp)
@@ -201,7 +253,6 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 	rq->timer = NULL;
 	rq->z = (uttime)get_time() - STAT_UPDATE_MAX;
 	rq->last_update = rq->z;
-	rq->last_bytes = 0;
 	if (rq->prev_url) mem_free(rq->prev_url);
 	rq->prev_url = stracpy(prev_url);
 	if (rqp) *rqp = rq;
@@ -230,6 +281,15 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 	set_ce_internal(rq);
 
 	if (stat->state < 0) {
+#ifdef HAVE_SSL_CERTIFICATES
+		if (!stat->ce && rq->state == O_WAITING && stat->state == S_INVALID_CERTIFICATE && ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
+			if (!cert_window(rq)) {
+				rq->hold = 1;
+				rq->redirect_cnt = 0;
+				goto tm;
+			}
+		}
+#endif
 		if (stat->ce && rq->state == O_WAITING && stat->ce->redirect) {
 			if (rq->redirect_cnt++ < MAX_REDIRECTS) {
 				int cache, allow_flags;
@@ -273,6 +333,7 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 			}
 			mem_free(user);
 			if (!auth_window(rq, realm)) {
+				rq->hold = 1;
 				rq->redirect_cnt = 0;
 				mem_free(realm);
 				goto tm;
@@ -303,7 +364,7 @@ static void object_timer(struct object_request *rq)
 	last = rq->last_bytes;
 	if (rq->ce) rq->last_bytes = rq->ce->length;
 	rq->timer = NULL;
-	if (rq->stat.state < 0 && (!rq->ce_internal || (!rq->ce_internal->redirect && rq->ce_internal->http_code != 401 && rq->ce_internal->http_code != 407) || rq->stat.state == S_CYCLIC_REDIRECT)) {
+	if (rq->stat.state < 0 && !rq->hold && (!rq->ce_internal || !rq->ce_internal->redirect || rq->stat.state == S_CYCLIC_REDIRECT)) {
 		if (rq->ce_internal && rq->stat.state != S_CYCLIC_REDIRECT) {
 			rq->state = rq->stat.state != S__OK ? O_INCOMPLETE : O_OK;
 		} else rq->state = O_FAILED;

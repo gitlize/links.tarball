@@ -113,11 +113,11 @@ static unsigned char *init_graphics_driver(struct graphics_driver *gd, unsigned 
 {
 	unsigned char *r;
 	unsigned char *p = param;
-	struct driver_param *dp=get_driver_param(gd->name);
+	struct driver_param *dp = get_driver_param(gd->name);
 	if (!param || !*param) p = dp->param;
-	gd->codepage=dp->codepage;
-	gd->shell=mem_calloc(MAX_STR_LEN);
-	if (dp->shell) safe_strncpy(gd->shell,dp->shell,MAX_STR_LEN);
+	gd->kbd_codepage = dp->kbd_codepage;
+	gd->shell = mem_calloc(MAX_STR_LEN);
+	if (dp->shell) safe_strncpy(gd->shell, dp->shell, MAX_STR_LEN);
 	drv = gd;
 	r = gd->init_driver(p,display);
 	if (r) mem_free(gd->shell), gd->shell = NULL, drv = NULL;
@@ -193,16 +193,22 @@ void shutdown_graphics(void)
 
 void update_driver_param(void)
 {
-	if (drv)
-	{
-		struct driver_param *dp=get_driver_param(drv->name);
-		dp->codepage=drv->codepage;
+	if (drv) {
+		struct driver_param *dp = get_driver_param(drv->name);
+		dp->kbd_codepage = drv->kbd_codepage;
 		if (dp->param) mem_free(dp->param);
 		dp->param=stracpy(drv->get_driver_param());
 		if (dp->shell) mem_free(dp->shell);
-		dp->shell=stracpy(drv->shell);
+		dp->shell = stracpy(drv->shell);
 		dp->nosave = 0;
 	}
+}
+
+int g_kbd_codepage(struct graphics_driver *drv)
+{
+	if (drv->kbd_codepage >= 0)
+		return drv->kbd_codepage;
+	return get_default_charset();
 }
 
 void generic_set_clip_area(struct graphics_device *dev, struct rect *r)

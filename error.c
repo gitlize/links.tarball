@@ -438,7 +438,9 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size, int
 #endif
 #ifdef LEAK_DEBUG
 	ah = p;
-	mem_amount += size - ah->size;
+	/* OpenVMS Alpha C miscompiles this: mem_amount += size - ah->size; */
+	mem_amount += size;
+	mem_amount -= ah->size;
 	ah->size = size;
 	ah->magic = ALLOC_MAGIC;
 #ifdef LEAK_DEBUG_LIST

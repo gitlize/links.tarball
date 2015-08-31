@@ -375,3 +375,5 @@ Volker Schatz <linksbrowser@volkerschatz.com>
 		in the info box popping up on "=".
 	New graphics glyphs
 
+Daniel Stenberg <daniel@haxx.se>
+	A piece of code from the curl library was taken to verify SSL host name

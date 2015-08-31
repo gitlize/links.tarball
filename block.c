@@ -84,7 +84,7 @@ static unsigned char *block_type_item(struct terminal *term, void *data, int x)
 	txt=stracpy(item->url);
 
 	/*I have no idea what this does, but it os copied from working code in types.c*/
-	table=get_translation_table(blocks_ld.codepage,term->spec->charset);
+	table=get_translation_table(blocks_ld.codepage,term_charset(term));
 	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
 	mem_free(txt);
 
@@ -121,7 +121,7 @@ static void block_edit_done(void *data)
 	/*See block_edit_item*/
 	url=(unsigned char *)&d->items[4];
 
-	table=get_translation_table(s->dlg->win->term->spec->charset,blocks_ld.codepage);
+	table=get_translation_table(term_charset(s->dlg->win->term),blocks_ld.codepage);
 	txt=convert_string(table,url,(int)strlen(cast_const_char url),NULL);
 	mem_free(item->url); item->url=txt;
 
