@@ -63,7 +63,7 @@ static void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 	color_type=png_get_color_type(png_ptr, info_ptr);
 	if (color_type == PNG_COLOR_TYPE_PALETTE)
 		png_set_expand(png_ptr);
-    	if (color_type == PNG_COLOR_TYPE_GRAY &&
+	if (color_type == PNG_COLOR_TYPE_GRAY &&
 		bit_depth < 8) png_set_expand(png_ptr);
 	if (png_get_valid(png_ptr, info_ptr,
 		PNG_INFO_tRNS)){
@@ -100,8 +100,8 @@ static void png_info_callback(png_structp png_ptr, png_infop info_ptr)
 		gamma=sRGB_gamma;
 	}
 	else
- 	{
-  		if (!png_get_gAMA(png_ptr, info_ptr, &gamma)){
+	{
+		if (!png_get_gAMA(png_ptr, info_ptr, &gamma)){
 			gamma=sRGB_gamma;
 		}
 	}
@@ -227,7 +227,7 @@ error:
 	png_set_progressive_read_fn(png_ptr, NULL,
 				    png_info_callback, &png_row_callback,
 				    png_end_callback);
-   	if (setjmp(png_jmpbuf(png_ptr))) goto error;
+	if (setjmp(png_jmpbuf(png_ptr))) goto error;
 	decoder=mem_alloc(sizeof(*decoder));
 	decoder->png_ptr=png_ptr;
 	decoder->info_ptr=info_ptr;

@@ -784,11 +784,11 @@
 #define PACKAGE "links"
 
 /* Version number of package */
-#define VERSION "2.11"
+#define VERSION "2.12"
 
 
 /* */
-#define VERSION "2.11"
+#define VERSION "2.12"
 
 /* */
 /* #undef HAVE_OPENMP */

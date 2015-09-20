@@ -61,6 +61,17 @@ static int ssl_set_private_paths(void)
 #define ssl_set_private_paths()		(-1)
 #endif
 
+int ssl_asked_for_password;
+
+static int ssl_password_callback(char *buf, int size, int rwflag, void *userdata)
+{
+	ssl_asked_for_password = 1;
+	if (size > (int)strlen(cast_const_char ssl_options.client_cert_password))
+		size = (int)strlen(cast_const_char ssl_options.client_cert_password);
+	memcpy(buf, ssl_options.client_cert_password, size);
+	return size;
+}
+
 SSL *getSSL(void)
 {
 	if (!context) {
@@ -92,6 +103,7 @@ SSL *getSSL(void)
 		SSL_CTX_set_options(context, SSL_OP_ALL);
 		if (ssl_set_private_paths())
 			SSL_CTX_set_default_verify_paths(context);
+		SSL_CTX_set_default_passwd_cb(context, ssl_password_callback);
 
 	}
 	return SSL_new(context);
@@ -268,6 +280,29 @@ int verify_ssl_certificate(SSL *ssl, unsigned char *host)
 	ret = verify_ssl_host_name(server_cert, host);
 	X509_free(server_cert);
 	return ret;
+}
+
+int verify_ssl_cipher(SSL *ssl)
+{
+	const SSL_METHOD *meth = SSL_get_ssl_method(ssl);
+	unsigned char *cipher;
+	if (
+#ifndef OPENSSL_NO_SSL2
+	    meth == SSLv2_client_method() ||
+#endif
+#ifndef OPENSSL_NO_SSL3_METHOD
+	    meth == SSLv3_client_method() ||
+#endif
+
+	    0) {
+		return S_INSECURE_CIPHER;
+	}
+	if (SSL_get_cipher_bits(ssl, NULL) < 112)
+		return S_INSECURE_CIPHER;
+	cipher = cast_uchar SSL_get_cipher_name(ssl);
+	if (strstr(cast_const_char cipher, "RC4-"))
+		return S_INSECURE_CIPHER;
+	return 0;
 }
 
 #endif

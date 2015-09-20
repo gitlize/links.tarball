@@ -202,11 +202,11 @@ void compute_background_8(unsigned char *rgb, struct cached_image *cimg)
 	round_color_sRGB_to_48(&red, &green, &blue
 		, cimg->background_color);
 	rgb[0]=ags_16_to_8(red
-		,(float)(cimg->red_gamma/user_gamma));
+		,(float)(cimg->red_gamma/(float)user_gamma));
 	rgb[1]=ags_16_to_8(green
-		,(float)(cimg->green_gamma/user_gamma));
+		,(float)(cimg->green_gamma/(float)user_gamma));
 	rgb[2]=ags_16_to_8(blue
-		,(float)(cimg->blue_gamma/user_gamma));
+		,(float)(cimg->blue_gamma/(float)user_gamma));
 }
 
 /* updates cimg state when header dimensions are know. Only allowed to be called
@@ -219,8 +219,8 @@ void compute_background_8(unsigned char *rgb, struct cached_image *cimg)
  * Resets strip_optimized if image will be scaled or
  * Allocates dregs if on exit strip_optimized is nonzero.
  * Allocates and computes gamma_table, otherwise
- * 	sets gamma_table to NULL. Also doesn't make gamma table if image contains less
- * 	than 1024 pixels (it would be probably a waste of time).
+ *	sets gamma_table to NULL. Also doesn't make gamma table if image contains less
+ *	than 1024 pixels (it would be probably a waste of time).
  * Output state is always 12 (from input state 8) or 14 (from input state 10).
  *
  * The caller must have set the following elements of cimg:
@@ -365,7 +365,7 @@ int header_dimensions_known(struct cached_image *cimg)
 		if (!cimg->buffer)
 			return 1;
 		if (cimg->buffer_bytes_per_pixel==4
-			 	||cimg->buffer_bytes_per_pixel==4
+				||cimg->buffer_bytes_per_pixel==4
 				*sizeof(unsigned short))
 			{
 			/* Make the buffer contain full transparency */
@@ -381,11 +381,11 @@ int header_dimensions_known(struct cached_image *cimg)
 					, cimg->background_color);
 
 				red=ags_16_to_16(red
-					,(float)(cimg->red_gamma/user_gamma));
+					,(float)(cimg->red_gamma/(float)user_gamma));
 				green=ags_16_to_16(green
-					,(float)(cimg->green_gamma/user_gamma));
+					,(float)(cimg->green_gamma/(float)user_gamma));
 				blue=ags_16_to_16(blue
-					,(float)(cimg->blue_gamma/user_gamma));
+					,(float)(cimg->blue_gamma/(float)user_gamma));
 				mix_one_color_48((unsigned short *)cimg->buffer
 					,cimg->width*cimg->height,red
 					,green, blue);
@@ -433,9 +433,9 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 			else{
 				agx_24_to_48(tmp,buffer,cimg->width
 					*height
-					,(float)(user_gamma/cimg->red_gamma)
-					,(float)(user_gamma/cimg->green_gamma)
-					,(float)(user_gamma/cimg->blue_gamma));
+					,(float)((float)user_gamma/cimg->red_gamma)
+					,(float)((float)user_gamma/cimg->green_gamma)
+					,(float)((float)user_gamma/cimg->blue_gamma));
 			}
 		break;
 
@@ -447,9 +447,9 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 			}else{
 				agx_48_to_48(tmp,(unsigned short *)buffer
 					,cimg->width*height
-					,(float)(user_gamma/cimg->red_gamma)
-					,(float)(user_gamma/cimg->green_gamma)
-					,(float)(user_gamma/cimg->blue_gamma));
+					,(float)((float)user_gamma/cimg->red_gamma)
+					,(float)((float)user_gamma/cimg->green_gamma)
+					,(float)((float)user_gamma/cimg->blue_gamma));
 			}
 		break;
 
@@ -465,9 +465,9 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 			}else{
 				agx_and_uc_32_to_48(tmp,buffer
 					,cimg->width*height
-					,(float)(user_gamma/cimg->red_gamma)
-					,(float)(user_gamma/cimg->green_gamma)
-					,(float)(user_gamma/cimg->blue_gamma)
+					,(float)((float)user_gamma/cimg->red_gamma)
+					,(float)((float)user_gamma/cimg->green_gamma)
+					,(float)((float)user_gamma/cimg->blue_gamma)
 					,red, green, blue);
 			}
 		}
@@ -484,9 +484,9 @@ static unsigned short *buffer_to_16(unsigned short *tmp, struct cached_image *ci
 			}else{
 				agx_and_uc_64_to_48(tmp
 					,(unsigned short*)buffer,cimg->width*height
-					,(float)(user_gamma/cimg->red_gamma)
-					,(float)(user_gamma/cimg->green_gamma)
-					,(float)(user_gamma/cimg->blue_gamma)
+					,(float)((float)user_gamma/cimg->red_gamma)
+					,(float)((float)user_gamma/cimg->green_gamma)
+					,(float)((float)user_gamma/cimg->blue_gamma)
 					,red,green,blue);
 			}
 		}
@@ -559,7 +559,7 @@ not_enough:
 	tmpbmp.skip=cimg->bmp.skip;
 	buffer_to_16(tmp, cimg, buffer, tmpbmp.y);
 	if (dregs){
-	       	dither_restart(tmp, &tmpbmp, dregs);
+		dither_restart(tmp, &tmpbmp, dregs);
 	}
 	else {
 		(*round_fn)(tmp, &tmpbmp);
@@ -876,8 +876,8 @@ static void type(struct cached_image *cimg, unsigned char *content_type, unsigne
  * the state of the decoder. When changing xww and yww also changes xw and yw
  * in g_object_image.
  *      return value 1 means the data were chopped and the caller shall not redraw
- *      	(because it would be too slow and because we are probably choked
- *      	up with the data)
+ *		(because it would be too slow and because we are probably choked
+ *		up with the data)
  */
 static int img_process_download(struct g_object_image *goi, struct f_data_c *fdatac)
 {

@@ -182,10 +182,10 @@ static HICON icon_small;
 #define XBUTTON2		0x0002
 #endif
 #ifndef GET_X_LPARAM
-#define GET_X_LPARAM(lp) 	((short)LOWORD(lp))
+#define GET_X_LPARAM(lp)	((short)LOWORD(lp))
 #endif
 #ifndef GET_Y_LPARAM
-#define GET_Y_LPARAM(lp) 	((short)HIWORD(lp))
+#define GET_Y_LPARAM(lp)	((short)HIWORD(lp))
 #endif
 
 static HANDLE winapi_semaphore;

@@ -133,16 +133,16 @@ output_pixel(int c)
 				buffer_to_bitmap_incremental(cimg
 					,deco->actual_line, 1, deco->yoff,
 					cimg->dregs, 1);
-	  		}else{
-	  			deco->actual_line+=deco->im_width*3;
-	  		}
+			}else{
+				deco->actual_line+=deco->im_width*3;
+			}
 			deco->yoff++;
-  		}else{
+		}else{
 			int skip=deco->interl_dist&15;
-   			int n=(deco->interl_dist==24)
+			int n=(deco->interl_dist==24)
 				?8:(deco->interl_dist>>1);
 			unsigned char *ptr;
-   			int y;
+			int y;
 
 			ptr=deco->actual_line+deco->im_width*3;
 			for (y=deco->yoff+1;y<deco->im_height
@@ -164,12 +164,12 @@ output_pixel(int c)
 			}else{
 				deco->interl_dist=(deco->interl_dist==24)
 					?8:(deco->interl_dist>>1);
-	    			deco->yoff=deco->interl_dist>>1;
+				deco->yoff=deco->interl_dist>>1;
 				deco->actual_line=global_cimg
 					->buffer+deco->yoff*3*deco->im_width;
-   			}
-  		}
- 	}
+			}
+		}
+	}
 }
 
 /* Finds the first char of output string for given codeword. */
@@ -203,9 +203,9 @@ output_string(int c)
 	deco=global_cimg->decoder;
 	while(1){
 		if (pos==4096){
-	  		/* Cycle in string */
-		  	end_callback_hit=1;
-		  	return;
+			/* Cycle in string */
+			end_callback_hit=1;
+			return;
 		}
 		deco->table[pos].garbage=deco->table[c].end_char;
 		pos++;
@@ -230,9 +230,9 @@ add_table(struct gif_decoder *deco,int end_char,short pointer)
 {
 	if (deco->table_pos>=4096){
 		/* ignore overflows because they may happen */
-	 	/*end_callback_hit=1;*/
-	 	return; /* Overflow */
- 	}
+		/*end_callback_hit=1;*/
+		return; /* Overflow */
+	}
 	deco->table[deco->table_pos].end_char=(unsigned char)end_char;
 	deco->table[deco->table_pos].pointer=pointer;
 	deco->table_pos++;
@@ -373,8 +373,8 @@ gif_accept_byte(unsigned char c)
 		if (deco->tlen>=13){
 			if (strncmp(cast_const_char deco->tbuf,"GIF87a",6)
 				&&strncmp(cast_const_char deco->tbuf,"GIF89a",6)){
-	   			end_callback_hit=1;
-	   			return; /* Invalid GIF header */
+				end_callback_hit=1;
+				return; /* Invalid GIF header */
 			}
 			deco->im_bpp=(deco->tbuf[10]&7)+1;
 			deco->tlen=0;
@@ -387,7 +387,7 @@ gif_accept_byte(unsigned char c)
 				deco->state=1;
 			}
 			/*if (deco->tbuf[10] & 8 || deco->tbuf[12]) {
-	   			goto bad_file;
+				goto bad_file;
 			}*/
 		}
 		break;
@@ -456,7 +456,7 @@ gif_accept_byte(unsigned char c)
 				deco->xoff=0;
 				deco->yoff=0;
 			}
-	 	}
+		}
 		break;
 
 		case 4: /* Reading local colormap in GIF */
@@ -471,15 +471,15 @@ gif_accept_byte(unsigned char c)
 
 		case 5: /* Reading code size block in GIF */
 		deco->initial_code_size=c;
-  		if (deco->initial_code_size<=1||deco->initial_code_size>8){
+		if (deco->initial_code_size<=1||deco->initial_code_size>8){
 			end_callback_hit=1;
 			return; /* Invalid initial code size */
 		}
 		if (!deco->color_map){
-	 		end_callback_hit=1;
-	 		return;
-  		}
-  		deco->bits_read=0;
+			end_callback_hit=1;
+			return;
+		}
+		deco->bits_read=0;
 		deco->read_code=0;  /* Nothing read */
 		init_table(); /* Decoding is about to begin sets up code_size. */
 		deco->state=6;
@@ -489,7 +489,7 @@ gif_accept_byte(unsigned char c)
 		break;
 
 		case 6: /* Reading image data in GIF */
-	  	if (!deco->remains){
+		if (!deco->remains){
 			/* This byte is a count byte. Feed it into remains. */
 			deco->remains=c;
 			if (!c){

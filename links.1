@@ -225,6 +225,25 @@ Append text to dns lookups. It is useful for specifying fixed tor exit node.
 It is useful for anonymization with tor or similar networks.
 
 .TP
+\f3-ssl.certificates \f2<0>/<1>/<2>\f1
+(default 1)
+0 - ignore invalid certificate.
+1 - warn on invalid certificate.
+2 - reject invalid certificate.
+
+.TP
+\f3-ssl.client-cert-key \f2<filename>\f1
+Name of the PEM encoded file with the user private key for client certificate authentication.
+
+.TP
+\f3-ssl.client-cert-crt \f2<filename>\f1
+Name of the PEM encoded file with the user certificate for client certificate authentication.
+
+.TP
+\f3-ssl.client-cert-password \f2<text>\f1
+Password for the user private key.
+
+.TP
 \f3-http-bugs.http10 \f2<0>/<1>\f1
 (default 0) "1" forces using only HTTP/1.0 protocol. (useful for buggy servers
 that claim to be HTTP/1.1 compliant but are not)

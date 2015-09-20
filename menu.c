@@ -11,7 +11,6 @@ static unsigned char * const version_texts[] = {
 	TEXT_(T_OPERATING_SYSTEM_TYPE),
 	TEXT_(T_OPERATING_SYSTEM_VERSION),
 	TEXT_(T_COMPILER),
-	TEXT_(T_COMPILE_TIME),
 	TEXT_(T_WORD_SIZE),
 	TEXT_(T_DEBUGGING_LEVEL),
 	TEXT_(T_EVENT_HANDLER),
@@ -74,10 +73,6 @@ static void menu_version(struct terminal *term)
 
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
 	add_to_str(&s, &l, compiler_name);
-	add_to_str(&s, &l, cast_uchar "\n");
-
-	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
-	add_to_str(&s, &l, cast_uchar(__DATE__ "  " __TIME__));
 	add_to_str(&s, &l, cast_uchar "\n");
 
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
@@ -1073,14 +1068,104 @@ static void dlg_ipv6_options(struct terminal *term, void *xxx, void *yyy)
 
 #ifdef HAVE_SSL_CERTIFICATES
 
-static unsigned char * const ssl_labels[] = { TEXT_(T_ACCEPT_INVALID_CERTIFICATES), TEXT_(T_WARN_ON_INVALID_CERTIFICATES), TEXT_(T_REJECT_INVALID_CERTIFICATES), NULL };
+static int check_file(struct dialog_data *dlg, struct dialog_item_data *di, int type)
+{
+	unsigned char *p = di->cdata;
+	int r;
+	struct stat st;
+	SSL *ssl;
+	if (!p[0]) return 0;
+	EINTRLOOP(r, stat(cast_const_char p, &st));
+	if (r || !S_ISREG(st.st_mode)) {
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_FILE), AL_CENTER, TEXT_(T_THE_FILE_DOES_NOT_EXIST), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+		return 1;
+	}
+	ssl = getSSL();
+	if (!ssl)
+		return 0;
+#if !defined(OPENSSL_NO_STDIO)
+	if (!type) {
+		ssl_asked_for_password = 0;
+		r = SSL_use_PrivateKey_file(ssl, cast_const_char p, SSL_FILETYPE_PEM);
+		if (!r && ssl_asked_for_password) r = 1;
+		r = r != 1;
+	} else {
+		r = SSL_use_certificate_file(ssl, cast_const_char p, SSL_FILETYPE_PEM);
+		r = r != 1;
+	}
+#else
+	r = 0;
+#endif
+	if (r)
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_FILE), AL_CENTER, TEXT_(T_THE_FILE_HAS_INVALID_FORMAT), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+	SSL_free(ssl);
+	return r;
+}
+
+static int check_file_key(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	return check_file(dlg, di, 0);
+}
+
+static int check_file_crt(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	return check_file(dlg, di, 1);
+}
+
+static unsigned char * const ssl_labels[] = { TEXT_(T_ACCEPT_INVALID_CERTIFICATES), TEXT_(T_WARN_ON_INVALID_CERTIFICATES), TEXT_(T_REJECT_INVALID_CERTIFICATES), TEXT_(T_CLIENT_CERTIFICATE_KEY_FILE), TEXT_(T_CLIENT_CERTIFICATE_FILE), TEXT_(T_CLIENT_CERTIFICATE_KEY_PASSWORD), NULL };
+
+static void ssl_options_fn(struct dialog_data *dlg)
+{
+	struct terminal *term = dlg->win->term;
+	int max = 0, min = 0;
+	int w, rw;
+	int y = 0;
+	checkboxes_width(term, dlg->dlg->udata, dlg->n - 4, &max, max_text_width);
+	checkboxes_width(term, dlg->dlg->udata, dlg->n - 4, &min, min_text_width);
+	max_text_width(term, ssl_labels[dlg->n - 4], &max, AL_LEFT);
+	min_text_width(term, ssl_labels[dlg->n - 4], &min, AL_LEFT);
+	max_text_width(term, ssl_labels[dlg->n - 3], &max, AL_LEFT);
+	min_text_width(term, ssl_labels[dlg->n - 3], &min, AL_LEFT);
+	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
+	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
+	w = term->x * 9 / 10 - 2 * DIALOG_LB;
+	if (w > max) w = max;
+	if (w < min) w = min;
+	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
+	if (w < 5) w = 5;
+	rw = 0;
+	dlg_format_checkboxes(dlg, NULL, dlg->items, dlg->n - 5, 0, &y, w, &rw, dlg->dlg->udata);
+	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, NULL, ssl_labels[dlg->n - 5], dlg->items + dlg->n - 5, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, NULL, ssl_labels[dlg->n - 4], dlg->items + dlg->n - 4, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, NULL, ssl_labels[dlg->n - 3], dlg->items + dlg->n - 3, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, 1 * G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
+	w = rw;
+	dlg->xw = rw + 2 * DIALOG_LB;
+	dlg->yw = y + 2 * DIALOG_TB;
+	center_dlg(dlg);
+	draw_dlg(dlg);
+	y = dlg->y + DIALOG_TB + gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_checkboxes(dlg, term, dlg->items, dlg->n - 5, dlg->x + DIALOG_LB, &y, w, NULL, dlg->dlg->udata);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_text_and_field(dlg, term, ssl_labels[dlg->n - 5], dlg->items + dlg->n - 5, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, term, ssl_labels[dlg->n - 4], dlg->items + dlg->n - 4, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	dlg_format_text_and_field(dlg, term, ssl_labels[dlg->n - 3], dlg->items + dlg->n - 3, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, term, dlg->items + dlg->n - 2, 2, dlg->x + DIALOG_LB, &y, w, &rw, AL_CENTER);
+}
 
 static void dlg_ssl_options(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
-	d = mem_calloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
+	d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_SSL_OPTIONS);
-	d->fn = checkbox_list_fn;
+	d->fn = ssl_options_fn;
 	d->udata = (void *)ssl_labels;
 	d->items[0].type = D_CHECKBOX;
 	d->items[0].gid = 1;
@@ -1097,15 +1182,26 @@ static void dlg_ssl_options(struct terminal *term, void *xxx, void *yyy)
 	d->items[2].gnum = SSL_REJECT_INVALID_CERTIFICATE;
 	d->items[2].dlen = sizeof(int);
 	d->items[2].data = (void *)&ssl_options.certificates;
-	d->items[3].type = D_BUTTON;
-	d->items[3].gid = B_ENTER;
-	d->items[3].fn = ok_dialog;
-	d->items[3].text = TEXT_(T_OK);
-	d->items[4].type = D_BUTTON;
-	d->items[4].gid = B_ESC;
-	d->items[4].fn = cancel_dialog;
-	d->items[4].text = TEXT_(T_CANCEL);
-	d->items[5].type = D_END;
+	d->items[3].type = D_FIELD;
+	d->items[3].dlen = MAX_STR_LEN;
+	d->items[3].data = ssl_options.client_cert_key;
+	d->items[3].fn = check_file_key;
+	d->items[4].type = D_FIELD;
+	d->items[4].dlen = MAX_STR_LEN;
+	d->items[4].data = ssl_options.client_cert_crt;
+	d->items[4].fn = check_file_crt;
+	d->items[5].type = D_FIELD_PASS;
+	d->items[5].dlen = MAX_STR_LEN;
+	d->items[5].data = ssl_options.client_cert_password;
+	d->items[6].type = D_BUTTON;
+	d->items[6].gid = B_ENTER;
+	d->items[6].fn = ok_dialog;
+	d->items[6].text = TEXT_(T_OK);
+	d->items[7].type = D_BUTTON;
+	d->items[7].gid = B_ESC;
+	d->items[7].fn = cancel_dialog;
+	d->items[7].text = TEXT_(T_CANCEL);
+	d->items[8].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
 }
 
@@ -1724,6 +1820,16 @@ static void proxy_fn(struct dialog_data *dlg)
 	dlg_format_buttons(dlg, term, &dlg->items[dlg->n - 2], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
 
+static int proxy_ok_dialog(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	int op = proxies.only_proxies;
+	int r = ok_dialog(dlg, di);
+	if (op != proxies.only_proxies) {
+		free_cookies();
+	}
+	return r;
+}
+
 static void dlg_proxy_options(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
@@ -1759,7 +1865,7 @@ static void dlg_proxy_options(struct terminal *term, void *xxx, void *yyy)
 	a++;
 	d->items[a].type = D_BUTTON;
 	d->items[a].gid = B_ENTER;
-	d->items[a].fn = ok_dialog;
+	d->items[a].fn = proxy_ok_dialog;
 	d->items[a].text = TEXT_(T_OK);
 	a++;
 	d->items[a].type = D_BUTTON;

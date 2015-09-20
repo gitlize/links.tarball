@@ -85,12 +85,17 @@ static const int strange_chars[32] = {
 #define U_EQUAL(a, b) unicode_7b[a].x == (b)
 #define U_ABOVE(a, b) unicode_7b[a].x > (b)
 
+static int is_nbsp(int u)
+{
+	return u == 0xa0 || u == 0x202f;
+}
+
 unsigned char *u2cp(int u, int to, int fallback)
 {
 	int j, s;
 	again:
 	if (u < 128) return cast_uchar strings[u];
-	if (u == 0xa0) return cast_uchar strings[1];
+	if (is_nbsp(u)) return cast_uchar strings[1];
 	if (u == 0xad) return cast_uchar strings[0];
 	if (to == utf8_table) return encode_utf_8(u);
 	if (u < 0xa0) {
@@ -313,7 +318,7 @@ struct conv_table *get_translation_table(int from, int to)
 	new_translation_table(table);
 	if (from == utf8_table) {
 		int j;
-		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, codepages[to].table[j].u == 0xa0 ? cast_uchar strings[1] : codepages[to].table[j].u == 0xad ? cast_uchar strings[0] : cast_uchar strings[codepages[to].table[j].c]);
+		for (j = 0; codepages[to].table[j].c; j++) add_utf_8(table, codepages[to].table[j].u, is_nbsp(codepages[to].table[j].u) ? cast_uchar strings[1] : codepages[to].table[j].u == 0xad ? cast_uchar strings[0] : cast_uchar strings[codepages[to].table[j].c]);
 		for (i = 0; unicode_7b[i].x != -1; i++) if (unicode_7b[i].x >= 0x80) add_utf_8(table, unicode_7b[i].x, cast_uchar unicode_7b[i].s);
 	} else for (i = 128; i < 256; i++) {
 		int j;

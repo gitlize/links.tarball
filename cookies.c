@@ -247,12 +247,7 @@ void add_cookies(unsigned char **s, int *l, unsigned char *url)
 	mem_free(server);
 }
 
-void init_cookies(void)
-{
-	/* !!! FIXME: read cookies */
-}
-
-void cleanup_cookies(void)
+void free_cookies(void)
 {
 	struct cookie *c;
 	free_list(c_domains);
@@ -261,3 +256,12 @@ void cleanup_cookies(void)
 	free_list(all_cookies);
 }
 
+void init_cookies(void)
+{
+	/* !!! FIXME: read cookies */
+}
+
+void cleanup_cookies(void)
+{
+	free_cookies();
+}

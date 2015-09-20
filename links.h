@@ -287,8 +287,8 @@ strtoq(const char *, char **, int);
 #endif
 
 #define cast_const_char	(const char *)
-#define cast_char 	(char *)
-#define cast_uchar 	(unsigned char *)
+#define cast_char	(char *)
+#define cast_uchar	(unsigned char *)
 
 #ifdef OPENVMS
 #define RET_OK		1	/* SS$_NORMAL */
@@ -1209,6 +1209,7 @@ static inline int getpri(struct connection *c)
 #define S_HTTP_204		(-2000000102)
 #define S_HTTPS_FWD_ERROR	(-2000000103)
 #define S_INVALID_CERTIFICATE	(-2000000104)
+#define S_INSECURE_CIPHER	(-2000000105)
 
 #define S_FILE_TYPE		(-2000000200)
 #define S_FILE_ERROR		(-2000000201)
@@ -1293,6 +1294,7 @@ void free_blacklist(void);
 #define BL_NO_COMPRESSION	0x10
 #define BL_NO_BZIP2		0x20
 #define BL_IGNORE_CERTIFICATE	0x40
+#define BL_IGNORE_CIPHER	0x80
 
 /* url.c */
 
@@ -1374,6 +1376,7 @@ int set_cookie(struct terminal *, unsigned char *, unsigned char *);
 void add_cookies(unsigned char **, int *, unsigned char *);
 void init_cookies(void);
 void cleanup_cookies(void);
+void free_cookies(void);
 int is_in_domain(unsigned char *d, unsigned char *s);
 int is_path_prefix(unsigned char *d, unsigned char *s);
 int cookie_expired(struct cookie *c);
@@ -1400,9 +1403,13 @@ void proxy_func(struct connection *);
 
 void https_func(struct connection *c);
 #ifdef HAVE_SSL
+extern int ssl_asked_for_password;
 void ssl_finish(void);
 SSL *getSSL(void);
+#ifdef HAVE_SSL_CERTIFICATES
 int verify_ssl_certificate(SSL *ssl, unsigned char *host);
+int verify_ssl_cipher(SSL *ssl);
+#endif
 #endif
 
 /* data.c */
@@ -1713,11 +1720,11 @@ struct graphics_driver {
 	int kbd_codepage;
 	unsigned char *shell;
 		/* -if exec is NULL string is unused
-	 	   -otherwise this string describes shell to be executed by the
+		   -otherwise this string describes shell to be executed by the
 		    exec function, the '%' char means string to be executed
 		   -shell cannot be NULL
 		   -if exec is !NULL and shell is empty, exec should use some
- 		    default shell (e.g. "xterm -e %")
+		    default shell (e.g. "xterm -e %")
 		*/
 };
 
@@ -1776,7 +1783,12 @@ void shutdown_virtual_devices(void);
 #define FC_COLOR 0
 #define FC_BW 1
 
-extern double sRGB_gamma;
+#define sRGB_gamma	0.45455		/* For HTML, which runs
+					 * according to sRGB standard. Number
+					 * in HTML tag is linear to photons raised
+					 * to this power.
+					 */
+
 extern unsigned aspect; /* Must hold at least 20 bits */
 my_uintptr_t fontcache_info(int type);
 
@@ -2860,7 +2872,7 @@ struct cached_image {
 			  */
 	tcount last_count; /* Always valid. */
 	tcount last_count2; /* Always valid. */
-	void *decoder; 	      /* Decoder unfinished work. If NULL, decoder
+	void *decoder;	      /* Decoder unfinished work. If NULL, decoder
 			       * has finished or has not yet started.
 			       */
 	int rows_added; /* 1 if some rows were added inside the decoder */
@@ -2904,8 +2916,8 @@ struct g_object_image {
 	       decoder
 	       rows_added
 	       reparse
-       	are uninitialized and thus garbage
-      	*/
+	are uninitialized and thus garbage
+	*/
 
 	struct g_object *parent;
 	/* must be same in g_object_text */
@@ -3365,8 +3377,8 @@ struct js_select_item{
 	/* index je poradi v poli, ktere vratim, takze se tu nemusi skladovat */
 	int default_selected;
 	int selected;
-	unsigned char *text; 	/* text, ktery se zobrazuje */
-	unsigned char *value; 	/* value, ktera se posila */
+	unsigned char *text;	/* text, ktery se zobrazuje */
+	unsigned char *value;	/* value, ktera se posila */
 };
 
 struct fax_me_tender_string{
@@ -3702,10 +3714,10 @@ void msg_box(struct terminal *, struct memory_list *, unsigned char *, int, /*un
 void input_field_fn(struct dialog_data *);
 void input_field(struct terminal *, struct memory_list *, unsigned char *, unsigned char *, void *, struct history *, int, unsigned char *, int, int, int (*)(struct dialog_data *, struct dialog_item_data *), ...);
 /* input_field arguments:
- * 		terminal,
- * 		blocks to free,
- * 		title,
- * 		question,
+ *		terminal,
+ *		blocks to free,
+ *		title,
+ *		question,
  *		data for functions,
  *		history,
  *		length,
@@ -3713,9 +3725,9 @@ void input_field(struct terminal *, struct memory_list *, unsigned char *, unsig
  *		minimal value,
  *		maximal value,
  *		check_function,
- * 		OK button text,
+ *		OK button text,
  *		ok function,
- * 		CANCEL button text,
+ *		CANCEL button text,
  *		cancel function,
  *		NULL
  *
@@ -4543,6 +4555,9 @@ extern struct proxies proxies;
 
 struct ssl_options {
 	int certificates;
+	unsigned char client_cert_key[MAX_STR_LEN];
+	unsigned char client_cert_crt[MAX_STR_LEN];
+	unsigned char client_cert_password[MAX_STR_LEN];
 };
 
 extern struct ssl_options ssl_options;

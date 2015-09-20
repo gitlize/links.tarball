@@ -153,7 +153,7 @@ restart_again:
 	memcpy(deco->buffer+deco->buffer_pos,data,a);
 	length-=a;
 	deco->buffer_pos+=a;
-	if (!deco->buffer_pos)return 0; 	/* z toho nic plodnyho nevznikne */
+	if (!deco->buffer_pos)return 0;		/* z toho nic plodnyho nevznikne */
 	data+=a;
 	if (!deco->in_data_block&&deco->partnum)
 	{

@@ -1260,7 +1260,7 @@ visual_found:;
 		case 386:
 		case 452:
 		case 708:
-/* 			printf("depth=%d visualid=%x\n",x_driver.depth, vinfo.visualid); */
+/*			printf("depth=%d visualid=%x\n",x_driver.depth, vinfo.visualid); */
 		break;
 
 		default:

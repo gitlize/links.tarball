@@ -63,7 +63,7 @@ static void connected(struct connection *);
 static void update_dns_priority(struct connection *);
 static void connected_callback(struct connection *);
 static void dns_found(struct connection *, int);
-static void retry_connect(struct connection *, int);
+static void retry_connect(struct connection *, int, int);
 static void try_connect(struct connection *);
 static void handle_socks_reply(struct connection *);
 
@@ -206,6 +206,14 @@ void make_connection(struct connection *c, int port, int *sock, void (*func)(str
 	c->newconn = b;
 	log_data(cast_uchar "\nCONNECTION: ", 13);
 	log_data(host, strlen(cast_const_char host));
+#ifdef LOG_TRANSFER
+	{
+		char n[64];
+		snprintf(cast_char n, sizeof n, "%d", port);
+		log_data(":", 1);
+		log_data(n, strlen(cast_const_char n));
+	}
+#endif
 	log_data(cast_uchar "\n", 1);
 	if (c->no_cache >= NC_RELOAD) as = find_host_no_cache(host, &b->addr, &c->dnsquery, (void(*)(void *, int))dns_found, c);
 	else as = find_host(host, &b->addr, &c->dnsquery, (void(*)(void *, int))dns_found, c);
@@ -327,6 +335,60 @@ int get_pasv_socket_ipv6(struct connection *c, int cc, int *sock, unsigned char 
 #endif
 
 #ifdef HAVE_SSL
+static void ssl_setup_downgrade(struct connection *c)
+{
+#if !defined(HAVE_NSS)
+	int dd = c->no_tls;
+#ifdef SSL_OP_NO_TLSv1_2
+	if (dd) {
+		SSL_set_options(c->ssl, SSL_OP_NO_TLSv1_2);
+		dd--;
+	}
+#endif
+#ifdef SSL_OP_NO_TLSv1_1
+	if (dd) {
+		SSL_set_options(c->ssl, SSL_OP_NO_TLSv1_1);
+		dd--;
+	}
+#endif
+#if !defined(OPENSSL_NO_SSL2) || !defined(OPENSSL_NO_SSL3)
+	if (dd) {
+		SSL_set_options(c->ssl, SSL_OP_NO_TLSv1);
+		dd--;
+	}
+#endif
+#ifdef SSL_MODE_SEND_FALLBACK_SCSV
+	if (dd != c->no_tls) {
+		SSL_set_mode(c->ssl, SSL_MODE_SEND_FALLBACK_SCSV);
+	}
+#endif
+#endif
+}
+
+static void ssl_downgrade_dance(struct connection *c)
+{
+#if !defined(HAVE_NSS)
+	int downgrades = 0;
+#ifdef SSL_OP_NO_TLSv1_2
+	downgrades++;
+#endif
+#ifdef SSL_OP_NO_TLSv1_1
+	downgrades++;
+#endif
+#if !defined(OPENSSL_NO_SSL2) || !defined(OPENSSL_NO_SSL3)
+	downgrades++;
+#endif
+	if (++c->no_tls <= downgrades) {
+		retry_connect(c, S_SSL_ERROR, 1);
+	} else {
+		c->no_tls = 0;
+		retry_connect(c, S_SSL_ERROR, 0);
+	}
+#else
+	retry_connect(c, S_SSL_ERROR, 0);
+#endif
+}
+
 static void ssl_want_io(struct connection *c)
 {
 	int ret1, ret2;
@@ -334,9 +396,6 @@ static void ssl_want_io(struct connection *c)
 
 	set_connection_timeout(c);
 
-#ifndef HAVE_NSS
-	if (c->no_tls) c->ssl->options |= SSL_OP_NO_TLSv1;
-#endif
 	switch ((ret2 = SSL_get_error(c->ssl, ret1 = SSL_connect(c->ssl)))) {
 		case SSL_ERROR_NONE:
 			connected_callback(c);
@@ -349,8 +408,7 @@ static void ssl_want_io(struct connection *c)
 			break;
 		default:
 			log_ssl_error(__LINE__, ret1, ret2);
-			c->no_tls++;
-			retry_connect(c, S_SSL_ERROR);
+			ssl_downgrade_dance(c);
 			break;
 	}
 }
@@ -388,6 +446,10 @@ static void handle_socks(struct connection *c)
 		retry_connection(c);
 		return;
 	}
+	if (!b->socks_byte_count) {
+		log_data(command, len);
+		log_data(cast_uchar "\n", 1);
+	}
 	EINTRLOOP(wr, (int)write(*b->sock, command + b->socks_byte_count, len - b->socks_byte_count));
 	mem_free(command);
 	if (wr <= 0) {
@@ -419,7 +481,7 @@ static void handle_socks_reply(struct connection *c)
 	}
 	b->socks_byte_count += rd;
 	if (b->socks_byte_count < (int)sizeof b->socks_reply) return;
-	/* debug("%x %x %x %x %x %x %x %x", b->socks_reply[0], b->socks_reply[1], b->socks_reply[2], b->socks_reply[3], b->socks_reply[4], b->socks_reply[5], b->socks_reply[6], b->socks_reply[7]); */
+	/*debug("%x %x %x %x %x %x %x %x", b->socks_reply[0], b->socks_reply[1], b->socks_reply[2], b->socks_reply[3], b->socks_reply[4], b->socks_reply[5], b->socks_reply[6], b->socks_reply[7]);*/
 	if (b->socks_reply[0]) {
 		setcstate(c, S_BAD_SOCKS_VERSION);
 		abort_connection(c);
@@ -459,17 +521,22 @@ static void dns_found(struct connection *c, int state)
 	try_connect(c);
 }
 
-static void retry_connect(struct connection *c, int err)
+static void retry_connect(struct connection *c, int err, int ssl_downgrade)
 {
 	struct conn_info *b = c->newconn;
 	if (!b->addr_index) b->first_error = err;
-	b->addr_index++;
 #ifdef HAVE_SSL
 	if (c->ssl) {
 		if (c->ssl != DUMMY) SSL_free(c->ssl);
 		c->ssl = DUMMY;
 	}
 #endif
+	if (ssl_downgrade) {
+		close_socket(b->sock);
+		try_connect(c);
+		return;
+	}
+	b->addr_index++;
 	if (b->addr_index < b->addr.n && !b->dont_try_more_servers) {
 		close_socket(b->sock);
 		try_connect(c);
@@ -497,7 +564,7 @@ static void try_connect(struct connection *c)
 		return;
 	}
 	if (s == -1) {
-		retry_connect(c, get_error_from_errno(errno));
+		retry_connect(c, get_error_from_errno(errno), 0);
 		return;
 	}
 	set_nonblock(s);
@@ -530,7 +597,7 @@ static void try_connect(struct connection *c)
 #ifdef BEOS
 			if (errno == EWOULDBLOCK) errno = ETIMEDOUT;
 #endif
-			retry_connect(c, get_error_from_errno(errno));
+			retry_connect(c, get_error_from_errno(errno), 0);
 			return;
 		}
 		set_handlers(s, NULL, (void(*)(void *))connected, c);
@@ -567,7 +634,7 @@ static void connected(struct connection *c)
 		if (err >= 10000) err -= 10000;	/* Why does EMX return so large values? */
 	} else {
 		if (!(err = errno)) {
-			retry_connect(c, S_STATE);
+			retry_connect(c, S_STATE, 0);
 			return;
 		}
 	}
@@ -579,7 +646,7 @@ static void connected(struct connection *c)
 #ifdef DOS
 		if (err == EALREADY) err = ETIMEDOUT;
 #endif
-		retry_connect(c, get_error_from_errno(err));
+		retry_connect(c, get_error_from_errno(err), 0);
 		return;
 	}
 #endif
@@ -602,10 +669,18 @@ static void connected(struct connection *c)
 			mem_free(h);
 			goto ssl_error;
 		}
-		SSL_set_fd(c->ssl, *b->sock);
-#ifndef HAVE_NSS
-		if (c->no_tls) c->ssl->options |= SSL_OP_NO_TLSv1;
+#if defined(HAVE_SSL_CERTIFICATES) && !defined(OPENSSL_NO_STDIO)
+		if (!proxies.only_proxies) {
+			if (ssl_options.client_cert_key[0]) {
+				SSL_use_PrivateKey_file(c->ssl, cast_const_char ssl_options.client_cert_key, SSL_FILETYPE_PEM);
+			}
+			if (ssl_options.client_cert_crt[0]) {
+				SSL_use_certificate_file(c->ssl, cast_const_char ssl_options.client_cert_crt, SSL_FILETYPE_PEM);
+			}
+		}
 #endif
+		SSL_set_fd(c->ssl, *b->sock);
+		ssl_setup_downgrade(c);
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 		if (h[0] == '[' || !numeric_ip_address(h, NULL)
 #ifdef SUPPORT_IPV6
@@ -630,8 +705,7 @@ skip_numeric_address:
 			default:
 			ssl_error:
 				log_ssl_error(__LINE__, ret1, ret2);
-				c->no_tls++;
-				retry_connect(c, S_SSL_ERROR);
+				ssl_downgrade_dance(c);
 				return;
 		}
 	}
@@ -674,6 +748,21 @@ static void connected_callback(struct connection *c)
 				return;
 			}
 			ignore_cert:
+
+			err = verify_ssl_cipher(c->ssl);
+			if (err) {
+				if (ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
+					int flags = get_blacklist_flags(h);
+					if (flags & BL_IGNORE_CIPHER)
+						goto ignore_cipher;
+				}
+				mem_free(h);
+				setcstate(c, err);
+				abort_connection(c);
+				return;
+			}
+			ignore_cipher:
+
 			mem_free(h);
 		}
 	}

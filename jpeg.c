@@ -66,11 +66,11 @@ METHODDEF(void) my_skip_input_data(j_decompress_ptr cinfo,long num_bytes)
 {
 	if ((unsigned long)num_bytes>cinfo->src->bytes_in_buffer)
 	{
-	 	/* We have to enter skipping state */
-	 	cinfo->src->next_input_byte+=cinfo->src->bytes_in_buffer;
+		/* We have to enter skipping state */
+		cinfo->src->next_input_byte+=cinfo->src->bytes_in_buffer;
 		((struct jpg_decoder *)(global_cimg->decoder))->skip_bytes
-  			=(int)(num_bytes-cinfo->src->bytes_in_buffer);
-  		cinfo->src->bytes_in_buffer=0;
+			=(int)(num_bytes-cinfo->src->bytes_in_buffer);
+		cinfo->src->bytes_in_buffer=0;
 	}
 	else
 	{
@@ -246,7 +246,7 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 	switch(deco->state){
 		case 0:
 		/* jpeg_read_header */
-	   	if (JPEG_SUSPENDED==jpeg_read_header(global_cinfo,TRUE))
+		if (JPEG_SUSPENDED==jpeg_read_header(global_cinfo,TRUE))
 			break;
 		global_cinfo->buffered_image=TRUE;
 		deco->state=1;
@@ -352,7 +352,7 @@ susp0:
 					buffer_bytes_per_pixel;
 			}
 
-	 		if ((lines=
+			if ((lines=
 				jpeg_read_scanlines(
 				global_cinfo,deco->scanlines,1))){
 				/* Some lines were written into cimg buffer */
@@ -362,8 +362,8 @@ susp0:
 			}else{
 				/* No lines have been written into cimg
 				 * buffer */
-			 	/* We are suspended and we want more data */
-	 	 		goto susp0; /* Break the outer
+				/* We are suspended and we want more data */
+				goto susp0; /* Break the outer
 					     * switch statement */
 			}
 		}

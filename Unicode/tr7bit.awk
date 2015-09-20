@@ -31,5 +31,7 @@ function hex2dec(xx) {
 	}
 }
 BEGIN{
-	printf("0x00a0:\\001\n0x00ad:\n");
+	printf("0x00a0:\\001\n");
+	printf("0x202f:\\001\n");
+	printf("0x00ad:\n");
 }

@@ -569,7 +569,7 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 
 	switch (type)
 	{
- 		/* form element
+		/* form element
 		 * obj_id can be from 0 up to number of form fields
 		 * (document->vs->form_info_len may be actually lower if the fields were never
 		 * touched)
@@ -2973,9 +2973,9 @@ static void js_upcall_goto_history_ok_pressed(void *data)
  * structure and the text are both deallocated
  * must be called from select loop
  * number can be:
- * 		>0	go forward in history (not supported)
+ *		>0	go forward in history (not supported)
  *		 0	do nothing (means use string)
- * 		<0	go backward in history (supported :) )
+ *		<0	go backward in history (supported :) )
  * if string is defined - find appropriate history item and go to the url, when
  * the URL doesn't exist do nothing
  *
@@ -3283,10 +3283,10 @@ void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct
 	struct xlist_head *fi;
 #endif
 
-       	/* add all accessible frames */
-       	foreach(ff,fd->subframes)
-       		if (jsint_can_access(js_ctx,ff))
-       			if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),js_upcall_get_frame_id(ff),ff->f_data?ff->f_data->opt.framename:NULL)))return;
+	/* add all accessible frames */
+	foreach(ff,fd->subframes)
+		if (jsint_can_access(js_ctx,ff))
+			if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),js_upcall_get_frame_id(ff),ff->f_data?ff->f_data->opt.framename:NULL)))return;
 
 	if (!(fd->f_data))goto tady_uz_nic_peknyho_nebude;
 
@@ -3743,7 +3743,7 @@ unsigned char * js_upcall_get_image_src(void *chuligane, long document_id, long 
 
 /* changes image URL
  * gets struct fax_me_tender_string_2_longy
- * 	num1 = document_id, num2 = image_id, string = url
+ *	num1 = document_id, num2 = image_id, string = url
  *
  * frees the string and the fax_me_tender struct with js_mem_free function
  */

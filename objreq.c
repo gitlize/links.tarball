@@ -197,7 +197,10 @@ static void cert_yes(void *data)
 	struct cert_dialog *cs = data;
 	struct object_request *rq = find_rq(cs->count);
 	rq->hold = 0;
-	add_blacklist_entry(cs->host, BL_IGNORE_CERTIFICATE);
+	if (rq->stat.state == S_INVALID_CERTIFICATE)
+		add_blacklist_entry(cs->host, BL_IGNORE_CERTIFICATE);
+	else
+		add_blacklist_entry(cs->host, BL_IGNORE_CIPHER);
 	change_connection(&rq->stat, NULL, PRI_CANCEL);
 	load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_CACHE, 0, 0, 0);
 }
@@ -227,7 +230,7 @@ static int cert_window(struct object_request *rq)
 	cs->count = rq->count;
 	cs->host = host;
 	ml = getml(cs, host, NULL);
-	msg_box(term, ml, TEXT_(T_INVALID_CERTIFICATE), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_THE_SERVER_), host, TEXT_(T_DOESNT_HAVE_A_VALID_CERTIFICATE), NULL, cs, 2, TEXT_(T_NO), cert_no, B_ESC, TEXT_(T_YES), cert_yes, B_ENTER);
+	msg_box(term, ml, rq->stat.state == S_INVALID_CERTIFICATE ? TEXT_(T_INVALID_CERTIFICATE) : TEXT_(T_INSECURE_CIPHER), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_THE_SERVER_), host, rq->stat.state == S_INVALID_CERTIFICATE ? TEXT_(T_DOESNT_HAVE_A_VALID_CERTIFICATE) : TEXT_(T_USES_INSECURE_CIPHER), NULL, cs, 2, TEXT_(T_NO), cert_no, B_ESC, TEXT_(T_YES), cert_yes, B_ENTER);
 	return 0;
 }
 
@@ -282,7 +285,7 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 
 	if (stat->state < 0) {
 #ifdef HAVE_SSL_CERTIFICATES
-		if (!stat->ce && rq->state == O_WAITING && stat->state == S_INVALID_CERTIFICATE && ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
+		if (!stat->ce && rq->state == O_WAITING && (stat->state == S_INVALID_CERTIFICATE || stat->state == S_INSECURE_CIPHER) && ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
 			if (!cert_window(rq)) {
 				rq->hold = 1;
 				rq->redirect_cnt = 0;

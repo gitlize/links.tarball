@@ -728,7 +728,7 @@ skip_path_conv:;
 	translate_vms_to_unix(&config_dir);
 #endif
 	if (!home) {
-  		int i;
+		int i;
 		home = stracpy(path_to_exe);
 		if (!home) {
 			if (config_dir) mem_free(config_dir);
@@ -1656,6 +1656,17 @@ fprintf(stdout, "%s%s%s%s%s%s\n",
 "  0 - ignore invalid certificate\n"
 "  1 - warn on invalid certificate\n"
 "  2 - reject invalid certificate\n"
+"\n"
+" -ssl.client-cert-key <filename>\n"
+"  Name of the PEM encoded file with the user private key\n"
+"  for client certificate authentication.\n"
+"\n"
+" -ssl.client-cert-crt <filename>\n"
+"  Name of the PEM encoded file with the user certificate\n"
+"  for client certificate authentication.\n"
+"\n"
+" -ssl.client-cert-password <text>\n"
+"  Password for the user private key.\n"
 "\n"),(
 " -http-bugs.http10 <0>/<1>\n"
 "    (default 0)\n"
@@ -2016,7 +2027,7 @@ int aggressive_cache = 1;
 
 struct ipv6_options ipv6_options = { ADDR_PREFERENCE_DEFAULT };
 struct proxies proxies = { "", "", "", "", "", 0 };
-struct ssl_options ssl_options = { SSL_WARN_ON_INVALID_CERTIFICATE };
+struct ssl_options ssl_options = { SSL_WARN_ON_INVALID_CERTIFICATE, "", "", "" };
 struct http_options http_options = { 0, 1, 1, 0, 0, 0, 0, { 0, 0, REFERER_REAL_SAME_SERVER, "", "", "" } };
 struct ftp_options ftp_options = { "somebody@host.domain", 0, 0, 0, 1 };
 struct smb_options smb_options = { 0 };
@@ -2133,6 +2144,11 @@ static struct option links_options[] = {
 	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, proxies.dns_append, "append_text_to_dns_lookups", "append-text-to-dns-lookups"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &proxies.only_proxies, "only_proxies", "only-proxies"},
 	{1, gen_cmd, num_rd, num_wr, 0, 2, &ssl_options.certificates, "ssl.certificates", "ssl.certificates"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &ssl_options.client_cert_key, "ssl.client_cert_key", "ssl.client-cert-key"},
+	{1, gen_cmd, str_rd, str_wr, 0, MAX_STR_LEN, &ssl_options.client_cert_crt, "ssl.client_cert_crt", "ssl.client-cert-crt"},
+	{1, gen_cmd, str_rd, NULL, 0, MAX_STR_LEN, &ssl_options.client_cert_password, NULL, "ssl.client-cert-password"},
+	{1, gen_cmd, str_rd, NULL, 0, MAX_STR_LEN, &ssl_options.client_cert_key, "client_cert_key", "http.client_cert_key"}, /* backward compatibility with Debian patches */
+	{1, gen_cmd, str_rd, NULL, 0, MAX_STR_LEN, &ssl_options.client_cert_crt, "client_cert_crt", "http.client_cert_crt"}, /* backward compatibility with Debian patches */
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.http10, "http_bugs.http10", "http-bugs.http10"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.allow_blacklist, "http_bugs.allow_blacklist", "http-bugs.allow-blacklist"},
 	{1, gen_cmd, num_rd, num_wr, 0, 1, &http_options.bug_302_redirect, "http_bugs.bug_302_redirect", "http-bugs.bug-302-redirect"},
@@ -2306,8 +2322,7 @@ void save_url_history(void)
 	unsigned char *history_file;
 	unsigned char *hs;
 	int hsl = 0;
-	int i = 0;
-	if (anonymous || !save_history) return;
+	if (anonymous || !save_history || proxies.only_proxies) return;
 
 	/* Must have been called after init_home */
 	if (!links_home) return;
@@ -2317,7 +2332,7 @@ void save_url_history(void)
 	hsl = 0;
 	foreachback(hi, goto_url_history.items) {
 		if (!*hi->d || hi->d[0] == ' ' || strchr(cast_const_char hi->d, 10) || strchr(cast_const_char hi->d, 13)) continue;
-		if (!url_not_saveable(hi->d) && i++ <= MAX_HISTORY_ITEMS) {
+		if (!url_not_saveable(hi->d)) {
 			add_to_str(&hs, &hsl, hi->d);
 			add_to_str(&hs, &hsl, cast_uchar NEWLINE);
 		}

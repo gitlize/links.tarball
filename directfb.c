@@ -256,7 +256,7 @@ directfb_get_empty_bitmap (struct bitmap *bmp)
   retry:
   if (dfb->CreateSurface (dfb, &desc, &surface) != DFB_OK) {
     if (out_of_memory(MF_GPI, NULL, 0))
-    	goto retry;
+   	goto retry;
     return -1;
   }
 

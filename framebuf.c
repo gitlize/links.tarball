@@ -210,7 +210,7 @@ static int last_mouse_buttons;
 	int xs=hndl->x,ys=hndl->y;\
 	unsigned char *data=hndl->data;\
 \
- 	TEST_INACTIVITY\
+	TEST_INACTIVITY\
 	if (x>=dev->clip.x2||x+xs<=dev->clip.x1) return;\
 	if (y>=dev->clip.y2||y+ys<=dev->clip.y1) return;\
 	if (x+xs>dev->clip.x2) xs=dev->clip.x2-x;\
@@ -557,7 +557,7 @@ static inline void place_mouse_composite(void)
 			if (background_length>0)
 				mouse_drawscansegment(
 					background_ptr +l2,
-				       	mouse_right,mouse_top ,l3);
+					mouse_right,mouse_top ,l3);
 			mouse_ptr+=skip;
 			background_ptr+=skip;
 		}
@@ -647,21 +647,21 @@ static void generate_palette(struct palette *palette)
 	{
 		case 16:
 		case 256:
-	       	for (a=0;a<fb_palette_colors;a++)
+		for (a=0;a<fb_palette_colors;a++)
 		{
 			unsigned rgb[3];
 			q_palette(fb_colors, a, 65535, rgb);
 			palette->red[a] = rgb[0];
-	       		palette->green[a] = rgb[1];
-		       	palette->blue[a] = rgb[2];
+			palette->green[a] = rgb[1];
+			palette->blue[a] = rgb[2];
 		}
 		break;
 		case 32768:
 		for (a=0;a<fb_palette_colors;a++){
 			/*
-		       	palette->red[a]=((a>>10)&31)*(65535/31);
+			palette->red[a]=((a>>10)&31)*(65535/31);
 			palette->green[a]=((a>>5)&31)*(65535/31);
-       			palette->blue[a]=(a&31)*(65535/31);
+			palette->blue[a]=(a&31)*(65535/31);
 			*/
 			palette->red[a]=
 			palette->green[a]=
@@ -671,9 +671,9 @@ static void generate_palette(struct palette *palette)
 		case 65536:
 		for (a=0;a<fb_palette_colors;a++){
 			/*
-		       	palette->red[a]=((a>>11)&31)*(65535/31);
+			palette->red[a]=((a>>11)&31)*(65535/31);
 			palette->green[a]=((a>>5)&63)*(65535/63);
-       			palette->blue[a]=(a&31)*(65535/31);
+			palette->blue[a]=(a&31)*(65535/31);
 			*/
 			palette->green[a]=(((a&63)*255)/64)*257;
 			palette->red[a]=

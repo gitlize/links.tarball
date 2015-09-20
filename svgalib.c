@@ -684,7 +684,7 @@ static void svga_unregister_bitmap(struct bitmap *bmp)
 	unsigned char *data=hndl->data;\
 	int mouse_hidden;\
 \
- 	TEST_INACTIVITY\
+	TEST_INACTIVITY\
 	if (x>=dev->clip.x2||x+xs<=dev->clip.x1) return;\
 	if (y>=dev->clip.y2||y+ys<=dev->clip.y1) return;\
 	if (x+xs>dev->clip.x2) xs=dev->clip.x2-x;\
@@ -801,7 +801,7 @@ static inline void draw_bitmap_linear(struct graphics_device *dev,struct bitmap*
  * clipping rectangle set up by svga_driver->set_clip_area. If empty region
  * results, return from current function occurs. */
 #define FILL_CLIP_PREFACE \
- 	int mouse_hidden;\
+	int mouse_hidden;\
 	TEST_INACTIVITY\
 	if (left>=right||top>=bottom) return;\
 	if (left>=dev->clip.x2||right<=dev->clip.x1||top>=dev->clip.y2||bottom<=dev->clip.y1) return;\
@@ -2086,7 +2086,7 @@ static inline void place_mouse_composite(void)
 			if (background_length>0)
 				mouse_drawscansegment(
 					background_ptr +l2,
-				       	mouse_right,mouse_top ,l3);
+					mouse_right,mouse_top ,l3);
 			mouse_ptr+=skip;
 			background_ptr+=skip;
 		}
@@ -2265,7 +2265,7 @@ static void svga_ctrl_c(struct itrm *i)
 
 /* Param: one string which is to be compared with one from modes.
  * Copies the svga_driver into gr_driver.
- * Returns: 	0 OK
+ * Returns:	0 OK
  *		1 Passed mode unknown by svga_driver
  *		2 Passed mode unknown by svgalib
  * mikulas: Change: Returns:	NULL: OK

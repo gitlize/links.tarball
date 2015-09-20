@@ -70,11 +70,11 @@ static int table_16 = 1;
  *
  * Index memory organization
  * -------------------------
- * 	1 byte per pixel: obvious. The output byte is OR of all three LSB's from red_table,
- * 		green_table, blue_table
- * 	2 bytes per pixel: cast all three values to unsigned  short, OR them together
- * 		and dump the short into the memory
- * 	3 and 4 bytes per pixel: LSB's contain the red, green, and blue bytes.
+ *	1 byte per pixel: obvious. The output byte is OR of all three LSB's from red_table,
+ *		green_table, blue_table
+ *	2 bytes per pixel: cast all three values to unsigned  short, OR them together
+ *		and dump the short into the memory
+ *	3 and 4 bytes per pixel: LSB's contain the red, green, and blue bytes.
  */
 
 /* These tables allow the most precise dithering possible:
@@ -737,7 +737,7 @@ static void make_16_table(int *table, int bits, int pos, float_double gamma, int
 		 * to said photon flux level
 		 */
 
-		grade=(int)(voltage*grades+.5);
+		grade=(int)(voltage*grades+(float_double)0.5);
 		if (grade==last_grade){
 			table[j]=last_content;
 			continue;
@@ -753,7 +753,7 @@ static void make_16_table(int *table, int bits, int pos, float_double gamma, int
 		 * kool ;-) (and is kool)
 		 */
 
-		light_val=(int)(fd_pow(voltage,gamma)*65535+0.5);
+		light_val=(int)(fd_pow(voltage,gamma)*65535+(float_double)0.5);
 		/* Find out what photon flux this index represents */
 
 		if (light_val<0) light_val=0;
@@ -832,7 +832,7 @@ static void make_round_tables(void)
 
 	for (a=0;a<256;a++){
 		/* a is sRGB coordinate */
-		v=ags_8_to_16((unsigned char)a,(float)(user_gamma/sRGB_gamma));
+		v=ags_8_to_16((unsigned char)a,(float)((float)user_gamma/(float)sRGB_gamma));
 		round_red_table[a]=red_table[v >> (8 - 8 * table_16)] & 0xffff;
 		round_green_table[a]=green_table[v >> (8 - 8 * table_16)] & 0xffff;
 		round_blue_table[a]=blue_table[v >> (8 - 8 * table_16)] & 0xffff;

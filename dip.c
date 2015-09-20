@@ -20,12 +20,6 @@
  * Leave it commented up for normal operation and releases! */
 /* #define REPORT_UNKNOWN 1 */
 
-double sRGB_gamma=0.45455;      /* For HTML, which runs
-				 * according to sRGB standard. Number
-				 * in HTML tag is linear to photons raised
-				 * to this power.
-				 */
-
 unsigned aspect=65536; /* aspect=65536 for 320x240
 			* aspect=157286 for 640x200 (tall pixels)
 			* Defines aspect ratio of screen pixels.
@@ -50,37 +44,37 @@ unsigned aspect=65536; /* aspect=65536 for 320x240
  */
 static const float fancy_constants[64]={
 	(float)0,(float)3,	/*  1 */
-	(float).1,(float)3,   	/*  2 */
-	(float).2,(float)3,   	/*  3 */
-	(float).3,(float)2.9,  	/*  4 */
-	(float).4,(float)2.7,  	/*  5 */
-	(float).4,(float)2.5,  	/*  6 */
-	(float).4,(float)2,   	/*  7 */
-	(float).5,(float)2, 	/*  8 */
-	(float).4,(float)2, 	/*  9 */
-	(float).38,(float)1.9, 	/* 10 */
-	(float).36,(float)1.8, 	/* 11 */
-	(float).33,(float)1.7, 	/* 12 */
-	(float).30,(float)1.6, 	/* 13 */
-	(float).25,(float)1.5, 	/* 14 */
-	(float).20,(float)1.5, 	/* 15 */
-	(float).15,(float)1.5, 	/* 16 */
-	(float).14,(float)1.5, 	/* 17 */
-	(float).13,(float)1.5, 	/* 18 */
-	(float).12,(float)1.5, 	/* 19 */
-	(float).12,(float)1.5, 	/* 20 */
-	(float).12,(float)1.5, 	/* 21 */
-	(float).12,(float)1.5, 	/* 22 */
-	(float).11,(float)1.5, 	/* 23 */
-	(float).10,(float)1.4, 	/* 24 */
-	(float).09,(float)1.3, 	/* 25 */
-	(float).08,(float)1.3, 	/* 26 */
-	(float).04,(float)1.2, 	/* 27 */
-	(float).04,(float)1.2, 	/* 28 */
-	(float).02,(float)1.1, 	/* 29 */
-	(float).02,(float)1.1, 	/* 30 */
-	(float).01,(float)1, 	/* 31 */
-	(float).01,(float)1  	/* 32 */
+	(float).1,(float)3,	/*  2 */
+	(float).2,(float)3,	/*  3 */
+	(float).3,(float)2.9,	/*  4 */
+	(float).4,(float)2.7,	/*  5 */
+	(float).4,(float)2.5,	/*  6 */
+	(float).4,(float)2,	/*  7 */
+	(float).5,(float)2,	/*  8 */
+	(float).4,(float)2,	/*  9 */
+	(float).38,(float)1.9,	/* 10 */
+	(float).36,(float)1.8,	/* 11 */
+	(float).33,(float)1.7,	/* 12 */
+	(float).30,(float)1.6,	/* 13 */
+	(float).25,(float)1.5,	/* 14 */
+	(float).20,(float)1.5,	/* 15 */
+	(float).15,(float)1.5,	/* 16 */
+	(float).14,(float)1.5,	/* 17 */
+	(float).13,(float)1.5,	/* 18 */
+	(float).12,(float)1.5,	/* 19 */
+	(float).12,(float)1.5,	/* 20 */
+	(float).12,(float)1.5,	/* 21 */
+	(float).12,(float)1.5,	/* 22 */
+	(float).11,(float)1.5,	/* 23 */
+	(float).10,(float)1.4,	/* 24 */
+	(float).09,(float)1.3,	/* 25 */
+	(float).08,(float)1.3,	/* 26 */
+	(float).04,(float)1.2,	/* 27 */
+	(float).04,(float)1.2,	/* 28 */
+	(float).02,(float)1.1,	/* 29 */
+	(float).02,(float)1.1,	/* 30 */
+	(float).01,(float)1,	/* 31 */
+	(float).01,(float)1	/* 32 */
 };
 
 
@@ -733,8 +727,8 @@ static inline void enlarge_color_vertical(unsigned short *in, int x, int iy,
 	}
 	if (iy==1){
 		for (;oy;oy--){
-	       		memcpy(out,in,3*x*sizeof(*out));
-	       		out+=3*x;
+			memcpy(out,in,3*x*sizeof(*out));
+			out+=3*x;
 		}
 		mem_free(in);
 		return;
@@ -1208,9 +1202,9 @@ void agx_and_uc_32_to_48(unsigned short *dest,
 		r=fd_pow(r,red_gamma);
 		g=fd_pow(g,green_gamma);
 		b=fd_pow(b,blue_gamma);
-		ri=(unsigned)((r*65535)+0.5);
-		gi=(unsigned)((g*65535)+0.5);
-		bi=(unsigned)((b*65535)+0.5);
+		ri=(unsigned)((r*65535)+(float_double)0.5);
+		gi=(unsigned)((g*65535)+(float_double)0.5);
+		bi=(unsigned)((b*65535)+(float_double)0.5);
 		cmd_limit_16(ri);
 		cmd_limit_16(gi);
 		cmd_limit_16(bi);
@@ -1262,9 +1256,9 @@ void agx_and_uc_64_to_48(unsigned short *dest,
 		r=fd_pow(r,red_gamma);
 		g=fd_pow(g,green_gamma);
 		b=fd_pow(b,blue_gamma);
-		ri=(unsigned short)(r*65535+0.5);
-		gi=(unsigned short)(g*65535+0.5);
-		bi=(unsigned short)(b*65535+0.5);
+		ri=(unsigned short)(r*65535+(float_double)0.5);
+		gi=(unsigned short)(g*65535+(float_double)0.5);
+		bi=(unsigned short)(b*65535+(float_double)0.5);
 		cmd_limit_16(ri);
 		cmd_limit_16(gi);
 		cmd_limit_16(bi);
@@ -1343,17 +1337,17 @@ void agx_48_to_48(unsigned short *dest,
 		a=*src;
 		a*=inv_65535;
 		a=fd_pow(a,red_gamma);
-		dest[0]=(unsigned short)((a*65535)+0.5);
+		dest[0]=(unsigned short)((a*65535)+(float_double)0.5);
 		cmd_limit_16(dest[0]);
 		a=src[1];
 		a*=inv_65535;
 		a=fd_pow(a,green_gamma);
-		dest[1]=(unsigned short)((a*65535)+0.5);
+		dest[1]=(unsigned short)((a*65535)+(float_double)0.5);
 		cmd_limit_16(dest[1]);
 		a=src[2];
 		a*=inv_65535;
 		a=fd_pow(a,blue_gamma);
-		dest[2]=(unsigned short)((a*65535)+0.5);
+		dest[2]=(unsigned short)((a*65535)+(float_double)0.5);
 		cmd_limit_16(dest[2]);
 	}
 }
@@ -1389,17 +1383,17 @@ void agx_24_to_48(unsigned short *dest, const unsigned char *src, int
 		a=*src;
 		a*=inv_255;
 		a=fd_pow(a,red_gamma);
-		dest[0]=(unsigned short)((a*65535)+0.5);
+		dest[0]=(unsigned short)((a*65535)+(float_double)0.5);
 		cmd_limit_16(dest[0]);
 		a=src[1];
 		a*=inv_255;
 		a=fd_pow(a,green_gamma);
-		dest[1]=(unsigned short)((a*65535)+0.5);
+		dest[1]=(unsigned short)((a*65535)+(float_double)0.5);
 		cmd_limit_16(dest[1]);
 		a=src[2];
 		a*=inv_255;
 		a=fd_pow(a,blue_gamma);
-		dest[2]=(unsigned short)((a*65535)+0.5);
+		dest[2]=(unsigned short)((a*65535)+(float_double)0.5);
 		cmd_limit_16(dest[2]);
 	}
 }
@@ -1409,9 +1403,9 @@ void agx_24_to_48(unsigned short *dest, const unsigned char *src, int
  * We assume unsigned short holds at least 16 bits. */
 void make_gamma_table(struct cached_image *cimg)
 {
-	float_double rg=(float_double)(user_gamma/cimg->red_gamma);
-	float_double gg=(float_double)(user_gamma/cimg->green_gamma);
-	float_double bg=(float_double)(user_gamma/cimg->blue_gamma);
+	float_double rg=(float_double)((float_double)user_gamma/cimg->red_gamma);
+	float_double gg=(float_double)((float_double)user_gamma/cimg->green_gamma);
+	float_double bg=(float_double)((float_double)user_gamma/cimg->blue_gamma);
 	int a;
 	unsigned short *ptr_16;
 	unsigned short last_val;
@@ -1423,17 +1417,17 @@ void make_gamma_table(struct cached_image *cimg)
 		ptr_16=mem_alloc(768*sizeof(*(cimg->gamma_table)));
 		cimg->gamma_table=ptr_16;
 		for (a=0;a<256;a++,ptr_16++){
-			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,rg)+0.5);
+			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,rg)+(float_double)0.5);
 			cmd_limit_16(last_val);
 			*ptr_16 = last_val;
 		}
 		for (a=0;a<256;a++,ptr_16++){
-			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,gg)+0.5);
+			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,gg)+(float_double)0.5);
 			cmd_limit_16(last_val);
 			*ptr_16 = last_val;
 		}
 		for (a=0;a<256;a++,ptr_16++){
-			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,bg)+0.5);
+			last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_255,bg)+(float_double)0.5);
 			cmd_limit_16(last_val);
 			*ptr_16 = last_val;
 		}
@@ -1449,21 +1443,21 @@ void make_gamma_table(struct cached_image *cimg)
 		cimg->gamma_table=ptr_16;
 		for (a=0;a<0x10000;a++,ptr_16++){
 			if (!x_slow_fpu || !(a & 0xff)) {
-				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,rg)+0.5);
+				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,rg)+(float_double)0.5);
 				cmd_limit_16(last_val);
 			}
 			*ptr_16 = last_val;
 		}
 		for (a=0;a<0x10000;a++,ptr_16++){
 			if (!x_slow_fpu || !(a & 0xff)) {
-				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,gg)+0.5);
+				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,gg)+(float_double)0.5);
 				cmd_limit_16(last_val);
 			}
 			*ptr_16 = last_val;
 		}
 		for (a=0;a<0x10000;a++,ptr_16++){
 			if (!x_slow_fpu || !(a & 0xff)) {
-				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,bg)+0.5);
+				last_val = (unsigned short)(65535*fd_pow((float_double)a*inv_65535,bg)+(float_double)0.5);
 				cmd_limit_16(last_val);
 			}
 			*ptr_16 = last_val;
@@ -1488,7 +1482,7 @@ void agx_24_to_48_table(unsigned short *dest, const unsigned char *src, int
 unsigned char ags_8_to_8(unsigned char input, float gamma)
 {
 	const float_double inv_255=1/255.;
-	return 255*fd_pow((float_double)input*inv_255,gamma)+0.5;
+	return 255*fd_pow((float_double)input*inv_255,gamma)+(float_double)0.5;
 }
 #endif
 
@@ -1503,7 +1497,7 @@ unsigned short ags_8_to_16(unsigned char input, float gamma)
 	a*=inv_255;
 	a=fd_pow(a,gamma);
 	a*=65535;
-	retval = (unsigned short)(a+0.5);
+	retval = (unsigned short)(a+(float_double)0.5);
 	cmd_limit_16(retval);
 	return retval;
 }
@@ -1513,7 +1507,7 @@ unsigned short ags_8_to_16(unsigned char input, float gamma)
 unsigned char ags_16_to_8(unsigned short input, float gamma)
 {
 	const float_double inv_65535=(float_double)(1/65535.);
-	return (unsigned char)(fd_pow((float_double)input*inv_65535,gamma)*255+0.5);
+	return (unsigned char)(fd_pow((float_double)input*inv_65535,gamma)*255+(float_double)0.5);
 }
 
 /* Input is 0-65535 (16-bit). Output is 0-255 (8-bit)*/
@@ -1522,7 +1516,7 @@ unsigned short ags_16_to_16(unsigned short input, float gamma)
 	unsigned short retval;
 	const float_double inv_65535=(float_double)(1/65535.);
 
-	retval = (unsigned short)(65535*fd_pow((float_double)input*inv_65535,gamma)+0.5);
+	retval = (unsigned short)(65535*fd_pow((float_double)input*inv_65535,gamma)+(float_double)0.5);
 	cmd_limit_16(retval);
 	return retval;
 }
@@ -1771,12 +1765,12 @@ const unsigned char *png_data, int png_length, struct style *style)
 
 	/* Compute the matrix constants from contrast and sharpness */
 	conv0=(1+sharpness)*contrast;
-	conv1=(float)(-sharpness*0.25*contrast);
+	conv1=(float)(-sharpness*(float)0.25*contrast);
 
 	for (y0=y;y0;y0--){
 		for (x0=*x;x0;x0--){
 			/* Convolution */
-			c=(int)(((*i2ptr)*conv0)+i2ptr[-ix]*conv1+i2ptr[-1]*conv1+i2ptr[1]*conv1+i2ptr[ix]*conv1+0.5);
+			c=(int)(((*i2ptr)*conv0)+i2ptr[-ix]*conv1+i2ptr[-1]*conv1+i2ptr[1]*conv1+i2ptr[ix]*conv1+(float)0.5);
 			if (((unsigned)c)>=256) c=c<0?0:255;
 			*dptr=(unsigned char)c;
 			dptr++;
@@ -1843,9 +1837,9 @@ static struct font_cache_entry *supply_color_cache_entry(struct style *style, st
 	mix_two_colors(primary_data, found->bitmap.data,
 		found->bitmap.x*found->bitmap.y,
 		red,green,blue,
-		ags_8_to_16(style->r1,(float)(user_gamma/sRGB_gamma)),
-		ags_8_to_16(style->g1,(float)(user_gamma/sRGB_gamma)),
-		ags_8_to_16(style->b1,(float)(user_gamma/sRGB_gamma))
+		ags_8_to_16(style->r1,(float)((float)user_gamma/(float)sRGB_gamma)),
+		ags_8_to_16(style->g1,(float)((float)user_gamma/(float)sRGB_gamma)),
+		ags_8_to_16(style->b1,(float)((float)user_gamma/(float)sRGB_gamma))
 	);
 	if (display_optimize){
 		/* A correction for LCD */
@@ -2407,9 +2401,9 @@ long real_dip_get_color_sRGB(int rgb)
 	rgb = hack_rgb(rgb);
 
 	round_color_sRGB_to_48(&r,&g,&b,rgb);
-	r=ags_16_to_8(r,(float)(1/display_red_gamma));
-	g=ags_16_to_8(g,(float)(1/display_green_gamma));
-	b=ags_16_to_8(b,(float)(1/display_blue_gamma));
+	r=ags_16_to_8(r,(float)(1/(float)display_red_gamma));
+	g=ags_16_to_8(g,(float)(1/(float)display_green_gamma));
+	b=ags_16_to_8(b,(float)(1/(float)display_blue_gamma));
 	new_rgb=b|(g<<8)|(r<<16);
 	gamma_cache_rgb = rgb;
 	/* The get_color takes values with gamma of display_*_gamma */
@@ -2424,7 +2418,7 @@ void get_links_icon(unsigned char **data, int *width, int *height, int *skip, in
 {
 	struct bitmap b;
 	unsigned short *tmp1;
-	float g=(float)(user_gamma/sRGB_gamma);
+	float g=(float)((float)user_gamma/(float)sRGB_gamma);
 
 	b.x=48;
 	b.y=48;
