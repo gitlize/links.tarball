@@ -220,12 +220,10 @@ void print_screen_status(struct session *ses)
 	}
 }
 
-void print_error_dialog(struct session *ses, struct status *stat, unsigned char *title)
+void print_error_dialog(struct session *ses, struct status *stat, unsigned char *url)
 {
 	unsigned char *t = get_err_msg(stat->state);
-	unsigned char *u = stracpy(title);
-	unsigned char *pc;
-	if ((pc = cast_uchar strchr(cast_const_char u, POST_CHAR))) *pc = 0;
+	unsigned char *u = display_url(ses->term, url);
 	if (!t) return;
 	msg_box(ses->term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), cast_uchar " ", u, cast_uchar ":\n\n", t, NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC /*, _("Retry"), NULL, 0 !!! FIXME: retry */);
 }
@@ -475,8 +473,7 @@ void download_window_function(struct dialog_data *dlg)
 		}
 	} else m = stracpy(_(get_err_msg(stat->state), term));
 	show_percentage = t && test_percentage(stat);
-	u = stracpy(down->url);
-	if (strchr(cast_const_char u, POST_CHAR)) *cast_uchar strchr(cast_const_char u, POST_CHAR) = 0;
+	u = display_url(term, down->url);
 	max_text_width(term, u, &max, AL_LEFT);
 	min_text_width(term, u, &min, AL_LEFT);
 	max_text_width(term, m, &max, AL_LEFT);
@@ -842,8 +839,7 @@ have_frag:
 		if (stat->state != S__OK) {
 			unsigned char *t = get_err_msg(stat->state);
 			if (t) {
-				unsigned char *tt = stracpy(down->url);
-				if (strchr(cast_const_char tt, POST_CHAR)) *cast_uchar strchr(cast_const_char tt, POST_CHAR) = 0;
+				unsigned char *tt = display_url(get_download_ses(down)->term, down->url);
 				msg_box(get_download_ses(down)->term, getml(tt, NULL), TEXT_(T_DOWNLOAD_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DOWNLOADING), cast_uchar " ", tt, cast_uchar ":\n\n", t, NULL, get_download_ses(down), 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC /*, TEXT_(T_RETRY), NULL, 0 !!! FIXME: retry */);
 			}
 		} else {
@@ -1046,7 +1042,7 @@ static unsigned char *get_temp_name(unsigned char *url, unsigned char *head)
 	nm = cast_uchar tempnam(cast_const_char directory, "links");
 	if (!nm) return NULL;
 #ifdef DOS_FS_8_3
-	if (strlen(cast_const_char nm) > 4 && !strcasecmp(cast_const_char(nm + strlen(cast_const_char nm) - 4), ".tmp")) nm[strlen(cast_const_char nm) - 4] = 0;
+	if (strlen(cast_const_char nm) > 4 && !casestrcmp(nm + strlen(cast_const_char nm) - 4, cast_uchar ".tmp")) nm[strlen(cast_const_char nm) - 4] = 0;
 #endif
 	name = init_str();
 	nl = 0;
@@ -1818,8 +1814,8 @@ static int plain_type(struct session *ses, struct object_request *rq, unsigned c
 	if (!(ct = get_content_type(ce->head, ce->url))) goto f;
 	if (is_html_type(ct)) goto ff;
 	r = 1;
-	if (!strcasecmp(cast_const_char ct, "text/plain") ||
-	    !strcasecmp(cast_const_char ct, "file/txt")) goto ff;
+	if (!casestrcmp(ct, cast_uchar "text/plain") ||
+	    !casestrcmp(ct, cast_uchar "file/txt")) goto ff;
 	r = 2;
 	if (F && known_image_type(ct)) goto ff;
 	r = -1;
@@ -2035,20 +2031,20 @@ struct f_data_c *find_frame(struct session *ses, unsigned char *target, struct f
 	struct f_data_c *f, *ff;
 	if (!base) base = ses->screen;
 	if (!target || !*target) return base;
-	if (!strcasecmp(cast_const_char target, "_blank"))
+	if (!casestrcmp(target, cast_uchar "_blank"))
 		return NULL;  /* open in new window */
-	if (!strcasecmp(cast_const_char target, "_top"))
+	if (!casestrcmp(target, cast_uchar "_top"))
 		return ses->screen;
-	if (!strcasecmp(cast_const_char target, "_self")) return base;
-	if (!strcasecmp(cast_const_char target, "_parent")) {
+	if (!casestrcmp(target, cast_uchar "_self")) return base;
+	if (!casestrcmp(target, cast_uchar "_parent")) {
 		for (ff = base->parent; ff && !ff->rq; ff = ff->parent)
 			;
 		return ff ? ff : ses->screen;
 	}
 	f = ses->screen;
-	if (f->loc && f->loc->name && !strcasecmp(cast_const_char f->loc->name, cast_const_char target)) return f;
+	if (f->loc && f->loc->name && !casestrcmp(f->loc->name, target)) return f;
 	d:
-	foreach(ff, f->subframes) if (ff->loc && ff->loc->name && !strcasecmp(cast_const_char ff->loc->name, cast_const_char target)) return ff;
+	foreach(ff, f->subframes) if (ff->loc && ff->loc->name && !casestrcmp(ff->loc->name, target)) return ff;
 	if (!list_empty(f->subframes)) {
 		f = f->subframes.next;
 		goto d;
@@ -2275,8 +2271,8 @@ static int direct_download_possible(struct object_request *rq, struct assoc *a)
 	unsigned char *proto = get_protocol_name(rq->url);
 	int ret = 0;
 	if (!proto) return 0;
-	if (a->accept_http && !strcasecmp(cast_const_char proto, "http")) ret = 1;
-	if (a->accept_ftp && !strcasecmp(cast_const_char proto, "ftp")) ret = 1;
+	if (a->accept_http && !casestrcmp(proto, cast_uchar "http")) ret = 1;
+	if (a->accept_ftp && !casestrcmp(proto, cast_uchar "ftp")) ret = 1;
 	mem_free(proto);
 	if (proxies.only_proxies) ret = 0;
 	return ret;
@@ -2886,27 +2882,23 @@ void win_func(struct window *win, struct links_event *ev, int fw)
 */
 unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t str_size)
 {
-	unsigned char *here, *end_of_url;
+	unsigned char *here;
 	size_t url_len = 0;
 
 	/* Not looking at anything */
 	if (list_empty(ses->history))
 		return NULL;
 
-	here = cur_loc(ses)->url;
-
-	/* Find the length of the url */
-	if ((end_of_url = cast_uchar strchr(cast_const_char here, POST_CHAR))) {
-		url_len = (size_t)(end_of_url - (unsigned char *)here);
-	} else {
-		url_len = strlen(cast_const_char here);
-	}
+	here = display_url(ses->term, cur_loc(ses)->url);
+	url_len = strlen(cast_const_char here);
 
 	/* Ensure that the url size is not greater than str_size */
 	if (url_len >= str_size)
 			url_len = str_size - 1;
 
 	safe_strncpy(str, here, url_len + 1);
+
+	mem_free(here);
 
 	return str;
 }
@@ -2916,11 +2908,8 @@ unsigned char *get_current_url(struct session *ses, unsigned char *str, size_t s
   Gets the title of the page being viewed by this session. Writes it into str.
   A maximum of str_size bytes (including null) will be written.
 */
-unsigned char *get_current_title(struct session *ses, unsigned char *str, size_t str_size)
+unsigned char *get_current_title(struct f_data_c *fd, unsigned char *str, size_t str_size)
 {
-	struct f_data_c *fd;
-	fd = (struct f_data_c *)current_frame(ses);
-
 	/* Ensure that the title is defined */
 	if (!fd || !fd->f_data)
 		return NULL;

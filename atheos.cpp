@@ -64,7 +64,7 @@ class LinksView : public View {
 	virtual void MouseUp(const Point &p, uint32 b, Message *m);
 	virtual void MouseMove(const Point &p, int c, uint32 b, Message *m);
 	virtual void KeyDown(const char *s, const char *rs, uint32 q);
-	virtual void WheelMove(const point &d);
+	virtual void WheelMoved(const Point &d);
 	LinksWindow *win;
 	struct graphics_device *dev;
 	void d_flush();
@@ -246,7 +246,7 @@ void LinksView::MouseMove(const Point &p, int c, uint32 b, Message *m)
 	write(wpipe, " ", 1);
 }
 
-void LinksView::WheelMove(const point &d)
+void LinksView::WheelMoved(const Point &d)
 {
 	win->Unlock();
 	ath_lock->Lock();
@@ -657,7 +657,7 @@ struct graphics_driver atheos_driver = {
 	NULL,				/* get_clipboard_text */
 	0,				/* depth */
 	0, 0,				/* size */
-	GD_NO_OS_SHELL | GD_NO_LIBEVENT,/* flags */
+	GD_UNICODE_KEYS | GD_NO_OS_SHELL | GD_NO_LIBEVENT,/* flags */
 	0,				/* codepage */
 	NULL,				/* shell */
 };

@@ -6,7 +6,7 @@
 
 #include "links.h"
 
-static void objreq_end(struct status *, struct object_request *);
+static void objreq_end(struct status *, void *);
 static void object_timer(struct object_request *);
 
 
@@ -96,15 +96,13 @@ static int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 	struct object_request *rq = find_rq(a->count);
 	if (rq) {
 		struct session *ses;
-		struct conv_table *ct;
 		int net_cp;
 		unsigned char *uid, *passwd;
 		get_dialog_data(dlg);
 		ses = ((struct window *)dlg->win->term->windows.prev)->data;
 		get_convert_table(rq->ce_internal->head, term_charset(dlg->win->term), ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
-		ct = get_translation_table(term_charset(dlg->win->term), net_cp);
-		uid = convert_string(ct, a->uid, (int)strlen(cast_const_char a->uid), NULL);
-		passwd = convert_string(ct, a->passwd, (int)strlen(cast_const_char a->passwd), NULL);
+		uid = convert(term_charset(dlg->win->term), net_cp, a->uid, NULL);
+		passwd = convert(term_charset(dlg->win->term), net_cp, a->passwd, NULL);
 		add_auth(rq->url, a->realm, uid, passwd, a->proxy);
 		mem_free(uid);
 		mem_free(passwd);
@@ -122,14 +120,12 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 	struct dialog *d;
 	struct auth_dialog *a;
 	struct terminal *term;
-	struct conv_table *ct;
 	unsigned char *urealm;
 	struct session *ses;
-	foreach(term, terminals) if (rq->term == term->count) goto ok;
-	return -1;
-	ok:
+	int net_cp;
+	if (!(term = find_terminal(rq->term))) return -1;
 	ses = ((struct window *)term->windows.prev)->data;
-	ct = get_convert_table(rq->ce_internal->head, term_charset(term), ses->ds.assume_cp, NULL, NULL, ses->ds.hard_assume);
+	get_convert_table(rq->ce_internal->head, term_charset(term), ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
 	if (rq->ce_internal->http_code == 407) {
 		host = get_proxy_string(rq->url);
 		if (!host) host = cast_uchar "";
@@ -143,7 +139,7 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 			mem_free(port);
 		}
 	}
-	urealm = convert_string(ct, realm, (int)strlen(cast_const_char realm), NULL);
+	urealm = convert(term_charset(term), net_cp, realm, NULL);
 	d = mem_alloc(sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog) + strlen(cast_const_char _(TEXT_(T_ENTER_USERNAME), term)) + strlen(cast_const_char urealm) + 1 + strlen(cast_const_char _(TEXT_(T_AT), term)) + strlen(cast_const_char host));
 	memset(d, 0, sizeof(struct dialog) + 5 * sizeof(struct dialog_item) + sizeof(struct auth_dialog));
 	a = (struct auth_dialog *)((unsigned char *)d + sizeof(struct dialog) + 5 * sizeof(struct dialog_item));
@@ -188,49 +184,90 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 #ifdef HAVE_SSL_CERTIFICATES
 
 struct cert_dialog {
-	tcount count;
+	tcount term;
 	unsigned char *host;
+	int bl;
+	int state;
 };
+
+static void cert_action(struct object_request *rq, int yes)
+{
+	if (yes) {
+		rq->hold = 0;
+		change_connection(&rq->stat, NULL, PRI_CANCEL);
+		load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_CACHE, 0, 0, 0);
+	} else {
+		rq->hold = 0;
+		rq->dont_print_error = 1;
+		rq->state = O_FAILED;
+		if (rq->timer != NULL) kill_timer(rq->timer);
+		rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
+	}
+}
+
+static void cert_forall(struct cert_dialog *cs, int yes)
+{
+	struct object_request *rq;
+	if (yes) add_blacklist_entry(cs->host, cs->bl);
+	foreach(rq, requests) if (rq->term == cs->term && rq->hold == HOLD_CERT && rq->stat.state == cs->state) {
+		unsigned char *host = get_host_name(rq->url);
+		if (!strcmp(cast_const_char host, cast_const_char cs->host)) cert_action(rq, yes);
+		mem_free(host);
+	}
+}
 
 static void cert_yes(void *data)
 {
-	struct cert_dialog *cs = data;
-	struct object_request *rq = find_rq(cs->count);
-	rq->hold = 0;
-	if (rq->stat.state == S_INVALID_CERTIFICATE)
-		add_blacklist_entry(cs->host, BL_IGNORE_CERTIFICATE);
-	else
-		add_blacklist_entry(cs->host, BL_IGNORE_CIPHER);
-	change_connection(&rq->stat, NULL, PRI_CANCEL);
-	load_url(rq->url, rq->prev_url, &rq->stat, rq->pri, NC_CACHE, 0, 0, 0);
+	cert_forall((struct cert_dialog *)data, 1);
 }
 
 static void cert_no(void *data)
 {
-	struct cert_dialog *cs = data;
-	struct object_request *rq = find_rq(cs->count);
-	rq->hold = 0;
-	rq->dont_print_error = 1;
-	rq->state = O_FAILED;
-	if (rq->timer != NULL) kill_timer(rq->timer);
-	rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
+	cert_forall((struct cert_dialog *)data, 0);
+}
+
+static int cert_compare(void *data1, void *data2)
+{
+	struct cert_dialog *cs1 = (struct cert_dialog *)data1;
+	struct cert_dialog *cs2 = (struct cert_dialog *)data2;
+	return !strcmp(cast_const_char cs1->host, cast_const_char cs2->host) && cs1->state == cs2->state;
 }
 
 static int cert_window(struct object_request *rq)
 {
 	struct terminal *term;
-	unsigned char *host;
+	unsigned char *host, *title, *text;
 	struct cert_dialog *cs;
 	struct memory_list *ml;
-	foreach(term, terminals) if (rq->term == term->count) goto ok;
-	return -1;
-	ok:
+	if (!(term = find_terminal(rq->term))) return -1;
 	host = get_host_name(rq->url);
 	cs = mem_alloc(sizeof(struct cert_dialog));
-	cs->count = rq->count;
+	cs->term = rq->term;
 	cs->host = host;
+	cs->state = rq->stat.state;
+	if (rq->stat.state == S_INVALID_CERTIFICATE) {
+		title = TEXT_(T_INVALID_CERTIFICATE);
+		text = TEXT_(T_DOESNT_HAVE_A_VALID_CERTIFICATE);
+		cs->bl = BL_IGNORE_CERTIFICATE;
+	} else if (rq->stat.state == S_DOWNGRADED_METHOD) {
+		title = TEXT_(T_DOWNGRADED_METHOD);
+		text = TEXT_(T_USES_DOWNGRADED_METHOD);
+		cs->bl = BL_IGNORE_DOWNGRADE;
+	} else {
+		title = TEXT_(T_INSECURE_CIPHER);
+		text = TEXT_(T_USES_INSECURE_CIPHER);
+		cs->bl = BL_IGNORE_CIPHER;
+	}
 	ml = getml(cs, host, NULL);
-	msg_box(term, ml, rq->stat.state == S_INVALID_CERTIFICATE ? TEXT_(T_INVALID_CERTIFICATE) : TEXT_(T_INSECURE_CIPHER), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_THE_SERVER_), host, rq->stat.state == S_INVALID_CERTIFICATE ? TEXT_(T_DOESNT_HAVE_A_VALID_CERTIFICATE) : TEXT_(T_USES_INSECURE_CIPHER), NULL, cs, 2, TEXT_(T_NO), cert_no, B_ESC, TEXT_(T_YES), cert_yes, B_ENTER);
+	if (find_msg_box(term, title, cert_compare, cs)) {
+		freeml(ml);
+		return 0;
+	}
+	msg_box(term, ml,
+		title,
+		AL_CENTER | AL_EXTD_TEXT, TEXT_(T_THE_SERVER_), host,
+		text,
+		NULL, cs, 2, TEXT_(T_NO), cert_no, B_ESC, TEXT_(T_YES), cert_yes, B_ENTER);
 	return 0;
 }
 
@@ -245,7 +282,7 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 	rq->state = O_WAITING;
 	rq->refcount = 1;
 	rq->term = term ? term->count : 0;
-	rq->stat.end = (void (*)(struct status *, void *))objreq_end;
+	rq->stat.end = objreq_end;
 	rq->stat.data = rq;
 	rq->orig_url = stracpy(url);
 	rq->url = stracpy(url);
@@ -279,15 +316,17 @@ static void set_ce_internal(struct object_request *rq)
 	}
 }
 
-static void objreq_end(struct status *stat, struct object_request *rq)
+static void objreq_end(struct status *stat, void *data)
 {
+	struct object_request *rq = (struct object_request *)data;
+
 	set_ce_internal(rq);
 
 	if (stat->state < 0) {
 #ifdef HAVE_SSL_CERTIFICATES
-		if (!stat->ce && rq->state == O_WAITING && (stat->state == S_INVALID_CERTIFICATE || stat->state == S_INSECURE_CIPHER) && ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
+		if (!stat->ce && rq->state == O_WAITING && (stat->state == S_INVALID_CERTIFICATE || stat->state == S_DOWNGRADED_METHOD || stat->state == S_INSECURE_CIPHER) && ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
 			if (!cert_window(rq)) {
-				rq->hold = 1;
+				rq->hold = HOLD_CERT;
 				rq->redirect_cnt = 0;
 				goto tm;
 			}
@@ -336,7 +375,7 @@ static void objreq_end(struct status *stat, struct object_request *rq)
 			}
 			mem_free(user);
 			if (!auth_window(rq, realm)) {
-				rq->hold = 1;
+				rq->hold = HOLD_AUTH;
 				rq->redirect_cnt = 0;
 				mem_free(realm);
 				goto tm;

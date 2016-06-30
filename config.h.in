@@ -86,6 +86,12 @@
 /* Define if you have the RAND_write_file function.  */
 #undef HAVE_RAND_WRITE_FILE
 
+/* Define if you have the SSLv2_client_method function.  */
+#undef HAVE_SSLV2_CLIENT_METHOD
+
+/* Define if you have the SSLv3_client_method function.  */
+#undef HAVE_SSLV3_CLIENT_METHOD
+
 /* Define if you have the XCloseIM function.  */
 #undef HAVE_XCLOSEIM
 
@@ -362,9 +368,6 @@
 /* Define if you have the spawn_thread function.  */
 #undef HAVE_SPAWN_THREAD
 
-/* Define if you have the strcasecmp function.  */
-#undef HAVE_STRCASECMP
-
 /* Define if you have the strchr function.  */
 #undef HAVE_STRCHR
 
@@ -385,9 +388,6 @@
 
 /* Define if you have the strlen function.  */
 #undef HAVE_STRLEN
-
-/* Define if you have the strncasecmp function.  */
-#undef HAVE_STRNCASECMP
 
 /* Define if you have the strncmp function.  */
 #undef HAVE_STRNCMP
@@ -716,6 +716,9 @@
 /* Define if you have the event library (-levent).  */
 #undef HAVE_LIBEVENT
 
+/* Define if you have the fontconfig library (-lfontconfig).  */
+#undef HAVE_LIBFONTCONFIG
+
 /* Define if you have the gpm library (-lgpm).  */
 #undef HAVE_LIBGPM
 
@@ -814,6 +817,12 @@
 #undef HAVE_VOLATILE
 
 /* */
+#undef HAVE_RESTRICT
+
+/* */
+#undef HAVE___RESTRICT
+
+/* */
 #undef HAVE_ERRNO
 
 /* */
@@ -844,12 +853,6 @@
 #undef HAVE_STRNCMP
 
 /* */
-#undef HAVE_STRCASECMP
-
-/* */
-#undef HAVE_STRNCASECMP
-
-/* */
 #undef HAVE_STRCSPN
 
 /* */
@@ -878,6 +881,9 @@
 
 /* */
 #undef HAVE_SIGSETJMP
+
+/* */
+#undef HAVE___BUILTIN_ADD_OVERFLOW
 
 /* */
 #undef DEBUGLEVEL

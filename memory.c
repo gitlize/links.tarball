@@ -15,6 +15,16 @@ struct cache_upcall {
 
 static struct list_head cache_upcalls = { &cache_upcalls, &cache_upcalls }; /* cache_upcall */
 
+void heap_trim(void)
+{
+#if defined(HAVE__HEAPMIN)
+	_heapmin();
+#endif
+#if defined(HAVE_MALLOC_TRIM)
+	malloc_trim(0);
+#endif
+}
+
 int shrink_memory(int type, int flags)
 {
 	struct cache_upcall *c;
@@ -37,12 +47,7 @@ int shrink_memory(int type, int flags)
 #endif
 		   )) {
 			uttime after;
-#if defined(HAVE__HEAPMIN)
-			_heapmin();
-#endif
-#if defined(HAVE_MALLOC_TRIM)
-			malloc_trim(0);
-#endif
+			heap_trim();
 			after = get_time();
 			min_interval = HEAPMIN_FACTOR * (after - now);
 			last_heapmin = after;

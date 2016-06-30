@@ -2286,7 +2286,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	if (!param || !*param) goto not_found;
 	svga_driver_param=stracpy(param);
 	for (j=0;(size_t)j<sizeof(modes)/sizeof(*modes);j++)
-		if (!strcasecmp(cast_const_char modes[j].name,cast_const_char param)) goto found;
+		if (!casestrcmp(cast_uchar modes[j].name, param)) goto found;
 	j = 1;
 	not_found:
 	{

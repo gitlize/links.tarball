@@ -29,6 +29,7 @@
 #if DEBUGLEVEL < 0
 #define OOPS
 #define LEAK_DEBUG
+#define NO_IE
 #endif
 
 #define LINKS_MANUAL_URL		(!strcmp(cast_const_char language_name(get_current_language()),"Czech") || !strcmp(cast_const_char language_name(get_current_language()),"Slovak")?\
@@ -42,6 +43,7 @@
 					"http://links.twibright.com/calibration.html")
 
 #define LINKS_SOCK_NAME			"socket"
+#define LINKS_ANONYMOUS_SOCK_SUFFIX	"-a"
 #define LINKS_PORT			23755
 #define LINKS_G_PORT_START		32768
 #define LINKS_G_PORT_LEN		16384

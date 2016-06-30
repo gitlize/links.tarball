@@ -6,7 +6,7 @@ DLLS="bz2.dll cryptssl.dll jpeg.dll lzma.dll png.dll open_ssl.dll z.dll"
 FILES="AUTHORS BRAILLE COPYING KEYS README links.crt links.exe linksos2.ico"
 CC="gcc.exe"
 export CC
-CFLAGS="-O3 -fomit-frame-pointer -march=i386 -mcpu=i486 -Wall -W -Wno-unused-parameter -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations"
+CFLAGS="-O3 -fomit-frame-pointer -march=i386 -mcpu=pentium -Wall -W -Wno-unused-parameter -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations"
 export CFLAGS
 rc -r linksos2.rc linksos2.res
 LIBS=linksos2.res

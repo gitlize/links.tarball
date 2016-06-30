@@ -272,7 +272,7 @@ static int find_tag(struct f_data *f, unsigned char *name)
 	tt = init_str();
 	ll = 0;
 	add_conv_str(&tt, &ll, name, (int)strlen(cast_const_char name), -2);
-	foreachback(tag, f->tags) if (!strcasecmp(cast_const_char tag->name, cast_const_char tt) || (tag->name[0] == '#' && !strcasecmp(cast_const_char(tag->name + 1), cast_const_char tt))) {
+	foreachback(tag, f->tags) if (!casestrcmp(tag->name, tt) || (tag->name[0] == '#' && !casestrcmp(tag->name + 1, tt))) {
 		mem_free(tt);
 		return tag->y;
 	}
@@ -2004,7 +2004,6 @@ static void encode_controls(struct list_head *l, unsigned char **data, int *len,
 	struct submitted_value *sv;
 	int lst = 0;
 	unsigned char *p2;
-	struct conv_table *convert_table = get_translation_table(cp_from, cp_to);
 	*len = 0;
 	*data = init_str();
 	foreach(sv, *l) {
@@ -2013,7 +2012,7 @@ static void encode_controls(struct list_head *l, unsigned char **data, int *len,
 		encode_string(sv->name, data, len);
 		add_to_str(data, len, cast_uchar "=");
 		if (sv->type == FC_TEXT || sv->type == FC_PASSWORD || sv->type == FC_TEXTAREA)
-			p2 = convert_string(convert_table, p, (int)strlen(cast_const_char p), NULL);
+			p2 = convert(cp_from, cp_to, p, NULL);
 		else p2 = stracpy(p);
 		encode_string(p2, data, len);
 		mem_free(p2);
@@ -2035,7 +2034,6 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 	int flg = 0;
 	unsigned char *p;
 	int rs;
-	struct conv_table *convert_table = get_translation_table(cp_from, cp_to);
 	memset(bound, 'x', BL);
 	*len = 0;
 	*data = init_str();
@@ -2075,7 +2073,7 @@ static void encode_multipart(struct session *ses, struct list_head *l, unsigned 
 		add_to_str(data, len, cast_uchar "\r\n\r\n");
 		if (sv->type != FC_FILE) {
 			if (sv->type == FC_TEXT || sv->type == FC_PASSWORD || sv->type == FC_TEXTAREA)
-				p = convert_string(convert_table, sv->value, (int)strlen(cast_const_char sv->value), NULL);
+				p = convert(cp_from, cp_to, sv->value, NULL);
 			else p = stracpy(sv->value);
 			add_to_str(data, len, p);
 			mem_free(p);
@@ -2195,7 +2193,7 @@ unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form
 	else
 		encode_multipart(ses, &submit, &data, &len, bound, cp_from, cp_to);
 	if (!data) goto ff;
-	if (!strncasecmp(cast_const_char form->action,"javascript:",11))
+	if (!casecmp(form->action, cast_uchar "javascript:", 11))
 	{
 		go=stracpy(form->action);
 		goto x;
@@ -3547,18 +3545,19 @@ void send_event(struct session *ses, struct links_event *ev)
 		}
 		if (ev->x == 'G' && !(ev->y & (KBD_CTRL | KBD_ALT))) {
 			unsigned char *s;
-			if (list_empty(ses->history)) goto quak;
-			s = stracpy(ses->screen->rq->url);
-			if (!s) goto quak;
-			if (strchr(cast_const_char s, POST_CHAR)) *cast_uchar strchr(cast_const_char s, POST_CHAR) = 0;
+			if (list_empty(ses->history) || !ses->screen->rq->url) goto quak;
+			s = display_url(ses->term, ses->screen->rq->url);
 			dialog_goto_url(ses, s);
 			mem_free(s);
 			goto x;
 		}
 		if (upcase(ev->x) == 'G' && ev->y & KBD_CTRL) {
 			struct f_data_c *fd = current_frame(ses);
+			unsigned char *s;
 			if (!fd->vs || !fd->f_data || fd->vs->current_link < 0 || fd->vs->current_link >= fd->f_data->nlinks) goto quak;
-			dialog_goto_url(ses, fd->f_data->links[fd->vs->current_link].where);
+			s = display_url(ses->term, fd->f_data->links[fd->vs->current_link].where);
+			dialog_goto_url(ses, s);
+			mem_free(s);
 			goto x;
 		}
 		/*
@@ -3775,13 +3774,12 @@ static void copy_link_location(struct terminal *term, void *xxx, struct session 
 
 void copy_url_location(struct terminal *term, void *xxx, struct session *ses)
 {
-	unsigned char *url;
 	struct location *current_location;
 
 	if (list_empty(ses->history)) return;
 
-	if ((current_location = cur_loc(ses)) && (url = stracpy(current_location->url))) {
-		if (strchr(cast_const_char url, POST_CHAR)) *cast_uchar strchr(cast_const_char url, POST_CHAR) = 0;
+	if ((current_location = cur_loc(ses)) && stracpy(current_location->url)) {
+		unsigned char *url = display_url(term, current_location->url);
 		set_clipboard_text(term, url);
 		mem_free(url);
 	}
@@ -3887,7 +3885,7 @@ void save_url(struct session *ses, unsigned char *url)
 	unsigned char *u;
 	if (!(u = translate_url(url, ses->term->cwd))) {
 		struct status stat = { NULL, NULL, NULL, NULL, S_BAD_URL, PRI_CANCEL, 0, NULL, NULL, NULL };
-		print_error_dialog(ses, &stat, TEXT_(T_ERROR));
+		print_error_dialog(ses, &stat, url);
 		return;
 	}
 	if (ses->dn_url) mem_free(ses->dn_url);
@@ -4082,10 +4080,8 @@ static unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *
 			if (l->img_alt)
 			{
 				unsigned char *txt;
-				struct conv_table* ct;
 
-				ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-				txt = convert_string(ct, l->img_alt, (int)strlen(cast_const_char l->img_alt), &fd->f_data->opt);
+				txt = convert(fd->f_data->cp, fd->f_data->opt.cp, l->img_alt, &fd->f_data->opt);
 				add_to_str(&m, &ll, txt);
 				mem_free(txt);
 			}
@@ -4125,10 +4121,7 @@ static unsigned char *print_current_linkx(struct f_data_c *fd, struct terminal *
 			n=print_js_event_spec(l->js_event);
 			if (fd->f_data)
 			{
-				struct conv_table* ct;
-
-				ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-				txt=convert_string(ct,n,(int)strlen(cast_const_char n),NULL);
+				txt=convert(fd->f_data->cp,fd->f_data->opt.cp, n, NULL);
 				mem_free(n);
 			}
 			else
@@ -4227,11 +4220,9 @@ static unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct termi
 			if (l->img_alt)
 			{
 				unsigned char *txt;
-				struct conv_table* ct;
 
 				add_to_str(&m, &ll, cast_uchar " alt='");
-				ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-				txt = convert_string(ct, l->img_alt, (int)strlen(cast_const_char l->img_alt), &fd->f_data->opt);
+				txt = convert(fd->f_data->cp, fd->f_data->opt.cp, l->img_alt, &fd->f_data->opt);
 				add_to_str(&m, &ll, txt);
 				add_to_str(&m, &ll, cast_uchar "'");
 				mem_free(txt);
@@ -4263,10 +4254,7 @@ static unsigned char *print_current_linkx_plus(struct f_data_c *fd, struct termi
 			n=print_js_event_spec(l->js_event);
 			if (fd->f_data)
 			{
-				struct conv_table* ct;
-
-				ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-				txt=convert_string(ct,n,(int)strlen(cast_const_char n),NULL);
+				txt=convert(fd->f_data->cp, fd->f_data->opt.cp, n, NULL);
 				mem_free(n);
 			}
 			else

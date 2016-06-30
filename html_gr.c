@@ -261,6 +261,9 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		t2 = NULL;
 		goto nt2;
 	}
+	if (par_format.align == AL_NO_BREAKABLE && text == p->text && strspn(cast_const_char ptr, cast_const_char " ") == strlen(cast_const_char ptr)) {
+		return;
+	}
 #ifdef DEBUG
 	if (ptr < text->text || ptr >= text->text + strlen(cast_const_char text->text))
 		internal("split_line_object: split point (%p) pointing out of object (%p,%lx)", ptr, text->text, (unsigned long)strlen(cast_const_char text->text));
@@ -517,12 +520,12 @@ static void do_image(struct g_part *p, struct image_description *im)
 				struct map_area *a;
 				struct link *link;
 				int shape =
-	!ld->shape || !*ld->shape ? SHAPE_RECT :
-	!strcasecmp(cast_const_char ld->shape, "default") ? SHAPE_DEFAULT :
-	!strcasecmp(cast_const_char ld->shape, "rect") ? SHAPE_RECT :
-	!strcasecmp(cast_const_char ld->shape, "circle") ? SHAPE_CIRCLE :
-	!strcasecmp(cast_const_char ld->shape, "poly") ||
-	!strcasecmp(cast_const_char ld->shape, "polygon") ? SHAPE_POLY : -1;
+		!ld->shape || !*ld->shape ? SHAPE_RECT :
+		!casestrcmp(ld->shape, cast_uchar "default") ? SHAPE_DEFAULT :
+		!casestrcmp(ld->shape, cast_uchar "rect") ? SHAPE_RECT :
+		!casestrcmp(ld->shape, cast_uchar "circle") ? SHAPE_CIRCLE :
+		!casestrcmp(ld->shape, cast_uchar "poly") ||
+		!casestrcmp(ld->shape, cast_uchar "polygon") ? SHAPE_POLY : -1;
 				if (shape == -1) continue;
 				if ((unsigned)map->n_areas > (MAXINT - sizeof(struct image_map)) / sizeof(struct map_area) - 1) overalloc();
 				map = mem_realloc(map, sizeof(struct image_map) + (map->n_areas + 1) * sizeof(struct map_area));

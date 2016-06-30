@@ -8,15 +8,9 @@ my_uintptr_t decompressed_cache_size = 0;
 
 static int display_error(struct terminal *term, unsigned char *msg, int *errp)
 {
-	struct window *win;
 	if (errp) *errp = 1;
 	if (!term) return 0;
-	if (!errp) foreach(win, term->windows) if (win->handler == dialog_func) {
-		struct dialog_data *d = win->data;
-		if (d->dlg->title == msg) {
-			return 0;
-		}
-	}
+	if (!errp) if (find_msg_box(term, msg, NULL, NULL)) return 0;
 	return 1;
 }
 
@@ -49,7 +43,7 @@ static int decoder_memory_expand(unsigned char **p, size_t size, size_t *addsize
 
 static void decompress_error(struct terminal *term, struct cache_entry *ce, unsigned char *lib, unsigned char *msg, int *errp)
 {
-	unsigned char *u, *uu, *server;
+	unsigned char *u, *server;
 	if ((u = parse_http_header(ce->head, cast_uchar "Content-Encoding", NULL))) {
 		mem_free(u);
 		if ((server = get_host_name(ce->url))) {
@@ -58,8 +52,7 @@ static void decompress_error(struct terminal *term, struct cache_entry *ce, unsi
 		}
 	}
 	if (!display_error(term, TEXT_(T_DECOMPRESSION_ERROR), errp)) return;
-	u = stracpy(ce->url);
-	if ((uu = cast_uchar strchr(cast_const_char u, POST_CHAR))) *uu = 0;
+	u = display_url(term, ce->url);
 	msg_box(term, getml(u, NULL), TEXT_(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DECOMPRESSING_), u, TEXT_(T__wITH_), lib, cast_uchar ": ", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
@@ -525,22 +518,22 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 	enc = get_content_encoding(ce->head, ce->url);
 	if (enc) {
 #ifdef HAVE_ZLIB
-		if (!strcasecmp(cast_const_char enc, "gzip") || !strcasecmp(cast_const_char enc, "x-gzip") || !strcasecmp(cast_const_char enc, "deflate")) {
-			int defl = !strcasecmp(cast_const_char enc, "deflate");
+		if (!casestrcmp(enc, cast_uchar "gzip") || !casestrcmp(enc, cast_uchar "x-gzip") || !casestrcmp(enc, cast_uchar "deflate")) {
+			int defl = !casestrcmp(enc, cast_uchar "deflate");
 			mem_free(enc);
 			if (decode_gzip(term, ce, defl, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
 #ifdef HAVE_BZIP2
-		if (!strcasecmp(cast_const_char enc, "bzip2")) {
+		if (!casestrcmp(enc, cast_uchar "bzip2")) {
 			mem_free(enc);
 			if (decode_bzip2(term, ce, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
 #ifdef HAVE_LZMA
-		if (!strcasecmp(cast_const_char enc, "lzma") || !strcasecmp(cast_const_char enc, "lzma2")) {
+		if (!casestrcmp(enc, cast_uchar "lzma") || !casestrcmp(enc, cast_uchar "lzma2")) {
 			mem_free(enc);
 			if (decode_lzma(term, ce, errp)) goto uncompressed;
 			goto return_decompressed;
@@ -553,8 +546,7 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 	if ((e = defrag_entry(ce)) < 0) {
 		unsigned char *msg = get_err_msg(e);
 		if (display_error(term, TEXT_(T_ERROR), errp)) {
-			unsigned char *u = stracpy(ce->url), *uu;
-			if ((uu = cast_uchar strchr(cast_const_char u, POST_CHAR))) *uu = 0;
+			unsigned char *u = display_url(term, ce->url);
 			msg_box(term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), cast_uchar " ", u, cast_uchar ":\n\n", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		}
 	}
@@ -569,9 +561,7 @@ int get_file(struct object_request *o, unsigned char **start, unsigned char **en
 	struct terminal *term;
 	*start = *end = NULL;
 	if (!o) return 1;
-	foreach(term, terminals) if (o->term == term->count) goto ok;
-	term = NULL;
-	ok:
+	term = find_terminal(o->term);
 	return get_file_by_term(term, o->ce, start, end, NULL);
 }
 

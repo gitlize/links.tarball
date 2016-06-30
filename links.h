@@ -99,7 +99,10 @@
 #ifdef HAVE_SYS_FILE_H
 #include <sys/file.h>
 #endif
-#ifdef HAVE_DIRENT_H
+#if defined(HAVE_DIRENT_H) || defined(__CYGWIN__)
+#if defined(__CYGWIN__) && !defined(NAME_MAX)
+#define NAME_MAX	255
+#endif
 #include <dirent.h>
 #elif defined(HAVE_SYS_NDIR_H)
 #include <sys/ndir.h>
@@ -192,20 +195,44 @@
 #endif
 
 #ifdef HAVE_SSL
+
 #ifdef HAVE_OPENSSL
+
 #ifndef NO_SSL_CERTIFICATES
 #define HAVE_SSL_CERTIFICATES
 #endif
 #if defined(OPENVMS) && defined(__VAX)
 #define OPENSSL_NO_SHA512
 #endif
+
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/x509v3.h>
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#ifndef OPENSSL_NO_SSL2
+#define OPENSSL_NO_SSL2
 #endif
+#ifndef OPENSSL_NO_SSL3
+#define OPENSSL_NO_SSL3
+#endif
+#endif
+
+#ifdef HAVE_CONFIG_VMS_H
+#if !defined(OPENSSL_NO_SSL2) && !defined(OPENSSL_NO_SSL2_METHOD)
+#define HAVE_SSLV2_CLIENT_METHOD 1
+#endif
+#if !defined(OPENSSL_NO_SSL3) && !defined(OPENSSL_NO_SSL3_METHOD)
+#define HAVE_SSLV3_CLIENT_METHOD 1
+#endif
+#endif
+
+#endif
+
 #ifdef HAVE_NSS
 #include <nss_compat_ossl/nss_compat_ossl.h>
 #endif
+
 #endif
 
 #if defined(G)
@@ -356,12 +383,6 @@ int strcmp(const char *s1, const char *s2);
 #endif
 #ifndef HAVE_STRNCMP
 int strncmp(const char *s1, const char *s2, size_t n);
-#endif
-#ifndef HAVE_STRCASECMP
-int strcasecmp(const char *s1, const char *s2);
-#endif
-#ifndef HAVE_STRNCASECMP
-int strncasecmp(const char *s1, const char *s2, size_t n);
 #endif
 #ifndef HAVE_STRCSPN
 size_t strcspn(const char *s, const char *reject);
@@ -530,15 +551,11 @@ void *do_not_optimize_here(void *p);
 void init_heap(void);
 void check_memory_leaks(void);
 void error(char *, ...) PRINTF_FORMAT(1, 2);
-void fatal_exit(char *, ...) PRINTF_FORMAT(1, 2)
-#ifdef __clang_analyzer__
-	__attribute__((analyzer_noreturn))
-#endif
-	;
+void fatal_exit(char *, ...) PRINTF_FORMAT(1, 2) ATTR_NORETURN;
 void debug_msg(char *, ...) PRINTF_FORMAT(1, 2);
 void int_error(char *, ...) PRINTF_FORMAT(1, 2)
-#ifdef __clang_analyzer__
-	__attribute__((analyzer_noreturn))
+#ifndef NO_IE
+	ATTR_NORETURN
 #endif
 	;
 extern int errline;
@@ -571,10 +588,45 @@ do {									\
 	fatal_exit("ERROR: arithmetic overflow at %s:%d", __FILE__, __LINE__);\
 } while (1)
 
-#define safe_add(x, y)							\
-	((int)((x) | (y)) >= 0 && ((unsigned)(x) + (unsigned)(y)) >= MAXINT ?\
-		fatal_exit("ERROR: arithmetic overflow at %s:%d: %d + %d", __FILE__, __LINE__, (x), (y)), 0\
-		: (int)((unsigned)(x) + (unsigned)(y)))
+#ifdef HAVE___BUILTIN_ADD_OVERFLOW
+static inline int test_int_overflow(int x, int y)
+{
+	int z;
+	return __builtin_add_overflow(x, y, &z);
+}
+#else
+#define test_int_overflow(x, y)						\
+	(~((unsigned)(x) ^ (unsigned)(y)) & ((unsigned)(x) ^ ((unsigned)(x) + (unsigned)(y))) & (1U << (sizeof(unsigned) * 8 - 1)))
+#endif
+
+static inline int safe_add_function(int x, int y, unsigned char *file, int line)
+{
+#ifndef HAVE___BUILTIN_ADD_OVERFLOW
+#if defined(__GNUC__) && defined(__GNUC_MINOR__)
+#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 7)
+#if defined(__i386__) || defined(__x86_64__)
+	int result;
+	unsigned char ovf;
+	__asm__ ("addl %2, %0; seto %1":"=r"(result),
+#if defined(__PATHSCALE__) || defined(__OPEN64__)
+		"=q"	/* a bug in the PathScale and Open64 compiler */
+#else
+		"=qm"
+#endif
+		(ovf):"g"(y),"0"(x));
+	if (ovf)
+		fatal_exit("ERROR: arithmetic overflow at %s:%d: %d + %d", file, line, (x), (y));
+	return result;
+#endif
+#endif
+#endif
+#endif
+	if (test_int_overflow(x, y))
+		fatal_exit("ERROR: arithmetic overflow at %s:%d: %d + %d", file, line, (x), (y));
+	return (int)((unsigned)x + (unsigned)y);
+}
+
+#define safe_add(x, y)	safe_add_function(x, y, (unsigned char *)__FILE__, __LINE__)
 
 #ifdef LEAK_DEBUG
 
@@ -756,10 +808,16 @@ static inline unsigned upcase(unsigned a)
 	if (a >= 'a' && a <= 'z') a -= 0x20;
 	return a;
 }
+static inline unsigned locase(unsigned a)
+{
+	if (a >= 'A' && a <= 'Z') a += 0x20;
+	return a;
+}
 static inline int srch_cmp(unsigned char c1, unsigned char c2)
 {
 	return upcase(c1) != upcase(c2);
 }
+int casestrcmp(const unsigned char *s1, const unsigned char *s2);
 int casecmp(const unsigned char *c1, const unsigned char *c2, size_t len);
 int casestrstr(const unsigned char *h, const unsigned char *n);
 static inline int xstrcmp(const unsigned char *s1, const unsigned char *s2)
@@ -908,6 +966,7 @@ int os_default_charset(void);
 
 #define MF_GPI			1
 
+void heap_trim(void);
 int shrink_memory(int, int);
 void register_cache_upcall(int (*)(int), int, unsigned char *);
 void free_all_caches(void);
@@ -1209,7 +1268,8 @@ static inline int getpri(struct connection *c)
 #define S_HTTP_204		(-2000000102)
 #define S_HTTPS_FWD_ERROR	(-2000000103)
 #define S_INVALID_CERTIFICATE	(-2000000104)
-#define S_INSECURE_CIPHER	(-2000000105)
+#define S_DOWNGRADED_METHOD	(-2000000105)
+#define S_INSECURE_CIPHER	(-2000000106)
 
 #define S_FILE_TYPE		(-2000000200)
 #define S_FILE_ERROR		(-2000000201)
@@ -1287,14 +1347,20 @@ void del_blacklist_entry(unsigned char *, int);
 int get_blacklist_flags(unsigned char *);
 void free_blacklist(void);
 
-#define BL_HTTP10		0x01
-#define BL_NO_ACCEPT_LANGUAGE	0x02
-#define BL_NO_CHARSET		0x04
-#define BL_NO_RANGE		0x08
-#define BL_NO_COMPRESSION	0x10
-#define BL_NO_BZIP2		0x20
-#define BL_IGNORE_CERTIFICATE	0x40
-#define BL_IGNORE_CIPHER	0x80
+#define BL_HTTP10		0x001
+#define BL_NO_ACCEPT_LANGUAGE	0x002
+#define BL_NO_CHARSET		0x004
+#define BL_NO_RANGE		0x008
+#define BL_NO_COMPRESSION	0x010
+#define BL_NO_BZIP2		0x020
+#define BL_IGNORE_CERTIFICATE	0x040
+#define BL_IGNORE_DOWNGRADE	0x080
+#define BL_IGNORE_CIPHER	0x100
+
+/* suffix.c */
+
+int is_tld(unsigned char *name);
+int allow_cookie_domain(unsigned char *server, unsigned char *domain);
 
 /* url.c */
 
@@ -1325,6 +1391,7 @@ unsigned char *translate_url(unsigned char *, unsigned char *);
 unsigned char *extract_position(unsigned char *);
 int url_not_saveable(unsigned char *);
 void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encode_special);
+unsigned char *display_url(struct terminal *term, unsigned char *url);
 
 /* connect.c */
 
@@ -1730,10 +1797,11 @@ struct graphics_driver {
 
 #define GD_DONT_USE_SCROLL	1
 #define GD_NEED_CODEPAGE	2
-#define GD_ONLY_1_WINDOW	4
-#define GD_NOAUTO		8
-#define GD_NO_OS_SHELL		16
-#define GD_NO_LIBEVENT		32
+#define GD_UNICODE_KEYS		4
+#define GD_ONLY_1_WINDOW	8
+#define GD_NOAUTO		16
+#define GD_NO_OS_SHELL		32
+#define GD_NO_LIBEVENT		64
 
 extern struct graphics_driver *drv;
 
@@ -1858,34 +1926,34 @@ int g_char_width(struct style *style, unsigned ch);
 unsigned short ags_8_to_16(unsigned char input, float gamma);
 unsigned char ags_16_to_8(unsigned short input, float gamma);
 unsigned short ags_16_to_16(unsigned short input, float gamma);
-void agx_24_to_48(unsigned short *dest, const unsigned char *src, int
+void agx_24_to_48(unsigned short *my_restrict dest, const unsigned char *my_restrict src, int
 			  lenght, float red_gamma, float green_gamma, float
 			  blue_gamma);
 void make_gamma_table(struct cached_image *cimg);
-void agx_24_to_48_table(unsigned short *dest, const unsigned char *src
-	,int lenght, unsigned short *gamma_table);
-void agx_48_to_48_table(unsigned short *dest,
-		const unsigned short *src, int lenght, unsigned short *table);
-void agx_48_to_48(unsigned short *dest,
-		const unsigned short *src, int lenght, float red_gamma,
+void agx_24_to_48_table(unsigned short *my_restrict dest, const unsigned char *my_restrict src
+	,int lenght, unsigned short *my_restrict gamma_table);
+void agx_48_to_48_table(unsigned short *my_restrict dest,
+		const unsigned short *my_restrict src, int lenght, unsigned short *my_restrict table);
+void agx_48_to_48(unsigned short *my_restrict dest,
+		const unsigned short *my_restrict src, int lenght, float red_gamma,
 		float green_gamma, float blue_gamma);
-void agx_and_uc_32_to_48_table(unsigned short *dest,
-		const unsigned char *src, int lenght, unsigned short *table,
+void agx_and_uc_32_to_48_table(unsigned short *my_restrict dest,
+		const unsigned char *my_restrict src, int lenght, unsigned short *my_restrict table,
 		unsigned short rb, unsigned short gb, unsigned short bb);
-void agx_and_uc_32_to_48(unsigned short *dest,
-		const unsigned char *src, int lenght, float red_gamma,
+void agx_and_uc_32_to_48(unsigned short *my_restrict dest,
+		const unsigned char *my_restrict src, int lenght, float red_gamma,
 		float green_gamma, float blue_gamma, unsigned short rb, unsigned
 		short gb, unsigned short bb);
-void agx_and_uc_64_to_48_table(unsigned short *dest,
-		const unsigned short *src, int lenght, unsigned short *gamma_table,
+void agx_and_uc_64_to_48_table(unsigned short *my_restrict dest,
+		const unsigned short *my_restrict src, int lenght, unsigned short *my_restrict gamma_table,
 		unsigned short rb, unsigned short gb, unsigned short bb);
-void agx_and_uc_64_to_48(unsigned short *dest,
-		const unsigned short *src, int lenght, float red_gamma,
+void agx_and_uc_64_to_48(unsigned short *my_restrict dest,
+		const unsigned short *my_restrict src, int lenght, float red_gamma,
 		float green_gamma, float blue_gamma, unsigned short rb, unsigned
 		short gb, unsigned short bb);
-void mix_one_color_48(unsigned short *dest, int length,
+void mix_one_color_48(unsigned short *my_restrict dest, int length,
 		   unsigned short r, unsigned short g, unsigned short b);
-void mix_one_color_24(unsigned char *dest, int length,
+void mix_one_color_24(unsigned char *my_restrict dest, int length,
 		   unsigned char r, unsigned char g, unsigned char b);
 void scale_color(unsigned short *in, int ix, int iy, unsigned short **out,
 	int ox, int oy);
@@ -1940,12 +2008,12 @@ extern int slow_fpu;	/* -1 --- don't know, 0 --- no, 1 --- yes */
 void dither (unsigned short *in, struct bitmap *out);
 int *dither_start(unsigned short *in, struct bitmap *out);
 void dither_restart(unsigned short *in, struct bitmap *out, int *dregs);
-extern void (*round_fn)(unsigned short *in, struct bitmap *out);
+extern void (*round_fn)(unsigned short *my_restrict in, struct bitmap *out);
 
 long (*get_color_fn(int depth))(int rgb);
 void init_dither(int depth);
-void round_color_sRGB_to_48(unsigned short *red, unsigned short *green,
-		unsigned short *blue, int rgb);
+void round_color_sRGB_to_48(unsigned short *my_restrict red, unsigned short *my_restrict green,
+		unsigned short *my_restrict blue, int rgb);
 
 void q_palette(unsigned size, unsigned color, unsigned scale, unsigned rgb[3]);
 double rgb_distance(int r1, int g1, int b1, int r2, int g2, int b2);
@@ -2180,8 +2248,9 @@ void close_handle(void *);
 int have_extra_exec(void);
 #endif
 void exec_on_terminal(struct terminal *, unsigned char *, unsigned char *, unsigned char);
-void set_terminal_title(struct terminal *, unsigned char *);
 void do_terminal_function(struct terminal *, unsigned char, unsigned char *);
+void set_terminal_title(struct terminal *, unsigned char *);
+struct terminal *find_terminal(tcount count);
 
 /* language.c */
 
@@ -2370,6 +2439,8 @@ struct object_request {
 	void *data;
 	int redirect_cnt;
 	int state;
+#define HOLD_AUTH	1
+#define HOLD_CERT	2
 	int hold;
 	int dont_print_error;
 	struct timer *timer;
@@ -3317,7 +3388,7 @@ struct f_data_c *find_frame(struct session *ses, unsigned char *target, struct f
 
 /* Information about the current document */
 unsigned char *get_current_url(struct session *, unsigned char *, size_t);
-unsigned char *get_current_title(struct session *, unsigned char *, size_t);
+unsigned char *get_current_title(struct f_data_c *, unsigned char *, size_t);
 
 /*unsigned char *get_current_link_url(struct session *, unsigned char *, size_t);*/
 unsigned char *get_form_url(struct session *ses, struct f_data_c *f, struct form_control *form, int *onsubmit);
@@ -3668,6 +3739,7 @@ void do_menu(struct terminal *, struct menu_item *, void *);
 void do_menu_selected(struct terminal *, struct menu_item *, void *, int, void (*)(void *), void *);
 void do_mainmenu(struct terminal *, struct menu_item *, void *, int);
 void do_dialog(struct terminal *, struct dialog *, struct memory_list *);
+void dialog_func(struct window *, struct links_event *, int);
 int check_number(struct dialog_data *, struct dialog_item_data *);
 int check_hex_number(struct dialog_data *, struct dialog_item_data *);
 int check_float(struct dialog_data *, struct dialog_item_data *);
@@ -3739,7 +3811,7 @@ void input_field(struct terminal *, struct memory_list *, unsigned char *, unsig
  */
 void add_to_history(struct history *, unsigned char *, int);
 
-void dialog_func(struct window *, struct links_event *, int);
+int find_msg_box(struct terminal *term, unsigned char *title, int (*sel)(void *, void *), void *data);
 
 /* menu.c */
 
@@ -3782,6 +3854,7 @@ struct conv_table *get_translation_table(int, int);
 int get_entity_number(unsigned char *st, int l);
 unsigned char *get_entity_string(unsigned char *, int, int);
 unsigned char *convert_string(struct conv_table *, unsigned char *, int, struct document_options *);
+unsigned char *convert(int from, int to, unsigned char *c, struct document_options *dopt);
 int get_cp_index(unsigned char *);
 unsigned char *get_cp_name(int);
 unsigned char *get_cp_mime_name(int);
@@ -4224,6 +4297,9 @@ struct html_element {
 	struct html_element *prev;
 	struct text_attrib attr;
 	struct par_attrib parattr;
+#define INVISIBLE		1
+#define INVISIBLE_SCRIPT	2
+#define INVISIBLE_STYLE		3
 	int invisible;
 	unsigned char *name;
 	int namelen;

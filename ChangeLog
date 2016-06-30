@@ -1,3 +1,57 @@
+=== RELEASE 2.13 ===
+
+Sat Jun 18 14:15:55 CEST 2016 mikulas:
+
+	Page up and page down scroll slightly less than a page
+
+Fri Jun 17 23:57:23 CEST 2016 mikulas:
+
+	Use domain list from publicsuffix.org to prevent setting cookies on
+	public domains.
+	Also fix a bug that existed in previous links versions:
+	bla.com could register cookie for la.com or a.com
+
+Sat Jun 11 17:59:17 CEST 2016 mikulas:
+
+	Fixed non-working mouse wheel on Syllable
+	Workaround for getaddrinfo bug on Syllable
+
+Sat Jun 11 15:16:41 CEST 2016 mikulas:
+
+	Support horizontal scroll wheel on Windows
+
+Tue Jun  7 19:10:11 CEST 2016 mikulas:
+
+	Fixed a bug in the X driver that characters with unicode codes 128-255
+	could not be entered with some locales
+
+Thu Jun  2 19:19:56 CEST 2016 mikulas:
+
+	Security bug fixed: Use separate unix domain socket for anonymous
+	instances, so that the anonymous instance won't connect to non-anonymous
+	one
+
+Sun May  8 21:20:38 CEST 2016 mikulas:
+
+	<samp> element
+
+Sun May  8 20:33:37 CEST 2016 mikulas:
+
+	In case of certification verification failure, don't pop up multiple
+	dialog windows asking for the same server
+
+Sun Mar 13 19:10:27 CET 2016 mikulas:
+
+	Do not lookup .onion addresses directly, as specified by rfc7686
+
+Wed Jan 13 01:16:49 CET 2016 Jakub Bogusz <qboosh@pld-linux.org>:
+
+	Updated Polish Translation
+
+Wed Oct 21 19:25:09 CEST 2015 mikulas:
+
+	Security enhancement: Warn if the SSL/TLS method was downgraded
+
 === RELEASE 2.12 ===
 
 Sat Sep 12 21:03:14 CEST 2015 mikulas:

@@ -209,9 +209,9 @@ static unsigned char *set_mode_according_to_param(unsigned char *param)
 		ptr = end + 1;
 		if (!strcmp(cast_const_char ptr, "16")) pl = 4;
 		else if (!strcmp(cast_const_char ptr, "256")) pl = 8;
-		else if (!strcasecmp(cast_const_char ptr, "32k") || !strcmp(cast_const_char ptr, "32768")) pl = 15;
-		else if (!strcasecmp(cast_const_char ptr, "64k") || !strcmp(cast_const_char ptr, "65536")) pl = 16;
-		else if (!strcasecmp(cast_const_char ptr, "16M") || !strcasecmp(cast_const_char ptr, "16M32") || !strcmp(cast_const_char ptr, "16777216")) pl = 24;
+		else if (!casestrcmp(ptr, cast_uchar "32k") || !strcmp(cast_const_char ptr, "32768")) pl = 15;
+		else if (!casestrcmp(ptr, cast_uchar "64k") || !strcmp(cast_const_char ptr, "65536")) pl = 16;
+		else if (!casestrcmp(ptr, cast_uchar "16M") || !casestrcmp(ptr, cast_uchar "16M32") || !strcmp(cast_const_char ptr, "16777216")) pl = 24;
 		else goto bad_param;
 		if (x == 800 && y == 600 && pl == 4) y = 599; /* a bug in GRX */
 		if (!GrSetMode(GR_width_height_bpp_graphics, (int)x, (int)y, pl)) {

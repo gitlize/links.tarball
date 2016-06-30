@@ -933,11 +933,12 @@ static LRESULT CALLBACK pm_window_proc(HWND hwnd, UINT msg, WPARAM mp1, LPARAM m
 #endif
 #ifdef WIN
 		case WM_MOUSEWHEEL:
+		case 0x020e:
 			flags = HIWORD(mp1);
 			if (!flags) break;
 			pm_lock();
 			if (!(win = pm_lookup_window(hwnd))) { pm_unlock(); break; }
-			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), (flags > 0 && flags < 0x8000 ? B_WHEELUP : B_WHEELDOWN) | B_MOVE, 0);
+			pm_send_event(win, E_MOUSE, win_x(win), win_y(win), (flags > 0 && flags < 0x8000 ? (msg == WM_MOUSEWHEEL ? B_WHEELUP : B_WHEELRIGHT) : (msg == WM_MOUSEWHEEL ? B_WHEELDOWN: B_WHEELLEFT)) | B_MOVE, 0);
 			pm_unlock();
 			break;
 #endif
@@ -1991,8 +1992,7 @@ static void pm_set_window_title(struct graphics_device *dev, unsigned char *titl
 	} else
 #endif
 	{
-		struct conv_table *ct = get_translation_table(utf8_table, pm_cp);
-		text = convert_string(ct, title, strlen(cast_const_char title), NULL);
+		text = convert(utf8_table, pm_cp, title, NULL);
 		clr_white(text);
 		if (strlen(cast_const_char text) > MAX_TITLE_SIZE) text[MAX_TITLE_SIZE] = 0;
 	}
@@ -2488,7 +2488,7 @@ struct graphics_driver pmshell_driver = {
 	NULL, /* get_clipboard_text */
 	0,			/* depth */
 	0, 0,			/* x, y */
-	0,			/* flags */
+	GD_UNICODE_KEYS,	/* flags */
 	0,			/* codepage */
 	NULL,			/* shell */
 };

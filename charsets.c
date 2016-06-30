@@ -23,7 +23,7 @@ struct codepage_desc {
 #include "entity.inc"
 #include "upcase.inc"
 
-static const unsigned char strings[256][2] = {
+static_const unsigned char strings[256][2] = {
 	"\000", "\001", "\002", "\003", "\004", "\005", "\006", "\007",
 	"\010", "\011", "\012", "\013", "\014", "\015", "\016", "\017",
 	"\020", "\021", "\022", "\023", "\024", "\025", "\026", "\033",
@@ -65,7 +65,7 @@ static void free_translation_table(struct conv_table *p)
 	mem_free(p);
 }
 
-static const unsigned char no_str[] = "*";
+static_const unsigned char no_str[] = "*";
 
 static void new_translation_table(struct conv_table *p)
 {
@@ -75,7 +75,7 @@ static void new_translation_table(struct conv_table *p)
 	for (; i < 256; i++) p[i].t = 0, p[i].u.str = cast_uchar no_str;
 }
 
-static const int strange_chars[32] = {
+static_const int strange_chars[32] = {
 	0x20ac, 0x0000, 0x002a, 0x0000, 0x201e, 0x2026, 0x2020, 0x2021,
 	0x005e, 0x2030, 0x0160, 0x003c, 0x0152, 0x0000, 0x0000, 0x0000,
 	0x0000, 0x0060, 0x0027, 0x0022, 0x0022, 0x002a, 0x2013, 0x2014,
@@ -269,7 +269,7 @@ unsigned char utf_8_1[256] = {
 	3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 6, 6,
 };
 
-static const unsigned min_utf_8[9] = {
+static_const unsigned min_utf_8[9] = {
 	0, 0x4000000, 0x200000, 0x10000, 0x800, 0x80, 0x100, 0x1,
 };
 
@@ -463,6 +463,24 @@ unsigned char *convert_string(struct conv_table *ct, unsigned char *c, int l, st
 	return buffer;
 }
 
+unsigned char *convert(int from, int to, unsigned char *c, struct document_options *dopt)
+{
+	unsigned char *cc;
+	struct conv_table *ct;
+
+	for (cc = c; *cc; cc++) {
+		if (*cc >= 128 && from != to)
+			goto need_table;
+		if (*cc == '&' && dopt && !dopt->plain)
+			goto need_table;
+	}
+	return stracpy(c);
+
+need_table:
+	ct = get_translation_table(from, to);
+	return convert_string(ct, c, (int)strlen(cast_const_char c), dopt);
+}
+
 int get_cp_index(unsigned char *n)
 {
 	int i, a, p, q, sl;
@@ -555,8 +573,7 @@ unsigned char *unicode_upcase_string(unsigned char *ch)
 unsigned char *to_utf8_upcase(unsigned char *str, int cp)
 {
 	unsigned char *str1, *str2;
-	struct conv_table *ct = get_translation_table(cp, utf8_table);
-	str1 = convert_string(ct, str, (int)strlen(cast_const_char str), NULL);
+	str1 = convert(cp, utf8_table, str, NULL);
 	str2 = unicode_upcase_string(str1);
 	mem_free(str1);
 	return str2;

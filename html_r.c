@@ -104,6 +104,18 @@ static void clear_formatted(struct f_data *scr)
 	int y;
 	struct form_control *fc;
 	if (!scr) return;
+
+	if (scr->search_chr) {
+		mem_free(scr->search_chr);
+		mem_freed_large(scr->nsearch_chr * sizeof(char_t));
+	}
+	if (scr->search_pos) {
+		mem_free(scr->search_pos);
+		mem_freed_large(scr->nsearch_pos * sizeof(struct search));
+	}
+	if (scr->slines1) mem_free(scr->slines1);
+	if (scr->slines2) mem_free(scr->slines2);
+
 #ifdef G
 	if (scr->root) scr->root->destruct(scr->root);
 #endif
@@ -140,16 +152,6 @@ static void clear_formatted(struct f_data *scr)
 	free_list(scr->forms);
 	free_list(scr->tags);
 	free_list(scr->nodes);
-	if (scr->search_chr) {
-		mem_free(scr->search_chr);
-		mem_freed_large(scr->nsearch_chr * sizeof(char_t));
-	}
-	if (scr->search_pos) {
-		mem_free(scr->search_pos);
-		mem_freed_large(scr->nsearch_pos * sizeof(struct search));
-	}
-	if (scr->slines1) mem_free(scr->slines1);
-	if (scr->slines2) mem_free(scr->slines2);
 #ifdef G
 	free_list(scr->image_refresh);
 	if (scr->srch_string) mem_free(scr->srch_string);
@@ -705,7 +707,8 @@ static void put_chars(void *p_, unsigned char *c, int l)
 			align_line(p, p->cy - 1);
 			nobreak = x - 1;
 		}
-	if (safe_add((p->xa = safe_add(p->xa, ll)) - (c[l-1] == ' ' && par_format.align != AL_NO && par_format.align != AL_NO_BREAKABLE), safe_add(par_format.leftmargin, par_format.rightmargin)) > p->xmax) p->xmax = p->xa - (c[l-1] == ' ' && par_format.align != AL_NO && par_format.align != AL_NO_BREAKABLE) + par_format.leftmargin + par_format.rightmargin;
+	p->xa = safe_add(p->xa, ll);
+	if (safe_add(p->xa - (c[l-1] == ' ' && par_format.align != AL_NO && par_format.align != AL_NO_BREAKABLE), safe_add(par_format.leftmargin, par_format.rightmargin)) > p->xmax) p->xmax = p->xa - (c[l-1] == ' ' && par_format.align != AL_NO && par_format.align != AL_NO_BREAKABLE) + par_format.leftmargin + par_format.rightmargin;
 	mem_free(uni_c);
 	return;
 
@@ -1328,7 +1331,7 @@ int compare_opt(struct document_options *o1, struct document_options *o2)
 	    kdo_si_hraje_nezlobi____a_nebo_to_je_PerM<=0.000001 &&
 	    kdo_si_hraje_nezlobi____a_nebo_to_je_PerM>=-0.000001 &&
 #endif
-	    ((o1->framename && o2->framename && !strcasecmp(cast_const_char o1->framename, cast_const_char o2->framename)) || (!o1->framename && !o2->framename))) return 0;
+	    ((o1->framename && o2->framename && !casestrcmp(o1->framename, o2->framename)) || (!o1->framename && !o2->framename))) return 0;
 	return 1;
 }
 

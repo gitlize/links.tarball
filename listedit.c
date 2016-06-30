@@ -941,8 +941,7 @@ static int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *use
 	txt=ld->type_item(term, item,0);
 	if (!txt)
 	{
-		txt=mem_alloc(sizeof(unsigned char));
-		*txt=0;
+		txt = stracpy(cast_uchar "");
 	}
 
 	if ((item->type)&1)   /* folder */
@@ -1015,8 +1014,7 @@ static int redraw_list_element(struct terminal *term, struct dialog_data *dlg, i
 	txt=ld->type_item(term, l,1);
 	if (!txt)
 	{
-		txt=mem_alloc(sizeof(unsigned char));
-		*txt=0;
+		txt = stracpy(cast_uchar "");
 	}
 
 	/* everything except head */

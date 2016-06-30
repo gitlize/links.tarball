@@ -454,9 +454,7 @@ static void init(void)
 						mem_free(info);
 						set_handlers(uh, gfx_connection_terminate, NULL, (void *)(my_intptr_t)uh);
 						initialize_all_subsystems_2();
-#if defined(HAVE_MALLOC_TRIM)
-						malloc_trim(0);
-#endif
+						heap_trim();
 						return;
 					}
 				}
@@ -568,6 +566,13 @@ int main(int argc, char *argv[])
 {
 	g_argc = argc;
 	g_argv = (unsigned char **)argv;
+
+#if 0
+	if (argc != 3)
+		fprintf(stderr, "two args expected\n"), exit(1);
+	printf("cookie %saccepted\n", allow_cookie_domain(cast_uchar argv[1], cast_uchar argv[2]) ? "" : "not ");
+	return 0;
+#endif
 
 	init_heap();
 

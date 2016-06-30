@@ -532,7 +532,7 @@ static struct term_spec *get_term_spec(unsigned char *term)
 {
 	struct term_spec *t;
 	NO_GFX;
-	foreach(t, term_specs) if (!strcasecmp(cast_const_char t->term, cast_const_char term)) return t;
+	foreach(t, term_specs) if (!casestrcmp(t->term, term)) return t;
 	return &dumb_term;
 }
 
@@ -545,7 +545,7 @@ static void sync_term_specs(void)
 struct term_spec *new_term_spec(unsigned char *term)
 {
 	struct term_spec *t;
-	foreach(t, term_specs) if (!strcasecmp(cast_const_char t->term, cast_const_char term)) return t;
+	foreach(t, term_specs) if (!casestrcmp(t->term, term)) return t;
 	t = mem_alloc(sizeof(struct term_spec));
 	memcpy(t, &dumb_term, sizeof(struct term_spec));
 	if (strlen(cast_const_char term) < MAX_TERM_LEN) strcpy(cast_char t->term, cast_const_char term);
@@ -590,7 +590,7 @@ static int process_utf_8(struct terminal *term, struct links_event *ev)
 #if defined(G) || defined(ENABLE_UTF8)
 	if (ev->ev == EV_KBD && ((!F && term_charset(term) == utf8_table)
 #ifdef G
-	    || (F && g_kbd_codepage(drv) == utf8_table)
+	    || (F && !(drv->flags & GD_UNICODE_KEYS) && g_kbd_codepage(drv) == utf8_table)
 #endif
 	    )) {
 		size_t l;
@@ -638,7 +638,7 @@ struct terminal *init_gfx_term(void (*root_window)(struct window *, struct links
 	term->y = dev->size.y2;
 	term->last_mouse_x = term->last_mouse_y = term->last_mouse_b = MAXINT;
 	term->environment = !(drv->flags & GD_ONLY_1_WINDOW) ? ENV_G : 0;
-	if (!strcasecmp(cast_const_char drv->name, "x")) term->environment |= ENV_XWIN;
+	if (!casestrcmp(drv->name, cast_uchar "x")) term->environment |= ENV_XWIN;
 	term->spec = &gfx_term;
 	term->default_character_set = get_default_charset();
 	safe_strncpy(term->cwd, cwd, MAX_CWD_LEN);
@@ -1345,9 +1345,7 @@ void exec_on_terminal(struct terminal *term, unsigned char *path, unsigned char 
 				}
 #endif
 			}
-#if defined(HAVE_MALLOC_TRIM)
-			malloc_trim(0);
-#endif
+			heap_trim();
 			if ((blockh = start_thread((void (*)(void *, int))exec_thread, param, (int)strlen(cast_const_char path) + (int)strlen(cast_const_char delet) + 3, *delet != 0)) == -1) {
 				if (fg == 1) {
 					if (!F) unblock_itrm(term->fdin);
@@ -1412,10 +1410,8 @@ void set_terminal_title(struct terminal *term, unsigned char *title)
 	term->title = stracpy(title);
 #ifdef SET_WINDOW_TITLE_UTF_8
 	{
-		struct conv_table *table;
 		mem_free(title);
-		table = get_translation_table(term_charset(term), utf8_table);
-		title = convert_string(table, term->title, strlen(cast_const_char term->title), NULL);
+		title = convert(term_charset(term), utf8_table, term->title, NULL);
 	}
 #endif
 	if (!F) do_terminal_function(term, TERM_FN_TITLE, title);
@@ -1424,4 +1420,11 @@ void set_terminal_title(struct terminal *term, unsigned char *title)
 #endif
 	ret:
 	mem_free(title);
+}
+
+struct terminal *find_terminal(tcount count)
+{
+	struct terminal *term;
+	foreach(term, terminals) if (term->count == count) return term;
+	return NULL;
 }

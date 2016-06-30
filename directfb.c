@@ -55,7 +55,6 @@ static DFBSurfacePixelFormat  pixelformat = DSPF_UNKNOWN;
 static struct timer *event_timer = NULL;
 
 
-static inline void directfb_set_color  (IDirectFBSurface *surface, long color);
 static void directfb_register_flip     (DFBDeviceData *data,
                                         int x, int y, int w, int h);
 static void directfb_flip_surface      (void *pointer);
@@ -330,6 +329,15 @@ directfb_get_color (int rgb)
 }
 
 
+static inline void directfb_set_color (IDirectFBSurface *surface, long color)
+{
+  surface->SetColor (surface,
+                     (color & 0xFF0000) >> 16,
+                     (color & 0xFF00)   >> 8,
+                     (color & 0xFF),
+                     0xFF);
+}
+
 static void
 directfb_fill_area (struct graphics_device *gd,
                     int x1, int y1, int x2, int y2, long color)
@@ -434,55 +442,6 @@ directfb_vscroll (struct graphics_device *gd, struct rect_set **set, int sc)
   directfb_register_flip (data, rect.x, rect.y, rect.w, rect.h);
 
   return 1;
-}
-
-struct graphics_driver directfb_driver =
-{
-  cast_uchar "directfb",
-  directfb_init_driver,
-  directfb_init_device,
-  directfb_shutdown_device,
-  directfb_shutdown_driver,
-  NULL,
-  NULL,
-  directfb_get_driver_param,
-  NULL,
-  NULL,
-  NULL,
-  directfb_get_empty_bitmap,
-  directfb_register_bitmap,
-  directfb_prepare_strip,
-  directfb_commit_strip,
-  directfb_unregister_bitmap,
-  directfb_draw_bitmap,
-  directfb_get_color,
-  directfb_fill_area,
-  directfb_draw_hline,
-  directfb_draw_vline,
-  directfb_hscroll,
-  directfb_vscroll,
-  directfb_set_clip_area,
-  dummy_block,
-  dummy_unblock,
-  NULL,	 /*  set_title  */
-  NULL,	 /*  exec	*/
-  NULL,	 /*  set_clipboard_text */
-  NULL,	 /*  get_clipboard_text */
-  0,	 /*  depth      */
-  0, 0,	 /*  size       */
-  GD_NO_OS_SHELL, /*  flags      */
-  0,     /*  codepage   */
-  NULL,	 /*  shell	*/
-};
-
-
-static inline void directfb_set_color (IDirectFBSurface *surface, long color)
-{
-  surface->SetColor (surface,
-                     (color & 0xFF0000) >> 16,
-                     (color & 0xFF00)   >> 8,
-                     (color & 0xFF),
-                     0xFF);
 }
 
 static void directfb_register_flip (DFBDeviceData *data,
@@ -827,5 +786,44 @@ directfb_lookup_in_table (DFBWindowID id)
 
   return NULL;
 }
+
+struct graphics_driver directfb_driver =
+{
+  cast_uchar "directfb",
+  directfb_init_driver,
+  directfb_init_device,
+  directfb_shutdown_device,
+  directfb_shutdown_driver,
+  NULL,
+  NULL,
+  directfb_get_driver_param,
+  NULL,
+  NULL,
+  NULL,
+  directfb_get_empty_bitmap,
+  directfb_register_bitmap,
+  directfb_prepare_strip,
+  directfb_commit_strip,
+  directfb_unregister_bitmap,
+  directfb_draw_bitmap,
+  directfb_get_color,
+  directfb_fill_area,
+  directfb_draw_hline,
+  directfb_draw_vline,
+  directfb_hscroll,
+  directfb_vscroll,
+  directfb_set_clip_area,
+  dummy_block,
+  dummy_unblock,
+  NULL,	 /*  set_title  */
+  NULL,	 /*  exec	*/
+  NULL,	 /*  set_clipboard_text */
+  NULL,	 /*  get_clipboard_text */
+  0,	 /*  depth      */
+  0, 0,	 /*  size       */
+  GD_UNICODE_KEYS | GD_NO_OS_SHELL, /*  flags      */
+  0,     /*  codepage   */
+  NULL,	 /*  shell	*/
+};
 
 #endif /* GRDRV_DIRECTFB */

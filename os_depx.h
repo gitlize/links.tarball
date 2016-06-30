@@ -153,14 +153,6 @@ int bounced_write(int fd, const void *buf, size_t size);
 #ifndef HAVE_GETCWD
 #define HAVE_GETCWD	1
 #endif
-#ifndef HAVE_STRCASECMP
-#define HAVE_STRCASECMP	1
-#endif
-#ifndef HAVE_STRNCASECMP
-#define HAVE_STRNCASECMP 1
-#endif
-#define strcasecmp stricmp
-#define strncasecmp strnicmp
 #define getcwd _getcwd2
 #define chdir _chdir2
 #endif
@@ -285,7 +277,7 @@ int dos_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t, int
 
 #if defined(__GNUC__)
 #if __GNUC__ >= 2
-#define PRINTF_FORMAT(a, b)	__attribute__((__format__(__printf__, a, b)))
+#define PRINTF_FORMAT(a, b)	__attribute__((format(printf, a, b)))
 #endif
 #endif
 #ifndef PRINTF_FORMAT
@@ -294,7 +286,7 @@ int dos_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t, int
 
 #if defined(__GNUC__)
 #if __GNUC__ >= 2
-#define ATTR_PACKED		__attribute__((__packed__))
+#define ATTR_PACKED		__attribute__((packed))
 #define HAVE_ATTR_PACKED
 #endif
 #endif
@@ -302,7 +294,18 @@ int dos_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t, int
 #define ATTR_PACKED
 #endif
 
-#if defined(HAVE_GETADDRINFO) && defined(HAVE_FREEADDRINFO)
+#if defined(__clang_analyzer__)
+#define ATTR_NORETURN		__attribute__((analyzer_noreturn))
+#elif defined(__GNUC__) && defined(__GNUC_MINOR__)
+#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5)
+#define ATTR_NORETURN		__attribute__((noreturn))
+#endif
+#endif
+#ifndef ATTR_NORETURN
+#define ATTR_NORETURN
+#endif
+
+#if defined(HAVE_GETADDRINFO) && defined(HAVE_FREEADDRINFO) && !defined(ATHEOS)
 #define USE_GETADDRINFO
 #endif
 
@@ -325,6 +328,13 @@ int dos_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t, int
 #define fd_pow powf
 #endif
 #endif
+
+#if defined(__DECC_VER) && !defined(OPENVMS)
+#define static_const	static
+#else
+#define static_const	static const
+#endif
+typedef const char *const_char_ptr;
 
 #if defined(BEOS) || (defined(HAVE_BEGINTHREAD) && defined(OS2)) || defined(HAVE_PTHREADS) || (defined(HAVE_ATHEOS_THREADS_H) && defined(HAVE_SPAWN_THREAD) && defined(HAVE_RESUME_THREAD))
 #define EXEC_IN_THREADS

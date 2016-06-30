@@ -87,6 +87,12 @@
 /* Define if you have the RAND_write_file function.  */
 /* #undef HAVE_RAND_WRITE_FILE */
 
+/* Define if you have the SSLv2_client_method function.  */
+/* #undef HAVE_SSLV2_CLIENT_METHOD */
+
+/* Define if you have the SSLv3_client_method function.  */
+/* #undef HAVE_SSLV3_CLIENT_METHOD */
+
 /* Define if you have the XCloseIM function.  */
 /* #undef HAVE_XCLOSEIM */
 
@@ -363,9 +369,6 @@
 /* Define if you have the spawn_thread function.  */
 /* #undef HAVE_SPAWN_THREAD */
 
-/* Define if you have the strcasecmp function.  */
-#define HAVE_STRCASECMP 1
-
 /* Define if you have the strchr function.  */
 #define HAVE_STRCHR 1
 
@@ -386,9 +389,6 @@
 
 /* Define if you have the strlen function.  */
 #define HAVE_STRLEN 1
-
-/* Define if you have the strncasecmp function.  */
-#define HAVE_STRNCASECMP 1
 
 /* Define if you have the strncmp function.  */
 #define HAVE_STRNCMP 1
@@ -717,6 +717,9 @@
 /* Define if you have the event library (-levent).  */
 /* #undef HAVE_LIBEVENT */
 
+/* Define if you have the fontconfig library (-lfontconfig).  */
+/* #undef HAVE_LIBFONTCONFIG */
+
 /* Define if you have the gpm library (-lgpm).  */
 /* #undef HAVE_LIBGPM */
 
@@ -784,11 +787,11 @@
 #define PACKAGE "links"
 
 /* Version number of package */
-#define VERSION "2.12"
+#define VERSION "2.13"
 
 
 /* */
-#define VERSION "2.12"
+#define VERSION "2.13"
 
 /* */
 /* #undef HAVE_OPENMP */
@@ -813,6 +816,12 @@
 
 /* */
 #define HAVE_VOLATILE 1
+
+/* */
+/* #undef HAVE_RESTRICT */
+
+/* */
+/* #undef HAVE___RESTRICT */
 
 /* */
 #define HAVE_ERRNO 1
@@ -845,12 +854,6 @@
 #define HAVE_STRNCMP 1
 
 /* */
-#define HAVE_STRCASECMP 1
-
-/* */
-#define HAVE_STRNCASECMP 1
-
-/* */
 #define HAVE_STRCSPN 1
 
 /* */
@@ -879,6 +882,9 @@
 
 /* */
 #define HAVE_SIGSETJMP 1
+
+/* */
+/* #undef HAVE___BUILTIN_ADD_OVERFLOW */
 
 /* */
 #define DEBUGLEVEL 0

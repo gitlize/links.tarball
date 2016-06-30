@@ -301,7 +301,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 			int x;
 			hl:
 			for (x = 0; x < hl_len; x++) mask[hl_start - t->srch_pos + x] ^= 1;
-			/*memset(mask+hl_start-t->srch_pos, 1, hl_len*sizeof(char));*/
+			/*memset(mask+hl_start-t->srch_pos, 1, hl_len);*/
 		}
 		else
 		{
@@ -870,6 +870,21 @@ void g_text_mouse(struct f_data_c *fd, struct g_object_text *a, int x, int y, in
 	}
 }
 
+static int horizontal_page_jump(struct f_data_c *fd)
+{
+	int j = fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH;
+	if (j <= 0) j = 1;
+	return j;
+}
+
+static int vertical_page_jump(struct f_data_c *fd)
+{
+	int j = fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
+	if (j >= fd->ses->ds.font_size * 2) j -= fd->ses->ds.font_size;
+	if (j <= 0) j = 1;
+	return j;
+}
+
 static void process_sb_event(struct f_data_c *fd, int off, int h)
 {
 	int spos, epos;
@@ -885,11 +900,11 @@ static void process_sb_event(struct f_data_c *fd, int off, int h)
 		return;
 	}
 	if (off < spos) {
-		if (h) fd->vs->view_posx -= fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH;
-		else fd->vs->view_pos -= fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
+		if (h) fd->vs->view_posx -= horizontal_page_jump(fd);
+		else fd->vs->view_pos -= vertical_page_jump(fd);
 	} else {
-		if (h) fd->vs->view_posx += fd->xw - fd->vsb * G_SCROLL_BAR_WIDTH;
-		else fd->vs->view_pos += fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH;
+		if (h) fd->vs->view_posx += horizontal_page_jump(fd);
+		else fd->vs->view_pos += vertical_page_jump(fd);
 	}
 	fd->vs->orig_view_pos = fd->vs->view_pos;
 	fd->vs->orig_view_posx = fd->vs->view_posx;
@@ -1220,11 +1235,11 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct links_event *ev)
 			}
 			if (ev->x == KBD_PAGE_DOWN || (ev->x == ' ' && !(ev->y & KBD_ALT)) || (upcase(ev->x) == 'F' && ev->y & KBD_CTRL)) {
 				unset_link(fd);
-				return scroll_v(fd, fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH);
+				return scroll_v(fd, vertical_page_jump(fd));
 			}
 			if (ev->x == KBD_PAGE_UP || (upcase(ev->x) == 'B' && !(ev->y & KBD_ALT))) {
 				unset_link(fd);
-				return scroll_v(fd, -(fd->yw - fd->hsb * G_SCROLL_BAR_WIDTH));
+				return scroll_v(fd, -vertical_page_jump(fd));
 			}
 			if (0) {
 				down:
@@ -1327,10 +1342,15 @@ int g_frame_ev(struct session *ses, struct f_data_c *fd, struct links_event *ev)
 
 void draw_title(struct f_data_c *f)
 {
-	unsigned char *title = stracpy(!drv->set_title && f->f_data && f->f_data->title && f->f_data->title[0] ? f->f_data->title : f->rq && f->rq->url ? f->rq->url : (unsigned char *)"");
 	int b, z, w;
 	struct graphics_device *dev = f->ses->term->dev;
-	if (drv->set_title && strchr(cast_const_char title, POST_CHAR)) *cast_uchar strchr(cast_const_char title, POST_CHAR) = 0;
+	unsigned char *title = stracpy(!drv->set_title && f->f_data && f->f_data->title && f->f_data->title[0] ? f->f_data->title : NULL);
+	if (!title) {
+		if (f->rq && f->rq->url)
+			title = display_url(f->ses->term, f->rq->url);
+		else
+			title = stracpy((unsigned char *)"");
+	}
 	w = g_text_width(bfu_style_bw, title);
 	z = 0;
 	g_print_text(dev, 0, 0, bfu_style_bw, cast_uchar G_LEFT_ARROW, &z);

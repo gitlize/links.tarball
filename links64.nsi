@@ -85,6 +85,7 @@ File c:\cygwin64\bin\cygbz2-1.dll
 File c:\cygwin64\bin\cygcairo-2.dll
 File c:\cygwin64\bin\cygcroco-0.6-3.dll
 File c:\cygwin64\bin\cygcrypto-1.0.0.dll
+File c:\cygwin64\bin\cygdatrie-1.dll
 File c:\cygwin64\bin\cygevent-2-0-5.dll
 File c:\cygwin64\bin\cygexpat-1.dll
 File c:\cygwin64\bin\cygffi-6.dll
@@ -114,6 +115,7 @@ File c:\cygwin64\bin\cygpng16-16.dll
 File c:\cygwin64\bin\cygrsvg-2-2.dll
 File c:\cygwin64\bin\cygssl-1.0.0.dll
 File c:\cygwin64\bin\cygstdc++-6.dll
+File c:\cygwin64\bin\cygthai-0.dll
 File c:\cygwin64\bin\cygtiff-6.dll
 File c:\cygwin64\bin\cygwin1.dll
 File c:\cygwin64\bin\cygxcb-1.dll
@@ -164,6 +166,7 @@ Delete "$INSTDIR\cygbz2-1.dll"
 Delete "$INSTDIR\cygcairo-2.dll"
 Delete "$INSTDIR\cygcroco-0.6-3.dll"
 Delete "$INSTDIR\cygcrypto-1.0.0.dll"
+Delete "$INSTDIR\cygdatrie-1.dll"
 Delete "$INSTDIR\cygevent-2-0-5.dll"
 Delete "$INSTDIR\cygexpat-1.dll"
 Delete "$INSTDIR\cygffi-6.dll"
@@ -193,6 +196,7 @@ Delete "$INSTDIR\cygpng16-16.dll"
 Delete "$INSTDIR\cygrsvg-2-2.dll"
 Delete "$INSTDIR\cygssl-1.0.0.dll"
 Delete "$INSTDIR\cygstdc++-6.dll"
+Delete "$INSTDIR\cygthai-0.dll"
 Delete "$INSTDIR\cygtiff-6.dll"
 Delete "$INSTDIR\cygwin1.dll"
 Delete "$INSTDIR\cygxcb-1.dll"

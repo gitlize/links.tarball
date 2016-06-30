@@ -14,7 +14,6 @@
 #ifdef HAVE_CONFIG_VMS_H
 #include "config-vms.h"
 #define HAVE_RAND_ADD 1
-#define HAVE_RAND_EGD 1
 #define HAVE_RAND_FILE_NAME 1
 #define HAVE_RAND_LOAD_FILE 1
 #define HAVE_RAND_WRITE_FILE 1
@@ -66,6 +65,14 @@
 
 #ifndef HAVE_VOLATILE
 #define volatile
+#endif
+
+#if defined(HAVE_RESTRICT)
+#define my_restrict	restrict
+#elif defined(HAVE___RESTRICT)
+#define my_restrict	__restrict
+#else
+#define my_restrict
 #endif
 
 typedef int cfg_h_no_empty_unit;

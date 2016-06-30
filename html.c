@@ -305,7 +305,7 @@ struct color_spec {
 	int rgb;
 };
 
-static const struct color_spec color_specs[] = {
+static_const struct color_spec color_specs[] = {
 	{"aliceblue",		0xF0F8FF},
 	{"antiquewhite",	0xFAEBD7},
 	{"aqua",		0x00FFFF},
@@ -457,7 +457,7 @@ int decode_color(unsigned char *str, struct rgb *col)
 	if (*str != '#') {
 		const struct color_spec *cs;
 		for (cs = color_specs; cs < endof(color_specs); cs++)
-			if (!strcasecmp(cast_const_char cs->name, cast_const_char str)) {
+			if (!casestrcmp(cast_uchar cs->name, str)) {
 				ch = cs->rgb;
 				goto found;
 			}
@@ -876,6 +876,18 @@ int get_width(unsigned char *a, unsigned char *n, int trunc)
 	return r;
 }
 
+static unsigned char *find_element_end(unsigned char *a)
+{
+	unsigned char *p;
+	for (p = a - 1; *p != '<'; p--)
+		;
+	if (parse_element(p, eoff, NULL, NULL, NULL, &p)) {
+		internal("parse element failed");
+		return a;
+	}
+	return p;
+}
+
 struct form form = { NULL, NULL, NULL, NULL, 0, 0 };
 
 unsigned char *last_form_tag;
@@ -910,6 +922,11 @@ static void html_span(unsigned char *a)
 	if ((al = get_attr_val(a, cast_uchar "class"))) {
 		if (!strcmp(cast_const_char al, "line-number"))
 			ln_break(1);
+		if (!strcmp(cast_const_char al, "blob-code-inner")) {	/* github hack */
+			ln_break(1);
+			format_.attr |= AT_FIXED;
+			par_format.align = AL_NO;
+		}
 
 		mem_free(al);
 	}
@@ -1057,6 +1074,7 @@ static void html_img(unsigned char *a)
 	if (format_.image) mem_free(format_.image), format_.image = NULL;
 	if (
 		(s = get_url_val(a, cast_uchar "data-defer-src")) ||
+		(s = get_url_val(a, cast_uchar "data-li-src")) ||
 		(s = get_url_val(a, cast_uchar "data-original")) ||
 		(s = get_url_val(a, cast_uchar "src")) ||
 		(s = get_attr_val(a, cast_uchar "dynsrc")) ||
@@ -1106,12 +1124,12 @@ static void html_img(unsigned char *a)
 		int aa = -1;
 
 		if ((al = get_attr_val(a, cast_uchar "align"))) {
-			if (!strcasecmp(cast_const_char al, "left")) aa = AL_LEFT;
-			if (!strcasecmp(cast_const_char al, "right")) aa = AL_RIGHT;
-			if (!strcasecmp(cast_const_char al, "center")) aa = AL_CENTER;
-			if (!strcasecmp(cast_const_char al, "bottom")) aa = AL_BOTTOM;
-			if (!strcasecmp(cast_const_char al, "middle")) aa = AL_MIDDLE;
-			if (!strcasecmp(cast_const_char al, "top")) aa = AL_TOP;
+			if (!casestrcmp(al, cast_uchar "left")) aa = AL_LEFT;
+			if (!casestrcmp(al, cast_uchar "right")) aa = AL_RIGHT;
+			if (!casestrcmp(al, cast_uchar "center")) aa = AL_CENTER;
+			if (!casestrcmp(al, cast_uchar "bottom")) aa = AL_BOTTOM;
+			if (!casestrcmp(al, cast_uchar "middle")) aa = AL_MIDDLE;
+			if (!casestrcmp(al, cast_uchar "top")) aa = AL_TOP;
 			mem_free(al);
 		}
 
@@ -1201,7 +1219,7 @@ static void html_obj(unsigned char *a, int obj)
 	}
 	if (type && known_image_type(type)) {
 		html_img(a);
-		if (obj == 1) html_top.invisible = 1;
+		if (obj == 1) html_top.invisible = INVISIBLE;
 		goto ret;
 	}
 	url = get_attr_val(a, cast_uchar "src");
@@ -1235,13 +1253,15 @@ static void html_body(unsigned char *a)
 
 static void html_skip(unsigned char *a)
 {
-	html_top.invisible = html_top.dontkill = 1;
+	html_top.dontkill = 1;
+	html_top.invisible = INVISIBLE;
 }
 
 static void html_title(unsigned char *a)
 {
 	if (a[0] == '>' && a[-1] == '/') return;
-	html_top.invisible = html_top.dontkill = 1;
+	html_top.dontkill = 1;
+	html_top.invisible = INVISIBLE;
 }
 
 static void html_script(unsigned char *a)
@@ -1250,7 +1270,14 @@ static void html_script(unsigned char *a)
 	s = get_attr_val(a, cast_uchar "src");
 	special_f(ff, SP_SCRIPT, s);
 	if (s) mem_free(s);
-	html_skip(a);
+	html_top.dontkill = 1;
+	html_top.invisible = INVISIBLE_SCRIPT;
+}
+
+static void html_style(unsigned char *a)
+{
+	html_top.dontkill = 1;
+	html_top.invisible = INVISIBLE_STYLE;
 }
 
 static void html_noscript(unsigned char *a)
@@ -1268,13 +1295,13 @@ static void html_linebrk(unsigned char *a)
 {
 	unsigned char *al;
 	if ((al = get_attr_val(a, cast_uchar "align"))) {
-		if (!strcasecmp(cast_const_char al, "left")) par_format.align = AL_LEFT;
-		if (!strcasecmp(cast_const_char al, "right")) par_format.align = AL_RIGHT;
-		if (!strcasecmp(cast_const_char al, "center")) {
+		if (!casestrcmp(al, cast_uchar "left")) par_format.align = AL_LEFT;
+		if (!casestrcmp(al, cast_uchar "right")) par_format.align = AL_RIGHT;
+		if (!casestrcmp(al, cast_uchar "center")) {
 			par_format.align = AL_CENTER;
 			if (!table_level && !F) par_format.leftmargin = par_format.rightmargin = 0;
 		}
-		if (!strcasecmp(cast_const_char al, "justify")) par_format.align = AL_BLOCK;
+		if (!casestrcmp(al, cast_uchar "justify")) par_format.align = AL_BLOCK;
 		mem_free(al);
 	}
 }
@@ -1374,7 +1401,9 @@ static void html_div(unsigned char *a)
 	unsigned char *al;
 	if ((al = get_attr_val(a, cast_uchar "class"))) {
 		if (!strcmp(cast_const_char al, "commit-msg") ||
-		    !strncmp(cast_const_char al, "diff", 4) /* gitweb hack */ ||
+		    !strcmp(cast_const_char al, "pre") /* sourceware hack */ ||
+		    (!strncmp(cast_const_char al, "diff", 4) && casestrcmp(al, cast_uchar "diff-view") && strncmp(cast_const_char al, "diffbar", 7)) /* gitweb hack, github counter-hacks */ ||
+		    strstr(cast_const_char al, "source") /* mercurial hack */ ||
 		    0) {
 			format_.attr |= AT_FIXED;
 			par_format.align = AL_NO;
@@ -1473,9 +1502,9 @@ static void html_ul(unsigned char *a)
 	par_format.list_number = 0;
 	par_format.flags = P_STAR;
 	if ((al = get_attr_val(a, cast_uchar "type"))) {
-		if (!strcasecmp(cast_const_char al, "disc") ||
-		    !strcasecmp(cast_const_char al, "circle")) par_format.flags = P_O;
-		if (!strcasecmp(cast_const_char al, "square")) par_format.flags = P_PLUS;
+		if (!casestrcmp(al, cast_uchar "disc") ||
+		    !casestrcmp(al, cast_uchar "circle")) par_format.flags = P_O;
+		if (!casestrcmp(al, cast_uchar "square")) par_format.flags = P_PLUS;
 		mem_free(al);
 	}
 	if ((par_format.leftmargin += 2 + (par_format.list_level > 1)) > par_format.width * 2 / 3 && !table_level)
@@ -1593,11 +1622,11 @@ static void get_html_form(unsigned char *a, struct form *form)
 	unsigned char *ch;
 	form->method = FM_GET;
 	if ((al = get_attr_val(a, cast_uchar "method"))) {
-		if (!strcasecmp(cast_const_char al, "post")) {
+		if (!casestrcmp(al, cast_uchar "post")) {
 			unsigned char *ax;
 			form->method = FM_POST;
 			if ((ax = get_attr_val(a, cast_uchar "enctype"))) {
-				if (!strcasecmp(cast_const_char ax, "multipart/form-data"))
+				if (!casestrcmp(ax, cast_uchar "multipart/form-data"))
 					form->method = FM_POST_MP;
 				mem_free(ax);
 			}
@@ -1688,9 +1717,9 @@ static void html_button(unsigned char *a)
 		fc->type = FC_SUBMIT;
 		goto xxx;
 	}
-	if (!strcasecmp(cast_const_char al, "submit")) fc->type = FC_SUBMIT;
-	else if (!strcasecmp(cast_const_char al, "reset")) fc->type = FC_RESET;
-	else if (!strcasecmp(cast_const_char al, "button")) fc->type = FC_BUTTON;
+	if (!casestrcmp(al, cast_uchar "submit")) fc->type = FC_SUBMIT;
+	else if (!casestrcmp(al, cast_uchar "reset")) fc->type = FC_RESET;
+	else if (!casestrcmp(al, cast_uchar "button")) fc->type = FC_BUTTON;
 	else {
 		mem_free(al);
 		mem_free(fc);
@@ -1709,7 +1738,6 @@ static void html_button(unsigned char *a)
 	fc->name = get_attr_val(a, cast_uchar "name");
 	fc->default_value = get_exact_attr_val(a, cast_uchar "value");
 	fc->ro = has_attr(a, cast_uchar "disabled") ? 2 : has_attr(a, cast_uchar "readonly") ? 1 : 0;
-	if (fc->type == FC_IMAGE) fc->alt = get_attr_val(a, cast_uchar "alt");
 	if (fc->type == FC_SUBMIT && !fc->default_value) fc->default_value = stracpy(cast_uchar "Submit");
 	if (fc->type == FC_RESET && !fc->default_value) fc->default_value = stracpy(cast_uchar "Reset");
 	if (fc->type == FC_BUTTON && !fc->default_value) fc->default_value = stracpy(cast_uchar "BUTTON");
@@ -1717,10 +1745,27 @@ static void html_button(unsigned char *a)
 	special_f(ff, SP_CONTROL, fc);
 	format_.form = fc;
 	format_.attr |= AT_BOLD | AT_FIXED;
-	/*put_chrs(cast_uchar "[&nbsp;", 7);
-	if (fc->default_value) put_chrs(fc->default_value, strlen(cast_const_char fc->default_value));
-	put_chrs(cast_uchar "&nbsp;]", 7);
-	put_chrs(cast_uchar " ", 1);*/
+
+	if (fc->type != FC_BUTTON) {
+		unsigned char *p, *name;
+		int namelen;
+		p = find_element_end(a);
+p1:
+		while (p < eoff && WHITECHAR(*p)) p2:p++;
+		if (p == eoff) goto put_text;
+		if (*p != '<') return;
+		if (parse_element(p, eoff, &name, &namelen, NULL, &p)) goto p2;
+		if (namelen == 6 && !casecmp(name, cast_uchar "BUTTON", 6)) goto put_text;
+		if (namelen == 7 && !casecmp(name, cast_uchar "/BUTTON", 7)) goto put_text;
+		if (namelen == 3 && !casecmp(name, cast_uchar "IMG", 3)) return;
+		goto p1;
+
+put_text:
+		put_chrs(cast_uchar "[&nbsp;", 7);
+		put_chrs(fc->default_value, (int)strlen(cast_const_char fc->default_value));
+		put_chrs(cast_uchar "&nbsp;]", 7);
+		putsp = -1;
+	}
 }
 
 static void set_max_textarea_width(int *w)
@@ -1762,16 +1807,16 @@ static void html_input(unsigned char *a)
 		else fc->type = FC_TEXT;
 		goto xxx;
 	}
-	if (!strcasecmp(cast_const_char al, "text")) fc->type = FC_TEXT;
-	else if (!strcasecmp(cast_const_char al, "password")) fc->type = FC_PASSWORD;
-	else if (!strcasecmp(cast_const_char al, "checkbox")) fc->type = FC_CHECKBOX;
-	else if (!strcasecmp(cast_const_char al, "radio")) fc->type = FC_RADIO;
-	else if (!strcasecmp(cast_const_char al, "submit")) fc->type = FC_SUBMIT;
-	else if (!strcasecmp(cast_const_char al, "reset")) fc->type = FC_RESET;
-	else if (!strcasecmp(cast_const_char al, "file")) fc->type = FC_FILE;
-	else if (!strcasecmp(cast_const_char al, "hidden")) fc->type = FC_HIDDEN;
-	else if (!strcasecmp(cast_const_char al, "image")) fc->type = FC_IMAGE;
-	else if (!strcasecmp(cast_const_char al, "button")) fc->type = FC_BUTTON;
+	if (!casestrcmp(al, cast_uchar "text")) fc->type = FC_TEXT;
+	else if (!casestrcmp(al, cast_uchar "password")) fc->type = FC_PASSWORD;
+	else if (!casestrcmp(al, cast_uchar "checkbox")) fc->type = FC_CHECKBOX;
+	else if (!casestrcmp(al, cast_uchar "radio")) fc->type = FC_RADIO;
+	else if (!casestrcmp(al, cast_uchar "submit")) fc->type = FC_SUBMIT;
+	else if (!casestrcmp(al, cast_uchar "reset")) fc->type = FC_RESET;
+	else if (!casestrcmp(al, cast_uchar "file")) fc->type = FC_FILE;
+	else if (!casestrcmp(al, cast_uchar "hidden")) fc->type = FC_HIDDEN;
+	else if (!casestrcmp(al, cast_uchar "image")) fc->type = FC_IMAGE;
+	else if (!casestrcmp(al, cast_uchar "button")) fc->type = FC_BUTTON;
 	else fc->type = FC_TEXT;
 	mem_free(al);
 	xxx:
@@ -1889,13 +1934,8 @@ static void html_option(unsigned char *a)
 		unsigned char *name;
 		int namelen;
 		int l = 0;
-		for (p = a - 1; *p != '<'; p--)
-			;
 		val = init_str();
-		if (parse_element(p, eoff, NULL, NULL, NULL, &p)) {
-			internal("parse element failed");
-			goto x;
-		}
+		p = find_element_end(a);
 		rrrr:
 		while (p < eoff && WHITECHAR(*p)) p++;
 		while (p < eoff && !WHITECHAR(*p) && *p != '<') {
@@ -2297,8 +2337,8 @@ static void do_html_textarea(unsigned char *attr, unsigned char *html, unsigned 
 	fc->rows = rows;
 	fc->wrap = 1;
 	if ((w = get_attr_val(attr, cast_uchar "wrap"))) {
-		if (!strcasecmp(cast_const_char w, "hard") || !strcasecmp(cast_const_char w, "physical")) fc->wrap = 2;
-		else if (!strcasecmp(cast_const_char w, "off")) fc->wrap = 0;
+		if (!casestrcmp(w, cast_uchar "hard") || !casestrcmp(w, cast_uchar "physical")) fc->wrap = 2;
+		else if (!casestrcmp(w, cast_uchar "off")) fc->wrap = 0;
 		mem_free(w);
 	}
 	if ((fc->maxlength = get_num(attr, cast_uchar "maxlength")) == -1) fc->maxlength = MAXINT / 4;
@@ -2369,9 +2409,9 @@ static void html_frame(unsigned char *a)
 		fp.marginheight = get_num(a, cast_uchar "marginheight");
 		fp.scrolling = SCROLLING_AUTO;
 		if (scroll) {
-			if (!strcasecmp(cast_const_char scroll, "no"))
+			if (!casestrcmp(scroll, cast_uchar "no"))
 				fp.scrolling = SCROLLING_NO;
-			else if (!strcasecmp(cast_const_char scroll, "yes"))
+			else if (!casestrcmp(scroll, cast_uchar "yes"))
 				fp.scrolling = SCROLLING_YES;
 			mem_free(scroll);
 		}
@@ -2544,7 +2584,7 @@ static void html_link(unsigned char *a)
 {
 	unsigned char *name, *url, *title;
 	if ((name = get_attr_val(a, cast_uchar "type"))) {
-		if (strcasecmp(cast_const_char name, "text/html")) {
+		if (casestrcmp(name, cast_uchar "text/html")) {
 			mem_free(name);
 			return;
 		}
@@ -2567,22 +2607,24 @@ static void html_link(unsigned char *a)
 	if (
 	    !casecmp(name, cast_uchar "apple-touch-icon", 16) ||
 	    !casecmp(name, cast_uchar "schema", 6) ||
-	    !strcasecmp(cast_const_char name, "Edit-Time-Data") ||
-	    !strcasecmp(cast_const_char name, "File-List") ||
-	    !strcasecmp(cast_const_char name, "alternate stylesheet") ||
-	    !strcasecmp(cast_const_char name, "generator-home") ||
-	    !strcasecmp(cast_const_char name, "https://github.com/WP-API/WP-API") ||
-	    !strcasecmp(cast_const_char name, "icon") ||
-	    !strcasecmp(cast_const_char name, "made") ||
-	    !strcasecmp(cast_const_char name, "meta") ||
-	    !strcasecmp(cast_const_char name, "pingback") ||
-	    !strcasecmp(cast_const_char name, "preconnect") ||
-	    !strcasecmp(cast_const_char name, "shortcut icon") ||
-	    !strcasecmp(cast_const_char name, "stylesheet") ||
+	    !casestrcmp(name, cast_uchar "Edit-Time-Data") ||
+	    !casestrcmp(name, cast_uchar "File-List") ||
+	    !casestrcmp(name, cast_uchar "alternate stylesheet") ||
+	    !casestrcmp(name, cast_uchar "generator-home") ||
+	    !casestrcmp(name, cast_uchar "https://github.com/WP-API/WP-API") ||
+	    !casestrcmp(name, cast_uchar "icon") ||
+	    !casestrcmp(name, cast_uchar "made") ||
+	    !casestrcmp(name, cast_uchar "meta") ||
+	    !casestrcmp(name, cast_uchar "pingback") ||
+	    !casestrcmp(name, cast_uchar "preconnect") ||
+	    !casestrcmp(name, cast_uchar "shortcut icon") ||
+	    !casestrcmp(name, cast_uchar "stylesheet") ||
+	    !casestrcmp(name, cast_uchar "https://api.w.org/") ||
 	    0) goto skip;
-	if (!strcasecmp(cast_const_char name, "prefetch") ||
-	    !strcasecmp(cast_const_char name, "dns-prefetch") ||
-	    !strcasecmp(cast_const_char name, "prerender")) {
+	if (!casestrcmp(name, cast_uchar "prefetch") ||
+	    !casestrcmp(name, cast_uchar "dns-prefetch") ||
+	    !casestrcmp(name, cast_uchar "prerender") ||
+	    !casestrcmp(name, cast_uchar "preload")) {
 		unsigned char *pre_url = join_urls(format_.href_base, url);
 		if (!dmp) load_url(pre_url, format_.href_base, NULL, PRI_PRELOAD, NC_ALWAYS_CACHE, 0, 0, 0);
 		mem_free(pre_url);
@@ -2641,7 +2683,7 @@ static struct element_info elements[] = {
 	{"TITLE",	html_title,	0, 0},
 	{"SCRIPT",	html_script,	0, 0},
 	{"NOSCRIPT",	html_noscript,	0, 0},
-	{"STYLE",	html_skip,	0, 0},
+	{"STYLE",	html_style,	0, 0},
 	{"NOEMBED",	html_skip,	0, 0},
 
 	{"BR",		html_br,	1, 1},
@@ -2660,6 +2702,7 @@ static struct element_info elements[] = {
 	{"ADDRESS",	html_address,	2, 0},
 	{"PRE",		html_pre,	2, 0},
 	{"LISTING",	html_pre,	2, 0},
+	{"SAMP",	html_pre,	2, 0},
 
 	{"UL",		html_ul,	1, 0},
 	{"DIR",		html_ul,	1, 0},
@@ -2777,7 +2820,7 @@ do {					\
 
 	set_lt:
 
-	set_globals;	/* !!! FIXME: toto odstranit */
+	/*set_globals;*/
 
 	lt = html;
 	while (html < eof) {
@@ -2854,7 +2897,7 @@ do {					\
 			html += xl;
 			goto set_lt;
 		}
-		if (html + 2 <= eof && html[0] == '<' && (html[1] == '!' || html[1] == '?') && !(d_opt->plain & 1)) {
+		if (html + 2 <= eof && html[0] == '<' && (html[1] == '!' || html[1] == '?') && !(d_opt->plain & 1) && html_top.invisible != INVISIBLE_STYLE) {
 			/*if (putsp == 1) goto put_sp;
 			putsp = 0;*/
 			put_chrs(lt, (int)(html - lt));
@@ -2870,6 +2913,14 @@ do {					\
 		element:
 		html_format_changed = 1;
 		inv = *name == '/'; name += inv; namelen -= inv;
+		if (html_top.invisible == INVISIBLE_SCRIPT && !(inv && namelen == 6 && !casecmp(name, cast_uchar "SCRIPT", 6))) {
+			html++;
+			continue;
+		}
+		if (html_top.invisible == INVISIBLE_STYLE && !(inv && namelen == 5 && !casecmp(name, cast_uchar "STYLE", 5))) {
+			html++;
+			continue;
+		}
 		if (!inv && putsp == 1 && !html_top.invisible) goto put_sp;
 		put_chrs(lt, (int)(html - lt));
 		if (par_format.align != AL_NO && par_format.align != AL_NO_BREAKABLE) if (!inv && !putsp) {
@@ -2897,7 +2948,7 @@ do {					\
 				int display_none = 0;
 				int noskip = 0;
 	/* treat <br> literally in <pre> (fixes source code viewer on github) */
-				if ((par_format.align == AL_NO || par_format.align == AL_NO_BREAKABLE) && !strcasecmp(cast_const_char ei->name, "BR"))
+				if ((par_format.align == AL_NO || par_format.align == AL_NO_BREAKABLE) && !casestrcmp(cast_uchar ei->name, cast_uchar "BR"))
 					line_breax = 0;
 				ln_break(ei->linebreak);
 				if ((a = get_attr_val(attr, cast_uchar "id"))) {
@@ -2907,10 +2958,10 @@ do {					\
 				if ((a = get_attr_val(attr, cast_uchar "style"))) {
 					unsigned char *d, *s;
 
-					if (!strcasecmp(cast_const_char ei->name, "INPUT")) {
+					if (!casestrcmp(cast_uchar ei->name, cast_uchar "INPUT")) {
 						unsigned char *aa = get_attr_val(attr, cast_uchar "type");
 						if (aa) {
-							if (!strcasecmp(cast_const_char aa, "hidden"))
+							if (!casestrcmp(aa, cast_uchar "hidden"))
 								noskip = 1;
 							mem_free(aa);
 						}
@@ -2928,7 +2979,7 @@ do {					\
 					html_top.namelen = namelen;
 					html_top.options = attr;
 					html_top.linebreak = 0;
-					html_top.invisible = 1;
+					html_top.invisible = INVISIBLE;
 					goto set_lt;
 				}
 				if (!html_top.invisible) {
@@ -2976,9 +3027,18 @@ do {					\
 					if (ei->func == html_a) html_a_special(attr, html, eof);
 					if (ei->func != html_br) was_br = 0;
 					if (a) par_format = pa;
+				} else {
+					if (!ei->nopair) {
+						html_stack_dup();
+						html_top.name = name;
+						html_top.namelen = namelen;
+						html_top.options = attr;
+						html_top.linebreak = 0;
+						html_top.invisible = INVISIBLE;
+					}
 				}
 			} else {
-				struct html_element *e, *ff;
+				struct html_element *e, *fx;
 				int lnb = 0;
 				int xxx = 0;
 				was_br = 0;
@@ -2994,8 +3054,8 @@ do {					\
 						kill_html_stack_item(e);
 						break;
 					}
-					for (ff = e; ff != (void *)&html_stack; ff = ff->prev)
-						if (ff->linebreak > lnb) lnb = ff->linebreak;
+					for (fx = e; fx != (void *)&html_stack; fx = fx->prev)
+						if (fx->linebreak > lnb) lnb = fx->linebreak;
 					format_.fontsize = e->next->attr.fontsize;
 					ln_break(lnb);
 					while (e->prev != (void *)&html_stack) kill_html_stack_item(e->prev);
@@ -3066,7 +3126,7 @@ int get_image_map(unsigned char *head, unsigned char *s, unsigned char *eof, uns
 	if (namelen != 3 || casecmp(name, cast_uchar "MAP", 3)) goto se;
 	if (tag && *tag) {
 		if (!(al = get_attr_val(attr, cast_uchar "name"))) goto se;
-		if (strcasecmp(cast_const_char al, cast_const_char tag)) {
+		if (casestrcmp(al, tag)) {
 			mem_free(al);
 			goto se;
 		}

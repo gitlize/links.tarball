@@ -77,15 +77,13 @@ static void block_copy_item(void *in, void *out)
 static unsigned char *block_type_item(struct terminal *term, void *data, int x)
 {
 	unsigned char *txt, *txt1;
-	struct conv_table *table;
 	struct block* item=(struct block*)data;
 
 	if ((struct list*)item==(&blocks)) return stracpy(_(TEXT_(T_BLOCK_LIST),term));
 	txt=stracpy(item->url);
 
 	/*I have no idea what this does, but it os copied from working code in types.c*/
-	table=get_translation_table(blocks_ld.codepage,term_charset(term));
-	txt1=convert_string(table,txt,(int)strlen(cast_const_char txt),NULL);
+	txt1=convert(blocks_ld.codepage,term_charset(term),txt,NULL);
 	mem_free(txt);
 
 	return txt1;
@@ -115,14 +113,12 @@ static void block_edit_done(void *data)
 	struct block *item=(struct block *)d->udata;
 	struct assoc_ok_struct* s=(struct assoc_ok_struct*)d->udata2;
 	unsigned char *txt;
-	struct conv_table *table;
 	unsigned char *url;
 
 	/*See block_edit_item*/
 	url=(unsigned char *)&d->items[4];
 
-	table=get_translation_table(term_charset(s->dlg->win->term),blocks_ld.codepage);
-	txt=convert_string(table,url,(int)strlen(cast_const_char url),NULL);
+	txt=convert(term_charset(s->dlg->win->term),blocks_ld.codepage,url,NULL);
 	mem_free(item->url); item->url=txt;
 
 	s->fn(s->dlg,s->data,item,&blocks_ld);

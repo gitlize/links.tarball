@@ -1006,7 +1006,7 @@ void init_os_terminal(void)
 	   terminal doesn't switch to raw mode, executing "stty sane" fixes it.
 	   Don't do this workaround on console. */
 	unsigned char *term = cast_uchar getenv("TERM");
-	if (!term || strncasecmp(cast_const_char term, "interix", 7)) {
+	if (!term || casecmp(term, cast_uchar "interix", 7)) {
 		system("stty sane 2>/dev/null");
 	}
 #endif
@@ -1043,8 +1043,8 @@ static inline int is_windows_drive(unsigned char *prog_start, unsigned char *pro
 static inline int is_windows_program(unsigned char *prog_start, unsigned char *prog_end)
 {
 	if (prog_end - prog_start > 4 && (
-		!strncasecmp(cast_const_char(prog_end - 4), ".exe", 4) ||
-		!strncasecmp(cast_const_char(prog_end - 4), ".bat", 4)))
+		!casecmp(prog_end - 4, cast_uchar ".exe", 4) ||
+		!casecmp(prog_end - 4, cast_uchar ".bat", 4)))
 			return 1;
 	return 0;
 }
@@ -1591,11 +1591,9 @@ int get_windows_cp(int cons)
 void set_window_title(unsigned char *title)
 {
 	unsigned char *t, *p;
-	struct conv_table *ct;
 	if (!title) return;
 	if (is_xterm()) return;
-	ct = get_translation_table(utf8_table, get_windows_cp(1));
-	t = convert_string(ct, title, strlen(cast_const_char title), NULL);
+	t = convert(utf8_table, get_windows_cp(1), title, NULL);
 	for (p = cast_uchar strchr(cast_const_char t, 1); p; p = cast_uchar strchr(cast_const_char(p + 1), 1))
 		*p = ' ';
 	SetConsoleTitleA(cast_const_char t);
@@ -1604,13 +1602,13 @@ void set_window_title(unsigned char *title)
 
 unsigned char *get_window_title(void)
 {
-	struct conv_table *ct;
 	int r;
 	unsigned char buffer[1024];
 	if (is_xterm()) return NULL;
 	if (!(r = GetConsoleTitleA(cast_char buffer, sizeof buffer))) return NULL;
-	ct = get_translation_table(get_windows_cp(1), utf8_table);
-	return convert_string(ct, buffer, r, NULL);
+	if (r >= 1024) r = 1023;
+	buffer[r] = 0;
+	return convert(get_windows_cp(1), utf8_table, buffer, NULL);
 }
 
 static void call_resize(unsigned char *x1, int x, int y)
@@ -1771,7 +1769,6 @@ unsigned char *get_clipboard_text(struct terminal *term)
 #ifdef G
 	if (F && ret) {
 		static int cp = -1;
-		struct conv_table *ct;
 		unsigned char *d;
 		if (cp == -1) {
 			int c = WinQueryCp(os2_hmq);
@@ -1779,8 +1776,7 @@ unsigned char *get_clipboard_text(struct terminal *term)
 			snprintf(cast_char a, sizeof a, "%d", c);
 			if ((cp = get_cp_index(a)) < 0 || cp == utf8_table) cp = 0;
 		}
-		ct = get_translation_table(cp, utf8_table);
-		d = convert_string(ct, ret, strlen(cast_const_char ret), NULL);
+		d = convert(cp, utf8_table, ret, NULL);
 		mem_free(ret);
 		ret = d;
 	}
@@ -1800,7 +1796,6 @@ void set_clipboard_text(struct terminal *term, unsigned char *data)
 #ifdef G
 	if (F) {
 		static int cp = -1;
-		struct conv_table *ct;
 		unsigned char *p;
 		if (cp == -1) {
 			int c = WinQueryCp(os2_hmq);
@@ -1808,8 +1803,7 @@ void set_clipboard_text(struct terminal *term, unsigned char *data)
 			snprintf(cast_char a, sizeof a, "%d", c);
 			if ((cp = get_cp_index(a)) < 0 || cp == utf8_table) cp = 0;
 		}
-		ct = get_translation_table(utf8_table, cp);
-		d = convert_string(ct, data, strlen(cast_const_char data), NULL);
+		d = convert(utf8_table, cp, data, NULL);
 		for (p = cast_uchar strchr(cast_const_char d, 1); p; p = cast_uchar strchr(cast_const_char(p + 1), 1))
 			*p = ' ';
 		data = d;
@@ -3046,7 +3040,7 @@ void os_detach_console(void)
 
 int get_country_language(int c)
 {
-	static const struct {
+	static_const struct {
 		int code;
 		unsigned char *language;
 	} countries[] = {
@@ -3110,7 +3104,7 @@ int get_country_language(int c)
 	if (idx == -1)
 		return -1;
 	for (i = 0; i < n_languages(); i++)
-		if (!strcasecmp(cast_const_char language_name(i), cast_const_char countries[idx].language))
+		if (!casestrcmp(language_name(i), countries[idx].language))
 			return i;
 	return -1;
 }

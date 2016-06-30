@@ -45,11 +45,11 @@ static void get_align(unsigned char *attr, int *a)
 {
 	unsigned char *al;
 	if ((al = get_attr_val(attr, cast_uchar "align"))) {
-		if (!(strcasecmp(cast_const_char al, "left"))) *a = AL_LEFT;
-		if (!(strcasecmp(cast_const_char al, "right"))) *a = AL_RIGHT;
-		if (!(strcasecmp(cast_const_char al, "center"))) *a = AL_CENTER;
-		if (!(strcasecmp(cast_const_char al, "justify"))) *a = AL_BLOCK;
-		if (!(strcasecmp(cast_const_char al, "char"))) *a = AL_RIGHT; /* NOT IMPLEMENTED */
+		if (!(casestrcmp(al, cast_uchar "left"))) *a = AL_LEFT;
+		if (!(casestrcmp(al, cast_uchar "right"))) *a = AL_RIGHT;
+		if (!(casestrcmp(al, cast_uchar "center"))) *a = AL_CENTER;
+		if (!(casestrcmp(al, cast_uchar "justify"))) *a = AL_BLOCK;
+		if (!(casestrcmp(al, cast_uchar "char"))) *a = AL_RIGHT; /* NOT IMPLEMENTED */
 		mem_free(al);
 	}
 }
@@ -58,10 +58,10 @@ static void get_valign(unsigned char *attr, int *a)
 {
 	unsigned char *al;
 	if ((al = get_attr_val(attr, cast_uchar "valign"))) {
-		if (!(strcasecmp(cast_const_char al, "top"))) *a = VAL_TOP;
-		if (!(strcasecmp(cast_const_char al, "middle"))) *a = VAL_MIDDLE;
-		if (!(strcasecmp(cast_const_char al, "bottom"))) *a = VAL_BOTTOM;
-		if (!(strcasecmp(cast_const_char al, "baseline"))) *a = VAL_TOP; /* NOT IMPLEMENTED */
+		if (!(casestrcmp(al, cast_uchar "top"))) *a = VAL_TOP;
+		if (!(casestrcmp(al, cast_uchar "middle"))) *a = VAL_MIDDLE;
+		if (!(casestrcmp(al, cast_uchar "bottom"))) *a = VAL_BOTTOM;
+		if (!(casestrcmp(al, cast_uchar "baseline"))) *a = VAL_TOP; /* NOT IMPLEMENTED */
 		mem_free(al);
 	}
 }
@@ -562,9 +562,10 @@ static struct table *parse_table(unsigned char *html, unsigned char *eof, unsign
 	if ((a = get_attr_val(t_attr, cast_uchar "id")))
 		cell->tag = a;
 	if ((a = get_attr_val(t_attr, cast_uchar "class"))) {
-		if (!strncmp(cast_const_char a, "blob-code", 9) ||	/* github hack */
+		if (strstr(cast_const_char a, "blob-code-inner") ||	/* github hack */
 		    !strcmp(cast_const_char a, "changelog") ||
 		    !strcmp(cast_const_char a, "vc_file_line_text") || /* https://gcc.gnu.org/viewcvs/gcc/trunk/gcc/opts.c?view=markup */
+		    !strcmp(cast_const_char a, "FileContents-lineContents") || /* https://android.googlesource.com/ */
 		    0) {
 			cell->align = !par_format.implicit_pre_wrap ? AL_NO : AL_NO_BREAKABLE;
 		}
@@ -1424,31 +1425,31 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 		}
 	}
 	if ((al = get_attr_val(attr, cast_uchar "align"))) {
-		if (!strcasecmp(cast_const_char al, "left")) align = AL_LEFT;
-		if (!strcasecmp(cast_const_char al, "center")) align = AL_CENTER;
-		if (!strcasecmp(cast_const_char al, "right")) align = AL_RIGHT;
+		if (!casestrcmp(al, cast_uchar "left")) align = AL_LEFT;
+		if (!casestrcmp(al, cast_uchar "center")) align = AL_CENTER;
+		if (!casestrcmp(al, cast_uchar "right")) align = AL_RIGHT;
 		mem_free(al);
 	}
 	frame = F_BOX;
 	if ((al = get_attr_val(attr, cast_uchar "frame"))) {
-		if (!strcasecmp(cast_const_char al, "void")) frame = F_VOID;
-		if (!strcasecmp(cast_const_char al, "above")) frame = F_ABOVE;
-		if (!strcasecmp(cast_const_char al, "below")) frame = F_BELOW;
-		if (!strcasecmp(cast_const_char al, "hsides")) frame = F_HSIDES;
-		if (!strcasecmp(cast_const_char al, "vsides")) frame = F_VSIDES;
-		if (!strcasecmp(cast_const_char al, "lhs")) frame = F_LHS;
-		if (!strcasecmp(cast_const_char al, "rhs")) frame = F_RHS;
-		if (!strcasecmp(cast_const_char al, "box")) frame = F_BOX;
-		if (!strcasecmp(cast_const_char al, "border")) frame = F_BOX;
+		if (!casestrcmp(al, cast_uchar "void")) frame = F_VOID;
+		if (!casestrcmp(al, cast_uchar "above")) frame = F_ABOVE;
+		if (!casestrcmp(al, cast_uchar "below")) frame = F_BELOW;
+		if (!casestrcmp(al, cast_uchar "hsides")) frame = F_HSIDES;
+		if (!casestrcmp(al, cast_uchar "vsides")) frame = F_VSIDES;
+		if (!casestrcmp(al, cast_uchar "lhs")) frame = F_LHS;
+		if (!casestrcmp(al, cast_uchar "rhs")) frame = F_RHS;
+		if (!casestrcmp(al, cast_uchar "box")) frame = F_BOX;
+		if (!casestrcmp(al, cast_uchar "border")) frame = F_BOX;
 		mem_free(al);
 	}
 	rules = border ? R_ALL : R_NONE;
 	if ((al = get_attr_val(attr, cast_uchar "rules"))) {
-		if (!strcasecmp(cast_const_char al, "none")) rules = R_NONE;
-		if (!strcasecmp(cast_const_char al, "groups")) rules = R_GROUPS;
-		if (!strcasecmp(cast_const_char al, "rows")) rules = R_ROWS;
-		if (!strcasecmp(cast_const_char al, "cols")) rules = R_COLS;
-		if (!strcasecmp(cast_const_char al, "all")) rules = R_ALL;
+		if (!casestrcmp(al, cast_uchar "none")) rules = R_NONE;
+		if (!casestrcmp(al, cast_uchar "groups")) rules = R_GROUPS;
+		if (!casestrcmp(al, cast_uchar "rows")) rules = R_ROWS;
+		if (!casestrcmp(al, cast_uchar "cols")) rules = R_COLS;
+		if (!casestrcmp(al, cast_uchar "all")) rules = R_ALL;
 		mem_free(al);
 	}
 	if (!border) frame = F_VOID;

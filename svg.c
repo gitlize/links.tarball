@@ -20,7 +20,7 @@
 
 #include "bits.h"
 
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) && defined(HAVE_LIBFONTCONFIG)
 #include <fontconfig/fontconfig.h>
 #include <windows.h>
 #include <w32api/shlobj.h>
@@ -28,7 +28,7 @@ static void set_font_path(void)
 {
 	unsigned char *path = cast_uchar "/cygdrive/c/Windows/Fonts";
 #if defined(HAVE_CYGWIN_CONV_PATH)
-	unsigned char win32_path[PATH_MAX];
+	unsigned char win32_path[MAX_PATH];
 	if (SHGetFolderPathA(NULL, CSIDL_FONTS, NULL, 0, cast_char win32_path) == S_OK) {
 		ssize_t l;
 		unsigned char *cyg_path;

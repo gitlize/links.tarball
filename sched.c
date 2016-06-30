@@ -450,9 +450,9 @@ static void run_connection(struct connection *c)
 static int is_connection_seekable(struct connection *c)
 {
 	unsigned char *protocol = get_protocol_name(c->url);
-	if (!strcasecmp(cast_const_char protocol, "http") ||
-	    !strcasecmp(cast_const_char protocol, "https") ||
-	    !strcasecmp(cast_const_char protocol, "proxy")) {
+	if (!casestrcmp(protocol, cast_uchar "http") ||
+	    !casestrcmp(protocol, cast_uchar "https") ||
+	    !casestrcmp(protocol, cast_uchar "proxy")) {
 		unsigned char *d;
 		mem_free(protocol);
 		if (!c->cache || !c->cache->head)
@@ -464,7 +464,7 @@ static int is_connection_seekable(struct connection *c)
 		}
 		return 0;
 	}
-	if (!strcasecmp(cast_const_char protocol, "ftp")) {
+	if (!casestrcmp(protocol, cast_uchar "ftp")) {
 		mem_free(protocol);
 		return 1;
 	}
@@ -989,7 +989,7 @@ static struct list_head blacklist = { &blacklist, &blacklist };
 void add_blacklist_entry(unsigned char *host, int flags)
 {
 	struct blacklist_entry *b;
-	foreach(b, blacklist) if (!strcasecmp(cast_const_char host, cast_const_char b->host)) {
+	foreach(b, blacklist) if (!casestrcmp(host, b->host)) {
 		b->flags |= flags;
 		return;
 	}
@@ -1002,7 +1002,7 @@ void add_blacklist_entry(unsigned char *host, int flags)
 void del_blacklist_entry(unsigned char *host, int flags)
 {
 	struct blacklist_entry *b;
-	foreach(b, blacklist) if (!strcasecmp(cast_const_char host, cast_const_char b->host)) {
+	foreach(b, blacklist) if (!casestrcmp(host, b->host)) {
 		b->flags &= ~flags;
 		if (!b->flags) {
 			del_from_list(b);
@@ -1015,7 +1015,7 @@ void del_blacklist_entry(unsigned char *host, int flags)
 int get_blacklist_flags(unsigned char *host)
 {
 	struct blacklist_entry *b;
-	foreach(b, blacklist) if (!strcasecmp(cast_const_char host, cast_const_char b->host)) return b->flags;
+	foreach(b, blacklist) if (!casestrcmp(host, b->host)) return b->flags;
 	return 0;
 }
 
@@ -1059,6 +1059,7 @@ struct s_msg_dsc msg_dsc[] = {
 	{S_HTTP_204,		TEXT_(T_NO_CONTENT)},
 	{S_HTTPS_FWD_ERROR,	TEXT_(T_HTTPS_FWD_ERROR)},
 	{S_INVALID_CERTIFICATE,	TEXT_(T_INVALID_CERTIFICATE)},
+	{S_DOWNGRADED_METHOD,	TEXT_(T_DOWNGRADED_METHOD)},
 	{S_INSECURE_CIPHER,	TEXT_(T_INSECURE_CIPHER)},
 
 	{S_FILE_TYPE,		TEXT_(T_UNKNOWN_FILE_TYPE)},

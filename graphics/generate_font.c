@@ -289,7 +289,7 @@ void process_file(unsigned char *name, FILE *output, int char_number)
 		fonts[n_fonts-1].letters[char_number].begin=stamp;
 	}
 	char_pos = 38;
-	fprintf(output,"static const unsigned char letter_%d[] = \"", stamp);
+	fprintf(output,"static_const unsigned char letter_%d[] = \"", stamp);
 	forbidden_0_to_7=0;
 
 	while(EOF!=(c=fgetc(f))){

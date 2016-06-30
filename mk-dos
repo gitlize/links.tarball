@@ -6,9 +6,9 @@ if [ "$1" = dbg ]; then
 elif [ "$1" = lite ]; then
 	CFLAGS="-fgnu89-inline -march=i386 -Os -fomit-frame-pointer -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations"
 	export CFLAGS
-	./configure --disable-graphics --without-ssl --without-lzma
+	./configure --disable-graphics --without-lzma
 else
-	CFLAGS="-fgnu89-inline -march=i386 -mtune=i486 -O3 -fomit-frame-pointer -frename-registers -fweb -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations"
+	CFLAGS="-fgnu89-inline -march=i386 -mtune=pentium -O2 -fomit-frame-pointer -frename-registers -fweb -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations"
 	export CFLAGS
 	./configure --enable-graphics
 fi

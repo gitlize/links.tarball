@@ -403,7 +403,13 @@ void jpeg_destroy_decoder(struct cached_image *cimg)
 
 void add_jpeg_version(unsigned char **s, int *l)
 {
+#if defined(LIBJPEG_TURBO_VERSION)
+	add_to_str(s, l, cast_uchar "JPEG-TURBO (");
+	add_to_str(s, l, cast_uchar stringify(LIBJPEG_TURBO_VERSION));
+	add_to_str(s, l, cast_uchar ", ABI ");
+#else
 	add_to_str(s, l, cast_uchar "JPEG (");
+#endif
 #if defined(JPEG_LIB_VERSION_MAJOR) && defined(JPEG_LIB_VERSION_MINOR)
 	add_num_to_str(s, l, JPEG_LIB_VERSION_MAJOR);
 	add_to_str(s, l, cast_uchar ".");

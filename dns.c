@@ -273,6 +273,9 @@ void do_real_lookup(unsigned char *name, int preference, struct lookup_result *h
 	size_t nl;
 #endif
 
+	if (strlen(cast_const_char name) >= 6 && !casestrcmp((name - 6), cast_uchar ".onion"))
+		return;
+
 	if (!support_ipv6) preference = ADDR_PREFERENCE_IPV4_ONLY;
 
 	memset(host, 0, sizeof(struct lookup_result));
@@ -432,7 +435,7 @@ static int find_in_dns_cache(unsigned char *name, struct dnsentry **dnsentry)
 	struct dnsentry *e;
 	check_dns_cache_addr_preference();
 	foreach(e, dns_cache)
-		if (!strcasecmp(cast_const_char e->name, cast_const_char name)) {
+		if (!casestrcmp(e->name, name)) {
 			del_from_list(e);
 			add_to_list(dns_cache, e);
 			*dnsentry = e;

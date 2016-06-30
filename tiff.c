@@ -176,7 +176,7 @@ static void flip_buffer(void *buf,int width,int height)
 		int w=4*width;
 
 		if ((unsigned)w > MAXINT) overalloc();
-		tmp=mem_alloc(w*sizeof(unsigned char));
+		tmp=mem_alloc(w);
 
 		/* tohle je pomalejsi, protoze se kopiruje pamet->pamet, pamet->pamet */
 		/* kdyz mame 4B typek, tak se kopiruje pamet->reg, reg->pamet */

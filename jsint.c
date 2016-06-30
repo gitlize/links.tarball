@@ -252,7 +252,7 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 
 	/*
 	FUJ !!!!
-	if (!strncasecmp(cast_const_char code,"javascript:",strlen(cast_const_char "javascript:")))code+=strlen(cast_const_char "javascript:");
+	if (!casecmp(code, cast_uchar "javascript:",strlen(cast_const_char "javascript:")))code+=strlen(cast_const_char "javascript:");
 	*/
 
 	if (len >= 11 && !casecmp(code, "javascript:", 11)) code += 11, len -= 11;
@@ -413,7 +413,7 @@ int jsint_can_access(struct f_data_c *running, struct f_data_c *accessed)
 
 	h1 = get_host_name(running->rq->url);
 	h2 = get_host_name(accessed->rq->url);
-	a = !strcasecmp(cast_const_char h1, cast_const_char h2);
+	a = !casestrcmp(h1, h2);
 	mem_free(h1);
 	mem_free(h2);
 	return a;
@@ -961,18 +961,16 @@ unsigned char *js_upcall_get_title(void *data)
 {
 	struct f_data_c *fd;
 	unsigned char *title, *t;
-	struct conv_table* ct;
 
 	if (!data)internal("js_upcall_get_title called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	title=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	title=mem_alloc(MAX_STR_LEN);
 
-	if (!(get_current_title(fd->ses,title,MAX_STR_LEN))){mem_free(title);return NULL;}
+	if (!(get_current_title(fd,title,MAX_STR_LEN))){mem_free(title);return NULL;}
 	if (fd->f_data)
 	{
-		ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-		t = convert_string(ct, title, strlen(cast_const_char title), NULL);
+		t = convert(fd->f_data->opt.cp, fd->f_data->cp, title, NULL);
 		mem_free(title);
 		title=t;
 	}
@@ -985,7 +983,6 @@ unsigned char *js_upcall_get_title(void *data)
 void js_upcall_set_title(void *data, unsigned char *title)
 {
 	unsigned char *t;
-	struct conv_table* ct;
 	struct f_data_c *fd;
 	int l=0;
 
@@ -998,8 +995,7 @@ void js_upcall_set_title(void *data, unsigned char *title)
 	if (fd->f_data->title)mem_free(fd->f_data->title);
 	fd->f_data->title=init_str();
 	fd->f_data->uncacheable=1;
-	ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-	t = convert_string(ct, title, strlen(cast_const_char title), NULL);
+	t = convert(fd->f_data->cp, fd->f_data->opt.cp, title, NULL);
 	add_to_str(&(fd->f_data->title),&l,t);
 	mem_free(t);
 
@@ -1019,7 +1015,7 @@ unsigned char *js_upcall_get_location(void *data)
 	if (!data)internal("js_upcall_get_location called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	loc=mem_alloc(MAX_STR_LEN);
 
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 	return loc;
@@ -1125,7 +1121,7 @@ unsigned char *js_upcall_get_referrer(void *data)
 		break;
 
 		case REFERER_SAME_URL:
-		loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+		loc=mem_alloc(MAX_STR_LEN);
 		if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);break;}
 		add_to_str(&retval, &l, loc);
 		mem_free(loc);
@@ -1227,10 +1223,7 @@ void js_upcall_confirm(void *data)
 	skip_nonprintable(s->string);
 	if (fd->f_data)
 	{
-		struct conv_table* ct;
-
-		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		txt=convert_string(ct,s->string,strlen(cast_const_char s->string),NULL);
+		txt=convert(fd->f_data->cp, fd->f_data->opt.cp, s->string, NULL);
 	}
 	else
 		txt=stracpy(s->string);
@@ -1297,10 +1290,7 @@ void js_upcall_alert(void * data)
 	skip_nonprintable(s->string);
 	if (fd->f_data)
 	{
-		struct conv_table* ct;
-
-		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		txt=convert_string(ct,s->string,strlen(cast_const_char s->string),NULL);
+		txt=convert(fd->f_data->cp, fd->f_data->opt.cp, s->string, NULL);
 	}
 	else
 		txt=stracpy(s->string);
@@ -1778,7 +1768,7 @@ unsigned char *js_upcall_get_location_protocol(void *data)
 	if (!data)internal("js_upcall_get_location called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	loc=mem_alloc(MAX_STR_LEN);
 
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1801,7 +1791,7 @@ unsigned char *js_upcall_get_location_port(void *data)
 	if (!data)internal("js_upcall_get_location called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	loc=mem_alloc(MAX_STR_LEN);
 
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1823,7 +1813,7 @@ unsigned char *js_upcall_get_location_hostname(void *data)
 	if (!data)internal("js_upcall_get_location called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	loc=mem_alloc(MAX_STR_LEN);
 
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1846,7 +1836,7 @@ unsigned char *js_upcall_get_location_host(void *data)
 	if (!data)internal("js_upcall_get_location called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	loc=mem_alloc(MAX_STR_LEN);
 
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1869,7 +1859,7 @@ unsigned char *js_upcall_get_location_pathname(void *data)
 	if (!data)internal("js_upcall_get_location called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	loc=mem_alloc(MAX_STR_LEN);
 
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1893,7 +1883,7 @@ unsigned char *js_upcall_get_location_search(void *data)
 	if (!data)internal("js_upcall_get_location called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	loc=mem_alloc(MAX_STR_LEN);
 
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -1917,7 +1907,7 @@ unsigned char *js_upcall_get_location_hash(void *data)
 	if (!data)internal("js_upcall_get_location called with NULL pointer!");
 	fd=(struct f_data_c *)data;
 
-	loc=mem_alloc(MAX_STR_LEN*sizeof(unsigned char));
+	loc=mem_alloc(MAX_STR_LEN);
 
 	if (!(get_current_url(fd->ses,loc,MAX_STR_LEN))){mem_free(loc);return NULL;}
 
@@ -2223,7 +2213,6 @@ unsigned char *js_upcall_get_form_element_default_value(void *bidak, long docume
 	struct f_data_c *fd;
 	struct hopla_mladej *hopla;
 	unsigned char *hele_ho_bidaka;
-	struct conv_table *ct;
 
 	if (!js_ctx)internal("js_upcall_get_form_element_default_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
@@ -2249,8 +2238,7 @@ unsigned char *js_upcall_get_form_element_default_value(void *bidak, long docume
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla)return NULL;
 
-	ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-	hele_ho_bidaka=convert_string(ct,hopla->fc->default_value,strlen(cast_const_char hopla->fc->default_value),NULL);
+	hele_ho_bidaka=convert(fd->f_data->opt.cp, fd->f_data->cp, hopla->fc->default_value, NULL);
 
 	mem_free(hopla);
 	return hele_ho_bidaka;
@@ -2294,11 +2282,8 @@ void js_upcall_set_form_element_default_value(void *bidak, long document_id, lon
 
 	if ((name||(hopla->fc->default_value))&&strcmp(cast_const_char name,cast_const_char hopla->fc->default_value))
 	{
-		struct conv_table *ct;
-
 		mem_free(hopla->fc->default_value);
-		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		hopla->fc->default_value=convert_string(ct,name,strlen(cast_const_char name),NULL);
+		hopla->fc->default_value=convert(fd->f_data->cp, fd->f_data->opt.cp, name, NULL);
 		fd->f_data->uncacheable=1;
 	}
 	mem_free(hopla);
@@ -2367,7 +2352,6 @@ unsigned char *js_upcall_get_form_element_value(void *bidak, long document_id, l
 	struct f_data_c *fd;
 	struct hopla_mladej *hopla;
 	unsigned char *hele_ho_bidaka;
-	struct conv_table *ct;
 
 	if (!js_ctx)internal("js_upcall_get_form_element_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
@@ -2387,8 +2371,7 @@ unsigned char *js_upcall_get_form_element_value(void *bidak, long document_id, l
 	hopla=jsint_find_object(fd,ksunt_id);
 	if (!hopla)return NULL;
 
-	ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-	hele_ho_bidaka=convert_string(ct,hopla->fs->value,strlen(cast_const_char hopla->fs->value),NULL);
+	hele_ho_bidaka=convert(fd->f_data->opt.cp, fd->f_data->cp, hopla->fs->value, NULL);
 
 	mem_free(hopla);
 	return hele_ho_bidaka;
@@ -2404,7 +2387,6 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 	struct f_data_c *js_ctx=(struct f_data_c*)bidak;
 	struct f_data_c *fd;
 	struct hopla_mladej *hopla;
-	struct conv_table *ct;
 
 	if (!js_ctx)internal("js_upcall_set_form_element_value called with NULL context pointer\n");
 	fd=jsint_find_document(document_id);
@@ -2428,8 +2410,7 @@ void js_upcall_set_form_element_value(void *bidak, long document_id, long ksunt_
 	if (!hopla){if (name)mem_free(name);return;}
 
 	mem_free(hopla->fs->value);
-	ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-	hopla->fs->value=convert_string(ct,name,strlen(cast_const_char name),NULL);
+	hopla->fs->value=convert(fd->f_data->cp, fd->f_data->opt.cp, name, NULL);
 
 	if ((size_t)hopla->fs->state > strlen(cast_const_char hopla->fs->value))
 		hopla->fs->state = strlen(cast_const_char hopla->fs->value);
@@ -3095,10 +3076,8 @@ void js_upcall_set_default_status(void *context, unsigned char *tak_se_ukaz_Kolb
 	skip_nonprintable(tak_se_ukaz_Kolbene);
 	if (fd->f_data&&tak_se_ukaz_Kolbene)
 	{
-		struct conv_table* ct; /* ... a ted ty pochybne reci o majetku ... */
-
-		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		trouba=convert_string(ct,tak_se_ukaz_Kolbene,strlen(cast_const_char tak_se_ukaz_Kolbene),NULL); /* Taky to mate levnejsi - jinak by to stalo deset! */
+		/* ... a ted ty pochybne reci o majetku ... */
+		trouba=convert(fd->f_data->cp, fd->f_data->opt.cp, tak_se_ukaz_Kolbene, NULL); /* Taky to mate levnejsi - jinak by to stalo deset! */
 		mem_free(tak_se_ukaz_Kolbene);
 		/* a je to v troube... */
 	}
@@ -3127,10 +3106,7 @@ unsigned char* js_upcall_get_default_status(void *context)
 	skip_nonprintable(tak_se_ukaz_Danku);
 	if (fd->f_data&&tak_se_ukaz_Danku)
 	{
-		struct conv_table* ct;
-
-		ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-		trouba=convert_string(ct,tak_se_ukaz_Danku,strlen(cast_const_char tak_se_ukaz_Danku),NULL);
+		trouba=convert(fd->f_data->opt.cp, fd->f_data->cp, tak_se_ukaz_Danku, NULL);
 		mem_free(tak_se_ukaz_Danku);
 	}
 	else
@@ -3160,10 +3136,7 @@ void js_upcall_set_status(void *context, unsigned char *tak_se_ukaz_Kolbene)
 	skip_nonprintable(tak_se_ukaz_Kolbene);
 	if (fd->f_data&&tak_se_ukaz_Kolbene)
 	{
-		struct conv_table* ct;
-
-		ct=get_translation_table(fd->f_data->cp,fd->f_data->opt.cp);
-		trouba=convert_string(ct,tak_se_ukaz_Kolbene,strlen(cast_const_char tak_se_ukaz_Kolbene),NULL);
+		trouba=convert(fd->f_data->cp, fd->f_data->opt.cp, tak_se_ukaz_Kolbene, NULL);
 		mem_free(tak_se_ukaz_Kolbene);
 		/* a je to v troube... */
 	}
@@ -3191,10 +3164,7 @@ unsigned char* js_upcall_get_status(void *context)
 	skip_nonprintable(tak_se_ukaz_Danku);
 	if (fd->f_data&&tak_se_ukaz_Danku)
 	{
-		struct conv_table* ct;
-
-		ct=get_translation_table(fd->f_data->opt.cp,fd->f_data->cp);
-		trouba=convert_string(ct,tak_se_ukaz_Danku,strlen(cast_const_char tak_se_ukaz_Danku),NULL);
+		trouba=convert(fd->f_data->opt.cp, fd->f_data->cp, tak_se_ukaz_Danku, NULL);
 		mem_free(tak_se_ukaz_Danku);
 	}
 	else

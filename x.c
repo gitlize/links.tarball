@@ -2134,7 +2134,6 @@ static void x_commit_strip(struct bitmap *bmp, int top, int lines)
 
 static void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 {
-	struct conv_table *ct;
 	unsigned char *t;
 	XTextProperty windowName;
 	int output_encoding;
@@ -2150,10 +2149,8 @@ retry_encode_ascii:
 		output_encoding = 0;
 	}
 
-	ct = get_translation_table(utf8_table,output_encoding);
-
 	if (!gd)internal("x_set_window_title called with NULL graphics_device pointer.\n");
-	t = convert_string(ct, title, (int)strlen(cast_const_char title), NULL);
+	t = convert(utf8_table, output_encoding, title, NULL);
 	clr_white(t);
 	/*XStoreName(x_display,get_window_info(gd)->window,"blabla");*/
 
@@ -2232,12 +2229,8 @@ static void selection_request(XEvent *event)
 #endif
 	if (req->target == XA_STRING) {
 		unsigned char *str, *p;
-		struct conv_table *ct = NULL;
-		int iso1 = get_cp_index(cast_uchar "iso-8859-1");
-		if (iso1 >= 0) ct = get_translation_table(utf8_table, iso1);
 		if (!x_my_clipboard) str = stracpy(cast_uchar "");
-		else if (!ct) str = stracpy(x_my_clipboard);
-		else str = convert_string(ct, x_my_clipboard, (int)strlen(cast_const_char x_my_clipboard), NULL);
+		else str = convert(utf8_table, get_cp_index(cast_uchar "iso-8859-1"), x_my_clipboard, NULL);
 		for (p = cast_uchar strchr(cast_const_char str, 1); p; p = cast_uchar strchr(cast_const_char(str + 1), 1)) *p = 0xa0;
 		l = strlen(cast_const_char str);
 		if (l > X_MAX_CLIPBOARD_SIZE) l = X_MAX_CLIPBOARD_SIZE;
@@ -2358,14 +2351,7 @@ static unsigned char *x_get_clipboard_text(void)
 		if (type_atom == x_utf8_string_atom) {
 			x_my_clipboard = stracpy(buffer);
 		} else {
-			struct conv_table *ct = NULL;
-			int iso1 = get_cp_index(cast_uchar "iso-8859-1");
-			if (iso1 >= 0) ct = get_translation_table(iso1, utf8_table);
-			if (!ct) {
-				x_my_clipboard = stracpy(buffer);
-			} else {
-				x_my_clipboard = convert_string(ct, buffer, (int)strlen(cast_const_char buffer), NULL);
-			}
+			x_my_clipboard = convert(get_cp_index(cast_uchar "iso-8859-1"), utf8_table, buffer, NULL);
 		}
 		XFree(buffer);
 	} else {
@@ -2476,7 +2462,7 @@ struct graphics_driver x_driver={
 	x_get_clipboard_text,
 	0,				/* depth (filled in x_init_driver function) */
 	0, 0,				/* size (in X is empty) */
-	0,				/* flags */
+	GD_UNICODE_KEYS,		/* flags */
 	0,				/* codepage */
 	NULL,				/* shell */
 };

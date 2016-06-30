@@ -76,16 +76,18 @@ SSL *getSSL(void)
 {
 	if (!context) {
 		const SSL_METHOD *m;
-		unsigned char f_randfile[PATH_MAX];
 		unsigned char *os_pool;
 		int os_pool_size;
 
 #if defined(HAVE_RAND_EGD) && defined(HAVE_RAND_FILE_NAME) && defined(HAVE_RAND_LOAD_FILE) && defined(HAVE_RAND_WRITE_FILE)
-		const unsigned char *f = (const unsigned char *)RAND_file_name(cast_char f_randfile, sizeof(f_randfile));
-		if (f && RAND_egd(cast_const_char f) < 0) {
-			/* Not an EGD, so read and write to it */
-			if (RAND_load_file(cast_const_char f_randfile, -1))
-				RAND_write_file(cast_const_char f_randfile);
+		{
+			unsigned char f_randfile[PATH_MAX];
+			const unsigned char *f = (const unsigned char *)RAND_file_name(cast_char f_randfile, sizeof(f_randfile));
+			if (f && RAND_egd(cast_const_char f) < 0) {
+				/* Not an EGD, so read and write to it */
+				if (RAND_load_file(cast_const_char f_randfile, -1))
+					RAND_write_file(cast_const_char f_randfile);
+			}
 		}
 #endif
 
@@ -284,23 +286,19 @@ int verify_ssl_certificate(SSL *ssl, unsigned char *host)
 
 int verify_ssl_cipher(SSL *ssl)
 {
-	const SSL_METHOD *meth = SSL_get_ssl_method(ssl);
 	unsigned char *cipher;
-	if (
-#ifndef OPENSSL_NO_SSL2
-	    meth == SSLv2_client_method() ||
-#endif
-#ifndef OPENSSL_NO_SSL3_METHOD
-	    meth == SSLv3_client_method() ||
-#endif
-
-	    0) {
+#ifdef HAVE_SSLV2_CLIENT_METHOD
+	if (SSL_get_ssl_method(ssl) == SSLv2_client_method())
 		return S_INSECURE_CIPHER;
-	}
+#endif
+#ifdef HAVE_SSLV3_CLIENT_METHOD
+	if (SSL_get_ssl_method(ssl) == SSLv3_client_method())
+		return S_INSECURE_CIPHER;
+#endif
 	if (SSL_get_cipher_bits(ssl, NULL) < 112)
 		return S_INSECURE_CIPHER;
 	cipher = cast_uchar SSL_get_cipher_name(ssl);
-	if (strstr(cast_const_char cipher, "RC4-"))
+	if (cipher && strstr(cast_const_char cipher, "RC4-"))
 		return S_INSECURE_CIPHER;
 	return 0;
 }

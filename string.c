@@ -219,13 +219,30 @@ void skip_nonprintable(unsigned char *txt)
 }
 #endif
 
+/* don't use strcasecmp because it depends on locale */
+int casestrcmp(const unsigned char *s1, const unsigned char *s2)
+{
+	while (1) {
+		unsigned char c1 = *s1;
+		unsigned char c2 = *s2;
+		c1 = locase(c1);
+		c2 = locase(c2);
+		if (c1 != c2) {
+			return (int)c1 - (int)c2;
+		}
+		if (!*s1) break;
+		s1++, s2++;
+	}
+	return 0;
+}
+
 /* case insensitive compare of 2 strings */
 /* comparison ends after len (or less) characters */
 /* return value: 1=strings differ, 0=strings are same */
 int casecmp(const unsigned char *c1, const unsigned char *c2, size_t len)
 {
 	size_t i;
-	for (i = 0; i < len; i++) if (upcase(c1[i]) != upcase(c2[i])) return 1;
+	for (i = 0; i < len; i++) if (srch_cmp(c1[i], c2[i])) return 1;
 	return 0;
 }
 

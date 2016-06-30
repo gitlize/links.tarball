@@ -418,7 +418,7 @@ void add_event_string(unsigned char **s, int *l, struct terminal *term)
 	{
 #if defined(HAVE_LIBEV)
 				/* old libev report bogus version */
-		if (!strcasecmp(event_get_version(), "EV_VERSION_MAJOR.EV_VERSION_MINOR")) {
+		if (!casestrcmp(cast_uchar event_get_version(), cast_uchar "EV_VERSION_MAJOR.EV_VERSION_MINOR")) {
 			add_num_to_str(s, l, ev_version_major());
 			add_to_str(s, l, cast_uchar ".");
 			add_num_to_str(s, l, ev_version_minor());

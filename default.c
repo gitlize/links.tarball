@@ -429,7 +429,7 @@ static unsigned char *p_arse_options(int argc, unsigned char *argv[], struct opt
 			struct option **op;
 			for (op = opt; (options = *op); op++) for (i = 0; options[i].p; i++)
 				if (options[i].rd_cmd && options[i].cmd_name &&
-				    !strcasecmp(cast_const_char options[i].cmd_name, cast_const_char &argv[-1][1])) {
+				    !casestrcmp(cast_uchar options[i].cmd_name, &argv[-1][1])) {
 					if ((e = options[i].rd_cmd(&options[i], &argv, &argc))) {
 						if (e[0]) fprintf(stderr, "Error parsing option %s: %s\n", argv[-1], e);
 						return NULL;
@@ -990,7 +990,7 @@ static unsigned char *lang_rd(struct option *o, unsigned char *c)
 	unsigned char *tok = get_token(&c);
 	if (!tok) return cast_uchar "Missing argument";
 	for (i = -1; i < n_languages(); i++)
-		if (!(strcasecmp(cast_const_char language_name(i), cast_const_char tok))) {
+		if (!(casestrcmp(language_name(i), tok))) {
 			set_language(i);
 			mem_free(tok);
 			return NULL;
@@ -1171,7 +1171,7 @@ static unsigned char *term_rd(struct option *o, unsigned char *c)
 	ts->block_cursor = !!((w[0] - '0') & 4);
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (!strcasecmp(cast_const_char w, "default")) {
+	if (!casestrcmp(w, cast_uchar "default")) {
 		i = -1;
 	} else {
 		if ((i = get_cp_index(w)) == -1) goto err_f;
@@ -1232,7 +1232,7 @@ static unsigned char *term2_rd(struct option *o, unsigned char *c)
 	ts->col = w[0] - '0';
 	mem_free(w);
 	if (!(w = get_token(&c))) goto err;
-	if (!strcasecmp(cast_const_char w, "default")) {
+	if (!casestrcmp(w, cast_uchar "default")) {
 		i = -1;
 	} else {
 		if ((i = get_cp_index(w)) == -1) goto err_f;
@@ -1284,7 +1284,7 @@ static struct list_head driver_params = { &driver_params, &driver_params };
 struct driver_param *get_driver_param(unsigned char *n)
 {
 	struct driver_param *dp;
-	foreach(dp, driver_params) if (!strcasecmp(cast_const_char dp->name, cast_const_char n)) return dp;
+	foreach(dp, driver_params) if (!casestrcmp(dp->name, n)) return dp;
 	dp = mem_calloc(sizeof(struct driver_param) + strlen(cast_const_char n) + 1);
 	dp->kbd_codepage = -1;
 	strcpy(cast_char dp->name, cast_const_char n);
@@ -1315,7 +1315,7 @@ static unsigned char *dp_rd(struct option *o, unsigned char *c)
 		mem_free(shell);
 		goto err;
 	}
-	if (!strcasecmp(cast_const_char cp, "default")) {
+	if (!casestrcmp(cp, cast_uchar "default")) {
 		cc = -1;
 	} else if ((cc = get_cp_index(cp)) == -1) {
 		mem_free(n);

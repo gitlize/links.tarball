@@ -64,7 +64,7 @@ int get_default_language(void)
 	if (!lang) lang = cast_uchar "en";
 	lang = stracpy(lang);
 	lang[strcspn(cast_const_char lang, ".@")] = 0;
-	if (!strcasecmp(cast_const_char lang, "nn_NO"))
+	if (!casestrcmp(lang, cast_uchar "nn_NO"))
 		strcpy(cast_char lang, "no");
 	for (p = lang; *p; p++) {
 		if (*p >= 'A' && *p <= 'Z')
@@ -79,7 +79,7 @@ search_again:
 			continue;
 		p = stracpy(p);
 		p[strcspn(cast_const_char p, ",;")] = 0;
-		if (!strcasecmp(cast_const_char lang, cast_const_char p)) {
+		if (!casestrcmp(lang, p)) {
 			mem_free(p);
 			mem_free(lang);
 			goto ret_i;
@@ -119,7 +119,7 @@ int get_default_charset(void)
 	if ((p = cast_uchar strchr(cast_const_char lang, '.'))) {
 		p++;
 	} else {
-		if (strlen(cast_const_char lang) > 5 && !strcasecmp(strchr(cast_const_char lang, 0) - 5, "@euro")) {
+		if (strlen(cast_const_char lang) > 5 && !casestrcmp(cast_uchar (strchr(cast_const_char lang, 0) - 5), cast_uchar "@euro")) {
 			p = cast_uchar "ISO-8859-15";
 		} else {
 			int def_lang = get_default_language();
@@ -155,7 +155,6 @@ static inline int is_direct_text(unsigned char *text)
 unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 {
 	unsigned char **current_tra;
-	struct conv_table *conv_table;
 	unsigned char *trn;
 	int charset;
 	int language_idx = get_current_language();
@@ -174,8 +173,7 @@ unsigned char *get_text_translation(unsigned char *text, struct terminal *term)
 			memset(&l_opt, 0, sizeof(l_opt));
 			l_opt.plain = 0;
 			l_opt.cp = charset;
-			conv_table = get_translation_table(current_lang_charset, charset);
-			trn = convert_string(conv_table, tt, (int)strlen(cast_const_char tt), &l_opt);
+			trn = convert(current_lang_charset, charset, tt, &l_opt);
 			if (!strcmp(cast_const_char trn, cast_const_char tt)) {
 				mem_free(trn);
 				trn = tt;

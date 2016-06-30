@@ -362,6 +362,14 @@ static void ssl_setup_downgrade(struct connection *c)
 		SSL_set_mode(c->ssl, SSL_MODE_SEND_FALLBACK_SCSV);
 	}
 #endif
+	if (SCRUB_HEADERS) {
+#ifdef SSL_OP_NO_SSLv2
+		SSL_set_options(c->ssl, SSL_OP_NO_SSLv2);
+#endif
+#ifdef SSL_OP_NO_SSLv3
+		SSL_set_options(c->ssl, SSL_OP_NO_SSLv3);
+#endif
+	}
 #endif
 }
 
@@ -749,6 +757,19 @@ static void connected_callback(struct connection *c)
 			}
 			ignore_cert:
 
+			if (c->no_tls) {
+				if (ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
+					int flags = get_blacklist_flags(h);
+					if (flags & BL_IGNORE_DOWNGRADE)
+						goto ignore_downgrade;
+				}
+				mem_free(h);
+				setcstate(c, S_DOWNGRADED_METHOD);
+				abort_connection(c);
+				return;
+			}
+			ignore_downgrade:
+
 			err = verify_ssl_cipher(c->ssl);
 			if (err) {
 				if (ssl_options.certificates == SSL_WARN_ON_INVALID_CERTIFICATE) {
@@ -913,7 +934,7 @@ read_more:
 */
 				unsigned char *prot, *h;
 				if (is_last_try(c) && (prot = get_protocol_name(c->url))) {
-					if (!strcasecmp(cast_const_char prot, "http")) {
+					if (!casestrcmp(prot, cast_uchar "http")) {
 						if ((h = get_host_name(c->url))) {
 							add_blacklist_entry(h, BL_NO_COMPRESSION);
 							mem_free(h);

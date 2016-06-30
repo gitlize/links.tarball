@@ -354,7 +354,7 @@ static void add_user_agent(unsigned char **hdr, int *l)
 {
 	add_to_str(hdr, l, cast_uchar "User-Agent: ");
 	if (SCRUB_HEADERS) {
-		add_to_str(hdr, l, cast_uchar "Mozilla/5.0 (Windows NT 6.1; rv:38.0) Gecko/20100101 Firefox/38.0\r\n");
+		add_to_str(hdr, l, cast_uchar "Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0\r\n");
 	} else if (!(*http_options.header.fake_useragent)) {
 		add_to_str(hdr, l, cast_uchar("Links (" VERSION_STRING "; "));
 		add_to_str(hdr, l, system_name);
@@ -406,12 +406,12 @@ static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigne
 			int brk = 1;
 			if ((h = get_host_name(url))) {
 				if ((j = get_host_name(prev_url))) {
-					if (!strcasecmp(cast_const_char h, cast_const_char j)) brk = 0;
-					else if (!strcasecmp(cast_const_char h, "imageproxy.jxs.cz")) {
+					if (!casestrcmp(h, j)) brk = 0;
+					else if (!casestrcmp(h, cast_uchar "imageproxy.jxs.cz")) {
 						int l = (int)strlen(cast_const_char j);
 						int q = (int)strlen(".blog.cz");
-						if (l > q && !strcasecmp(cast_const_char (j + l - q), ".blog.cz")) brk = 0;
-						else if (!strcasecmp(cast_const_char j, "blog.cz")) brk = 0;
+						if (l > q && !casestrcmp((j + l - q), cast_uchar ".blog.cz")) brk = 0;
+						else if (!casestrcmp(j, cast_uchar "blog.cz")) brk = 0;
 					}
 					mem_free(j);
 				}
@@ -1003,14 +1003,22 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 #ifdef HAVE_SSL
 	if (c->ssl) {
+		unsigned char *version, *cipher;
 		int l = 0;
 		if (e->ssl_info) mem_free(e->ssl_info);
 		e->ssl_info = init_str();
 		add_num_to_str(&e->ssl_info, &l, SSL_get_cipher_bits(c->ssl, NULL));
-		add_to_str(&e->ssl_info, &l, cast_uchar "-bit ");
-		add_to_str(&e->ssl_info, &l, cast_uchar SSL_get_cipher_version(c->ssl));
-		add_to_str(&e->ssl_info, &l, cast_uchar " ");
-		add_to_str(&e->ssl_info, &l, cast_uchar SSL_get_cipher_name(c->ssl));
+		add_to_str(&e->ssl_info, &l, cast_uchar "-bit");
+		version = cast_uchar SSL_get_cipher_version(c->ssl);
+		if (version) {
+			add_chr_to_str(&e->ssl_info, &l, ' ');
+			add_to_str(&e->ssl_info, &l, version);
+		}
+		cipher = cast_uchar SSL_get_cipher_name(c->ssl);
+		if (cipher) {
+			add_chr_to_str(&e->ssl_info, &l, ' ');
+			add_to_str(&e->ssl_info, &l, cipher);
+		}
 	}
 #endif
 	if (e->redirect) mem_free(e->redirect), e->redirect = NULL;
@@ -1045,7 +1053,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	info->length = -1;
 	info->version = version;
 	if ((d = parse_http_header(e->head, cast_uchar "Connection", NULL)) || (d = parse_http_header(e->head, cast_uchar "Proxy-Connection", NULL))) {
-		if (!strcasecmp(cast_const_char d, "close")) info->close = 1;
+		if (!casestrcmp(d, cast_uchar "close")) info->close = 1;
 		mem_free(d);
 	} else if (version < 11) info->close = 1;
 	cf = c->from;
@@ -1053,7 +1061,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	if ((d = parse_http_header(e->head, cast_uchar "Content-Range", NULL))) {
 		if (strlen(cast_const_char d) > 6) {
 			d[5] = 0;
-			if (!(strcasecmp(cast_const_char d, "bytes")) && d[6] >= '0' && d[6] <= '9') {
+			if (!(casestrcmp(d, cast_uchar "bytes")) && d[6] >= '0' && d[6] <= '9') {
 				my_strtoll_t f = my_strtoll(d + 6, NULL);
 				if (f >= 0 && (off_t)f >= 0 && (off_t)f == f) c->from = f;
 			}
@@ -1079,14 +1087,14 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		mem_free(d);
 	}
 	if ((d = parse_http_header(e->head, cast_uchar "Accept-Ranges", NULL))) {
-		if (!strcasecmp(cast_const_char d, "none") && !c->unrestartable) c->unrestartable = 1;
+		if (!casestrcmp(d, cast_uchar "none") && !c->unrestartable) c->unrestartable = 1;
 		mem_free(d);
 	} else {
 		if (!c->unrestartable && !c->from) c->unrestartable = 1;
 	}
 	if (info->bl_flags & BL_NO_RANGE && !c->unrestartable) c->unrestartable = 1;
 	if ((d = parse_http_header(e->head, cast_uchar "Transfer-Encoding", NULL))) {
-		if (!strcasecmp(cast_const_char d, "chunked")) {
+		if (!casestrcmp(d, cast_uchar "chunked")) {
 			info->length = -2;
 			info->chunk_remaining = -1;
 		}
@@ -1094,7 +1102,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 	if (!info->close && info->length == -1) info->close = 1;
 	if ((d = parse_http_header(e->head, cast_uchar "Last-Modified", NULL))) {
-		if (e->last_modified && strcasecmp(cast_const_char e->last_modified, cast_const_char d)) {
+		if (e->last_modified && casestrcmp(e->last_modified, d)) {
 			delete_entry_content(e);
 			if (c->from) {
 				c->from = 0;

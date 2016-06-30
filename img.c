@@ -790,7 +790,7 @@ static void r3l0ad(struct cached_image *cimg, struct g_object_image *goi)
  */
 static inline int dtest(unsigned char *templat, unsigned char *test)
 {
-	return !strcasecmp(cast_const_char templat, cast_const_char test);
+	return !casestrcmp(templat, test);
 }
 
 /* This may be called only in state 0 or 2 */
@@ -1353,25 +1353,25 @@ void change_image (struct g_object_image *goi, unsigned char *url, unsigned char
 int known_image_type(unsigned char *type)
 {
 #ifdef G
-	if (!strcasecmp(cast_const_char type, "image/png")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/x-png")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/gif")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/x-xbitmap")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/png")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/x-png")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/gif")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/x-xbitmap")) return 1;
 #ifdef HAVE_JPEG
-	if (!strcasecmp(cast_const_char type, "image/jpeg")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/jpg")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/jpe")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/pjpe")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/pjpeg")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/pjpg")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/jpeg")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/jpg")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/jpe")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/pjpe")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/pjpeg")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/pjpg")) return 1;
 #endif
 #ifdef HAVE_TIFF
-	if (!strcasecmp(cast_const_char type, "image/tiff")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/tif")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/tiff")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/tif")) return 1;
 #endif
 #ifdef HAVE_SVG
-	if (!strcasecmp(cast_const_char type, "image/svg+xml")) return 1;
-	if (!strcasecmp(cast_const_char type, "image/svg")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/svg+xml")) return 1;
+	if (!casestrcmp(type, cast_uchar "image/svg")) return 1;
 #endif
 #endif
 	return 0;

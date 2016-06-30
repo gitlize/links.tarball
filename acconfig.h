@@ -29,6 +29,12 @@
 #undef HAVE_VOLATILE
 
 /* */
+#undef HAVE_RESTRICT
+
+/* */
+#undef HAVE___RESTRICT
+
+/* */
 #undef HAVE_ERRNO
 
 /* */
@@ -59,12 +65,6 @@
 #undef HAVE_STRNCMP
 
 /* */
-#undef HAVE_STRCASECMP
-
-/* */
-#undef HAVE_STRNCASECMP
-
-/* */
 #undef HAVE_STRCSPN
 
 /* */
@@ -93,6 +93,9 @@
 
 /* */
 #undef HAVE_SIGSETJMP
+
+/* */
+#undef HAVE___BUILTIN_ADD_OVERFLOW
 
 /* */
 #undef DEBUGLEVEL

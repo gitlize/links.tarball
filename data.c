@@ -53,7 +53,7 @@ void data_func(struct connection *c)
 		flags++;
 		length = strcspn(cast_const_char flags, ";,");
 		arg = memacpy(flags, length);
-		if (!strcasecmp(cast_const_char arg, "base64")) {
+		if (!casestrcmp(arg, cast_uchar "base64")) {
 			base64 = 1;
 		} else if (!casecmp(arg, cast_uchar "charset=", 8)) {
 			if (!was_charset) {

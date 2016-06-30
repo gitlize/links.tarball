@@ -18,10 +18,6 @@
 #define FREE_FILL	0xfe
 #endif
 
-#if DEBUGLEVEL < 0
-#define NO_IE
-#endif
-
 #ifdef RED_ZONE
 #define RED_ZONE_INC	1
 #else
@@ -229,8 +225,9 @@ void int_error(char *m, ...)
 	sprintf(cast_char errbuf, "\n"ANSI_SET_BOLD"INTERNAL ERROR"ANSI_CLEAR_BOLD" at %s:%d: ", errfile, errline);
 	strcat(cast_char errbuf, cast_const_char m);
 	er(1, cast_char errbuf, l);
-	force_dump();
 	va_end(l);
+	force_dump();
+	exit(RET_INTERNAL);
 #endif
 }
 

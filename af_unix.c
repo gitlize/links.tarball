@@ -74,6 +74,9 @@ static int get_address(unsigned char *name)
 	if (!links_home) return -1;
 	path = stracpy(links_home);
 	add_to_strn(&path, cast_uchar LINKS_SOCK_NAME);
+	if (anonymous) {
+		add_to_strn(&path, cast_uchar LINKS_ANONYMOUS_SOCK_SUFFIX);
+	}
 	if (name) {
 		unsigned char *n = stracpy(name);
 		check_filename(&n);
@@ -111,15 +114,19 @@ static int get_address(unsigned char *name)
 	if (!name) {
 		port = LINKS_PORT;
 	} else if (!strcmp(cast_const_char name, "pmshell")) {
-		port = LINKS_PORT + 1;
+		port = LINKS_PORT + 2;
 	} else {
 		port = LINKS_PORT;
 		while (*name) {
-			port = 257 * port + *name;
+			port = 257 * port + (*name * 2);
 			name++;
 		}
 		port %= LINKS_G_PORT_LEN;
 		port += LINKS_G_PORT_START;
+		port &= ~1;
+	}
+	if (anonymous) {
+		port++;
 	}
 	memset(&s_unix, 0, sizeof s_unix);
 	s_unix.sin.sin_family = AF_INET;

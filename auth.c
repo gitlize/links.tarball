@@ -138,7 +138,7 @@ unsigned char *get_auth_string(unsigned char *url, int proxy)
 
 	if (!proxy && (r = auth_from_url(url, proxy))) goto have_passwd;
 
-	foreach(a, auth) if (a->proxy == proxy && !strcasecmp(cast_const_char a->host, cast_const_char host) && a->port == port) {
+	foreach(a, auth) if (a->proxy == proxy && !casestrcmp(a->host, host) && a->port == port) {
 		unsigned char *d, *data;
 		if (proxy) goto skip_dir_check;
 		data = get_url_data(url);
@@ -197,7 +197,7 @@ void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, uns
 		mem_free(p);
 	}
 	if (!host) return;
-	foreach(a, auth) if (a->proxy == proxy && !strcasecmp(cast_const_char a->host, cast_const_char host) && a->port == port && !strcmp(cast_const_char a->realm, cast_const_char realm)) {
+	foreach(a, auth) if (a->proxy == proxy && !casestrcmp(a->host, host) && a->port == port && !strcmp(cast_const_char a->realm, cast_const_char realm)) {
 		a = a->prev;
 		free_auth_entry(a->next);
 	}
@@ -229,7 +229,7 @@ int find_auth(unsigned char *url, unsigned char *realm)
 	data = stracpy(get_url_data(url));
 	d = cast_uchar strrchr(cast_const_char data, '/');
 	if (d) d[1] = 0;
-	foreach(a, auth) if (!a->proxy && !strcasecmp(cast_const_char a->host, cast_const_char host) && a->port == port && !strcmp(cast_const_char a->realm, cast_const_char realm) && strcmp(cast_const_char a->directory, cast_const_char data)) {
+	foreach(a, auth) if (!a->proxy && !casestrcmp(a->host, host) && a->port == port && !strcmp(cast_const_char a->realm, cast_const_char realm) && strcmp(cast_const_char a->directory, cast_const_char data)) {
 		mem_free(a->directory);
 		a->directory = data;
 		mem_free(host);

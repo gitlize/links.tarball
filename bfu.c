@@ -2382,3 +2382,19 @@ void input_field(struct terminal *term, struct memory_list *ml, unsigned char *t
 	do_dialog(term, dlg, ml);
 }
 
+int find_msg_box(struct terminal *term, unsigned char *title, int (*sel)(void *, void *), void *data)
+{
+	struct window *win;
+	foreach(win, term->windows) if (win->handler == dialog_func) {
+		struct dialog_data *dd = win->data;
+		struct dialog *d = dd->dlg;
+		if (d->fn != msg_box_fn)
+			continue;
+		if (d->title == title) {
+			if (sel && !sel(data, d->udata2))
+				continue;
+			return 1;
+		}
+	}
+	return 0;
+}

@@ -33,49 +33,6 @@ void free_cookie(struct cookie *c)
 	if (c->domain) mem_free(c->domain);
 }
 
-static int check_domain_security(unsigned char *server, unsigned char *domain)
-{
-	size_t i, j, dl;
-	int nd;
-	char *tld[] = {
-		".com",
-		".edu",
-		".net",
-		".org",
-		".gov",
-		".mil",
-		".int",
-		NULL };
-	if (domain[0] == '.') domain++;
-	dl = strlen(cast_const_char domain);
-	if (dl > strlen(cast_const_char server)) return 1;
-	for (i = strlen(cast_const_char server) - dl, j = 0; server[i]; i++, j++)
-		if (upcase(server[i]) != upcase(domain[j])) return 1;
-	nd = 2;
-	for (i = 0; tld[i]; i++) {
-		size_t tl = strlen(cast_const_char tld[i]);
-		if (dl > tl && !casecmp(cast_uchar tld[i], &domain[dl - tl], tl)) {
-			nd = 1;
-			break;
-		}
-	}
-	if (nd == 2) {
-		unsigned char *last_dot = cast_uchar strrchr(cast_const_char domain, '.');
-		i = 0;
-		if (last_dot) {
-			while (last_dot > domain) {
-				last_dot--;
-				if (*last_dot == '.') break;
-				i++;
-			}
-		}
-		if (i >= 4) nd = 1;
-	}
-	for (i = 0; domain[i]; i++) if (domain[i] == '.') if (!--nd) break;
-	if (nd > 0) return 1;
-	return 0;
-}
-
 static void accept_cookie(struct cookie *);
 
 /* sezere 1 cookie z retezce str, na zacatku nesmi byt zadne whitechars
@@ -137,11 +94,11 @@ int set_cookie(struct terminal *term, unsigned char *url, unsigned char *str)
 		cookie->secure = 1;
 		mem_free(s);
 	} else cookie->secure = 0;
-	if (check_domain_security(server, cookie->domain)) {
+	if (!allow_cookie_domain(server, cookie->domain)) {
 		mem_free(cookie->domain);
 		cookie->domain = stracpy(server);
 	}
-	foreach (cs, c_servers) if (!strcasecmp(cast_const_char cs->server, cast_const_char server)) {
+	foreach (cs, c_servers) if (!casestrcmp(cs->server, server)) {
 		if (cs->accpt) goto ok;
 		else {
 			free_cookie(cookie);
@@ -166,20 +123,20 @@ static void accept_cookie(struct cookie *c)
 {
 	struct c_domain *cd;
 	struct cookie *d, *e;
-	foreach(d, all_cookies) if (!strcasecmp(cast_const_char d->name, cast_const_char c->name) && !strcasecmp(cast_const_char d->domain, cast_const_char c->domain)) {
+	foreach(d, all_cookies) if (!casestrcmp(d->name, c->name) && !casestrcmp(d->domain, c->domain)) {
 		e = d;
 		d = d->prev;
 		del_from_list(e);
 		free_cookie(e);
 		mem_free(e);
 	}
-	if (c->value && !strcasecmp(cast_const_char c->value, "deleted")) {
+	if (c->value && !casestrcmp(c->value, cast_uchar "deleted")) {
 		free_cookie(c);
 		mem_free(c);
 		return;
 	}
 	add_to_list(all_cookies, c);
-	foreach(cd, c_domains) if (!strcasecmp(cast_const_char cd->domain, cast_const_char c->domain)) return;
+	foreach(cd, c_domains) if (!casestrcmp(cd->domain, c->domain)) return;
 	cd = mem_alloc(sizeof(struct c_domain) + strlen(cast_const_char c->domain) + 1);
 	strcpy(cast_char cd->domain, cast_const_char c->domain);
 	add_to_list(c_domains, cd);
@@ -190,7 +147,7 @@ int is_in_domain(unsigned char *d, unsigned char *s)
 	int dl = (int)strlen(cast_const_char d);
 	int sl = (int)strlen(cast_const_char s);
 	if (dl > sl) return 0;
-	if (dl == sl) return !strcasecmp(cast_const_char d, cast_const_char s);
+	if (dl == sl) return !casestrcmp(d, s);
 	if (s[sl - dl - 1] != '.') return 0;
 	return !casecmp(d, s + sl - dl, dl);
 }

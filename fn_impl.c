@@ -241,40 +241,6 @@ int strncmp(const char *s1, const char *s2, size_t n)
 	return 0;
 }
 #endif
-#ifndef HAVE_STRCASECMP
-int strcasecmp(const char *s1, const char *s2)
-{
-	while (1) {
-		unsigned char c1 = (unsigned char)*s1;
-		unsigned char c2 = (unsigned char)*s2;
-		c1 = upcase(c1);
-		c2 = upcase(c2);
-		if (c1 != c2) {
-			return (int)c1 - (int)c2;
-		}
-		if (!*s1) break;
-		s1++, s2++;
-	}
-	return 0;
-}
-#endif
-#ifndef HAVE_STRNCASECMP
-int strncasecmp(const char *s1, const char *s2, size_t n)
-{
-	while (n--) {
-		unsigned char c1 = (unsigned char)*s1;
-		unsigned char c2 = (unsigned char)*s2;
-		c1 = upcase(c1);
-		c2 = upcase(c2);
-		if (c1 != c2) {
-			return (int)c1 - (int)c2;
-		}
-		if (!*s1) break;
-		s1++, s2++;
-	}
-	return 0;
-}
-#endif
 #ifndef HAVE_STRCSPN
 size_t strcspn(const char *s, const char *reject)
 {

@@ -1,7 +1,7 @@
 /* DirectFB surface dump created by directfb-csource 0.9.14 */
 
 /* This arrow cursor surface is based on a cursor drawn by Ville Pätsi. */
-static const unsigned char arrow_data[] =
+static_const unsigned char arrow_data[] =
   "\0\0\0\0\0\0\0#\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
   "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
   "\0\0\0\0\0\0/\253\253\253\320\0\0\0N\0\0\0\3\0\0\0\0\0\0\0\0\0\0\0\0"

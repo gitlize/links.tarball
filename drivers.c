@@ -153,7 +153,7 @@ unsigned char *init_graphics(unsigned char *driver, unsigned char *param, unsign
 	}
 #endif
 	for (gd = graphics_drivers; *gd; gd++) {
-		if (!driver || !*driver || !strcasecmp(cast_const_char (*gd)->name, cast_const_char driver)) {
+		if (!driver || !*driver || !casestrcmp((*gd)->name, driver)) {
 			unsigned char *r;
 			if ((!driver || !*driver) && (*gd)->flags & GD_NOAUTO) continue;
 			if (!(r = init_graphics_driver(*gd, param, display))) {
