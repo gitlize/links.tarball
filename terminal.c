@@ -526,14 +526,36 @@ void free_term_specs(void)
 
 struct list_head term_specs = {&term_specs, &term_specs};
 
+#if defined(OS2) || defined(DOS)
+static struct term_spec dumb_term = { NULL, NULL, "", 2, 1, 1, 0, 1, 0, -1, 0, 0, 0, 0 };
+#else
 static struct term_spec dumb_term = { NULL, NULL, "", 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0 };
+#endif
+static struct term_spec cygwin_term = { NULL, NULL, "", 2, 1, 1, 0, 1, 0, -1, 0, 0, 0, 0 };
+
+static struct term_spec *default_term_spec(unsigned char *term)
+{
+	if (!casestrcmp(term, cast_uchar "cygwin"))
+		return &cygwin_term;
+#ifdef DOS
+	{
+		static int is_bw = -1;
+		if (is_bw == -1) {
+			is_bw = dos_is_bw();
+			if (is_bw)
+				dumb_term.col = 0;
+		}
+	}
+#endif
+	return &dumb_term;
+}
 
 static struct term_spec *get_term_spec(unsigned char *term)
 {
 	struct term_spec *t;
 	NO_GFX;
 	foreach(t, term_specs) if (!casestrcmp(t->term, term)) return t;
-	return &dumb_term;
+	return default_term_spec(term);
 }
 
 static void sync_term_specs(void)
@@ -547,7 +569,7 @@ struct term_spec *new_term_spec(unsigned char *term)
 	struct term_spec *t;
 	foreach(t, term_specs) if (!casestrcmp(t->term, term)) return t;
 	t = mem_alloc(sizeof(struct term_spec));
-	memcpy(t, &dumb_term, sizeof(struct term_spec));
+	memcpy(t, default_term_spec(term), sizeof(struct term_spec));
 	if (strlen(cast_const_char term) < MAX_TERM_LEN) strcpy(cast_char t->term, cast_const_char term);
 	else memcpy(t->term, term, MAX_TERM_LEN - 1), t->term[MAX_TERM_LEN - 1] = 0;
 	add_to_list(term_specs, t);
@@ -572,7 +594,7 @@ struct terminal *init_term(int fdin, int fdout, void (*root_window)(struct windo
 	term->blocked = -1;
 	term->screen = DUMMY;
 	term->last_screen = DUMMY;
-	term->spec = &dumb_term;
+	term->spec = default_term_spec(cast_uchar "");
 	term->input_queue = DUMMY;
 	init_list(term->windows);
 	term->handle_to_close = -1;

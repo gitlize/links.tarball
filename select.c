@@ -47,9 +47,11 @@ void portable_sleep(unsigned msec)
 {
 	struct timeval tv;
 	int rs;
+	block_signals(0, 0);
 	tv.tv_sec = msec / 1000;
 	tv.tv_usec = msec % 1000 * 1000;
 	EINTRLOOP(rs, select(0, NULL, NULL, NULL, &tv));
+	unblock_signals();
 }
 #endif
 
@@ -402,7 +404,7 @@ void add_event_string(unsigned char **s, int *l, struct terminal *term)
 #ifdef USE_LIBEVENT
 	if (!event_enabled)
 #endif
-		add_to_str(s, l, _(TEXT_(T_SELECT_SYSCALL), term));
+		add_to_str(s, l, get_text_translation(TEXT_(T_SELECT_SYSCALL), term));
 #ifdef USE_LIBEVENT
 	if (!event_enabled)
 		add_to_str(s, l, cast_uchar " (");
@@ -429,7 +431,7 @@ void add_event_string(unsigned char **s, int *l, struct terminal *term)
 #endif
 	if (!event_enabled) {
 		add_to_str(s, l, cast_uchar " ");
-		add_to_str(s, l, _(TEXT_(T_dISABLED), term));
+		add_to_str(s, l, get_text_translation(TEXT_(T_dISABLED), term));
 		add_to_str(s, l, cast_uchar ")");
 	} else {
 #if defined(HAVE_EVENT_BASE_GET_METHOD)

@@ -8,10 +8,6 @@
 #ifdef G
 #include "links.h"
 
-#ifdef HAVE_ENDIAN_H
-#include <endian.h>
-#endif /* #ifdef HAVE_ENDIAN_H */
-
 #ifdef REPACK_16
 #undef REPACK_16
 #endif /* #ifdef REPACK_16 */

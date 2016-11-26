@@ -8,6 +8,5 @@ static_const const_char_ptr domain_suffix_x[] = {
 	"city.sapporo.jp",
 	"city.sendai.jp",
 	"city.yokohama.jp",
-	"teledata.mz",
 	"www.ck",
 };

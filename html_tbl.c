@@ -452,8 +452,10 @@ static struct table *parse_table(unsigned char *html, unsigned char *eof, unsign
 		goto see;
 	}
 	if (t_namelen == 6 && !casecmp(t_name, cast_uchar "SCRIPT", 5)) {
-		en = skip_element(en, eof, cast_uchar "SCRIPT", 0);
-		goto see;
+		if (should_skip_script(t_attr)) {
+			en = skip_element(en, eof, cast_uchar "SCRIPT", 0);
+			goto see;
+		}
 	}
 	if (t_namelen == 6 && !casecmp(t_name, cast_uchar "/TABLE", 6)) {
 		if (c_span) new_columns(t, c_span, c_width, c_al, c_val, 1);

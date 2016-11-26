@@ -113,6 +113,19 @@ static void ftp_got_banner(struct connection *c, struct read_buffer *rb)
 	ftp_login(c);
 }
 
+
+static unsigned char *get_ftp_password(struct connection *c)
+{
+	unsigned char *u;
+	if ((u = get_pass(c->url))) {
+		if (*u) return u;
+		mem_free(u);
+	}
+	if (SCRUB_HEADERS)
+		return stracpy(cast_uchar "mozilla@example.com");
+	return stracpy(ftp_options.anon_pass);
+}
+
 static void ftp_login(struct connection *c)
 {
 	unsigned char *login;
@@ -127,9 +140,9 @@ static void ftp_login(struct connection *c)
 	if (ftp_options.fast_ftp) {
 		struct ftp_connection_info *fi;
 		add_to_str(&login, &logl, cast_uchar "\r\nPASS ");
-		if ((u = get_pass(c->url)) && *u) add_to_str(&login, &logl, u);
-		else add_to_str(&login, &logl, ftp_options.anon_pass);
-		if (u) mem_free(u);
+		u = get_ftp_password(c);
+		add_to_str(&login, &logl, u);
+		mem_free(u);
 		add_to_str(&login, &logl, cast_uchar "\r\n");
 		if (!(fi = add_file_cmd_to_str(c, 0))) {
 			mem_free(login);
@@ -180,9 +193,9 @@ static void ftp_got_user_info(struct connection *c, struct read_buffer *rb)
 			int logl = 0;
 			login = init_str();
 			add_to_str(&login, &logl, cast_uchar "PASS ");
-			if ((u = get_pass(c->url)) && *u) add_to_str(&login, &logl, u);
-			else add_to_str(&login, &logl, ftp_options.anon_pass);
-			if (u) mem_free(u);
+			u = get_ftp_password(c);
+			add_to_str(&login, &logl, u);
+			mem_free(u);
 			add_to_str(&login, &logl, cast_uchar "\r\n");
 			write_to_socket(c, c->sock1, login, logl, ftp_sent_passwd);
 			mem_free(login);

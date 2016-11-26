@@ -271,8 +271,9 @@ char *strstr(const char *haystack, const char *needle)
 {
 	size_t hs = strlen(haystack);
 	size_t ns = strlen(needle);
+	if (!ns) return (char *)haystack;
 	while (hs >= ns) {
-		if (!memcmp(haystack, needle, ns)) return (char *)haystack;
+		if (*haystack == *needle && !memcmp(haystack, needle, ns)) return (char *)haystack;
 		haystack++, hs--;
 	}
 	return NULL;
@@ -348,6 +349,17 @@ void *memset(void *s, int c, size_t n)
 #endif
 	while (n--) *sc++ = c;
 	return s;
+}
+#endif
+#ifndef HAVE_MEMMEM
+void *memmem(const void *haystack, size_t hs, const void *needle, size_t ns)
+{
+	if (!ns) return (void *)haystack;
+	while (hs >= ns) {
+		if (*(const char *)haystack == *(const char *)needle && !memcmp(haystack, needle, ns)) return (void *)haystack;
+		haystack = (const void *)((const char *)haystack + 1), hs--;
+	}
+	return NULL;
 }
 #endif
 #ifndef HAVE_STRERROR

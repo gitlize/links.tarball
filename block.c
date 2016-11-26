@@ -79,7 +79,7 @@ static unsigned char *block_type_item(struct terminal *term, void *data, int x)
 	unsigned char *txt, *txt1;
 	struct block* item=(struct block*)data;
 
-	if ((struct list*)item==(&blocks)) return stracpy(_(TEXT_(T_BLOCK_LIST),term));
+	if ((struct list*)item==(&blocks)) return stracpy(get_text_translation(TEXT_(T_BLOCK_LIST),term));
 	txt=stracpy(item->url);
 
 	/*I have no idea what this does, but it os copied from working code in types.c*/

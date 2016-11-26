@@ -12,9 +12,6 @@
 
 #include "bits.h"
 
-#ifdef HAVE_ENDIAN_H
-#include <endian.h>
-#endif
 #ifdef HAVE_MATH_H
 #include <math.h>
 #endif

@@ -1781,41 +1781,25 @@ const unsigned char *png_data, int png_length, struct style *style)
 	mem_free(interm2);
 }
 
-static struct font_cache_entry *locked_bw_entry = NULL;
 static struct font_cache_entry *locked_color_entry = NULL;
 
 /* Adds required entry into font_cache and returns pointer to the entry.
- * We assume the entry is FC_COLOR.
  */
 static struct font_cache_entry *supply_color_cache_entry(struct style *style, struct letter *letter)
 {
 	struct font_cache_entry *found, *neww;
 	unsigned short *primary_data;
-	int do_free=0;
-	struct font_cache_entry templat;
 	unsigned short red, green, blue;
 	unsigned bytes_consumed;
 
-	templat.bitmap.y=style->height;
-	templat.type=FC_BW;
-	/* The BW entries will be added only for background images which
-	 * are not yet implemented, but will be in the future.
-	 */
+	found=mem_alloc(sizeof(*found));
+	found->bitmap.y=style->height;
+	load_scaled_char(&(found->bitmap.data),&(found->bitmap.x),
+		found->bitmap.y, letter->begin,
+		letter->length, style);
 
-	found=lru_lookup(&font_cache, &templat, letter->bw_list);
-	if (!found){
-		found=mem_alloc(sizeof(*found));
-		found->bitmap.y=style->height;
-		load_scaled_char(&(found->bitmap.data),&(found->bitmap.x),
-			found->bitmap.y, letter->begin,
-			letter->length, style);
-		do_free=1;
-	} else {
-		locked_bw_entry = found;
-	}
 	neww=mem_alloc(sizeof(*neww));
 	locked_color_entry = neww;
-	neww->type=FC_COLOR;
 	neww->bitmap=found->bitmap;
 	neww->r0=style->r0;
 	neww->g0=style->g0;
@@ -1856,12 +1840,10 @@ static struct font_cache_entry *supply_color_cache_entry(struct style *style, st
 	skip_dither:
 	mem_free(primary_data);
 	drv->register_bitmap(&(neww->bitmap));
-	if (do_free){
-		mem_free(found->bitmap.data);
-		mem_free(found);
-	} else {
-		locked_bw_entry = NULL;
-	}
+
+	mem_free(found->bitmap.data);
+	mem_free(found);
+
 	bytes_consumed=neww->bitmap.x*neww->bitmap.y*(drv->depth&7);
 	/* Number of bytes per pixel in passed bitmaps */
 	bytes_consumed+=(int)sizeof(*neww);
@@ -1876,12 +1858,8 @@ static int destroy_font_cache_bottom(void)
 	struct font_cache_entry *bottom;
 	bottom=lru_get_bottom(&font_cache);
 	if (!bottom) return 0;
-	if (bottom == locked_bw_entry || bottom == locked_color_entry) return 0;
-	if (bottom->type==FC_COLOR){
-		drv->unregister_bitmap(&(bottom->bitmap));
-	}else{
-		mem_free(bottom->bitmap.data);
-	}
+	if (bottom == locked_color_entry) return 0;
+	drv->unregister_bitmap(&(bottom->bitmap));
 	mem_free(bottom);
 	lru_destroy_bottom(&font_cache);
 	return 1;
@@ -1917,7 +1895,6 @@ static inline int print_letter(struct graphics_device *device, int x, int y, str
 #ifdef DEBUG
 	if (!letter) internal("print_letter could not find a letter - even not the blotch!");
 #endif /* #ifdef DEBUG */
-	templat.type=FC_COLOR;
 	templat.r0=style->r0;
 	templat.r1=style->r1;
 	templat.g0=style->g0;
@@ -1928,7 +1905,7 @@ static inline int print_letter(struct graphics_device *device, int x, int y, str
 	templat.mono_space=style->mono_space;
 	templat.mono_height=style->mono_height;
 
-	found=lru_lookup(&font_cache, &templat, letter->color_list);
+	found=lru_lookup(&font_cache, &templat, &letter->color_list);
 	if (!found) found=supply_color_cache_entry(style, letter);
 	else locked_color_entry = found;
 	drv->draw_bitmap(device, &(found->bitmap), x, y);
@@ -2051,20 +2028,18 @@ static int compare_font_entries(void *entry, void *templat)
 	struct font_cache_entry*e1=entry;
 	struct font_cache_entry*e2=templat;
 
-	if (e1->type==FC_COLOR){
-		return(
-		 (e1->r0!=e2->r0)||
-		 (e1->g0!=e2->g0)||
-		 (e1->b0!=e2->b0)||
-		 (e1->r1!=e2->r1)||
-		 (e1->g1!=e2->g1)||
-		 (e1->b1!=e2->b1)||
-		 (e1->bitmap.y!=e2->bitmap.y)||
-		 (e1->mono_space!=e2->mono_space)||
-		 (e1->mono_space>=0&&e1->mono_height!=e2->mono_height));
-	}else{
-		return e1->bitmap.y!=e2->bitmap.y;
+	if (e1->r0 != e2->r0) return 1;
+	if (e1->g0 != e2->g0) return 1;
+	if (e1->b0 != e2->b0) return 1;
+	if (e1->r1 != e2->r1) return 1;
+	if (e1->g1 != e2->g1) return 1;
+	if (e1->b1 != e2->b1) return 1;
+	if (e1->bitmap.y != e2->bitmap.y) return 1;
+	if (e1->mono_space != e2->mono_space) return 1;
+	if (e1->mono_space >= 0) {
+		if (e1->mono_height != e2->mono_height) return 1;
 	}
+	return 0;
 }
 
 /* If the cache already exists, it is destroyed and reallocated. If you call it with the same

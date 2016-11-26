@@ -596,7 +596,7 @@ static void vms_select_thread(void *p, int n)
 			}
 			if (FD_ISSET(i, &remove_set)) {
 				FD_CLR(i, &remove_set);
-#ifndef  TEST_WAKE_BUG
+#ifndef TEST_WAKE_BUG
 				FD_CLR(i, &select_set_read);
 				FD_CLR(i, &select_set_write);
 				FD_CLR(i, &select_set_exception);
@@ -1007,6 +1007,10 @@ int vms_write(int fd, const void *buf, size_t size)
 
 void init_os(void)
 {
+#if !defined(__VAX) && defined(__FEATURE_MODE_INIT_STATE) && defined(__FEATURE_MODE_CURVAL)
+	if (decc$feature_get("DECC$EFS_CHARSET", __FEATURE_MODE_INIT_STATE) < 1)
+		decc$feature_set("DECC$EFS_CHARSET", __FEATURE_MODE_CURVAL, 1);
+#endif
 #if defined(OPENVMS_64BIT)
 	{
 		int i;

@@ -1057,7 +1057,7 @@ static void pm_send_msg(int msg, void *param, void *param2)
 	debug_call(("M: calling WinPostMsg(%d, %p, %p)", msg, param, param2));
 	while (!WinPostMsg(hwnd_hidden, msg, (MPARAM)param, (MPARAM)param2)) {
 		debug_call(("M: WinPostMsg failed: %lx", WinGetLastError(hab)));
-		sleep(1);
+		portable_sleep(1000);
 	}
 	debug_call(("M: WinPostMsg succeeded"));
 #endif
@@ -1073,7 +1073,7 @@ static void pm_send_msg(int msg, void *param, void *param2)
 	if (!r) {
 		DWORD err = GetLastError();
 		if (err == ERROR_NOT_ENOUGH_QUOTA) {
-			sleep(1);
+			portable_sleep(1000);
 			goto retry;
 		}
 		fatal_exit("PostMessage failed: %x", (unsigned)GetLastError());

@@ -103,23 +103,23 @@ static unsigned char *get_stat_msg(struct status *stat, struct terminal *term)
 	if (stat->state == S_TRANS && stat->prg->elapsed / 100) {
 		unsigned char *m = init_str();
 		int l = 0;
-		add_to_str(&m, &l, _(TEXT_(T_RECEIVED), term));
+		add_to_str(&m, &l, get_text_translation(TEXT_(T_RECEIVED), term));
 		add_to_str(&m, &l, cast_uchar " ");
 		add_xnum_to_str(&m, &l, stat->prg->pos);
 		if (stat->prg->size >= 0)
-			add_to_str(&m, &l, cast_uchar " "), add_to_str(&m, &l, _(TEXT_(T_OF), term)), add_to_str(&m, &l, cast_uchar " "), add_xnum_to_str(&m, &l, stat->prg->size);
+			add_to_str(&m, &l, cast_uchar " "), add_to_str(&m, &l, get_text_translation(TEXT_(T_OF), term)), add_to_str(&m, &l, cast_uchar " "), add_xnum_to_str(&m, &l, stat->prg->size);
 		add_to_str(&m, &l, cast_uchar ", ");
 		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
-			add_to_str(&m, &l, _(TEXT_(T_AVG), term)), add_to_str(&m, &l, cast_uchar " ");
+			add_to_str(&m, &l, get_text_translation(TEXT_(T_AVG), term)), add_to_str(&m, &l, cast_uchar " ");
 		add_xnum_to_str(&m, &l, stat->prg->loaded * 10 / (stat->prg->elapsed / 100));
 		add_to_str(&m, &l, cast_uchar "/s");
 		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
-			add_to_str(&m, &l, cast_uchar ", "), add_to_str(&m, &l, _(TEXT_(T_CUR), term)), add_to_str(&m, &l, cast_uchar " "),
+			add_to_str(&m, &l, cast_uchar ", "), add_to_str(&m, &l, get_text_translation(TEXT_(T_CUR), term)), add_to_str(&m, &l, cast_uchar " "),
 			add_xnum_to_str(&m, &l, stat->prg->cur_loaded / (CURRENT_SPD_SEC * SPD_DISP_TIME / 1000)),
 			add_to_str(&m, &l, cast_uchar "/s");
 		return m;
 	}
-	return stracpy(_(get_err_msg(stat->state), term));
+	return stracpy(get_text_translation(get_err_msg(stat->state), term));
 }
 
 void change_screen_status(struct session *ses)
@@ -225,7 +225,7 @@ void print_error_dialog(struct session *ses, struct status *stat, unsigned char 
 	unsigned char *t = get_err_msg(stat->state);
 	unsigned char *u = display_url(ses->term, url);
 	if (!t) return;
-	msg_box(ses->term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), cast_uchar " ", u, cast_uchar ":\n\n", t, NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC /*, _("Retry"), NULL, 0 !!! FIXME: retry */);
+	msg_box(ses->term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), cast_uchar " ", u, cast_uchar ":\n\n", t, NULL, ses, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC /*, get_text_translation("Retry"), NULL, 0 !!! FIXME: retry */);
 }
 
 static inline unsigned char hx(int a)
@@ -443,35 +443,35 @@ void download_window_function(struct dialog_data *dlg)
 		int l = 0;
 		m = init_str();
 		t = 1;
-		add_to_str(&m, &l, _(TEXT_(T_RECEIVED), term));
+		add_to_str(&m, &l, get_text_translation(TEXT_(T_RECEIVED), term));
 		add_to_str(&m, &l, cast_uchar " ");
 		add_xnum_to_str(&m, &l, stat->prg->pos);
 		if (stat->prg->size >= 0)
-			add_to_str(&m, &l, cast_uchar " "), add_to_str(&m, &l, _(TEXT_(T_OF),term)), add_to_str(&m, &l, cast_uchar " "), add_xnum_to_str(&m, &l, stat->prg->size), add_to_str(&m, &l, cast_uchar " ");
+			add_to_str(&m, &l, cast_uchar " "), add_to_str(&m, &l, get_text_translation(TEXT_(T_OF),term)), add_to_str(&m, &l, cast_uchar " "), add_xnum_to_str(&m, &l, stat->prg->size), add_to_str(&m, &l, cast_uchar " ");
 		add_to_str(&m, &l, cast_uchar "\n");
 		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
-			add_to_str(&m, &l, _(TEXT_(T_AVERAGE_SPEED), term));
-		else add_to_str(&m, &l, _(TEXT_(T_SPEED), term));
+			add_to_str(&m, &l, get_text_translation(TEXT_(T_AVERAGE_SPEED), term));
+		else add_to_str(&m, &l, get_text_translation(TEXT_(T_SPEED), term));
 		add_to_str(&m, &l, cast_uchar " ");
 		add_xnum_to_str(&m, &l, (longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100));
 		add_to_str(&m, &l, cast_uchar "/s");
 		if (stat->prg->elapsed >= CURRENT_SPD_AFTER * SPD_DISP_TIME)
-			add_to_str(&m, &l, cast_uchar ", "), add_to_str(&m, &l, _(TEXT_(T_CURRENT_SPEED), term)), add_to_str(&m, &l, cast_uchar " "),
+			add_to_str(&m, &l, cast_uchar ", "), add_to_str(&m, &l, get_text_translation(TEXT_(T_CURRENT_SPEED), term)), add_to_str(&m, &l, cast_uchar " "),
 			add_xnum_to_str(&m, &l, stat->prg->cur_loaded / (CURRENT_SPD_SEC * SPD_DISP_TIME / 1000)),
 			add_to_str(&m, &l, cast_uchar "/s");
 		add_to_str(&m, &l, cast_uchar "\n");
-		add_to_str(&m, &l, _(TEXT_(T_ELAPSED_TIME), term));
+		add_to_str(&m, &l, get_text_translation(TEXT_(T_ELAPSED_TIME), term));
 		add_to_str(&m, &l, cast_uchar " ");
 		add_time_to_str(&m, &l, (uttime)stat->prg->elapsed / 1000);
 		if (stat->prg->size >= 0 && stat->prg->loaded > 0) {
 			add_to_str(&m, &l, cast_uchar ", ");
-			add_to_str(&m, &l, _(TEXT_(T_ESTIMATED_TIME), term));
+			add_to_str(&m, &l, get_text_translation(TEXT_(T_ESTIMATED_TIME), term));
 			add_to_str(&m, &l, cast_uchar " ");
 			/*add_time_to_str(&m, &l, stat->prg->elapsed / 1000 * stat->prg->size / stat->prg->loaded * 1000 - stat->prg->elapsed);*/
 			/*add_time_to_str(&m, &l, (stat->prg->size - stat->prg->pos) / ((longlong)stat->prg->loaded * 10 / (stat->prg->elapsed / 100)));*/
 			add_time_to_str(&m, &l, (ttime)((stat->prg->size - stat->prg->pos) / ((double)stat->prg->loaded * 1000 / stat->prg->elapsed)));
 		}
-	} else m = stracpy(_(get_err_msg(stat->state), term));
+	} else m = stracpy(get_text_translation(get_err_msg(stat->state), term));
 	show_percentage = t && test_percentage(stat);
 	u = display_url(term, down->url);
 	max_text_width(term, u, &max, AL_LEFT);
@@ -916,6 +916,20 @@ int create_download_file(struct session *ses, unsigned char *cwd, unsigned char 
 	wd = get_cwd();
 	set_cwd(cwd);
 	file = translate_download_file(fi);
+#ifdef WIN
+	{
+		unsigned char *ext = cast_uchar strrchr(cast_const_char file, '.');
+		if (ext && (
+		    !casestrcmp(ext, cast_uchar ".exe") ||
+		    !casestrcmp(ext, cast_uchar ".com") ||
+		    !casestrcmp(ext, cast_uchar ".bat"))) {
+			if (perm == 0666)
+				perm |= 0111;
+			else
+				perm |= 0100;
+		}
+	}
+#endif
 #ifdef HAVE_OPEN_PREALLOC
 	if (siz && !(mode & CDF_NOTRUNC)) {
 		h = open_prealloc(file, O_CREAT | O_NOCTTY | O_WRONLY | O_TRUNC | (mode & CDF_EXCL ? O_EXCL : 0), perm, siz);
@@ -1272,22 +1286,17 @@ static void detach_f_data(struct f_data **ff)
 	if (!f) return;
 	fd = f->fd;
 	*ff = NULL;
+
+	f->fd = NULL;
 #ifdef G
 	f->hlt_pos = -1;
 	f->hlt_len = 0;
 	f->start_highlight_x = -1;
 	f->start_highlight_y = -1;
-#endif
-	if (f->frame_desc_link) {
-		destroy_formatted(f);
-		return;
-	}
-	f->fd = NULL;
-#ifdef G
 	f->locked_on = NULL;
 	free_list(f->image_refresh);
 #endif
-	if (f->uncacheable || !f_is_cacheable(f) || !is_format_cache_entry_uptodate(f) || !f->ses) {
+	if (f->frame_desc_link || f->uncacheable || !f_is_cacheable(f) || !is_format_cache_entry_uptodate(f) || !f->ses) {
 		destroy_formatted(f);
 	} else {
 		add_to_list(f->ses->format_cache, f);
@@ -1957,7 +1966,7 @@ static struct location *new_location(void)
 static struct location *alloc_ses_location(struct session *ses)
 {
 	struct location *loc;
-	if (!(loc = new_location())) return NULL;
+	loc = new_location();
 	add_to_list(ses->history, loc);
 	return loc;
 }
@@ -1971,7 +1980,7 @@ static void subst_location(struct f_data_c *fd, struct location *old, struct loc
 
 static struct location *copy_sublocations(struct session *ses, struct location *d, struct location *s, struct location *x)
 {
-	struct location *dl, *sl, *y, *z;
+	struct location *sl, *y;
 	d->name = stracpy(s->name);
 	if (s == x) return d;
 	d->url = stracpy(s->url);
@@ -1981,14 +1990,16 @@ static struct location *copy_sublocations(struct session *ses, struct location *
 	subst_location(ses->screen, s, d);
 	y = NULL;
 	foreach(sl, s->subframes) {
-		if ((dl = new_location())) {
-			struct list_head *l = (struct list_head *)d->subframes.prev;
-			add_to_list(*l, dl);
-			dl->parent = d;
-			z = copy_sublocations(ses, dl, sl, x);
-			if (z && y) internal("copy_sublocations: crossed references");
-			if (z) y = z;
-		}
+		struct list_head *l;
+		struct location *dl, *z;
+
+		dl = new_location();
+		l = (struct list_head *)d->subframes.prev;
+		add_to_list(*l, dl);
+		dl->parent = d;
+		z = copy_sublocations(ses, dl, sl, x);
+		if (z && y) internal("copy_sublocations: crossed references");
+		if (z) y = z;
 	}
 	return y;
 }
@@ -1997,7 +2008,7 @@ static struct location *copy_location(struct session *ses, struct location *loc)
 {
 	struct location *l2, *l1, *nl;
 	l1 = cur_loc(ses);
-	if (!(l2 = alloc_ses_location(ses))) return NULL;
+	l2 = alloc_ses_location(ses);
 	if (!(nl = copy_sublocations(ses, l2, l1, loc))) internal("copy_location: sublocation not found");
 	return nl;
 }
@@ -2005,7 +2016,7 @@ static struct location *copy_location(struct session *ses, struct location *loc)
 static struct f_data_c *new_main_location(struct session *ses)
 {
 	struct location *loc;
-	if (!(loc = alloc_ses_location(ses))) return NULL;
+	loc = alloc_ses_location(ses);
 	reinit_f_data_c(ses->screen);
 	ses->screen->loc = loc;
 	ses->screen->vs = loc->vs;
@@ -2016,7 +2027,7 @@ static struct f_data_c *new_main_location(struct session *ses)
 static struct f_data_c *copy_location_and_replace_frame(struct session *ses, struct f_data_c *fd)
 {
 	struct location *loc;
-	if (!(loc = copy_location(ses, fd->loc))) return NULL;
+	loc = copy_location(ses, fd->loc);
 	reinit_f_data_c(fd);
 	fd->loc = loc;
 	fd->vs = loc->vs;
@@ -2088,7 +2099,6 @@ static void ses_go_forward(struct session *ses, int plain, int refresh)
 		fd = copy_location_and_replace_frame(ses, fd);
 		if (cl) destroy_location(cl);
 	} else fd = new_main_location(ses);
-	if (!fd) return;
 	fd->vs->plain = plain;
 	ses->wtd = NULL;
 	fd->rq = ses->rq; ses->rq = NULL;
@@ -2345,7 +2355,7 @@ static void type_query_multiple_programs(struct session *ses, unsigned char *ct,
 	ml = getml(d, a, ct, text_array, NULL);
 
 	for (i = 0; i < n; i++) {
-		unsigned char *bla = stracpy(_(TEXT_(T_OPEN_WITH),ses->term));
+		unsigned char *bla = stracpy(get_text_translation(TEXT_(T_OPEN_WITH),ses->term));
 		add_to_strn(&bla, cast_uchar " ");
 		add_to_strn(&bla, a[i].label);
 
@@ -2804,7 +2814,7 @@ static int read_session_info(struct session *ses, void *data, int len)
 	return 0;
 }
 
-void destroy_session(struct session *ses)
+void cleanup_session(struct session *ses)
 {
 	struct download *d;
 	foreach(d, downloads) if (d->ses == ses && d->prog) {
@@ -2813,7 +2823,7 @@ void destroy_session(struct session *ses)
 	}
 	ses_abort_1st_state_loading(ses);
 	reinit_f_data_c(ses->screen);
-	mem_free(ses->screen);
+	ses->screen->vs = NULL;
 	while (!list_empty(ses->format_cache)) {
 		struct f_data *f = ses->format_cache.next;
 		del_from_list(f);
@@ -2821,11 +2831,18 @@ void destroy_session(struct session *ses)
 	}
 	while (!list_empty(ses->history)) destroy_location(ses->history.next);
 	clear_forward_history(ses);
-	if (ses->st) mem_free(ses->st);
-	if (ses->st_old) mem_free(ses->st_old);
-	if (ses->default_status)mem_free(ses->default_status);
+	if (ses->default_status) mem_free(ses->default_status), ses->default_status = NULL;
+	if (ses->search_word) mem_free(ses->search_word), ses->search_word = NULL;
+	ses_destroy_defered_jump(ses);
+}
+
+void destroy_session(struct session *ses)
+{
+	cleanup_session(ses);
+	mem_free(ses->screen);
+	if (ses->st) mem_free(ses->st), ses->st = NULL;
+	if (ses->st_old) mem_free(ses->st_old), ses->st_old = NULL;
 	if (ses->dn_url) mem_free(ses->dn_url);
-	if (ses->search_word) mem_free(ses->search_word);
 	if (ses->last_search_word) mem_free(ses->last_search_word);
 	if (ses->imgmap_href_base) mem_free(ses->imgmap_href_base);
 	if (ses->imgmap_target_base) mem_free(ses->imgmap_target_base);
@@ -2833,8 +2850,6 @@ void destroy_session(struct session *ses)
 
 	release_object(&ses->tq);
 	if (ses->tq_prog) mem_free(ses->tq_prog);
-
-	ses_destroy_defered_jump(ses);
 
 	del_from_list(ses);
 }

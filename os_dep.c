@@ -17,6 +17,10 @@
 #include <windows.h>
 #endif
 
+#if defined(__CYGWIN__) && defined(HAVE_LOCALE_H)
+#include <locale.h>
+#endif
+
 #ifdef HAVE_PTHREADS
 #include <pthread.h>
 #endif
@@ -1002,17 +1006,27 @@ void get_path_to_exe(void)
 void init_os_terminal(void)
 {
 #ifdef INTERIX
+	{
 	/* Some sort of terminal bug in Interix, if we run xterm -e links,
 	   terminal doesn't switch to raw mode, executing "stty sane" fixes it.
 	   Don't do this workaround on console. */
-	unsigned char *term = cast_uchar getenv("TERM");
-	if (!term || casecmp(term, cast_uchar "interix", 7)) {
-		system("stty sane 2>/dev/null");
+		unsigned char *term = cast_uchar getenv("TERM");
+		if (!term || casecmp(term, cast_uchar "interix", 7)) {
+			system("stty sane 2>/dev/null");
+		}
 	}
 #endif
 #ifdef OS2
 	if (os2_detached) {
 		fatal_exit("Links doesn't work in detached session");
+	}
+#endif
+#if defined(__CYGWIN__) && defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE) && defined(LC_CTYPE)
+	{
+		unsigned char *l = cast_uchar setlocale(LC_CTYPE, "");
+		if (!l || !casestrcmp(l, cast_uchar "C")) {
+			setlocale(LC_CTYPE, "en_US.utf-8");
+		}
 	}
 #endif
 }
@@ -1105,6 +1119,7 @@ unsigned char *os_conv_to_external_path(unsigned char *file, unsigned char *prog
 unsigned char *os_conv_to_external_path(unsigned char *file, unsigned char *prog)
 {
 	unsigned char *prog_start, *prog_end;
+	if (!prog) prog = ".exe";
 	cut_program_path(prog, &prog_start, &prog_end);
 	/* Convert path only if the program has ".exe" or ".bat" extension */
 	if (is_windows_program(prog_start, prog_end)) {
@@ -1135,12 +1150,16 @@ unsigned char *os_conv_to_external_path(unsigned char *file, unsigned char *prog
 	return stracpy(file);
 }
 
-#elif defined(DOS)
+#elif defined(OS2) || defined(DOS)
 
 unsigned char *os_conv_to_external_path(unsigned char *file, unsigned char *prog)
 {
 	unsigned char *f, *x;
 	f = stracpy(file);
+#ifdef OS2
+	if (prog)
+		return f;
+#endif
 	x = f;
 	while ((x = cast_uchar strchr(cast_const_char x, '/'))) *x = '\\';
 	return f;
@@ -1244,6 +1263,9 @@ int exe(unsigned char *path, int fg)
 		path = cast_uchar "";
 #endif
 #ifndef EXEC_IN_THREADS
+#ifdef SIGCHLD
+	do_signal(SIGCHLD, SIG_DFL);
+#endif
 	do_signal(SIGPIPE, SIG_DFL);
 #ifdef SIGXFSZ
 	do_signal(SIGXFSZ, SIG_DFL);
@@ -1422,7 +1444,7 @@ int exe(unsigned char *path, int fg)
 	}
 #endif
 	if (!is_winnt()) {
-		sleep(1);
+		portable_sleep(1000);
 		if (ct && GetConsoleTitleA(cast_char buffer2, sizeof buffer2) && !casecmp(buffer2, cast_uchar "start", 5)) {
 			SetConsoleTitleA(cast_const_char buffer);
 		}
@@ -2650,6 +2672,15 @@ static void gpm_mouse_in(struct gpm_mouse_spec *gms)
 	if (gev.buttons & GPM_B_LEFT) ev.b = B_LEFT;
 	else if (gev.buttons & GPM_B_MIDDLE) ev.b = B_MIDDLE;
 	else if (gev.buttons & GPM_B_RIGHT) ev.b = B_RIGHT;
+#ifdef GPM_B_FOURTH
+	else if (gev.buttons & GPM_B_FOURTH) ev.b = B_FOURTH;
+#endif
+#ifdef GPM_B_UP
+	else if (gev.buttons & GPM_B_UP) ev.b = B_FIFTH;
+#endif
+#ifdef GPM_B_DOWN
+	else if (gev.buttons & GPM_B_DOWN) ev.b = B_SIXTH;
+#endif
 	else return;
 	if ((int)gev.type & GPM_DOWN) ev.b |= B_DOWN;
 	else if ((int)gev.type & GPM_UP) ev.b |= B_UP;
@@ -3124,6 +3155,34 @@ int os_default_language(void)
 	if (!rc)
 		return get_country_language(ci.country);
 	return -1;
+}
+
+#elif defined(WIN)
+
+int os_default_language(void)
+{
+	LCID id;
+	unsigned char iso639[9];
+	unsigned char iso3166[9];
+	unsigned char loc[8 + 1 + 8 + 1];
+	unsigned char *lang;
+	lang = cast_uchar getenv("LANG");
+	if (lang) {
+		int l = get_language_from_lang(lang);
+		if (l >= 0)
+			return l;
+	}
+	id = GetUserDefaultUILanguage();
+	if (!GetLocaleInfo(id, LOCALE_SISO639LANGNAME, cast_char iso639, 9))
+		return -1;
+	iso3166[0] = 0;
+	GetLocaleInfo(id, LOCALE_SISO3166CTRYNAME, cast_char iso3166, 9);
+	strcpy(cast_char loc, cast_const_char iso639);
+	if (id >= 0x400 && iso3166[0]) {
+		strcat(cast_char loc, "_");
+		strcat(cast_char loc, cast_const_char iso3166);
+	}
+	return get_language_from_lang(loc);
 }
 
 #elif !defined(DOS)

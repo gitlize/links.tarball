@@ -821,7 +821,7 @@ struct graphics_driver directfb_driver =
   NULL,	 /*  get_clipboard_text */
   0,	 /*  depth      */
   0, 0,	 /*  size       */
-  GD_UNICODE_KEYS | GD_NO_OS_SHELL, /*  flags      */
+  GD_UNICODE_KEYS | GD_NO_OS_SHELL | GD_NOAUTO, /*  flags      */
   0,     /*  codepage   */
   NULL,	 /*  shell	*/
 };

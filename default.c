@@ -540,7 +540,7 @@ static void parse_config_file(unsigned char *name, unsigned char *file, struct o
 		f:
 		if (tok) mem_free(tok);
 	}
-	if (err) fprintf(stderr, "\007"), sleep(1);
+	if (err) fprintf(stderr, "\007"), portable_sleep(1000);
 }
 
 static unsigned char *create_config_string(struct option *options)
@@ -752,13 +752,20 @@ skip_path_conv:;
 			add_to_strn(&home_links, cast_uchar "/links");
 		} else {
 			fprintf(stderr, "CONFIG_DIR set to %s. But directory %s doesn't exist.\n\007", config_dir, home_links);
-			sleep(3);
+			portable_sleep(3000);
 			mem_free(home_links);
 			home_links = stracpy(home);
-			add_to_strn(&home_links, cast_uchar ".links");
+			goto add_dot_links;
 		}
 		mem_free(config_dir);
-	} else add_to_strn(&home_links, cast_uchar ".links");
+	} else {
+		add_dot_links:
+#ifdef OPENVMS
+		add_to_strn(&home_links, cast_uchar "links");
+#else
+		add_to_strn(&home_links, cast_uchar ".links");
+#endif
+	}
 	EINTRLOOP(rs, stat(cast_const_char home_links, &st));
 	if (rs) {
 #ifdef HAVE_MKDIR
@@ -830,7 +837,7 @@ void init_home(void)
 	links_home = get_home(&first_use);
 	if (!links_home) {
 		fprintf(stderr, "Unable to find or create links config directory. Please check, that you have $HOME variable set correctly and that you have write permission to your home directory.\n\007");
-		sleep(3);
+		portable_sleep(3000);
 		return;
 	}
 }
@@ -846,6 +853,7 @@ static int write_config_data(unsigned char *prefix, unsigned char *name, struct 
 	config_file = stracpy(prefix);
 	if (!config_file) {
 		mem_free(c);
+		if (term) msg_box(term, NULL, TEXT_(T_CONFIG_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_UNABLE_TO_WRITE_TO_CONFIG_FILE), cast_uchar ": ", TEXT_(T_HOME_DIRECTORY_INACCESSIBLE), NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return -1;
 	}
 	add_to_strn(&config_file, name);

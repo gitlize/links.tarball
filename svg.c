@@ -18,9 +18,16 @@
 #define LIBRSVG_CHECK_VERSION(a,b,c)	0
 #endif
 
+#if LIBRSVG_CHECK_VERSION(2,40,0) && !LIBRSVG_CHECK_VERSION(2,40,16)
+#define CURRENTCOLOR_HACK
+#endif
+
 #include "bits.h"
 
 #if defined(__CYGWIN__) && defined(HAVE_LIBFONTCONFIG)
+#ifdef HAVE_PTHREADS
+#define BACKGROUND_FONT_INIT
+#endif
 #include <fontconfig/fontconfig.h>
 #include <windows.h>
 #include <w32api/shlobj.h>
@@ -49,26 +56,80 @@ static void set_font_path(void)
 #define set_font_path()	do { } while (0)
 #endif
 
+static void *do_initialize_fonts(void *ptr)
+{
+#if !defined(GLIB_DEPRECATED_IN_2_36)
+	g_type_init();
+#endif
+#if !LIBRSVG_CHECK_VERSION(2,36,0)
+	rsvg_init();
+#endif
+	set_font_path();
+	return NULL;
+}
+
+
+#ifdef BACKGROUND_FONT_INIT
+
+#include <pthread.h>
+
+static pthread_t font_thread;
+
+void spawn_font_thread(void)
+{
+	int r;
+	if ((r = pthread_create(&font_thread, NULL, do_initialize_fonts, NULL)))
+		fatal_exit("Could not start thread: %s", strerror(r));
+}
+
+static void wait_for_fonts(void)
+{
+	static unsigned char font_initialized = 0;
+	if (!font_initialized) {
+		int r;
+		if ((r = pthread_join(font_thread, NULL)))
+			fatal_exit("pthread_join failed: %s", strerror(r));
+		font_initialized = 1;
+	}
+}
+
+#else
+
+void spawn_font_thread(void)
+{
+}
+
+static void wait_for_fonts(void)
+{
+	static unsigned char font_initialized = 0;
+	if (!font_initialized) {
+		do_initialize_fonts(NULL);
+		font_initialized = 1;
+	}
+}
+
+#endif
+
+
 struct svg_decoder {
 	RsvgHandle *handle;
+#ifdef CURRENTCOLOR_HACK
+	unsigned char *buffer;
+	int len;
+#endif
 };
 
 void svg_start(struct cached_image *cimg)
 {
 	struct svg_decoder *deco;
-	static unsigned char initialized = 0;
 
-	if (!initialized) {
-#if !LIBRSVG_CHECK_VERSION(2,36,0)
-		rsvg_init();
-#elif !defined(GLIB_DEPRECATED_IN_2_36)
-		g_type_init();
-#endif
-		set_font_path();
-		initialized = 1;
-	}
+	wait_for_fonts();
 
 	deco = mem_alloc(sizeof(struct svg_decoder));
+#ifdef CURRENTCOLOR_HACK
+	deco->buffer = init_str();
+	deco->len = 0;
+#endif
 
 	cimg->decoder = deco;
 	deco->handle = rsvg_handle_new();
@@ -77,13 +138,47 @@ void svg_start(struct cached_image *cimg)
 void svg_restart(struct cached_image *cimg, unsigned char *data, int length)
 {
 	struct svg_decoder *deco = (struct svg_decoder *)cimg->decoder;
+#ifndef CURRENTCOLOR_HACK
 	GError *er = NULL;
 
 	if (!rsvg_handle_write(deco->handle, (const guchar *)data, length, &er)) {
 		g_error_free(er);
 		img_end(cimg);
 	}
+#else
+	add_bytes_to_str(&deco->buffer, &deco->len, data, length);
+#endif
 }
+
+#ifdef CURRENTCOLOR_HACK
+#define find_string	"\"currentColor\""
+#define replace_string	"\"black\""
+static void svg_hack_buffer(struct svg_decoder *deco)
+{
+	unsigned char *new_buffer = init_str();
+	int new_len = 0;
+	unsigned char *ptr = deco->buffer;
+	while (1) {
+		int remaining = (int)(deco->buffer + deco->len - ptr);
+		unsigned char *f = memmem(ptr, remaining, find_string, strlen(cast_const_char find_string));
+		if (!f) {
+			if (!new_len) {
+				mem_free(new_buffer);
+				return;
+			}
+			add_bytes_to_str(&new_buffer, &new_len, ptr, remaining);
+			break;
+		} else {
+			add_bytes_to_str(&new_buffer, &new_len, ptr, f - ptr);
+			add_to_str(&new_buffer, &new_len, cast_uchar replace_string);
+			ptr = f + strlen(cast_const_char find_string);
+		}
+	}
+	mem_free(deco->buffer);
+	deco->buffer = new_buffer;
+	deco->len = new_len;
+}
+#endif
 
 void svg_finish(struct cached_image *cimg)
 {
@@ -93,6 +188,14 @@ void svg_finish(struct cached_image *cimg)
 	cairo_surface_t *surf;
 	cairo_t *cairo;
 	unsigned char *end_buffer, *p;
+
+#ifdef CURRENTCOLOR_HACK
+	svg_hack_buffer(deco);
+	if (!rsvg_handle_write(deco->handle, (const guchar *)deco->buffer, deco->len, &er)) {
+		g_error_free(er);
+		goto end;
+	}
+#endif
 
 	if (!rsvg_handle_close(deco->handle, &er)) {
 		g_error_free(er);
@@ -121,6 +224,8 @@ void svg_finish(struct cached_image *cimg)
 		cairo_scale(cairo, (double)cimg->width / (double)dim.width, (double)cimg->height / (double)dim.height);
 
 	rsvg_handle_render_cairo(deco->handle, cairo);
+
+	cairo_surface_flush(surf);
 
 	end_buffer = cimg->buffer + cimg->width * cimg->height * cimg->buffer_bytes_per_pixel;
 	if (htonl(0x12345678L) != 0x12345678L) {
@@ -164,6 +269,9 @@ void svg_destroy_decoder(struct cached_image *cimg)
 {
 	struct svg_decoder *deco = (struct svg_decoder *)cimg->decoder;
 	g_object_unref(deco->handle);
+#ifdef CURRENTCOLOR_HACK
+	mem_free(deco->buffer);
+#endif
 }
 
 void add_svg_version(unsigned char **s, int *l)

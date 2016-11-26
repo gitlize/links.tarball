@@ -296,7 +296,7 @@ void process_file(unsigned char *name, FILE *output, int char_number)
 		forbidden_0_to_7=print_char(output,c,forbidden_0_to_7);
 		count++;
 	}
-	fprintf(output,"\";\n");
+	fprintf(output,"\";\n\n");
 	stamp++;
 	rewind(f);
 	fonts[n_fonts-1].letters[char_number].length=count;
@@ -431,7 +431,6 @@ void build_font_table(FILE *output)
 		}
 	}
 	free(namelist);
-	fprintf(output,"\n");
 }
 
 void print_string(unsigned char * ptr, FILE * output)
@@ -447,7 +446,7 @@ void print_string(unsigned char * ptr, FILE * output)
 
 void print_letter(struct letter *p, FILE * output)
 {
-	fprintf(output,"{letter_%d,0x%08x,0x%08x,% 5d,% 5d, 0, 0}",p->begin,p->length,
+	fprintf(output,"\t{ letter_%d, 0x%08x, 0x%08x,% 4d,% 4d, NULL }",p->begin,p->length,
 		p->code, p->xsize, p->ysize);
 }
 
@@ -456,28 +455,25 @@ void print_font(int a, FILE * output)
 {
 	struct font *f=fonts+a;
 
-	fprintf(output,"{\n(unsigned char *)");
+	fprintf(output,"\t{\n\t\t(unsigned char *)");
 	print_string(f->family,output);
-	fprintf(output,",\n(unsigned char *)");
+	fprintf(output,",\n\t\t(unsigned char *)");
 	print_string(f->weight,output);
-	fprintf(output,",\n(unsigned char *)");
+	fprintf(output,",\n\t\t(unsigned char *)");
 	print_string(f->slant,output);
-	fprintf(output,",\n(unsigned char *)");
+	fprintf(output,",\n\t\t(unsigned char *)");
 	print_string(f->adstyl,output);
-	fprintf(output,",\n(unsigned char *)");
+	fprintf(output,",\n\t\t(unsigned char *)");
 	print_string(f->spacing,output);
-	fprintf(output,",\n");
-	fprintf(output,"%d,\n",n_letters);
-	fprintf(output,"%d,\n",f->n_letters);
+	fprintf(output,",\n\t\t%d,\n\t\t%d,\n\t},\n",n_letters, f->n_letters);
 	n_letters+=f->n_letters;
-	fprintf(output,"},\n");
 }
 
 void print_font_table(FILE *output)
 {
 	int a;
 
-	fprintf(output,"struct letter letter_data[%d]={\n",n_letters);
+	fprintf(output,"struct letter letter_data[%d] = {\n",n_letters);
 	for (a=0;a<n_fonts;a++){
 		struct letter *ptr=fonts[a].letters;
 		int count=fonts[a].n_letters;
@@ -489,13 +485,13 @@ void print_font_table(FILE *output)
 		}
 	}
 	fprintf(output,"};\n\n");
-	fprintf(output,"struct font font_table[%d]={\n",n_fonts);
+	fprintf(output,"struct font font_table[%d] = {\n",n_fonts);
 	n_letters=0;
 	for (a=0;a<n_fonts;a++){
 		print_font(a,output);
 	}
 	fprintf(output,"};\n");
-	fprintf(output,"\nint n_fonts=%d;\n",n_fonts);
+	fprintf(output,"\nint n_fonts = %d;\n",n_fonts);
 }
 
 int main(int argc, char **argv)

@@ -830,6 +830,13 @@ int os_default_charset(void)
 	return 0;
 }
 
+int dos_is_bw(void)
+{
+	unsigned char cfg;
+	dosmemget(0x410, sizeof cfg, &cfg);
+	return (cfg & 0x30) == 0x30;
+}
+
 #else
 
 typedef int dos_c_no_empty_unit;

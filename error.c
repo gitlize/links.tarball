@@ -184,7 +184,7 @@ static void er(int b, char *m, va_list l)
 	if (b) fprintf(stderr, ANSI_BELL);
 	fprintf(stderr, "\n");
 	fflush(stderr);
-	sleep(1);
+	portable_sleep(1000);
 }
 
 void error(char *m, ...)
@@ -555,7 +555,8 @@ unsigned char *memacpy(const unsigned char *src, size_t len)
 	unsigned char *m;
 	if (!(len + 1)) overalloc();
 	m = (unsigned char *)mem_alloc(len + 1);
-	memcpy(m, src, len);
+	if (len)
+		memcpy(m, src, len);
 	m[len] = 0;
 	return m;
 }
@@ -571,7 +572,8 @@ unsigned char *debug_memacpy(unsigned char *f, int l, const unsigned char *src, 
 {
 	unsigned char *m;
 	m = (unsigned char *)debug_mem_alloc(f, l, len + 1, 0);
-	memcpy(m, src, len);
+	if (len)
+		memcpy(m, src, len);
 	m[len] = 0;
 	return m;
 }

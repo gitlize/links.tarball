@@ -3879,7 +3879,7 @@ void js_downcall_game_over(void *context)
 {
 	struct f_data_c *fd=(struct f_data_c*)(((js_context*)(context))->ptr);
 
-	/* js_error(_(TEXT_(T_SCRIPT_KILLED_BY_USER),fd->ses->term),context);
+	/* js_error(get_text_translation(TEXT_(T_SCRIPT_KILLED_BY_USER),fd->ses->term),context);
 	 * Tato hlaska me srala. Na to bych neprisel, ze jsem prave zabil
 	 * rucne javascript. */
 	if (fd->ses->default_status)mem_free(fd->ses->default_status),fd->ses->default_status=NULL; /* pekne uklidime bordylek, ktery nam BFU nacintalo do status lajny */

@@ -175,7 +175,7 @@ static void free_auth_entry(struct http_auth *a)
 	mem_free(a);
 }
 
-void cleanup_auth(void)
+void free_auth(void)
 {
 	while (!list_empty(auth)) free_auth_entry(auth.next);
 }

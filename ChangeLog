@@ -1,3 +1,92 @@
+=== RELEASE 2.14 ===
+
+Thu Nov  3 19:45:34 CET 2016 mikulas:
+
+	Enable DECC$EFS_CHARSET on OpenVMS, so that we can browser files and
+	directories with extended names
+
+Wed Nov  2 20:35:31 CET 2016 mikulas:
+
+	Limit keepalive of ciphers with 64-bit block size to mitigate
+	the SWEET32 attack
+
+Wed Nov  2 19:14:33 CET 2016 mikulas:
+
+	Disable SSL compression to avoid the CRIME attack
+
+Fri Oct 28 22:52:49 CEST 2016 mikulas:
+
+	On Windows, add an entry to programs in control panel, that allows
+	uninstalling Links
+
+Fri Oct 28 21:25:28 CEST 2016 mikulas:
+
+	Report home directory in the "Version" window
+
+Sat Oct 22 13:17:04 CEST 2016 mikulas:
+
+	On Windows, preload font data in a background thread, to minimize a
+	stall when viewing SVG image for the first time.
+
+Sat Oct  8 17:14:59 CEST 2016 mikulas:
+
+	Improved tor hardening - when the user toggles the "Only Proxies" option
+	(i.e. when connecting to tor), we reset certain other options to their
+	default values, so that it is not possible to identify user behind tor
+	based on the selected options.
+
+Thu Oct  6 14:39:26 CEST 2016 mikulas:
+
+	Use keys 'P' and 'L' to scroll up and down
+
+Thu Sep 29 23:40:34 CEST 2016 Juhani Haverinen <juhani.haverinen@gmail.com>:
+
+	Fix a memory leak when copying the current url to clipboard
+	(the bug was introduced in Links 2.13)
+
+Sat Sep  3 20:02:26 CEST 2016 mikulas:
+
+	Fix crash when the user pressed Ctrl-G on a form field
+	(the bug was introduced in Links 2.13)
+
+Fri Aug 19 22:35:54 CEST 2016 mikulas:
+
+	Workaround for a bug in librsvg that makes mathematics on Wikipedia
+	unreadable
+
+Fri Aug 19 19:05:55 CEST 2016 mikulas:
+
+	Support fourth and fifth mouse button in gpm and framebuffer
+
+Thu Aug 18 19:34:47 CEST 2016 mikulas:
+
+	Fixed bugs when downgrading SSL connection while https proxy or socks
+	proxy is used
+
+Tue Aug 16 18:53:53 CEST 2016 mikulas:
+
+	Security bug fixed: Don't load or render the content of
+	"407 Proxy Authentication Required" reply when using https proxy.
+	This avoids the FalseCONNECT attack.
+
+	Also, don't allow 401 and 407 responses to set cookies.
+
+Wed Jul 27 21:38:37 CEST 2016 mikulas:
+
+	Pop openssl error stack on every error - make sure that SSL errors on
+	one connection do not affect other connections
+
+Sun Jul 17 21:10:12 CEST 2016 mikulas:
+
+	Use libc tree functions from <search.h> for searching the cache
+
+Thu Jul  7 19:39:15 CEST 2016 mikulas:
+
+	Set the GD_NOAUTO flag for the directfb driver, so that this driver is
+	never selected automatically. The directfb subsystem is buggy, it can
+	corrupt graphics or even cause system crash, so select this driver only
+	if the user explicitly requests it with '-driver directfb'
+
 === RELEASE 2.13 ===
 
 Sat Jun 18 14:15:55 CEST 2016 mikulas:

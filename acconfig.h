@@ -89,7 +89,13 @@
 #undef HAVE_MEMSET
 
 /* */
+#undef HAVE_MEMMEM
+
+/* */
 #undef HAVE_STRERROR
+
+/* */
+#undef HAVE_SIGFILLSET
 
 /* */
 #undef HAVE_SIGSETJMP

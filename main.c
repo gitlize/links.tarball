@@ -64,7 +64,7 @@ void sig_tstp(struct terminal *t)
 	if (!newpid) {
 		while (1) {
 			int rr;
-			sleep(1);
+			portable_sleep(1000);
 			EINTRLOOP(rr, kill(pid, SIGCONT));
 		}
 	}
@@ -371,6 +371,8 @@ static void init(void)
 	}
 	if ((dds.assume_cp = get_cp_index(cast_uchar "ISO-8859-1")) == -1) dds.assume_cp = 0;
 	load_config();
+	if (proxies.only_proxies)
+		reset_settings_for_tor();
 	init_b = 1;
 	init_bookmarks();
 	create_initial_extensions();
@@ -458,6 +460,7 @@ static void init(void)
 						return;
 					}
 				}
+				spawn_font_thread();
 				init_dither(drv->depth);
 			}
 #else
@@ -548,7 +551,7 @@ static void terminate_all_subsystems(void)
 	free_conv_table();
 	free_blacklist();
 	if (init_b) cleanup_cookies();
-	cleanup_auth();
+	free_auth();
 	check_bottom_halves();
 	end_config();
 	free_strerror_buf();
@@ -602,7 +605,7 @@ int main(int argc, char *argv[])
 			gettimeofday(&tv2, NULL);
 			if (dst) mem_free(dst);
 			if (i)
-				tm += (tv2.tv_sec * 1000000 + tv2.tv_usec) - (tv1.tv_sec * 1000000 + tv1.tv_usec);
+				tm += ((ulonglong)tv2.tv_sec * 1000000 + tv2.tv_usec) - ((ulonglong)tv1.tv_sec * 1000000 + tv1.tv_usec);
 		}
 		fprintf(stderr, "time: %f\n", (double)tm / 1000 / rep);
 		check_memory_leaks();

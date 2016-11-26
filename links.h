@@ -170,6 +170,9 @@
 #endif /* _SETJMP_H */
 #endif
 #endif
+#ifdef HAVE_SEARCH_H
+#include <search.h>
+#endif
 
 #ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
@@ -198,7 +201,7 @@
 
 #ifdef HAVE_OPENSSL
 
-#ifndef NO_SSL_CERTIFICATES
+#if !defined(NO_SSL_CERTIFICATES) && defined(HAVE_OPENSSL_X509V3_H) && defined(HAVE_X509_GET_EXT_D2I)
 #define HAVE_SSL_CERTIFICATES
 #endif
 #if defined(OPENVMS) && defined(__VAX)
@@ -207,7 +210,11 @@
 
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
+#ifdef HAVE_SSL_CERTIFICATES
 #include <openssl/x509v3.h>
+#endif
+#include <openssl/err.h>
+#include <openssl/crypto.h>
 
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
 #ifndef OPENSSL_NO_SSL2
@@ -408,6 +415,9 @@ void *memmove(void *, const void *, size_t);
 #ifndef HAVE_MEMSET
 void *memset(void *, int, size_t);
 #endif
+#ifndef HAVE_MEMMEM
+void *memmem(const void *haystack, size_t hs, const void *needle, size_t ns);
+#endif
 #ifndef HAVE_STRERROR
 char *strerror(int);
 #endif
@@ -425,7 +435,7 @@ do {							\
 	(ret_) = (call_);				\
 } while (!(ret_) && errno == EINTR)
 
-#if defined(HAVE_PTHREAD_SIGMASK)
+#if defined(HAVE_PTHREAD_SIGMASK) && !defined(__BIONIC__)
 static inline int do_sigprocmask(int how, const sigset_t *set, sigset_t *oset)
 {
 	int r;
@@ -1060,6 +1070,14 @@ struct lookup_result {
 	struct host_address a[MAX_ADDRESSES];
 };
 
+struct lookup_state {
+	struct lookup_result addr;
+	int addr_index;
+	int dont_try_more_servers;
+	int socks_port;
+	int target_port;
+};
+
 #ifdef SUPPORT_IPV6
 extern int support_ipv6;
 #else
@@ -1084,7 +1102,6 @@ void init_dns(void);
 struct cache_entry {
 	struct cache_entry *next;
 	struct cache_entry *prev;
-	unsigned char *url;
 	unsigned char *head;
 	int http_code;
 	unsigned char *redirect;
@@ -1105,6 +1122,7 @@ struct cache_entry {
 #ifdef HAVE_SSL
 	unsigned char *ssl_info;
 #endif
+	unsigned char url[1];
 };
 
 struct fragment {
@@ -1134,6 +1152,14 @@ void delete_cache_entry(struct cache_entry *e);
 void trim_cache_entry(struct cache_entry *e);
 
 /* sched.c */
+
+#ifdef HAVE_SSL
+typedef struct {
+	SSL *ssl;
+	tcount bytes_read;
+	tcount bytes_written;
+} links_ssl;
+#endif
 
 #define PRI_MAIN	0
 #define PRI_DOWNLOAD	0
@@ -1189,8 +1215,10 @@ struct connection {
 	struct timer *timer;
 	int detached;
 	unsigned char socks_proxy[MAX_STR_LEN];
+	unsigned char dns_append[MAX_STR_LEN];
+	struct lookup_state last_lookup_state;
 #ifdef HAVE_SSL
-	SSL *ssl;
+	links_ssl *ssl;
 	int no_tls;
 #endif
 };
@@ -1210,7 +1238,7 @@ struct k_conn {
 	ttime add_time;
 	int protocol_data;
 #ifdef HAVE_SSL
-	SSL *ssl;
+	links_ssl *ssl;
 #endif
 };
 
@@ -1453,7 +1481,7 @@ void free_cookie(struct cookie *c);
 
 unsigned char *get_auth_realm(unsigned char *url, unsigned char *head, int proxy);
 unsigned char *get_auth_string(unsigned char *url, int proxy);
-void cleanup_auth(void);
+void free_auth(void);
 void add_auth(unsigned char *url, unsigned char *realm, unsigned char *user, unsigned char *password, int proxy);
 int find_auth(unsigned char *url, unsigned char *realm);
 
@@ -1465,18 +1493,20 @@ unsigned char *parse_header_param(unsigned char *, unsigned char *, int);
 void http_func(struct connection *);
 void proxy_func(struct connection *);
 
-
 /* https.c */
 
 void https_func(struct connection *c);
 #ifdef HAVE_SSL
 extern int ssl_asked_for_password;
 void ssl_finish(void);
-SSL *getSSL(void);
+links_ssl *getSSL(void);
+void freeSSL(links_ssl *);
 #ifdef HAVE_SSL_CERTIFICATES
-int verify_ssl_certificate(SSL *ssl, unsigned char *host);
-int verify_ssl_cipher(SSL *ssl);
+int verify_ssl_certificate(links_ssl *ssl, unsigned char *host);
+int verify_ssl_cipher(links_ssl *ssl);
 #endif
+int ssl_not_reusable(links_ssl *ssl);
+unsigned char *get_cipher_string(links_ssl *ssl);
 #endif
 
 /* data.c */
@@ -1626,8 +1656,8 @@ struct lru {
 void lru_insert(struct lru *cache, void *entry, struct lru_entry **row, unsigned bytes_consumed);
 void *lru_get_bottom(struct lru *cache);
 void lru_destroy_bottom(struct lru *cache);
-void lru_init (struct lru *cache, int (*compare_function)(void *entry, void *templ));
-void *lru_lookup(struct lru *cache, void *templ, struct lru_entry *row);
+void lru_init(struct lru *cache, int (*compare_function)(void *entry, void *templ));
+void *lru_lookup(struct lru *cache, void *templ, struct lru_entry **row);
 
 /* drivers.c */
 
@@ -1848,9 +1878,6 @@ void shutdown_virtual_devices(void);
 #define cmd_limit_16(x)	do { } while (0)
 #endif
 
-#define FC_COLOR 0
-#define FC_BW 1
-
 #define sRGB_gamma	0.45455		/* For HTML, which runs
 					 * according to sRGB standard. Number
 					 * in HTML tag is linear to photons raised
@@ -1869,7 +1896,6 @@ struct letter {
 	short xsize; /* x size of the PNG image */
 	short ysize; /* y size of the PNG image */
 	struct lru_entry* color_list;
-	struct lru_entry* bw_list;
 };
 
 struct font {
@@ -1906,11 +1932,8 @@ struct style {
 };
 
 struct font_cache_entry {
-	int type; /* One of FC_BW or FC_COLOR */
-	int r0,g0,b0,r1,g1,b1; /* Invalid for FC_BW */
-	struct bitmap bitmap; /* If type==FC_BW, then this is not a normal registered
-			       * bitmap, but a black-and-white bitmap
-			       */
+	unsigned char r0,g0,b0,r1,g1,b1;
+	struct bitmap bitmap;
 	int mono_space, mono_height; /* if the letter was rendered for a
 	monospace font, then size of the space. Otherwise, mono_space
 	is -1 and mono_height is undefined. */
@@ -2265,6 +2288,7 @@ void shutdown_trans(void);
 #if defined(OS2) || defined(DOS)
 int get_country_language(int c);
 #endif
+int get_language_from_lang(unsigned char *);
 int get_default_language(void);
 int get_default_charset(void);
 int get_current_language(void);
@@ -2274,7 +2298,6 @@ void set_language(int);
 int n_languages(void);
 unsigned char *language_name(int);
 
-#define _(x_, y_) get_text_translation(x_, y_)
 #define TEXT_(x) (dummyarray + x) /* TEXT causes name clash on windows */
 
 /* dos.c */
@@ -2284,6 +2307,7 @@ void dos_poll_break(void);
 void dos_mouse_terminate(void);
 void dos_save_screen(void);
 void dos_restore_screen(void);
+int dos_is_bw(void);
 #else
 #define dos_poll_break()	do { } while (0)
 #endif
@@ -2619,10 +2643,16 @@ extern struct rgb palette_16_colors[16];
  * struct document_setup dds = { ... };
  */
 struct document_setup {
-	int assume_cp, hard_assume;
-	int tables, frames, break_long_lines, images, image_names;
+	int assume_cp;
+	int hard_assume;
+	int tables;
+	int frames;
+	int break_long_lines;
+	int images;
+	int image_names;
 	int margin;
-	int num_links, table_order;
+	int num_links;
+	int table_order;
 	int auto_refresh;
 	int font_size;
 	int display_images;
@@ -3381,6 +3411,7 @@ void map_selected(struct terminal *term, struct link_def *ld, struct session *se
 void go_back(struct session *, int);
 void go_backwards(struct terminal *term, void *psteps, struct session *ses);
 void reload(struct session *, int);
+void cleanup_session(struct session *);
 void destroy_session(struct session *);
 void ses_destroy_defered_jump(struct session *ses);
 struct f_data_c *find_frame(struct session *ses, unsigned char *target, struct f_data_c *base);
@@ -3818,6 +3849,7 @@ int find_msg_box(struct terminal *term, unsigned char *title, int (*sel)(void *,
 extern struct history goto_url_history;
 
 void activate_keys(struct session *ses);
+void reset_settings_for_tor(void);
 void activate_bfu_technology(struct session *, int);
 void dialog_goto_url(struct session *ses, unsigned char *url);
 void dialog_save_url(struct session *ses);
@@ -4042,7 +4074,9 @@ void add_tiff_version(unsigned char **s, int *l);
 
 /* svg.c */
 
-#ifdef G
+#if defined(G) && defined(HAVE_SVG)
+
+void spawn_font_thread(void);
 
 void svg_start(struct cached_image *cimg);
 void svg_restart(struct cached_image *cimg, unsigned char *data, int length);
@@ -4050,6 +4084,10 @@ void svg_finish(struct cached_image *cimg);
 void svg_destroy_decoder(struct cached_image *cimg);
 
 void add_svg_version(unsigned char **s, int *l);
+
+#else
+
+#define spawn_font_thread()	do { } while (0)
 
 #endif
 
@@ -4353,6 +4391,7 @@ int get_color(unsigned char *, unsigned char *, struct rgb *);
 int get_bgcolor(unsigned char *, struct rgb *);
 void html_stack_dup(void);
 void kill_html_stack_item(struct html_element *);
+int should_skip_script(unsigned char *);
 unsigned char *skip_comment(unsigned char *, unsigned char *);
 void parse_html(unsigned char *, unsigned char *, void (*)(void *, unsigned char *, int), void (*)(void *), void *(*)(void *, int, ...), void *, unsigned char *);
 int get_image_map(unsigned char *, unsigned char *, unsigned char *, unsigned char *a, struct menu_item **, struct memory_list **, unsigned char *, unsigned char *, int, int, int, int gfx);

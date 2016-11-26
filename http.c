@@ -205,7 +205,7 @@ static void add_url_to_str(unsigned char **str, int *l, unsigned char *url)
 static void http_send_header(struct connection *c)
 {
 	struct http_connection_info *info;
-	int http10 = http_options.http10 && !SCRUB_HEADERS;
+	int http10 = http_options.http10;
 	int proxy;
 	unsigned char *hdr;
 	unsigned char *h, *u;
@@ -384,7 +384,7 @@ static void add_user_agent(unsigned char **hdr, int *l)
 
 static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url)
 {
-	if (SCRUB_HEADERS)
+	if (proxies.only_proxies)
 		return;
 	switch (http_options.header.referer)
 	{
@@ -458,7 +458,7 @@ static void add_accept_language(unsigned char **hdr, int *l, struct http_connect
 		} else {
 			int la;
 			la = *l;
-			add_to_str(hdr, l, _(TEXT_(T__ACCEPT_LANGUAGE), NULL));
+			add_to_str(hdr, l, get_text_translation(TEXT_(T__ACCEPT_LANGUAGE), NULL));
 			add_to_str(hdr, l, cast_uchar ",");
 			if (!strstr(cast_const_char(*hdr + la), "en,") &&
 			    !strstr(cast_const_char(*hdr + la), "en;")) add_to_str(hdr, l, cast_uchar "en;q=0.2,");
@@ -842,7 +842,6 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	off_t cf;
 	int state = c->state != S_PROC ? S_GETH : S_PROC;
 	unsigned char *head;
-	unsigned char *cookie, *ch;
 	int a, h = 0, version = 0;	/* against warning */
 	unsigned char *d;
 	struct cache_entry *e;
@@ -897,12 +896,6 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		retry_connection(c);
 		return;
 	}
-	ch = head;
-	while ((cookie = parse_http_header(ch, cast_uchar "Set-Cookie", &ch))) {
-		unsigned char *host = remove_proxy_prefix(c->url);
-		set_cookie(NULL, host, cookie);
-		mem_free(cookie);
-	}
 	if (h == 100) {
 		mem_free(head);
 		state = S_PROC;
@@ -930,6 +923,15 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		return;
 	}
 #endif
+	if (h != 401 && h != 407) {
+		unsigned char *cookie;
+		unsigned char *ch = head;
+		while ((cookie = parse_http_header(ch, cast_uchar "Set-Cookie", &ch))) {
+			unsigned char *host = remove_proxy_prefix(c->url);
+			set_cookie(NULL, host, cookie);
+			mem_free(cookie);
+		}
+	}
 	if (h == 204) {
 		mem_free(head);
 		http_end_request(c, 0, 0, S_HTTP_204);
@@ -1003,22 +1005,8 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 #ifdef HAVE_SSL
 	if (c->ssl) {
-		unsigned char *version, *cipher;
-		int l = 0;
 		if (e->ssl_info) mem_free(e->ssl_info);
-		e->ssl_info = init_str();
-		add_num_to_str(&e->ssl_info, &l, SSL_get_cipher_bits(c->ssl, NULL));
-		add_to_str(&e->ssl_info, &l, cast_uchar "-bit");
-		version = cast_uchar SSL_get_cipher_version(c->ssl);
-		if (version) {
-			add_chr_to_str(&e->ssl_info, &l, ' ');
-			add_to_str(&e->ssl_info, &l, version);
-		}
-		cipher = cast_uchar SSL_get_cipher_name(c->ssl);
-		if (cipher) {
-			add_chr_to_str(&e->ssl_info, &l, ' ');
-			add_to_str(&e->ssl_info, &l, cipher);
-		}
+		e->ssl_info = get_cipher_string(c->ssl);
 	}
 #endif
 	if (e->redirect) mem_free(e->redirect), e->redirect = NULL;
@@ -1132,6 +1120,11 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		truncate_entry(e, c->from, 0);
 	} else if (previous_http_code == 401 || previous_http_code == 407) {
 		truncate_entry(e, c->from, 0);
+	}
+
+	if (info->https_forward && h == 407) {
+		http_end_request(c, 0, 1, S__OK);
+		return;
 	}
 
 	read_http_data(c, rb);

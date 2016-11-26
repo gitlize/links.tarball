@@ -432,7 +432,7 @@ static inline void move_links(struct part *p, int xf, int yf, int xt, int yt)
 	for (n = last_link_to_move; n < p->data->nlinks; n++) {
 		int i;
 		struct link *link = &p->data->links[n];
-			/*printf("ml: %d %d %d %d",link->pos[0].x,link->pos[0].y,X(xf),Y(yf));fflush(stdout);sleep(1);*/
+			/*printf("ml: %d %d %d %d",link->pos[0].x,link->pos[0].y,X(xf),Y(yf));fflush(stdout);portable_sleep(1000);*/
 		for (i = link->first_point_to_move; i < link->n; i++) if (link->pos[i].y >= Y(yf)) {
 			w = 1;
 			if (link->pos[i].y == Y(yf) && link->pos[i].x >= X(xf)) {
@@ -610,7 +610,7 @@ static void put_chars(void *p_, unsigned char *c, int l)
 
 	if (l < 0) overalloc();
 
-	/*printf("%d-", p->cx);for (i=0; i<l; i++) printf("%c", c[i]); printf("-\n");sleep(1);*/
+	/*printf("%d-", p->cx);for (i=0; i<l; i++) printf("%c", c[i]); printf("-\n");portable_sleep(1000);*/
 	while (p->cx <= par_format.leftmargin && l && *c == ' ' && par_format.align != AL_NO && par_format.align != AL_NO_BREAKABLE) c++, l--;
 	if (!l) return;
 	if (p->cx < par_format.leftmargin) p->cx = par_format.leftmargin;

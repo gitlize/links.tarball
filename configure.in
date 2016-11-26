@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.13)
+AM_INIT_AUTOMAKE(links, 2.14)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -183,7 +183,7 @@ fi
 dnl Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS(alloca.h arpa/inet.h cygwin/process.h cygwin/version.h endian.h fcntl.h grp.h ieee.h interix/interix.h inttypes.h io.h langinfo.h limits.h linux/falloc.h malloc.h math.h net/socket.h netinet/dhcp.h netinet/in_system.h netinet/in_systm.h netinet/ip.h poll.h process.h pwd.h setjmp.h sgtty.h stdarg.h string.h strings.h sys/cygwin.h sys/file.h sys/fmutex.h sys/ioctl.h sys/resource.h sys/select.h sys/time.h sys/un.h sys/utsname.h termios.h time.h umalloc.h unistd.h unixlib.h utime.h uwin.h values.h)
+AC_CHECK_HEADERS(alloca.h arpa/inet.h cygwin/process.h cygwin/version.h fcntl.h grp.h ieee.h interix/interix.h inttypes.h io.h langinfo.h limits.h linux/falloc.h locale.h malloc.h math.h net/socket.h netinet/dhcp.h netinet/in_system.h netinet/in_systm.h netinet/ip.h poll.h process.h pwd.h search.h setjmp.h sgtty.h stdarg.h string.h strings.h sys/cygwin.h sys/file.h sys/fmutex.h sys/ioctl.h sys/resource.h sys/select.h sys/time.h sys/un.h sys/utsname.h termios.h time.h umalloc.h unistd.h unixlib.h utime.h uwin.h values.h)
 dnl javascript AC_CHECK_HEADERS(md5.h)
 
 if test "$ac_cv_header_stdarg_h" != yes; then
@@ -305,7 +305,7 @@ dnl Checks for library functions.
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_HAVE_FUNCS(bcmp bcopy bzero calloc cfmakeraw chmod cygwin_conv_path cygwin_conv_to_full_win32_path dirfd fallocate getcwd getgrgid getpagesize getpid getpwuid getrlimit gettimeofday kqueue malloc_trim mallopt mkdir mktime nl_langinfo poll popen posix_fallocate raise select setlocale setpgid setrlimit setsid sigaction sigblock sigdelset sigfillset sigprocmask sigsetmask snprintf strdup strptime strtod strtoimax strtol strtoll strtoq strtoul tempnam uname unixpath2win utime utimes uwin_path winpath2unix _heapmin _ucreate _udefault _udestroy _uopen __strtoll)
+AC_HAVE_FUNCS(bcmp bcopy bzero calloc cfmakeraw chmod cygwin_conv_path cygwin_conv_to_full_win32_path dirfd fallocate getcwd getgrgid getpagesize getpid getpwuid getrlimit gettimeofday kqueue malloc_trim mallopt mkdir mktime nl_langinfo poll popen posix_fallocate raise select setlocale setpgid setrlimit setsid sigaction sigblock sigdelset sigprocmask sigsetmask snprintf strdup strptime strtod strtoimax strtol strtoll strtoq strtoul tdelete tempnam tfind tsearch uname unixpath2win utime utimes uwin_path winpath2unix _heapmin _ucreate _udefault _udestroy _uopen __strtoll)
 
 
 AC_HAVE_FUNCS(strlen)
@@ -420,6 +420,15 @@ if test "$ac_cv_have_memset" = yes; then
 	AC_DEFINE(HAVE_MEMSET)
 fi
 
+AC_HAVE_FUNCS(memmem)
+AC_CACHE_CHECK([for memmem], ac_cv_have_memmem,
+	AC_TRY_LINK([#define _GNU_SOURCE
+#include <string.h>], [memmem("", 0, "", 0); return 0;], ac_cv_have_memmem=yes, ac_cv_have_memmem=no)
+)
+if test "$ac_cv_have_memmem" = yes; then
+	AC_DEFINE(HAVE_MEMMEM)
+fi
+
 AC_HAVE_FUNCS(strerror)
 AC_CACHE_CHECK([for strerror], ac_cv_have_strerror,
 	AC_TRY_LINK([#include <string.h>], [char *c = strerror(1); return 0;], ac_cv_have_strerror=yes, ac_cv_have_strerror=no)
@@ -428,13 +437,20 @@ if test "$ac_cv_have_strerror" = yes; then
 	AC_DEFINE(HAVE_STRERROR)
 fi
 
-dnl AC_HAVE_FUNCS(sigsetjmp siglongjmp)
+AC_CACHE_CHECK([for sigfillset], ac_cv_have_sigfillset,
+	AC_TRY_LINK([#include <signal.h>], [sigset_t set; sigfillset(&set);], ac_cv_have_sigfillset=yes, ac_cv_have_sigfillset=no)
+)
+if test "$ac_cv_have_sigfillset" = yes; then
+	AC_DEFINE(HAVE_SIGFILLSET)
+fi
+
 AC_CACHE_CHECK([for sigsetjmp/siglongjmp], ac_cv_have_sigsetjmp,
 	AC_TRY_LINK([#include <setjmp.h>], [sigjmp_buf env;sigsetjmp(env, 1);siglongjmp(env, 2);], ac_cv_have_sigsetjmp=yes, ac_cv_have_sigsetjmp=no)
 )
 if test "$ac_cv_have_sigsetjmp" = yes; then
 	AC_DEFINE(HAVE_SIGSETJMP)
 fi
+
 AC_CACHE_CHECK([for __builtin_add_overflow], ac_cv_have___builtin_add_overflow,
 	AC_TRY_LINK([], [int a = 1, b = 2, c; return __builtin_add_overflow(a, b, &c);], ac_cv_have___builtin_add_overflow=yes, ac_cv_have___builtin_add_overflow=no)
 )
@@ -750,8 +766,8 @@ if test -z "$disable_ssl"; then
 			AC_MSG_CHECKING([for OpenSSL])
 			CPPFLAGS="$CPPFLAGS_XX $OPENSSL_CFLAGS"
 			LIBS="$OPENSSL_LIBS $LIBS_XX"
-			AC_TRY_LINK([#include <openssl/ssl.h>
-#include <openssl/x509v3.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
+			AC_TRY_LINK([#include <stdio.h>
+#include <openssl/ssl.h>], [SSL_CTX_new((void *)0)], cf_result=openssl, cf_result=no)
 			AC_MSG_RESULT($cf_result)
 		fi
 	fi
@@ -770,8 +786,8 @@ if test -z "$disable_ssl"; then
 					LIBS="-lssl -lcrypto $LIBS_XX"
 					CPPFLAGS="$CPPFLAGS_XX"
 				fi
-				AC_TRY_LINK([#include <openssl/ssl.h>
-#include <openssl/x509v3.h>], [SSLeay_add_ssl_algorithms()], cf_result=openssl, cf_result=no)
+				AC_TRY_LINK([#include <stdio.h>
+#include <openssl/ssl.h>], [SSL_CTX_new((void *)0)], cf_result=openssl, cf_result=no)
 			fi
 		done
 		AC_MSG_RESULT($cf_result)
@@ -793,7 +809,7 @@ if test -z "$disable_ssl"; then
 		CPPFLAGS="$CPPFLAGS_X $NSS_CFLAGS"
 		LIBS="-lnss_compat_ossl $NSS_LIBS $LIBS_X"
 		AC_MSG_CHECKING([for NSS-compat-ossl])
-		AC_TRY_LINK([#include <nss_compat_ossl/nss_compat_ossl.h>], [SSLeay_add_ssl_algorithms()], cf_result=nss, cf_result=no)
+		AC_TRY_LINK([#include <nss_compat_ossl/nss_compat_ossl.h>], [SSL_CTX_new((void *)0)], cf_result=nss, cf_result=no)
 		AC_MSG_RESULT($cf_result)
 	fi
 
@@ -807,11 +823,12 @@ if test -z "$disable_ssl"; then
 		AC_DEFINE(HAVE_SSL)
 		if test "$cf_result" = openssl; then
 			AC_DEFINE(HAVE_OPENSSL)
+			AC_CHECK_HEADERS(openssl/x509v3.h)
 		fi
 		if test "$cf_result" = nss; then
 			AC_DEFINE(HAVE_NSS)
 		fi
-		AC_HAVE_FUNCS(RAND_add RAND_egd RAND_file_name RAND_load_file RAND_write_file SSLv2_client_method SSLv3_client_method)
+		AC_HAVE_FUNCS(RAND_add RAND_egd RAND_file_name RAND_load_file RAND_write_file OPENSSL_init_ssl SSL_load_error_strings SSL_get_ssl_method SSLv2_client_method SSLv3_client_method TLSv1_client_method TLSv1_1_client_method TLSv1_2_client_method ASN1_STRING_get0_data X509_get_ext_d2i)
 	fi
 fi
 #endif

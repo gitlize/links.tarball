@@ -117,7 +117,7 @@ static unsigned char *assoc_type_item(struct terminal *term, void *data, int x)
 	unsigned char *txt, *txt1;
 	struct assoc* item=(struct assoc*)data;
 
-	if ((struct list*)item==(&assoc))return stracpy(_(TEXT_(T_ASSOCIATIONS),term));
+	if ((struct list*)item==(&assoc))return stracpy(get_text_translation(TEXT_(T_ASSOCIATIONS),term));
 	txt=stracpy(cast_uchar "");
 	if (item->system != SYSTEM_ID) add_to_strn(&txt, cast_uchar "XX ");
 	add_to_strn(&txt, item->label);
@@ -184,11 +184,11 @@ static void assoc_edit_item_fn(struct dialog_data *dlg)
 	if (w > term->x - 2 * DIALOG_LB) w = term->x - 2 * DIALOG_LB;
 	if (w < 1) w = 1;
 	rw = 0;
-	dlg_format_text_and_field(dlg, NULL, _(ct_msg[0], term), &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, get_text_translation(ct_msg[0], term), &dlg->items[0], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE * 1);
-	dlg_format_text_and_field(dlg, NULL, _(ct_msg[1], term), &dlg->items[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, get_text_translation(ct_msg[1], term), &dlg->items[1], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE * 1);
-	dlg_format_text_and_field(dlg, NULL, _(ct_msg[2], term), &dlg->items[2], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	dlg_format_text_and_field(dlg, NULL, get_text_translation(ct_msg[2], term), &dlg->items[2], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
 	y += gf_val(1, G_BFU_FONT_SIZE * 1);
 	dlg_format_group(dlg, NULL, ct_msg + 3, dlg->items + 3, p, 0, &y, w, &rw);
 	y += gf_val(1, G_BFU_FONT_SIZE);
@@ -494,7 +494,7 @@ static unsigned char *ext_type_item(struct terminal *term, void *data, int x)
 	unsigned char *txt, *txt1;
 	struct extension* item=(struct extension*)data;
 
-	if ((struct list*)item==(&extensions)) return stracpy(_(TEXT_(T_FILE_EXTENSIONS),term));
+	if ((struct list*)item==(&extensions)) return stracpy(get_text_translation(TEXT_(T_FILE_EXTENSIONS),term));
 	txt=stracpy(item->ext);
 	if (item->ct){add_to_strn(&txt,cast_uchar ": ");add_to_strn(&txt,item->ct);}
 	txt1=convert(assoc_ld.codepage,term_charset(term),txt,NULL);

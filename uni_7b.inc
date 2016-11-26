@@ -497,7 +497,7 @@ static_const struct { int x; char *s; } unicode_7b [2320] = {
 	{ 0x03b9, "i" },
 	{ 0x03ba, "k" },
 	{ 0x03bb, "l" },
-	{ 0x03bc, "m" },
+	{ 0x03bc, "u" },
 	{ 0x03bd, "n" },
 	{ 0x03be, "c" },
 	{ 0x03bf, "o" },

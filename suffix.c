@@ -41,7 +41,7 @@ int is_tld(unsigned char *name)
 {
 	char *end;
 	unsigned long l;
-	if (strlen(cast_const_char name) == 2 && upcase(name[0]) >= 'A' && upcase(name[0]) <= 'Z' && upcase(name[1]) >= 'A' && upcase(name[1]) <= 'Z' && casestrcmp(name, cast_uchar "gz"))
+	if (strlen(cast_const_char name) == 2 && upcase(name[0]) >= 'A' && upcase(name[0]) <= 'Z' && upcase(name[1]) >= 'A' && upcase(name[1]) <= 'Z' && casestrcmp(name, cast_uchar "gz") && casestrcmp(name, cast_uchar "xz"))
 		return 1;
 	l = strtoul(cast_const_char name, &end, 10);
 	if (!*end && l <= 255)

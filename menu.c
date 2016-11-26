@@ -29,12 +29,13 @@ static unsigned char * const version_texts[] = {
 	TEXT_(T_IMAGE_LIBRARIES),
 	TEXT_(T_OPENMP),
 #endif
+	TEXT_(T_CONFIGURATION_DIRECTORY),
 	NULL,
 };
 
 static void add_and_pad(unsigned char **s, int *l, struct terminal *term, unsigned char *str, int maxlen)
 {
-	unsigned char *x = _(str, term);
+	unsigned char *x = get_text_translation(str, term);
 	int len = cp_len(term_charset(term), x);
 	add_to_str(s, l, x);
 	add_to_str(s, l, cast_uchar ":  ");
@@ -49,7 +50,7 @@ static void menu_version(struct terminal *term)
 	int l;
 	unsigned char * const *text_ptr;
 	for (i = 0; version_texts[i]; i++) {
-		unsigned char *t = _(version_texts[i], term);
+		unsigned char *t = get_text_translation(version_texts[i], term);
 		int tl = cp_len(term_charset(term), t);
 		if (tl > maxlen)
 			maxlen = tl;
@@ -76,11 +77,11 @@ static void menu_version(struct terminal *term)
 	add_to_str(&s, &l, cast_uchar "\n");
 
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
-	add_to_str(&s, &l, _(TEXT_(T_MEMORY), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_MEMORY), term));
 	add_to_str(&s, &l, cast_uchar " ");
 	add_num_to_str(&s, &l, sizeof(void *) * 8);
 	add_to_str(&s, &l, cast_uchar "-bit, ");
-	add_to_str(&s, &l, _(TEXT_(T_FILE_SIZE), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_FILE_SIZE), term));
 	add_to_str(&s, &l, cast_uchar " ");
 	add_num_to_str(&s, &l, sizeof(off_t) * 8 /*- ((off_t)-1 < 0)*/);
 	add_to_str(&s, &l, cast_uchar "-bit");
@@ -96,11 +97,11 @@ static void menu_version(struct terminal *term)
 
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
 #ifdef SUPPORT_IPV6
-	if (!support_ipv6) add_to_str(&s, &l, _(TEXT_(T_NOT_ENABLED_IN_SYSTEM), term));
-	else if (!ipv6_full_access()) add_to_str(&s, &l, _(TEXT_(T_LOCAL_NETWORK_ONLY), term));
-	else add_to_str(&s, &l, _(TEXT_(T_YES), term));
+	if (!support_ipv6) add_to_str(&s, &l, get_text_translation(TEXT_(T_NOT_ENABLED_IN_SYSTEM), term));
+	else if (!ipv6_full_access()) add_to_str(&s, &l, get_text_translation(TEXT_(T_LOCAL_NETWORK_ONLY), term));
+	else add_to_str(&s, &l, get_text_translation(TEXT_(T_YES), term));
 #else
-	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO), term));
 #endif
 	add_to_str(&s, &l, cast_uchar "\n");
 
@@ -108,28 +109,32 @@ static void menu_version(struct terminal *term)
 #ifdef HAVE_ANY_COMPRESSION
 	add_compress_methods(&s, &l);
 #else
-	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO), term));
 #endif
 	add_to_str(&s, &l, cast_uchar "\n");
 
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
 #ifdef HAVE_SSL
+#ifdef OPENSSL_VERSION
+	add_to_str(&s, &l, (unsigned char *)OpenSSL_version(OPENSSL_VERSION));
+#else
 	add_to_str(&s, &l, (unsigned char *)SSLeay_version(SSLEAY_VERSION));
+#endif
 #ifndef HAVE_SSL_CERTIFICATES
 	add_to_str(&s, &l, cast_uchar " (");
-	add_to_str(&s, &l, _(TEXT_(T_NO_CERTIFICATE_VERIFICATION), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO_CERTIFICATE_VERIFICATION), term));
 	add_to_str(&s, &l, cast_uchar ")");
 #endif
 #else
-	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO), term));
 #endif
 	add_to_str(&s, &l, cast_uchar "\n");
 
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
 #ifdef ENABLE_UTF8
-	add_to_str(&s, &l, _(TEXT_(T_YES), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_YES), term));
 #else
-	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO), term));
 #endif
 	add_to_str(&s, &l, cast_uchar "\n");
 
@@ -138,7 +143,7 @@ static void menu_version(struct terminal *term)
 #ifdef USE_GPM
 	add_gpm_version(&s, &l);
 #else
-	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO), term));
 #endif
 	add_to_str(&s, &l, cast_uchar "\n");
 #endif
@@ -146,9 +151,9 @@ static void menu_version(struct terminal *term)
 #ifdef OS2
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
 #ifdef X2
-	add_to_str(&s, &l, _(TEXT_(T_YES), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_YES), term));
 #else
-	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO), term));
 #endif
 	add_to_str(&s, &l, cast_uchar "\n");
 #endif
@@ -159,7 +164,7 @@ static void menu_version(struct terminal *term)
 	add_graphics_drivers(&s, &l);
 	for (; s[i]; i++) if (s[i - 1] == ' ') s[i] = upcase(s[i]);
 #else
-	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO), term));
 #endif
 	add_to_str(&s, &l, cast_uchar "\n");
 
@@ -184,10 +189,12 @@ static void menu_version(struct terminal *term)
 #ifdef G
 	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
 #ifndef HAVE_OPENMP
-	add_to_str(&s, &l, _(TEXT_(T_NO), term));
+	add_to_str(&s, &l, get_text_translation(TEXT_(T_NO), term));
 #else
-	if (OPENMP_NONATOMIC || disable_openmp) {
-		add_to_str(&s, &l, _(TEXT_(T_DISABLED), term));
+	if (!F) {
+		add_to_str(&s, &l, get_text_translation(TEXT_(T_NOT_USED_IN_TEXT_MODE), term));
+	} else if (disable_openmp) {
+		add_to_str(&s, &l, get_text_translation(TEXT_(T_DISABLED), term));
 	} else {
 		int thr;
 		omp_start();
@@ -197,13 +204,23 @@ static void menu_version(struct terminal *term)
 		omp_end();
 		add_num_to_str(&s, &l, thr);
 		add_to_str(&s, &l, cast_uchar " ");
-		if (thr == 1) add_to_str(&s, &l, _(TEXT_(T_THREAD), term));
-		else if (thr >= 2 && thr <= 4) add_to_str(&s, &l, _(TEXT_(T_THREADS), term));
-		else add_to_str(&s, &l, _(TEXT_(T_THREADS5), term));
+		if (thr == 1) add_to_str(&s, &l, get_text_translation(TEXT_(T_THREAD), term));
+		else if (thr >= 2 && thr <= 4) add_to_str(&s, &l, get_text_translation(TEXT_(T_THREADS), term));
+		else add_to_str(&s, &l, get_text_translation(TEXT_(T_THREADS5), term));
 	}
 #endif
 	add_to_str(&s, &l, cast_uchar "\n");
 #endif
+
+	add_and_pad(&s, &l, term, *text_ptr++, maxlen);
+	if (links_home) {
+		unsigned char *native_home = os_conv_to_external_path(links_home, NULL);
+		add_to_str(&s, &l, native_home);
+		mem_free(native_home);
+	} else {
+		add_to_str(&s, &l, get_text_translation(TEXT_(T_NONE), term));
+	}
+	add_to_str(&s, &l, cast_uchar "\n");
 
 	s[l - 1] = 0;
 	if (*text_ptr)
@@ -353,118 +370,118 @@ static int resource_info(struct terminal *term, struct refresh *r2)
 	l = 0;
 	a = init_str();
 
-	add_to_str(&a, &l, _(TEXT_(T_RESOURCES), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_RESOURCES), term));
 	add_to_str(&a, &l, cast_uchar ": ");
 	add_unsigned_long_num_to_str(&a, &l, select_info(CI_FILES));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_HANDLES), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_HANDLES), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, select_info(CI_TIMERS));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_TIMERS), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_TIMERS), term));
 	add_to_str(&a, &l, cast_uchar ".\n");
 
-	add_to_str(&a, &l, _(TEXT_(T_CONNECTIONS), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_CONNECTIONS), term));
 	add_to_str(&a, &l, cast_uchar ": ");
 	add_unsigned_long_num_to_str(&a, &l, connect_info(CI_FILES) - connect_info(CI_CONNECTING) - connect_info(CI_TRANSFER));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_WAITING), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_WAITING), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, connect_info(CI_CONNECTING));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_CONNECTING), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_CONNECTING), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, connect_info(CI_TRANSFER));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_tRANSFERRING), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_tRANSFERRING), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, connect_info(CI_KEEP));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_KEEPALIVE), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_KEEPALIVE), term));
 	add_to_str(&a, &l, cast_uchar ".\n");
 
-	add_to_str(&a, &l, _(TEXT_(T_MEMORY_CACHE), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_MEMORY_CACHE), term));
 	add_to_str(&a, &l, cast_uchar ": ");
 	add_unsigned_long_num_to_str(&a, &l, cache_info(CI_BYTES));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_BYTES), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_BYTES), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, cache_info(CI_FILES));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_FILES), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_FILES), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, cache_info(CI_LOCKED));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_LOCKED), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_LOCKED), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, cache_info(CI_LOADING));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_LOADING), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_LOADING), term));
 	add_to_str(&a, &l, cast_uchar ".\n");
 
 #ifdef HAVE_ANY_COMPRESSION
-	add_to_str(&a, &l, _(TEXT_(T_DECOMPRESSED_CACHE), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_DECOMPRESSED_CACHE), term));
 	add_to_str(&a, &l, cast_uchar ": ");
 	add_unsigned_long_num_to_str(&a, &l, decompress_info(CI_BYTES));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_BYTES), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_BYTES), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, decompress_info(CI_FILES));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_FILES), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_FILES), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, decompress_info(CI_LOCKED));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_LOCKED), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_LOCKED), term));
 	add_to_str(&a, &l, cast_uchar ".\n");
 #endif
 
 #ifdef G
 	if (F) {
-		add_to_str(&a, &l, _(TEXT_(T_IMAGE_CACHE), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_IMAGE_CACHE), term));
 		add_to_str(&a, &l, cast_uchar ": ");
 		add_unsigned_long_num_to_str(&a, &l, imgcache_info(CI_BYTES));
 		add_to_str(&a, &l, cast_uchar " ");
-		add_to_str(&a, &l, _(TEXT_(T_BYTES), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_BYTES), term));
 		add_to_str(&a, &l, cast_uchar ", ");
 		add_unsigned_long_num_to_str(&a, &l, imgcache_info(CI_FILES));
 		add_to_str(&a, &l, cast_uchar " ");
-		add_to_str(&a, &l, _(TEXT_(T_IMAGES), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_IMAGES), term));
 		add_to_str(&a, &l, cast_uchar ", ");
 		add_unsigned_long_num_to_str(&a, &l, imgcache_info(CI_LOCKED));
 		add_to_str(&a, &l, cast_uchar " ");
-		add_to_str(&a, &l, _(TEXT_(T_LOCKED), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_LOCKED), term));
 		add_to_str(&a, &l, cast_uchar ".\n");
 
-		add_to_str(&a, &l, _(TEXT_(T_FONT_CACHE), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_FONT_CACHE), term));
 		add_to_str(&a, &l, cast_uchar ": ");
 		add_unsigned_long_num_to_str(&a, &l, fontcache_info(CI_BYTES));
 		add_to_str(&a, &l, cast_uchar " ");
-		add_to_str(&a, &l, _(TEXT_(T_BYTES), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_BYTES), term));
 		add_to_str(&a, &l, cast_uchar ", ");
 		add_unsigned_long_num_to_str(&a, &l, fontcache_info(CI_FILES));
 		add_to_str(&a, &l, cast_uchar " ");
-		add_to_str(&a, &l, _(TEXT_(T_LETTERS), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_LETTERS), term));
 		add_to_str(&a, &l, cast_uchar ".\n");
 	}
 #endif
 
-	add_to_str(&a, &l, _(TEXT_(T_FORMATTED_DOCUMENT_CACHE), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_FORMATTED_DOCUMENT_CACHE), term));
 	add_to_str(&a, &l, cast_uchar ": ");
 	add_unsigned_long_num_to_str(&a, &l, formatted_info(CI_FILES));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_DOCUMENTS), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_DOCUMENTS), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, formatted_info(CI_LOCKED));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_LOCKED), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_LOCKED), term));
 	add_to_str(&a, &l, cast_uchar ".\n");
 
-	add_to_str(&a, &l, _(TEXT_(T_DNS_CACHE), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_DNS_CACHE), term));
 	add_to_str(&a, &l, cast_uchar ": ");
 	add_unsigned_long_num_to_str(&a, &l, dns_info(CI_FILES));
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_SERVERS), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_SERVERS), term));
 	add_to_str(&a, &l, cast_uchar ".");
 
 	if (r2 && !strcmp(cast_const_char a, cast_const_char *(unsigned char **)((struct dialog_data *)r2->win->data)->dlg->udata)) {
@@ -504,11 +521,11 @@ static int memory_info(struct terminal *term, struct refresh *r2)
 
 	add_unsigned_long_num_to_str(&a, &l, mem_amount);
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_MEMORY_ALLOCATED), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_MEMORY_ALLOCATED), term));
 	add_to_str(&a, &l, cast_uchar ", ");
 	add_unsigned_long_num_to_str(&a, &l, mem_blocks);
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_BLOCKS_ALLOCATED), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_BLOCKS_ALLOCATED), term));
 	add_to_str(&a, &l, cast_uchar ".");
 
 #ifdef MEMORY_REQUESTED
@@ -516,11 +533,11 @@ static int memory_info(struct terminal *term, struct refresh *r2)
 		add_to_str(&a, &l, cast_uchar "\n");
 		add_unsigned_long_num_to_str(&a, &l, mem_requested);
 		add_to_str(&a, &l, cast_uchar " ");
-		add_to_str(&a, &l, _(TEXT_(T_MEMORY_REQUESTED), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_MEMORY_REQUESTED), term));
 		add_to_str(&a, &l, cast_uchar ", ");
 		add_unsigned_long_num_to_str(&a, &l, blocks_requested);
 		add_to_str(&a, &l, cast_uchar " ");
-		add_to_str(&a, &l, _(TEXT_(T_BLOCKS_REQUESTED), term));
+		add_to_str(&a, &l, get_text_translation(TEXT_(T_BLOCKS_REQUESTED), term));
 		add_to_str(&a, &l, cast_uchar ".");
 	}
 #endif
@@ -528,7 +545,7 @@ static int memory_info(struct terminal *term, struct refresh *r2)
 	add_to_str(&a, &l, cast_uchar "\n");
 	add_unsigned_long_num_to_str(&a, &l, js_zaflaknuto_pameti);
 	add_to_str(&a, &l, cast_uchar " ");
-	add_to_str(&a, &l, _(TEXT_(T_JS_MEMORY_ALLOCATED), term));
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_JS_MEMORY_ALLOCATED), term));
 	add_to_str(&a, &l, cast_uchar ".");
 #endif
 
@@ -1017,6 +1034,389 @@ static void javascript_options(struct terminal *term, void *xxx, struct session 
 
 #endif
 
+#ifndef G
+
+static inline void reinit_video(void) { }
+
+#else
+
+#define VO_GAMMA_LEN 9
+static unsigned char disp_red_g[VO_GAMMA_LEN];
+static unsigned char disp_green_g[VO_GAMMA_LEN];
+static unsigned char disp_blue_g[VO_GAMMA_LEN];
+static unsigned char user_g[VO_GAMMA_LEN];
+static unsigned char aspect_str[VO_GAMMA_LEN];
+tcount gamma_stamp; /* stamp counter for gamma changes */
+
+static void reinit_video(void);
+
+static void refresh_video(void *xxx)
+{
+	display_red_gamma=atof(cast_const_char disp_red_g);
+	display_green_gamma=atof(cast_const_char disp_green_g);
+	display_blue_gamma=atof(cast_const_char disp_blue_g);
+	user_gamma=atof(cast_const_char user_g);
+	bfu_aspect=atof(cast_const_char aspect_str);
+	reinit_video();
+}
+
+static void reinit_video(void)
+{
+	if (!F)
+		return;
+
+	/* Flush font cache */
+	update_aspect();
+	gamma_stamp++;
+
+	/* Flush dip_get_color cache */
+	gamma_cache_rgb = -2;
+
+	/* Recompute dithering tables for the new gamma */
+	init_dither(drv->depth);
+
+	shutdown_bfu();
+	init_bfu();
+	init_grview();
+
+	/* Redraw all terminals */
+	cls_redraw_all_terminals();
+}
+
+#define video_msg_0	TEXT_(T_VIDEO_OPTIONS_TEXT)
+
+static unsigned char * const video_msg_1[] = {
+	TEXT_(T_RED_DISPLAY_GAMMA),
+	TEXT_(T_GREEN_DISPLAY_GAMMA),
+	TEXT_(T_BLUE_DISPLAY_GAMMA),
+	TEXT_(T_USER_GAMMA),
+	TEXT_(T_ASPECT_RATIO),
+};
+
+static unsigned char * const video_msg_2[] = {
+	TEXT_(T_DISPLAY_OPTIMIZATION_CRT),
+	TEXT_(T_DISPLAY_OPTIMIZATION_LCD_RGB),
+	TEXT_(T_DISPLAY_OPTIMIZATION_LCD_BGR),
+	TEXT_(T_DITHER_LETTERS),
+	TEXT_(T_DITHER_IMAGES),
+	TEXT_(T_8_BIT_GAMMA_CORRECTION),
+	TEXT_(T_16_BIT_GAMMA_CORRECTION),
+	TEXT_(T_AUTO_GAMMA_CORRECTION),
+	TEXT_(T_OVERWRITE_SCREEN_INSTEAD_OF_SCROLLING_IT),
+};
+
+static void videoopt_fn(struct dialog_data *dlg)
+{
+	struct terminal *term = dlg->win->term;
+	int max = 0, min = 0;
+	int w, rw;
+	int y = gf_val(-1, -G_BFU_FONT_SIZE);
+	max_text_width(term, video_msg_0, &max, AL_LEFT);
+	min_text_width(term, video_msg_0, &min, AL_LEFT);
+	max_group_width(term, video_msg_1, dlg->items, 5, &max);
+	min_group_width(term, video_msg_1, dlg->items, 5, &min);
+	checkboxes_width(term, video_msg_2, dlg->n-2-5, &max, max_text_width);
+	checkboxes_width(term, video_msg_2, dlg->n-2-5, &min, min_text_width);
+	max_buttons_width(term, dlg->items + dlg->n-2, 2, &max);
+	min_buttons_width(term, dlg->items + dlg->n-2, 2, &min);
+	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
+	if (w > max) w = max;
+	if (w < min) w = min;
+	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
+	if (w < 1) w = 1;
+	rw = 0;
+	dlg_format_text(dlg, NULL, video_msg_0, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_group(dlg, NULL, video_msg_1, dlg->items, 5, 0, &y, w, &rw);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_checkboxes(dlg, NULL, dlg->items+5, dlg->n-2-5, dlg->x + DIALOG_LB, &y, w, &rw, video_msg_2);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, NULL, dlg->items+dlg->n-2, 2, 0, &y, w, &rw, AL_CENTER);
+	w = rw;
+	dlg->xw = w + 2 * DIALOG_LB;
+	dlg->yw = y + 2 * DIALOG_TB;
+	center_dlg(dlg);
+	draw_dlg(dlg);
+	y = dlg->y + DIALOG_TB;
+	dlg_format_text(dlg, term, video_msg_0, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+	y += gf_val(2, G_BFU_FONT_SIZE);
+	dlg_format_group(dlg, term, video_msg_1, dlg->items, 5, dlg->x + DIALOG_LB, &y, w, NULL);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_checkboxes(dlg, term, dlg->items+5, dlg->n-2-5, dlg->x + DIALOG_LB, &y, w, NULL, video_msg_2);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, term, dlg->items+dlg->n-2, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
+}
+
+static void remove_zeroes(unsigned char *string)
+{
+	int l=(int)strlen(cast_const_char string);
+
+	while(l&&(string[l-1]=='0')){
+		l--;
+		string[l]=0;
+	}
+}
+
+static void video_options(struct terminal *term, void *xxx, struct session *ses)
+{
+	struct dialog *d;
+	int a;
+	snprintf(cast_char disp_red_g, VO_GAMMA_LEN, "%f", display_red_gamma);
+	remove_zeroes(disp_red_g);
+	snprintf(cast_char disp_green_g, VO_GAMMA_LEN, "%f", display_green_gamma);
+	remove_zeroes(disp_green_g);
+	snprintf(cast_char disp_blue_g, VO_GAMMA_LEN, "%f", display_blue_gamma);
+	remove_zeroes(disp_blue_g);
+	snprintf(cast_char user_g, VO_GAMMA_LEN, "%f", user_gamma);
+	remove_zeroes(user_g);
+	snprintf(cast_char aspect_str, VO_GAMMA_LEN, "%f", bfu_aspect);
+	remove_zeroes(aspect_str);
+	d = mem_calloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item));
+	d->title = TEXT_(T_VIDEO_OPTIONS);
+	d->fn = videoopt_fn;
+	d->refresh = refresh_video;
+	a=0;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = disp_red_g;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 10000;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = disp_green_g;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 10000;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = disp_blue_g;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 10000;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = user_g;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 10000;
+
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = VO_GAMMA_LEN;
+	d->items[a].data = aspect_str;
+	d->items[a].fn = check_float;
+	d->items[a].gid = 25;
+	d->items[a++].gnum = 400;
+
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = 0;	/* CRT */
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&display_optimize;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = 1;	/* LCD RGB */
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&display_optimize;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = 2;	/* LCD BGR*/
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&display_optimize;
+
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&dither_letters;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&dither_images;
+	d->items[a].type = D_CHECKBOX;
+
+	d->items[a].gid = 2;
+	d->items[a].gnum = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&gamma_bits;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 2;
+	d->items[a].gnum = 1;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&gamma_bits;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 2;
+	d->items[a].gnum = 2;
+	d->items[a].dlen = sizeof(int);
+	d->items[a++].data = (void *)&gamma_bits;
+
+	if (drv->flags & GD_DONT_USE_SCROLL) {
+		d->items[a].type = D_CHECKBOX;
+		d->items[a].gid = 0;
+		d->items[a].dlen = sizeof(int);
+		d->items[a++].data = (void *)&overwrite_instead_of_scroll;
+	}
+
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ENTER;
+	d->items[a].fn = ok_dialog;
+	d->items[a++].text = TEXT_(T_OK);
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ESC;
+	d->items[a].fn = cancel_dialog;
+	d->items[a++].text = TEXT_(T_CANCEL);
+	d->items[a].type = D_END;
+	do_dialog(term, d, getml(d, NULL));
+}
+
+#endif
+
+static void refresh_network(void *xxx)
+{
+	abort_background_connections();
+	register_bottom_half(check_queue, NULL);
+}
+
+static unsigned char max_c_str[3];
+static unsigned char max_cth_str[3];
+static unsigned char max_t_str[3];
+static unsigned char time_str[5];
+static unsigned char unrtime_str[5];
+
+static void refresh_connections(void *xxx)
+{
+	netcfg_stamp++;
+	max_connections = atoi(cast_const_char max_c_str);
+	max_connections_to_host = atoi(cast_const_char max_cth_str);
+	max_tries = atoi(cast_const_char max_t_str);
+	receive_timeout = atoi(cast_const_char time_str);
+	unrestartable_receive_timeout = atoi(cast_const_char unrtime_str);
+	refresh_network(xxx);
+}
+
+static unsigned char * const net_msg[] = {
+	TEXT_(T_MAX_CONNECTIONS),
+	TEXT_(T_MAX_CONNECTIONS_TO_ONE_HOST),
+	TEXT_(T_RETRIES),
+	TEXT_(T_RECEIVE_TIMEOUT_SEC),
+	TEXT_(T_TIMEOUT_WHEN_UNRESTARTABLE),
+	TEXT_(T_BIND_TO_LOCAL_IP_ADDRESS),
+	TEXT_(T_ASYNC_DNS_LOOKUP),
+	TEXT_(T_SET_TIME_OF_DOWNLOADED_FILES),
+	cast_uchar "",
+	cast_uchar "",
+	cast_uchar "",
+	cast_uchar "",
+};
+
+#ifdef SUPPORT_IPV6
+static unsigned char * const net_msg_ipv6[] = {
+	TEXT_(T_MAX_CONNECTIONS),
+	TEXT_(T_MAX_CONNECTIONS_TO_ONE_HOST),
+	TEXT_(T_RETRIES),
+	TEXT_(T_RECEIVE_TIMEOUT_SEC),
+	TEXT_(T_TIMEOUT_WHEN_UNRESTARTABLE),
+	TEXT_(T_BIND_TO_LOCAL_IP_ADDRESS),
+	TEXT_(T_BIND_TO_LOCAL_IPV6_ADDRESS),
+	TEXT_(T_ASYNC_DNS_LOOKUP),
+	TEXT_(T_SET_TIME_OF_DOWNLOADED_FILES),
+	cast_uchar "",
+	cast_uchar "",
+	cast_uchar "",
+	cast_uchar "",
+	cast_uchar "",
+};
+#endif
+
+static void dlg_net_options(struct terminal *term, void *xxx, void *yyy)
+{
+	struct dialog *d;
+	int a;
+	snprint(max_c_str, 3, max_connections);
+	snprint(max_cth_str, 3, max_connections_to_host);
+	snprint(max_t_str, 3, max_tries);
+	snprint(time_str, 5, receive_timeout);
+	snprint(unrtime_str, 5, unrestartable_receive_timeout);
+	d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
+	d->title = TEXT_(T_NETWORK_OPTIONS);
+	d->fn = group_fn;
+#ifdef SUPPORT_IPV6
+	if (support_ipv6) d->udata = (void *)net_msg_ipv6;
+	else
+#endif
+		d->udata = (void *)net_msg;
+	d->refresh = (void (*)(void *))refresh_connections;
+	a = 0;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = max_c_str;
+	d->items[a].dlen = 3;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 99;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = max_cth_str;
+	d->items[a].dlen = 3;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 99;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = max_t_str;
+	d->items[a].dlen = 3;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 0;
+	d->items[a++].gnum = 16;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = time_str;
+	d->items[a].dlen = 5;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 9999;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = unrtime_str;
+	d->items[a].dlen = 5;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 9999;
+	d->items[a].type = D_FIELD;
+	d->items[a].data = bind_ip_address;
+	d->items[a].dlen = sizeof(bind_ip_address);
+	d->items[a++].fn = check_local_ip_address;
+#ifdef SUPPORT_IPV6
+	if (support_ipv6) {
+		d->items[a].type = D_FIELD;
+		d->items[a].data = bind_ipv6_address;
+		d->items[a].dlen = sizeof(bind_ipv6_address);
+		d->items[a++].fn = check_local_ipv6_address;
+	}
+#endif
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].data = (unsigned char *)&async_lookup;
+	d->items[a++].dlen = sizeof(int);
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].data = (unsigned char *)&download_utime;
+	d->items[a++].dlen = sizeof(int);
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ENTER;
+	d->items[a].fn = ok_dialog;
+	d->items[a++].text = TEXT_(T_OK);
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ESC;
+	d->items[a].fn = cancel_dialog;
+	d->items[a++].text = TEXT_(T_CANCEL);
+	d->items[a].type = D_END;
+	do_dialog(term, d, getml(d, NULL));
+}
+
+static unsigned char * const proxy_msg[] = {
+	TEXT_(T_HTTP_PROXY__HOST_PORT),
+	TEXT_(T_FTP_PROXY__HOST_PORT),
+#ifdef HAVE_SSL
+	TEXT_(T_HTTPS_PROXY__HOST_PORT),
+#endif
+	TEXT_(T_SOCKS_4A_PROXY__USER_HOST_PORT),
+	TEXT_(T_APPEND_TEXT_TO_SOCKS_LOOKUPS),
+	TEXT_(T_ONLY_PROXIES),
+};
+
 #ifdef SUPPORT_IPV6
 
 static unsigned char * const ipv6_labels[] = { TEXT_(T_IPV6_DEFAULT), TEXT_(T_IPV6_PREFER_IPV4), TEXT_(T_IPV6_PREFER_IPV6), TEXT_(T_IPV6_USE_ONLY_IPV4), TEXT_(T_IPV6_USE_ONLY_IPV6), NULL };
@@ -1067,6 +1467,179 @@ static void dlg_ipv6_options(struct terminal *term, void *xxx, void *yyy)
 
 #endif
 
+#ifdef HAVE_SSL
+#define N_N	5
+#else
+#define N_N	4
+#endif
+
+static void proxy_fn(struct dialog_data *dlg)
+{
+	struct terminal *term = dlg->win->term;
+	int max = 0, min = 0;
+	int w, rw;
+	int i;
+	int y = gf_val(-1, -G_BFU_FONT_SIZE);
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	for (i = 0; i < N_N; i++) {
+		max_text_width(term, proxy_msg[i], &max, AL_LEFT);
+		min_text_width(term, proxy_msg[i], &min, AL_LEFT);
+	}
+	max_group_width(term, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, &max);
+	min_group_width(term, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, &min);
+	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
+	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
+	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
+	if (w > max) w = max;
+	if (w < min) w = min;
+	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
+	if (w < 1) w = 1;
+	rw = 0;
+	for (i = 0; i < N_N; i++) {
+		dlg_format_text_and_field(dlg, NULL, proxy_msg[i], &dlg->items[i], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
+		if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
+	}
+	dlg_format_group(dlg, NULL, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, 0, &y, w, &rw);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
+	w = rw;
+	dlg->xw = w + 2 * DIALOG_LB;
+	dlg->yw = y + 2 * DIALOG_TB;
+	center_dlg(dlg);
+	draw_dlg(dlg);
+	y = dlg->y + DIALOG_TB;
+	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	for (i = 0; i < N_N; i++) {
+		dlg_format_text_and_field(dlg, term, proxy_msg[i], &dlg->items[i], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
+		if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
+	}
+	dlg_format_group(dlg, term, proxy_msg + N_N, &dlg->items[N_N], dlg->n - 2 - N_N, dlg->x + DIALOG_LB, &y, w, NULL);
+	y += gf_val(1, G_BFU_FONT_SIZE);
+	dlg_format_buttons(dlg, term, &dlg->items[dlg->n - 2], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
+}
+
+void reset_settings_for_tor(void)
+{
+#ifdef DOS
+	max_connections = 3;
+	max_connections_to_host = 2;
+#else
+	max_connections = 10;
+	max_connections_to_host = 8;
+#endif
+	max_tries = 3;
+	receive_timeout = 120;
+	unrestartable_receive_timeout = 600;
+
+	max_format_cache_entries = 5;
+	memory_cache_size = 4194304;
+	image_cache_size = 1048576;
+	font_cache_size = 2097152;
+	aggressive_cache = 1;
+
+	http_options.http10 = 0;
+	http_options.allow_blacklist = 1;
+	http_options.bug_302_redirect = 1;
+	http_options.bug_post_no_keepalive = 0;
+	http_options.no_accept_charset = 0;
+	http_options.no_compression = 0;
+	http_options.retry_internal_errors = 0;
+	http_options.header.do_not_track = 0;
+	http_options.header.extra_header[0] = 0;
+
+	ftp_options.eprt_epsv = 0;
+	ftp_options.fast_ftp = 0;
+
+	dither_letters = 1;
+	dither_images = 1;
+
+	dds.tables = 1;
+	dds.frames = 1;
+	dds.auto_refresh = 0;
+	dds.display_images = 1;
+}
+
+static void data_cleanup(void)
+{
+	struct session *ses;
+	reset_settings_for_tor();
+	foreach(ses, sessions) {
+		ses->ds.tables = dds.tables;
+		ses->ds.frames = dds.frames;
+		ses->ds.auto_refresh = dds.auto_refresh;
+		ses->ds.display_images = dds.display_images;
+		cleanup_session(ses);
+		draw_formatted(ses);
+	}
+	reinit_video();
+	free_blacklist();
+	free_cookies();
+	free_auth();
+	abort_all_connections();
+	shrink_memory(SH_FREE_ALL, 0);
+}
+
+static int proxy_ok_dialog(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	int op = proxies.only_proxies;
+	int r = ok_dialog(dlg, di);
+	if (r) return r;
+	if (op != proxies.only_proxies) {
+		data_cleanup();
+	}
+	refresh_network(NULL);
+	return 0;
+}
+
+static void dlg_proxy_options(struct terminal *term, void *xxx, void *yyy)
+{
+	struct dialog *d;
+	int a = 0;
+	d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
+	d->title = TEXT_(T_PROXIES);
+	d->fn = proxy_fn;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = proxies.http_proxy;
+	a++;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = proxies.ftp_proxy;
+	a++;
+#ifdef HAVE_SSL
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = proxies.https_proxy;
+	a++;
+#endif
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = proxies.socks_proxy;
+	a++;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = proxies.dns_append;
+	a++;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].data = (unsigned char *)&proxies.only_proxies;
+	d->items[a].dlen = sizeof(int);
+	a++;
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ENTER;
+	d->items[a].fn = proxy_ok_dialog;
+	d->items[a].text = TEXT_(T_OK);
+	a++;
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ESC;
+	d->items[a].fn = cancel_dialog;
+	d->items[a].text = TEXT_(T_CANCEL);
+	a++;
+	d->items[a].type = D_END;
+	do_dialog(term, d, getml(d, NULL));
+}
+
+#undef N_N
+
 #ifdef HAVE_SSL_CERTIFICATES
 
 static int check_file(struct dialog_data *dlg, struct dialog_item_data *di, int type)
@@ -1074,7 +1647,7 @@ static int check_file(struct dialog_data *dlg, struct dialog_item_data *di, int 
 	unsigned char *p = di->cdata;
 	int r;
 	struct stat st;
-	SSL *ssl;
+	links_ssl *ssl;
 	if (!p[0]) return 0;
 	EINTRLOOP(r, stat(cast_const_char p, &st));
 	if (r || !S_ISREG(st.st_mode)) {
@@ -1087,11 +1660,11 @@ static int check_file(struct dialog_data *dlg, struct dialog_item_data *di, int 
 #if !defined(OPENSSL_NO_STDIO)
 	if (!type) {
 		ssl_asked_for_password = 0;
-		r = SSL_use_PrivateKey_file(ssl, cast_const_char p, SSL_FILETYPE_PEM);
+		r = SSL_use_PrivateKey_file(ssl->ssl, cast_const_char p, SSL_FILETYPE_PEM);
 		if (!r && ssl_asked_for_password) r = 1;
 		r = r != 1;
 	} else {
-		r = SSL_use_certificate_file(ssl, cast_const_char p, SSL_FILETYPE_PEM);
+		r = SSL_use_certificate_file(ssl->ssl, cast_const_char p, SSL_FILETYPE_PEM);
 		r = r != 1;
 	}
 #else
@@ -1099,7 +1672,7 @@ static int check_file(struct dialog_data *dlg, struct dialog_item_data *di, int 
 #endif
 	if (r)
 		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_FILE), AL_CENTER, TEXT_(T_THE_FILE_HAS_INVALID_FORMAT), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
-	SSL_free(ssl);
+	freeSSL(ssl);
 	return r;
 }
 
@@ -1168,6 +1741,7 @@ static void dlg_ssl_options(struct terminal *term, void *xxx, void *yyy)
 	d->title = TEXT_(T_SSL_OPTIONS);
 	d->fn = ssl_options_fn;
 	d->udata = (void *)ssl_labels;
+	d->refresh = (void (*)(void *))refresh_network;
 	d->items[0].type = D_CHECKBOX;
 	d->items[0].gid = 1;
 	d->items[0].gnum = SSL_ACCEPT_INVALID_CERTIFICATE;
@@ -1328,7 +1902,6 @@ static int dlg_http_header_options(struct dialog_data *dlg, struct dialog_item_d
 	return 0;
 }
 
-
 static void dlg_http_options(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
@@ -1337,6 +1910,7 @@ static void dlg_http_options(struct terminal *term, void *xxx, void *yyy)
 	d->title = TEXT_(T_HTTP_BUG_WORKAROUNDS);
 	d->fn = checkbox_list_fn;
 	d->udata = (void *)http_labels;
+	d->refresh = (void (*)(void *))refresh_network;
 	d->items[a].type = D_CHECKBOX;
 	d->items[a].gid = 0;
 	d->items[a].dlen = sizeof(int);
@@ -1443,6 +2017,7 @@ static void dlg_ftp_options(struct terminal *term, void *xxx, void *yyy)
 	d = mem_calloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_FTP_OPTIONS);
 	d->fn = ftpopt_fn;
+	d->refresh = (void (*)(void *))refresh_network;
 	a=0;
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
@@ -1516,482 +2091,6 @@ static void dlg_smb_options(struct terminal *term, void *xxx, void *yyy)
 }
 
 #endif
-
-#ifdef G
-
-#define VO_GAMMA_LEN 9
-static unsigned char disp_red_g[VO_GAMMA_LEN];
-static unsigned char disp_green_g[VO_GAMMA_LEN];
-static unsigned char disp_blue_g[VO_GAMMA_LEN];
-static unsigned char user_g[VO_GAMMA_LEN];
-static unsigned char aspect_str[VO_GAMMA_LEN];
-tcount gamma_stamp; /* stamp counter for gamma changes */
-
-static void refresh_video(struct session *ses)
-{
-	display_red_gamma=atof(cast_const_char disp_red_g);
-	display_green_gamma=atof(cast_const_char disp_green_g);
-	display_blue_gamma=atof(cast_const_char disp_blue_g);
-	user_gamma=atof(cast_const_char user_g);
-	bfu_aspect=atof(cast_const_char aspect_str);
-	/* Flush font cache */
-	update_aspect();
-	gamma_stamp++;
-
-	/* Flush dip_get_color cache */
-	gamma_cache_rgb = -2;
-
-	/* Recompute dithering tables for the new gamma */
-	init_dither(drv->depth);
-
-	shutdown_bfu();
-	init_bfu();
-	init_grview();
-
-	/* Redraw all terminals */
-	cls_redraw_all_terminals();
-
-}
-
-#define video_msg_0	TEXT_(T_VIDEO_OPTIONS_TEXT)
-
-static unsigned char * const video_msg_1[] = {
-	TEXT_(T_RED_DISPLAY_GAMMA),
-	TEXT_(T_GREEN_DISPLAY_GAMMA),
-	TEXT_(T_BLUE_DISPLAY_GAMMA),
-	TEXT_(T_USER_GAMMA),
-	TEXT_(T_ASPECT_RATIO),
-};
-
-static unsigned char * const video_msg_2[] = {
-	TEXT_(T_DISPLAY_OPTIMIZATION_CRT),
-	TEXT_(T_DISPLAY_OPTIMIZATION_LCD_RGB),
-	TEXT_(T_DISPLAY_OPTIMIZATION_LCD_BGR),
-	TEXT_(T_DITHER_LETTERS),
-	TEXT_(T_DITHER_IMAGES),
-	TEXT_(T_8_BIT_GAMMA_CORRECTION),
-	TEXT_(T_16_BIT_GAMMA_CORRECTION),
-	TEXT_(T_AUTO_GAMMA_CORRECTION),
-	TEXT_(T_OVERWRITE_SCREEN_INSTEAD_OF_SCROLLING_IT),
-};
-
-static void videoopt_fn(struct dialog_data *dlg)
-{
-	struct terminal *term = dlg->win->term;
-	int max = 0, min = 0;
-	int w, rw;
-	int y = gf_val(-1, -G_BFU_FONT_SIZE);
-	max_text_width(term, video_msg_0, &max, AL_LEFT);
-	min_text_width(term, video_msg_0, &min, AL_LEFT);
-	max_group_width(term, video_msg_1, dlg->items, 5, &max);
-	min_group_width(term, video_msg_1, dlg->items, 5, &min);
-	checkboxes_width(term, video_msg_2, dlg->n-2-5, &max, max_text_width);
-	checkboxes_width(term, video_msg_2, dlg->n-2-5, &min, min_text_width);
-	max_buttons_width(term, dlg->items + dlg->n-2, 2, &max);
-	min_buttons_width(term, dlg->items + dlg->n-2, 2, &min);
-	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
-	if (w > max) w = max;
-	if (w < min) w = min;
-	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
-	if (w < 1) w = 1;
-	rw = 0;
-	dlg_format_text(dlg, NULL, video_msg_0, 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_group(dlg, NULL, video_msg_1, dlg->items, 5, 0, &y, w, &rw);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_checkboxes(dlg, NULL, dlg->items+5, dlg->n-2-5, dlg->x + DIALOG_LB, &y, w, &rw, video_msg_2);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_buttons(dlg, NULL, dlg->items+dlg->n-2, 2, 0, &y, w, &rw, AL_CENTER);
-	w = rw;
-	dlg->xw = w + 2 * DIALOG_LB;
-	dlg->yw = y + 2 * DIALOG_TB;
-	center_dlg(dlg);
-	draw_dlg(dlg);
-	y = dlg->y + DIALOG_TB;
-	dlg_format_text(dlg, term, video_msg_0, dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-	y += gf_val(2, G_BFU_FONT_SIZE);
-	dlg_format_group(dlg, term, video_msg_1, dlg->items, 5, dlg->x + DIALOG_LB, &y, w, NULL);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_checkboxes(dlg, term, dlg->items+5, dlg->n-2-5, dlg->x + DIALOG_LB, &y, w, NULL, video_msg_2);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_buttons(dlg, term, dlg->items+dlg->n-2, 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
-}
-
-static void remove_zeroes(unsigned char *string)
-{
-	int l=(int)strlen(cast_const_char string);
-
-	while(l&&(string[l-1]=='0')){
-		l--;
-		string[l]=0;
-	}
-}
-
-static void video_options(struct terminal *term, void *xxx, struct session *ses)
-{
-	struct dialog *d;
-	int a;
-	snprintf(cast_char disp_red_g, VO_GAMMA_LEN, "%f", display_red_gamma);
-	remove_zeroes(disp_red_g);
-	snprintf(cast_char disp_green_g, VO_GAMMA_LEN, "%f", display_green_gamma);
-	remove_zeroes(disp_green_g);
-	snprintf(cast_char disp_blue_g, VO_GAMMA_LEN, "%f", display_blue_gamma);
-	remove_zeroes(disp_blue_g);
-	snprintf(cast_char user_g, VO_GAMMA_LEN, "%f", user_gamma);
-	remove_zeroes(user_g);
-	snprintf(cast_char aspect_str, VO_GAMMA_LEN, "%f", bfu_aspect);
-	remove_zeroes(aspect_str);
-	d = mem_calloc(sizeof(struct dialog) + 16 * sizeof(struct dialog_item));
-	d->title = TEXT_(T_VIDEO_OPTIONS);
-	d->fn = videoopt_fn;
-	d->refresh = (void (*)(void *))refresh_video;
-	d->refresh_data = ses;
-	a=0;
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = VO_GAMMA_LEN;
-	d->items[a].data = disp_red_g;
-	d->items[a].fn = check_float;
-	d->items[a].gid = 1;
-	d->items[a++].gnum = 10000;
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = VO_GAMMA_LEN;
-	d->items[a].data = disp_green_g;
-	d->items[a].fn = check_float;
-	d->items[a].gid = 1;
-	d->items[a++].gnum = 10000;
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = VO_GAMMA_LEN;
-	d->items[a].data = disp_blue_g;
-	d->items[a].fn = check_float;
-	d->items[a].gid = 1;
-	d->items[a++].gnum = 10000;
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = VO_GAMMA_LEN;
-	d->items[a].data = user_g;
-	d->items[a].fn = check_float;
-	d->items[a].gid = 1;
-	d->items[a++].gnum = 10000;
-
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = VO_GAMMA_LEN;
-	d->items[a].data = aspect_str;
-	d->items[a].fn = check_float;
-	d->items[a].gid = 25;
-	d->items[a++].gnum = 400;
-
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].gid = 1;
-	d->items[a].gnum = 0;	/* CRT */
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&display_optimize;
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].gid = 1;
-	d->items[a].gnum = 1;	/* LCD RGB */
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&display_optimize;
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].gid = 1;
-	d->items[a].gnum = 2;	/* LCD BGR*/
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&display_optimize;
-
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].gid = 0;
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&dither_letters;
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].gid = 0;
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&dither_images;
-	d->items[a].type = D_CHECKBOX;
-
-	d->items[a].gid = 2;
-	d->items[a].gnum = 0;
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&gamma_bits;
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].gid = 2;
-	d->items[a].gnum = 1;
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&gamma_bits;
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].gid = 2;
-	d->items[a].gnum = 2;
-	d->items[a].dlen = sizeof(int);
-	d->items[a++].data = (void *)&gamma_bits;
-
-	if (drv->flags & GD_DONT_USE_SCROLL) {
-		d->items[a].type = D_CHECKBOX;
-		d->items[a].gid = 0;
-		d->items[a].dlen = sizeof(int);
-		d->items[a++].data = (void *)&overwrite_instead_of_scroll;
-	}
-
-	d->items[a].type = D_BUTTON;
-	d->items[a].gid = B_ENTER;
-	d->items[a].fn = ok_dialog;
-	d->items[a++].text = TEXT_(T_OK);
-	d->items[a].type = D_BUTTON;
-	d->items[a].gid = B_ESC;
-	d->items[a].fn = cancel_dialog;
-	d->items[a++].text = TEXT_(T_CANCEL);
-	d->items[a].type = D_END;
-	do_dialog(term, d, getml(d, NULL));
-}
-
-#endif
-
-static unsigned char max_c_str[3];
-static unsigned char max_cth_str[3];
-static unsigned char max_t_str[3];
-static unsigned char time_str[5];
-static unsigned char unrtime_str[5];
-
-static void refresh_net(void *xxx)
-{
-	netcfg_stamp++;
-	max_connections = atoi(cast_const_char max_c_str);
-	max_connections_to_host = atoi(cast_const_char max_cth_str);
-	max_tries = atoi(cast_const_char max_t_str);
-	receive_timeout = atoi(cast_const_char time_str);
-	unrestartable_receive_timeout = atoi(cast_const_char unrtime_str);
-	abort_background_connections();
-	register_bottom_half(check_queue, NULL);
-}
-
-static unsigned char * const proxy_msg[] = {
-	TEXT_(T_HTTP_PROXY__HOST_PORT),
-	TEXT_(T_FTP_PROXY__HOST_PORT),
-#ifdef HAVE_SSL
-	TEXT_(T_HTTPS_PROXY__HOST_PORT),
-#endif
-	TEXT_(T_SOCKS_4A_PROXY__USER_HOST_PORT),
-	TEXT_(T_APPEND_TEXT_TO_SOCKS_LOOKUPS),
-	TEXT_(T_ONLY_PROXIES),
-};
-
-#ifdef HAVE_SSL
-#define N_N	5
-#else
-#define N_N	4
-#endif
-
-static void proxy_fn(struct dialog_data *dlg)
-{
-	struct terminal *term = dlg->win->term;
-	int max = 0, min = 0;
-	int w, rw;
-	int i;
-	int y = gf_val(-1, -G_BFU_FONT_SIZE);
-	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	for (i = 0; i < N_N; i++) {
-		max_text_width(term, proxy_msg[i], &max, AL_LEFT);
-		min_text_width(term, proxy_msg[i], &min, AL_LEFT);
-	}
-	max_group_width(term, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, &max);
-	min_group_width(term, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, &min);
-	max_buttons_width(term, dlg->items + dlg->n - 2, 2, &max);
-	min_buttons_width(term, dlg->items + dlg->n - 2, 2, &min);
-	w = dlg->win->term->x * 9 / 10 - 2 * DIALOG_LB;
-	if (w > max) w = max;
-	if (w < min) w = min;
-	if (w > dlg->win->term->x - 2 * DIALOG_LB) w = dlg->win->term->x - 2 * DIALOG_LB;
-	if (w < 1) w = 1;
-	rw = 0;
-	for (i = 0; i < N_N; i++) {
-		dlg_format_text_and_field(dlg, NULL, proxy_msg[i], &dlg->items[i], 0, &y, w, &rw, COLOR_DIALOG_TEXT, AL_LEFT);
-		if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE * 1);
-	}
-	dlg_format_group(dlg, NULL, proxy_msg + N_N, dlg->items + N_N, dlg->n - 2 - N_N, 0, &y, w, &rw);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_buttons(dlg, NULL, dlg->items + dlg->n - 2, 2, 0, &y, w, &rw, AL_CENTER);
-	w = rw;
-	dlg->xw = w + 2 * DIALOG_LB;
-	dlg->yw = y + 2 * DIALOG_TB;
-	center_dlg(dlg);
-	draw_dlg(dlg);
-	y = dlg->y + DIALOG_TB;
-	if (dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	for (i = 0; i < N_N; i++) {
-		dlg_format_text_and_field(dlg, term, proxy_msg[i], &dlg->items[i], dlg->x + DIALOG_LB, &y, w, NULL, COLOR_DIALOG_TEXT, AL_LEFT);
-		if (!dlg->win->term->spec->braille) y += gf_val(1, G_BFU_FONT_SIZE);
-	}
-	dlg_format_group(dlg, term, proxy_msg + N_N, &dlg->items[N_N], dlg->n - 2 - N_N, dlg->x + DIALOG_LB, &y, w, NULL);
-	y += gf_val(1, G_BFU_FONT_SIZE);
-	dlg_format_buttons(dlg, term, &dlg->items[dlg->n - 2], 2, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
-}
-
-static int proxy_ok_dialog(struct dialog_data *dlg, struct dialog_item_data *di)
-{
-	int op = proxies.only_proxies;
-	int r = ok_dialog(dlg, di);
-	if (op != proxies.only_proxies) {
-		free_cookies();
-	}
-	return r;
-}
-
-static void dlg_proxy_options(struct terminal *term, void *xxx, void *yyy)
-{
-	struct dialog *d;
-	int a = 0;
-	d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
-	d->title = TEXT_(T_PROXIES);
-	d->fn = proxy_fn;
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.http_proxy;
-	a++;
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.ftp_proxy;
-	a++;
-#ifdef HAVE_SSL
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.https_proxy;
-	a++;
-#endif
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.socks_proxy;
-	a++;
-	d->items[a].type = D_FIELD;
-	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.dns_append;
-	a++;
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].data = (unsigned char *)&proxies.only_proxies;
-	d->items[a].dlen = sizeof(int);
-	a++;
-	d->items[a].type = D_BUTTON;
-	d->items[a].gid = B_ENTER;
-	d->items[a].fn = proxy_ok_dialog;
-	d->items[a].text = TEXT_(T_OK);
-	a++;
-	d->items[a].type = D_BUTTON;
-	d->items[a].gid = B_ESC;
-	d->items[a].fn = cancel_dialog;
-	d->items[a].text = TEXT_(T_CANCEL);
-	a++;
-	d->items[a].type = D_END;
-	do_dialog(term, d, getml(d, NULL));
-}
-
-#undef N_N
-
-static unsigned char * const net_msg[] = {
-	TEXT_(T_MAX_CONNECTIONS),
-	TEXT_(T_MAX_CONNECTIONS_TO_ONE_HOST),
-	TEXT_(T_RETRIES),
-	TEXT_(T_RECEIVE_TIMEOUT_SEC),
-	TEXT_(T_TIMEOUT_WHEN_UNRESTARTABLE),
-	TEXT_(T_BIND_TO_LOCAL_IP_ADDRESS),
-	TEXT_(T_ASYNC_DNS_LOOKUP),
-	TEXT_(T_SET_TIME_OF_DOWNLOADED_FILES),
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-};
-
-#ifdef SUPPORT_IPV6
-static unsigned char * const net_msg_ipv6[] = {
-	TEXT_(T_MAX_CONNECTIONS),
-	TEXT_(T_MAX_CONNECTIONS_TO_ONE_HOST),
-	TEXT_(T_RETRIES),
-	TEXT_(T_RECEIVE_TIMEOUT_SEC),
-	TEXT_(T_TIMEOUT_WHEN_UNRESTARTABLE),
-	TEXT_(T_BIND_TO_LOCAL_IP_ADDRESS),
-	TEXT_(T_BIND_TO_LOCAL_IPV6_ADDRESS),
-	TEXT_(T_ASYNC_DNS_LOOKUP),
-	TEXT_(T_SET_TIME_OF_DOWNLOADED_FILES),
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-};
-#endif
-
-static void dlg_net_options(struct terminal *term, void *xxx, void *yyy)
-{
-	struct dialog *d;
-	int a;
-	snprint(max_c_str, 3, max_connections);
-	snprint(max_cth_str, 3, max_connections_to_host);
-	snprint(max_t_str, 3, max_tries);
-	snprint(time_str, 5, receive_timeout);
-	snprint(unrtime_str, 5, unrestartable_receive_timeout);
-	d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
-	d->title = TEXT_(T_NETWORK_OPTIONS);
-	d->fn = group_fn;
-#ifdef SUPPORT_IPV6
-	if (support_ipv6) d->udata = (void *)net_msg_ipv6;
-	else
-#endif
-		d->udata = (void *)net_msg;
-	d->refresh = (void (*)(void *))refresh_net;
-	a=0;
-	d->items[a].type = D_FIELD;
-	d->items[a].data = max_c_str;
-	d->items[a].dlen = 3;
-	d->items[a].fn = check_number;
-	d->items[a].gid = 1;
-	d->items[a++].gnum = 99;
-	d->items[a].type = D_FIELD;
-	d->items[a].data = max_cth_str;
-	d->items[a].dlen = 3;
-	d->items[a].fn = check_number;
-	d->items[a].gid = 1;
-	d->items[a++].gnum = 99;
-	d->items[a].type = D_FIELD;
-	d->items[a].data = max_t_str;
-	d->items[a].dlen = 3;
-	d->items[a].fn = check_number;
-	d->items[a].gid = 0;
-	d->items[a++].gnum = 16;
-	d->items[a].type = D_FIELD;
-	d->items[a].data = time_str;
-	d->items[a].dlen = 5;
-	d->items[a].fn = check_number;
-	d->items[a].gid = 1;
-	d->items[a++].gnum = 9999;
-	d->items[a].type = D_FIELD;
-	d->items[a].data = unrtime_str;
-	d->items[a].dlen = 5;
-	d->items[a].fn = check_number;
-	d->items[a].gid = 1;
-	d->items[a++].gnum = 9999;
-	d->items[a].type = D_FIELD;
-	d->items[a].data = bind_ip_address;
-	d->items[a].dlen = sizeof(bind_ip_address);
-	d->items[a++].fn = check_local_ip_address;
-#ifdef SUPPORT_IPV6
-	if (support_ipv6) {
-		d->items[a].type = D_FIELD;
-		d->items[a].data = bind_ipv6_address;
-		d->items[a].dlen = sizeof(bind_ipv6_address);
-		d->items[a++].fn = check_local_ipv6_address;
-	}
-#endif
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].data = (unsigned char *)&async_lookup;
-	d->items[a++].dlen = sizeof(int);
-	d->items[a].type = D_CHECKBOX;
-	d->items[a].data = (unsigned char *)&download_utime;
-	d->items[a++].dlen = sizeof(int);
-	d->items[a].type = D_BUTTON;
-	d->items[a].gid = B_ENTER;
-	d->items[a].fn = ok_dialog;
-	d->items[a++].text = TEXT_(T_OK);
-	d->items[a].type = D_BUTTON;
-	d->items[a].gid = B_ESC;
-	d->items[a].fn = cancel_dialog;
-	d->items[a++].text = TEXT_(T_CANCEL);
-	d->items[a].type = D_END;
-	do_dialog(term, d, getml(d, NULL));
-}
 
 static unsigned char * const prg_msg[] = {
 	TEXT_(T_MAILTO_PROG),
@@ -2277,6 +2376,12 @@ static unsigned char html_font_str[4];
 static unsigned char image_scale_str[6];
 #endif
 
+static void session_refresh(struct session *ses)
+{
+	html_interpret_recursive(ses->screen);
+	draw_formatted(ses);
+}
+
 static void html_refresh(struct session *ses)
 {
 	ses->ds.margin = atoi(cast_const_char marg_str);
@@ -2286,8 +2391,7 @@ static void html_refresh(struct session *ses)
 		ses->ds.image_scale = atoi(cast_const_char image_scale_str);
 	}
 #endif
-	html_interpret_recursive(ses->screen);
-	draw_formatted(ses);
+	session_refresh(ses);
 }
 
 #ifdef G

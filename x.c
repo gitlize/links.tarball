@@ -264,7 +264,7 @@ static void x_prepare_for_failure(void)
 
 static int x_test_for_failure(void)
 {
-	XSync(x_display,False);
+	XSync(x_display, False);
 	X_SCHEDULE_PROCESS_EVENTS();
 	XSetErrorHandler(old_error_handler);
 	old_error_handler = NULL;
@@ -945,6 +945,8 @@ static void x_process_events(void *data)
 				/* just sign, that this was mouse event */
 				last_was_mouse=1;
 				last_event=event;
+				/* fix lag when using remote X and dragging over some text */
+				XSync(x_display, False);
 			}
 			break;
 
@@ -1360,8 +1362,13 @@ visual_found:;
 		 * So, try to set locale to utf8 for the input method.
 		 */
 		unsigned char *l, *m, *d;
+		int len;
 		l = cast_uchar setlocale(LC_CTYPE, "");
-		if (l) {
+		len = l ? (int)strlen(cast_const_char l) : 0;
+		if (l &&
+		    !(len >= 5 && !casestrcmp(l + len - 5, cast_uchar ".utf8")) &&
+		    !(len >= 6 && !casestrcmp(l + len - 6, cast_uchar ".utf-8"))
+		    ) {
 			m = stracpy(l);
 			d = cast_uchar strchr(cast_const_char m, '.');
 			if (d) *d = 0;
@@ -1497,6 +1504,7 @@ nic_nebude_bobankove:;
 	XSetWMName(x_display, wi->window, &windowName);
 	XStoreName(x_display,wi->window,cast_char links_name);
 	XSetWMIconName(x_display, wi->window, &windowName);
+	XFree(windowName.value);
 
 	XMapWindow(x_display,wi->window);
 
@@ -1530,7 +1538,7 @@ nic_nebude_bobankove:;
 	}
 #endif
 
-	XSync(x_display,False);
+	XSync(x_display, False);
 	X_SCHEDULE_PROCESS_EVENTS();
 	n_wins++;
 	return gd;
@@ -1544,16 +1552,16 @@ static void x_shutdown_device(struct graphics_device *gd)
 #ifdef X_DEBUG
 	MESSAGE("x_shutdown_device\n");
 #endif
-	if (!gd)return;
+	if (!gd) return;
 
 	n_wins--;
-	XDestroyWindow(x_display,wi->window);
+	XDestroyWindow(x_display, wi->window);
 #ifdef X_INPUT_METHOD
 	if (wi->xic) {
 		XDestroyIC(wi->xic);
 	}
 #endif
-	XSync(x_display,False);
+	XSync(x_display, False);
 	X_SCHEDULE_PROCESS_EVENTS();
 
 	x_remove_from_table(&wi->window);
@@ -1912,7 +1920,7 @@ static int x_hscroll(struct graphics_device *gd, struct rect_set **set, int sc)
 		gd->clip.x2-gd->clip.x1,gd->clip.y2-gd->clip.y1,
 		gd->clip.x1+sc,gd->clip.y1
 	);
-	XSync(x_display,False);
+	XSync(x_display, False);
 	/* ten sync tady musi byt, protoze potrebuju zarucit, aby vsechny
 	 * graphics-expose vyvolane timto scrollem byly vraceny v rect-set */
 
@@ -1993,7 +2001,7 @@ static int x_vscroll(struct graphics_device *gd, struct rect_set **set, int sc)
 		gd->clip.x2-gd->clip.x1,gd->clip.y2-gd->clip.y1,
 		gd->clip.x1,gd->clip.y1+sc
 	);
-	XSync(x_display,False);
+	XSync(x_display, False);
 	/* ten sync tady musi byt, protoze potrebuju zarucit, aby vsechny
 	 * graphics-expose vyvolane timto scrollem byly vraceny v rect-set */
 

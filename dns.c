@@ -359,7 +359,7 @@ static void lookup_fn(struct dnsquery *q, int h)
 	/*{
 		int i;
 		for (i = 0; i < sizeof(struct lookup_result); i++) {
-			if (i == 1) sleep(1);
+			if (i == 1) portable_sleep(1000);
 			hard_write(h, (unsigned char *)&host + i, 1);
 		}
 	}*/

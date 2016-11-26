@@ -483,8 +483,10 @@ need_table:
 
 int get_cp_index(unsigned char *n)
 {
-	int i, a, p, q, sl;
-	int ii = -1, ll = 0;
+#ifdef __DECC_VER
+	volatile
+#endif
+	int i, a, p, q, sl, ii = -1, ll = 0;
 	for (i = 0; codepages[i].name; i++) {
 		for (a = 0; codepages[i].aliases[a]; a++) {
 			for (p = 0; n[p]; p++) {

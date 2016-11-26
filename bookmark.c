@@ -407,7 +407,7 @@ static unsigned char *bookmark_type_item(struct terminal *term, void *data, int 
 	struct bookmark_list* item=(struct bookmark_list*)data;
 
 	if (item==(struct bookmark_list*)(void *)&bookmarks)   /* head */
-		return stracpy(_(TEXT_(T_BOOKMARKS),term));
+		return stracpy(get_text_translation(TEXT_(T_BOOKMARKS), term));
 
 	txt=stracpy(item->title);
 #ifdef SHOW_URL
@@ -677,12 +677,12 @@ smitec:
 
 	EINTRLOOP(rs, stat(cast_const_char bookmarks_file, &bookmarks_st));
 	if (rs)
-		memset(&bookmarks_st, 0, sizeof bookmarks_st);
+		memset(&bookmarks_st, -1, sizeof bookmarks_st);
 }
 
 void init_bookmarks(void)
 {
-	memset(&bookmarks_st, 0, sizeof bookmarks_st);
+	memset(&bookmarks_st, -1, sizeof bookmarks_st);
 	if (!*bookmarks_file) {
 		unsigned char *e;
 		safe_strncpy(bookmarks_file, links_home ? links_home : (unsigned char*)"", MAX_STR_LEN);
@@ -846,7 +846,7 @@ static void save_bookmarks(struct session *ses)
 
 	EINTRLOOP(rs, stat(cast_const_char bookmarks_file, &bookmarks_st));
 	if (rs)
-		memset(&bookmarks_st, 0, sizeof bookmarks_st);
+		memset(&bookmarks_st, -1, sizeof bookmarks_st);
 }
 
 void menu_bookmark_manager(struct terminal *term,void *fcp,struct session *ses)

@@ -27,6 +27,7 @@ struct list_head keepalive_connections = {&keepalive_connections, &keepalive_con
 
 /* prototypes */
 static void send_connection_info(struct connection *c);
+static void del_keepalive_socket(struct k_conn *kc);
 static void check_keepalive_connections(void);
 
 unsigned long connect_info(int type)
@@ -159,7 +160,7 @@ int get_keepalive_socket(struct connection *c, int *protocol_data)
 	cc = k->conn;
 	if (protocol_data) *protocol_data = k->protocol_data;
 #ifdef HAVE_SSL
-	if (c->ssl && c->ssl != DUMMY) SSL_free(c->ssl);
+	freeSSL(c->ssl);
 	c->ssl = k->ssl;
 #endif
 	del_from_list(k);
@@ -172,13 +173,8 @@ int get_keepalive_socket(struct connection *c, int *protocol_data)
 
 void abort_all_keepalive_connections(void)
 {
-	struct k_conn *k;
-	int rs;
-	foreach(k, keepalive_connections) {
-		mem_free(k->host);
-		EINTRLOOP(rs, close(k->conn));
-	}
-	free_list(keepalive_connections);
+	while (!list_empty(keepalive_connections))
+		del_keepalive_socket((struct k_conn *)keepalive_connections.next);
 	check_keepalive_connections();
 }
 
@@ -274,6 +270,9 @@ void add_keepalive_socket(struct connection *c, ttime timeout, int protocol_data
 	}
 	k = mem_alloc(sizeof(struct k_conn));
 	if (c->netcfg_stamp != netcfg_stamp ||
+#ifdef HAVE_SSL
+	    ssl_not_reusable(c->ssl) ||
+#endif
 	    (k->port = get_port(c->url)) == -1 ||
 	    !(k->protocol = get_protocol_handle(c->url)) ||
 	    !(k->host = get_keepalive_id(c->url))) {
@@ -309,7 +308,7 @@ static void del_keepalive_socket(struct k_conn *kc)
 	int rs;
 	del_from_list(kc);
 #ifdef HAVE_SSL
-	if (kc->ssl && kc->ssl != DUMMY) SSL_free(kc->ssl);
+	freeSSL(kc->ssl);
 #endif
 	EINTRLOOP(rs, close(kc->conn));
 	mem_free(kc->host);
@@ -369,11 +368,8 @@ static void sort_queue(void)
 static void interrupt_connection(struct connection *c)
 {
 #ifdef HAVE_SSL
-	if (c->ssl == DUMMY) c->ssl = NULL;
-	if (c->ssl) {
-		SSL_free(c->ssl);
-		c->ssl = NULL;
-	}
+	freeSSL(c->ssl);
+	c->ssl = NULL;
 #endif
 	close_socket(&c->sock1);
 	free_connection_data(c);
@@ -418,6 +414,7 @@ static void run_connection(struct connection *c)
 	}
 
 	safe_strncpy(c->socks_proxy, proxies.socks_proxy, sizeof c->socks_proxy);
+	safe_strncpy(c->dns_append, proxies.dns_append, sizeof c->dns_append);
 
 	if (proxies.only_proxies && casecmp(c->url, cast_uchar "proxy://", 8) && casecmp(c->url, cast_uchar "data:", 5) && (!*c->socks_proxy || url_bypasses_socks(c->url))) {
 		setcstate(c, S_NO_PROXY);
@@ -815,7 +812,7 @@ void load_url(unsigned char *url, unsigned char *prev_url, struct status *stat, 
 	c->prg.timer = NULL;
 	c->timer = NULL;
 	if (position || must_detach) {
-		if (new_cache_entry(c->url, &c->cache)) {
+		if (new_cache_entry(cast_uchar "", &c->cache)) {
 			mem_free(c->url);
 			if (c->prev_url) mem_free(c->prev_url);
 			mem_free(c);
@@ -947,7 +944,7 @@ void set_connection_timeout(struct connection *c)
 
 void abort_all_connections(void)
 {
-	while(queue.next != &queue) {
+	while (queue.next != &queue) {
 		setcstate(queue.next, S_INTERRUPTED);
 		abort_connection(queue.next);
 	}

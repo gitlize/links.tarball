@@ -602,6 +602,7 @@ void add_conv_str(unsigned char **s, int *l, unsigned char *b, int ll, int encod
 unsigned char *display_url(struct terminal *term, unsigned char *url)
 {
 	unsigned char *u, *uu;
+	if (!url) return stracpy(cast_uchar "");
 	u = stracpy(url);
 	if ((uu = cast_uchar strchr(cast_const_char u, POST_CHAR))) *uu = 0;
 	return u;

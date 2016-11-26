@@ -48,20 +48,10 @@ void shutdown_trans(void)
 		}
 }
 
-int get_default_language(void)
+int get_language_from_lang(unsigned char *lang)
 {
-	static int default_language = -1;
-	unsigned char *lang, *p;
+	unsigned char *p;
 	int i;
-	if (default_language >= 0)
-		return default_language;
-
-	i = os_default_language();
-	if (i >= 0)
-		goto ret_i;
-
-	lang = cast_uchar getenv("LANG");
-	if (!lang) lang = cast_uchar "en";
 	lang = stracpy(lang);
 	lang[strcspn(cast_const_char lang, ".@")] = 0;
 	if (!casestrcmp(lang, cast_uchar "nn_NO"))
@@ -82,7 +72,7 @@ search_again:
 		if (!casestrcmp(lang, p)) {
 			mem_free(p);
 			mem_free(lang);
-			goto ret_i;
+			return i;
 		}
 		mem_free(p);
 	}
@@ -91,12 +81,30 @@ search_again:
 		goto search_again;
 	}
 	mem_free(lang);
-	lang = stracpy(cast_uchar "en");
-	goto search_again;
+	return -1;
+}
 
-	ret_i:
-	default_language = i;
-	return i;
+int get_default_language(void)
+{
+	static int default_language = -1;
+	unsigned char *lang;
+
+	if (default_language >= 0)
+		return default_language;
+
+	default_language = os_default_language();
+	if (default_language >= 0)
+		return default_language;
+
+	lang = cast_uchar getenv("LANG");
+	if (lang) {
+		default_language = get_language_from_lang(lang);
+		if (default_language >= 0)
+			return default_language;
+	}
+
+	default_language = get_language_from_lang(cast_uchar "en");
+	return default_language;
 }
 
 int get_default_charset(void)

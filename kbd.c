@@ -187,7 +187,7 @@ static void os_cfmakeraw(struct termios *t)
 			fprintf(stderr, "%d - %d\n", i, t->c_cc[i]);
 		}
 	}
-	sleep(10);*/
+	portable_sleep(10000);*/
 }
 
 static int ttcgetattr(int fd, struct termios *t)

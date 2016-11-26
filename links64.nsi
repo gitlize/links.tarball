@@ -15,12 +15,12 @@ SetCompressor /SOLID lzma
   ;Name and file
   Name "Links WWW Browser"
   ;Icon "links.ico"
-  ;!define MUI_ICON "links.ico"
+  !define MUI_ICON "links.ico"
   OutFile "Links-64bit-install.exe"
 
   ;Default installation folder
   InstallDir "$PROGRAMFILES64\Links"
-  
+
   ;Get installation folder from registry if available
   InstallDirRegKey HKCU "Software\Links" ""
 
@@ -41,20 +41,20 @@ SetCompressor /SOLID lzma
 ;  !insertmacro MUI_PAGE_COMPONENTS
   !insertmacro MUI_PAGE_DIRECTORY
 
-!define MUI_STARTMENUPAGE_REGISTRY_ROOT "HKCU" 
-!define MUI_STARTMENUPAGE_REGISTRY_KEY "Software\Links" 
+!define MUI_STARTMENUPAGE_REGISTRY_ROOT "HKCU"
+!define MUI_STARTMENUPAGE_REGISTRY_KEY "Software\Links"
 !define MUI_STARTMENUPAGE_REGISTRY_VALUENAME "Links"
-  
+
 !insertmacro MUI_PAGE_STARTMENU Application $STARTMENU_FOLDER
 
   !insertmacro MUI_PAGE_INSTFILES
-  
+
   !insertmacro MUI_UNPAGE_CONFIRM
   !insertmacro MUI_UNPAGE_INSTFILES
-  
+
 ;--------------------------------
 ;Languages
- 
+
   !insertmacro MUI_LANGUAGE "English"
 
 ;--------------------------------
@@ -63,7 +63,7 @@ SetCompressor /SOLID lzma
 Section "-Default Links browser files" DefaultSection
 
   SetOutPath "$INSTDIR"
-  
+
   ;ADD YOUR OWN FILES HERE...
 
 File BRAILLE_HOWTO
@@ -73,6 +73,7 @@ File README
 File links.crt
 File links.exe
 File links-g.exe
+File dll\cygwin1.dll
 File c:\cygwin64\bin\cygEGL-1.dll
 File c:\cygwin64\bin\cygGL-1.dll
 File c:\cygwin64\bin\cygX11-6.dll
@@ -117,19 +118,31 @@ File c:\cygwin64\bin\cygssl-1.0.0.dll
 File c:\cygwin64\bin\cygstdc++-6.dll
 File c:\cygwin64\bin\cygthai-0.dll
 File c:\cygwin64\bin\cygtiff-6.dll
-File c:\cygwin64\bin\cygwin1.dll
 File c:\cygwin64\bin\cygxcb-1.dll
 File c:\cygwin64\bin\cygxcb-glx-0.dll
 File c:\cygwin64\bin\cygxcb-render-0.dll
 File c:\cygwin64\bin\cygxcb-shm-0.dll
 File c:\cygwin64\bin\cygxml2-2.dll
 File c:\cygwin64\bin\cygz.dll
-  
+
   ;Store installation folder
   WriteRegStr HKCU "Software\Links" "" $INSTDIR
-  
+
   ;Create uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Links64" \
+		 "DisplayName" "Links WWW Browser 64-bit"
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Links64" \
+		 "DisplayIcon" "$INSTDIR\links.exe,0"
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Links64" \
+		 "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Links64" \
+		 "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
+WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Links64" \
+		 "NoModify" 0x00000001
+WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Links64" \
+		 "NoRepair" 0x00000001
 
 !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
 
@@ -229,6 +242,7 @@ IfErrors startMenuDeleteLoopDone
 StrCmp $MUI_TEMP $SMPROGRAMS startMenuDeleteLoopDone startMenuDeleteLoop
 startMenuDeleteLoopDone:
 
-  DeleteRegKey /ifempty HKCU "Software\Links"
+DeleteRegKey /ifempty HKCU "Software\Links"
+DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Links64"
 
 SectionEnd

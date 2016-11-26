@@ -17,11 +17,6 @@
 
 #ifdef G
 
-#ifdef HAVE_ENDIAN_H
-/* Max von Sydow */
-#include <endian.h>
-#endif
-
 #define RESTART_SIZE 8192
 /* Size of biggest chunk of compressed data that is processed in one run */
 

@@ -549,7 +549,7 @@ void debug_stack(void)
 	}
 	printf("%c", 7);
 	fflush(stdout);
-	sleep(1);
+	portable_sleep(1000);
 }
 #endif
 
@@ -1073,6 +1073,7 @@ static void html_img(unsigned char *a)
 	ismap = format_.link && (F || !has_attr(a, cast_uchar "usemap")) && has_attr(a, cast_uchar "ismap");
 	if (format_.image) mem_free(format_.image), format_.image = NULL;
 	if (
+		(s = get_url_val(a, cast_uchar "data-src")) ||
 		(s = get_url_val(a, cast_uchar "data-defer-src")) ||
 		(s = get_url_val(a, cast_uchar "data-li-src")) ||
 		(s = get_url_val(a, cast_uchar "data-original")) ||
@@ -1264,14 +1265,21 @@ static void html_title(unsigned char *a)
 	html_top.invisible = INVISIBLE;
 }
 
+int should_skip_script(unsigned char *a)
+{
+	return !has_attr(a, cast_uchar "/");
+}
+
 static void html_script(unsigned char *a)
 {
 	unsigned char *s;
 	s = get_attr_val(a, cast_uchar "src");
 	special_f(ff, SP_SCRIPT, s);
 	if (s) mem_free(s);
-	html_top.dontkill = 1;
-	html_top.invisible = INVISIBLE_SCRIPT;
+	if (should_skip_script(a)) {
+		html_top.dontkill = 1;
+		html_top.invisible = INVISIBLE_SCRIPT;
+	}
 }
 
 static void html_style(unsigned char *a)
@@ -1407,6 +1415,9 @@ static void html_div(unsigned char *a)
 		    0) {
 			format_.attr |= AT_FIXED;
 			par_format.align = AL_NO;
+		} else if (strstr(cast_const_char al, "plain-text-white-space")) {
+			format_.attr |= AT_FIXED;
+			par_format.align = AL_NO_BREAKABLE;
 		}
 		mem_free(al);
 	}
@@ -2664,6 +2675,7 @@ static struct element_info elements[] = {
 	{"FIXED",	html_fixed,	0, 0},
 	{"CODE",	html_fixed,	0, 0},
 	{"TT",		html_fixed,	0, 0},
+	{"SAMP",	html_fixed,	0, 0},
 	{"SUB",		html_sub,	0, 0},
 	{"SUP",		html_sup,	0, 0},
 	{"FONT",	html_font,	0, 0},
@@ -2702,7 +2714,6 @@ static struct element_info elements[] = {
 	{"ADDRESS",	html_address,	2, 0},
 	{"PRE",		html_pre,	2, 0},
 	{"LISTING",	html_pre,	2, 0},
-	{"SAMP",	html_pre,	2, 0},
 
 	{"UL",		html_ul,	1, 0},
 	{"DIR",		html_ul,	1, 0},
@@ -2740,7 +2751,7 @@ unsigned char *skip_comment(unsigned char *html, unsigned char *eof)
 		if (!comm && html[0] == '>') return html + 1;
 		if (comm && html + 2 <= eof && html[0] == '-' && html[1] == '-') {
 			html += 2;
-			while (html < eof && *html == '-') html++;
+			while (html < eof && (*html == '-' || *html == '!')) html++;
 			while (html < eof && WHITECHAR(*html)) html++;
 			if (html >= eof) return eof;
 			if (*html == '>') return html + 1;
@@ -3278,8 +3289,10 @@ void scan_http_equiv(unsigned char *s, unsigned char *eof, unsigned char **head,
 	if (parse_element(s, eof, &name, &namelen, &attr, &s)) goto sp;
 	ps:
 	if (namelen == 6 && !casecmp(name, cast_uchar "SCRIPT", 6)) {
-		s = skip_element(s, eof, cast_uchar "SCRIPT", 0);
-		goto se;
+		if (should_skip_script(attr)) {
+			s = skip_element(s, eof, cast_uchar "SCRIPT", 0);
+			goto se;
+		}
 	}
 	if (namelen == 4 && !casecmp(name, cast_uchar "BODY", 4)) {
 		if (background) *background = get_attr_val(attr, cast_uchar "background"), background = NULL;
@@ -3318,6 +3331,7 @@ void scan_http_equiv(unsigned char *s, unsigned char *eof, unsigned char **head,
 	if ((he = get_attr_val(attr, cast_uchar "charset"))) {
 		add_to_str(head, hdl, cast_uchar "Charset: ");
 		add_to_str(head, hdl, he);
+		add_to_str(head, hdl, cast_uchar "\r\n");
 		mem_free(he);
 	}
 	if (!(he = get_attr_val(attr, cast_uchar "http-equiv"))) goto se;

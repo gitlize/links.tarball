@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 cp ../links-current/links*.nsi ../links-current/links.crt ../links-current/COPYING ../links-current/BRAILLE_HOWTO ../links-current/KEYS ../links-current/README .
+cp ../links-current/linkswin.ico links.ico
 unix2dos COPYING BRAILLE_HOWTO KEYS README
 CC=gcc
 export CC
@@ -47,6 +48,10 @@ fi
 make -j12 LDFLAGS="-mwindows"
 cp links.exe ../links-g.exe
 cd ..
+
+mkdir -p dll
+cp /bin/cygwin1.dll dll
+strip links.exe links-g.exe dll/cygwin1.dll
 
 if [ "`uname -m`" != x86_64 ]; then
 	/cygdrive/c/Program\ Files\ \(x86\)/NSIS/makensis.exe links.nsi

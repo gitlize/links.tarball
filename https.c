@@ -72,12 +72,11 @@ static int ssl_password_callback(char *buf, int size, int rwflag, void *userdata
 	return size;
 }
 
-SSL *getSSL(void)
+links_ssl *getSSL(void)
 {
+	links_ssl *ssl;
 	if (!context) {
 		const SSL_METHOD *m;
-		unsigned char *os_pool;
-		int os_pool_size;
 
 #if defined(HAVE_RAND_EGD) && defined(HAVE_RAND_FILE_NAME) && defined(HAVE_RAND_LOAD_FILE) && defined(HAVE_RAND_WRITE_FILE)
 		{
@@ -92,23 +91,56 @@ SSL *getSSL(void)
 #endif
 
 #if defined(HAVE_RAND_ADD)
-		os_seed_random(&os_pool, &os_pool_size);
-		if (os_pool_size) RAND_add(os_pool, os_pool_size, os_pool_size);
-		mem_free(os_pool);
+		{
+			unsigned char *os_pool;
+			int os_pool_size;
+			os_seed_random(&os_pool, &os_pool_size);
+			if (os_pool_size) RAND_add(os_pool, os_pool_size, os_pool_size);
+			mem_free(os_pool);
+		}
 #endif
 
+#if defined(HAVE_OPENSSL_INIT_SSL)
+		OPENSSL_init_ssl(0, NULL);
+#elif defined(OpenSSL_add_ssl_algorithms)
+		OpenSSL_add_ssl_algorithms();
+#else
 		SSLeay_add_ssl_algorithms();
+#endif
 		m = SSLv23_client_method();
 		if (!m) return NULL;
 		context = SSL_CTX_new((void *)m);
 		if (!context) return NULL;
-		SSL_CTX_set_options(context, SSL_OP_ALL);
+#ifndef SSL_OP_NO_COMPRESSION
+#define SSL_OP_NO_COMPRESSION	0
+#endif
+		SSL_CTX_set_options(context, SSL_OP_ALL | SSL_OP_NO_COMPRESSION);
+#ifdef SSL_MODE_ENABLE_PARTIAL_WRITE
+		SSL_CTX_set_mode(context, SSL_MODE_ENABLE_PARTIAL_WRITE);
+#endif
 		if (ssl_set_private_paths())
 			SSL_CTX_set_default_verify_paths(context);
 		SSL_CTX_set_default_passwd_cb(context, ssl_password_callback);
 
 	}
-	return SSL_new(context);
+	ssl = mem_alloc_mayfail(sizeof(links_ssl));
+	if (!ssl)
+		return NULL;
+	ssl->ssl = SSL_new(context);
+	if (!ssl->ssl) {
+		mem_free(ssl);
+		return NULL;
+	}
+	ssl->bytes_read = ssl->bytes_written = 0;
+	return ssl;
+}
+
+void freeSSL(links_ssl *ssl)
+{
+	if (!ssl || ssl == DUMMY)
+		return;
+	SSL_free(ssl->ssl);
+	mem_free(ssl);
 }
 
 void ssl_finish(void)
@@ -161,6 +193,12 @@ static int check_host_name(const unsigned char *templ, const unsigned char *host
 	}
 }
 
+#ifdef HAVE_ASN1_STRING_GET0_DATA
+#define asn_string_data	ASN1_STRING_get0_data
+#else
+#define asn_string_data	ASN1_STRING_data
+#endif
+
 /*
  * This function is based on verifyhost in libcurl - I hope that it is correct.
  */
@@ -204,7 +242,7 @@ static int verify_ssl_host_name(X509 *server_cert, unsigned char *host)
 					retval = S_INVALID_CERTIFICATE;
 				continue;
 			}
-			altname_ptr = ASN1_STRING_data(altname->d.ia5);
+			altname_ptr = asn_string_data(altname->d.ia5);
 			altname_len = ASN1_STRING_length(altname->d.ia5);
 			if (type == GEN_IPADD) {
 				if (altname_len == address_len && !memcmp(altname_ptr, address, address_len)) {
@@ -219,7 +257,7 @@ static int verify_ssl_host_name(X509 *server_cert, unsigned char *host)
 			}
 			retval = S_INVALID_CERTIFICATE;
 		}
-		sk_GENERAL_NAME_free(altnames);
+		GENERAL_NAMES_free(altnames);
 		if (retval != 1)
 			return retval;
 	}
@@ -245,7 +283,7 @@ static int verify_ssl_host_name(X509 *server_cert, unsigned char *host)
 					if (j >= 0) {
 						peer_CN = OPENSSL_malloc(j + 1);
 						if (peer_CN) {
-							memcpy(peer_CN, ASN1_STRING_data(tmp), j);
+							memcpy(peer_CN, asn_string_data(tmp), j);
 							peer_CN[j] = '\0';
 						}
 					}
@@ -269,14 +307,14 @@ static int verify_ssl_host_name(X509 *server_cert, unsigned char *host)
 	return S_INVALID_CERTIFICATE;
 }
 
-int verify_ssl_certificate(SSL *ssl, unsigned char *host)
+int verify_ssl_certificate(links_ssl *ssl, unsigned char *host)
 {
 	X509 *server_cert;
 	int ret;
 
-	if (SSL_get_verify_result(ssl) != X509_V_OK)
+	if (SSL_get_verify_result(ssl->ssl) != X509_V_OK)
 		return S_INVALID_CERTIFICATE;
-	server_cert = SSL_get_peer_certificate(ssl);
+	server_cert = SSL_get_peer_certificate(ssl->ssl);
 	if (!server_cert)
 		return S_INVALID_CERTIFICATE;
 	ret = verify_ssl_host_name(server_cert, host);
@@ -284,26 +322,96 @@ int verify_ssl_certificate(SSL *ssl, unsigned char *host)
 	return ret;
 }
 
-int verify_ssl_cipher(SSL *ssl)
+int verify_ssl_cipher(links_ssl *ssl)
 {
 	unsigned char *cipher;
+#ifdef HAVE_SSL_GET_SSL_METHOD
 #ifdef HAVE_SSLV2_CLIENT_METHOD
-	if (SSL_get_ssl_method(ssl) == SSLv2_client_method())
+	if (SSL_get_ssl_method(ssl->ssl) == SSLv2_client_method())
 		return S_INSECURE_CIPHER;
 #endif
 #ifdef HAVE_SSLV3_CLIENT_METHOD
-	if (SSL_get_ssl_method(ssl) == SSLv3_client_method())
+	if (SSL_get_ssl_method(ssl->ssl) == SSLv3_client_method())
 		return S_INSECURE_CIPHER;
 #endif
-	if (SSL_get_cipher_bits(ssl, NULL) < 112)
+#endif
+	if (SSL_get_cipher_bits(ssl->ssl, NULL) < 112)
 		return S_INSECURE_CIPHER;
-	cipher = cast_uchar SSL_get_cipher_name(ssl);
-	if (cipher && strstr(cast_const_char cipher, "RC4-"))
-		return S_INSECURE_CIPHER;
+	cipher = cast_uchar SSL_get_cipher_name(ssl->ssl);
+	if (cipher) {
+		if (strstr(cast_const_char cipher, "RC4"))
+			return S_INSECURE_CIPHER;
+		if (strstr(cast_const_char cipher, "NULL"))
+			return S_INSECURE_CIPHER;
+	}
 	return 0;
 }
 
 #endif
+
+int ssl_not_reusable(links_ssl *ssl)
+{
+	unsigned char *cipher;
+	if (!ssl || ssl == DUMMY)
+		return 0;
+	ssl->bytes_read = (ssl->bytes_read + 4095) & ~4095;
+	ssl->bytes_written = (ssl->bytes_written + 4095) & ~4095;
+	cipher = cast_uchar SSL_get_cipher_name(ssl->ssl);
+	if (cipher) {
+		if (strstr(cast_const_char cipher, "RC4-") ||
+		    strstr(cast_const_char cipher, "DES-") ||
+		    strstr(cast_const_char cipher, "RC2-") ||
+		    strstr(cast_const_char cipher, "IDEA-") ||
+		    strstr(cast_const_char cipher, "GOST-")) {
+			return ssl->bytes_read + ssl->bytes_written >= 1 << 20;
+		}
+	}
+	return 0;
+}
+
+unsigned char *get_cipher_string(links_ssl *ssl)
+{
+	unsigned char *version, *cipher;
+	unsigned char *s = init_str();
+	int l = 0;
+
+	add_num_to_str(&s, &l, SSL_get_cipher_bits(ssl->ssl, NULL));
+	add_to_str(&s, &l, cast_uchar "-bit");
+
+	version = cast_uchar SSL_get_cipher_version(ssl->ssl);
+#ifdef HAVE_SSL_GET_SSL_METHOD
+#ifdef HAVE_SSLV2_CLIENT_METHOD
+	if (SSL_get_ssl_method(ssl->ssl) == SSLv2_client_method())
+		version = cast_uchar "SSLv2";
+#endif
+#ifdef HAVE_SSLV3_CLIENT_METHOD
+	if (SSL_get_ssl_method(ssl->ssl) == SSLv3_client_method())
+		version = cast_uchar "SSLv3";
+#endif
+#ifdef HAVE_TLSV1_CLIENT_METHOD
+	if (SSL_get_ssl_method(ssl->ssl) == TLSv1_client_method())
+		version = cast_uchar "TLSv1";
+#endif
+#ifdef HAVE_TLSV1_1_CLIENT_METHOD
+	if (SSL_get_ssl_method(ssl->ssl) == TLSv1_1_client_method())
+		version = cast_uchar "TLSv1.1";
+#endif
+#ifdef HAVE_TLSV1_2_CLIENT_METHOD
+	if (SSL_get_ssl_method(ssl->ssl) == TLSv1_2_client_method())
+		version = cast_uchar "TLSv1.2";
+#endif
+#endif
+	if (version) {
+		add_chr_to_str(&s, &l, ' ');
+		add_to_str(&s, &l, version);
+	}
+	cipher = cast_uchar SSL_get_cipher_name(ssl->ssl);
+	if (cipher) {
+		add_chr_to_str(&s, &l, ' ');
+		add_to_str(&s, &l, cipher);
+	}
+	return s;
+}
 
 #else
 

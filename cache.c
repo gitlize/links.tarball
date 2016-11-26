@@ -5,11 +5,100 @@
 
 #include "links.h"
 
+#if defined(HAVE_SEARCH_H) && defined(HAVE_TDELETE) && defined(HAVE_TFIND) && defined(HAVE_TSEARCH)
+#define USE_TREE
+#endif
+
 static struct list_head cache = {&cache, &cache};
 
 static my_uintptr_t cache_size = 0;
 
 static tcount cache_count = 1;
+
+
+#ifdef USE_TREE
+
+static void *cache_root = NULL;
+
+static int ce_compare(const void *p1, const void *p2)
+{
+	const unsigned char *u1 = (const unsigned char *)p1;
+	const unsigned char *u2 = (const unsigned char *)p2;
+	if (u1 == u2) return 0;
+	return strcmp(cast_const_char u1, cast_const_char u2);
+}
+
+static void cache_add_to_tree(struct cache_entry *e)
+{
+	void **p;
+
+	if (!e->url[0]) return;
+
+#if !defined(__GLIBC__)
+	if (!cache_root) {
+		/*
+		 * Some implementations misbehave when deleting the last
+		 * element. They leak memory or return NULL from tdelete.
+		 * To guard against misbehavior, we insert one static element
+		 * and never delete it.
+		 * Glibc doesn't have this bug.
+		 */
+		static unsigned char empty = 0;
+retry_static:
+		p = tsearch(&empty, &cache_root, ce_compare);
+		if (!p) {
+			out_of_memory(0, cast_uchar "tsearch static", 0);
+			goto retry_static;
+		}
+		if ((unsigned char *)*p != &empty) internal("cache_add_to_tree: static entry not added: %p, %p", *p, &empty);
+	}
+#endif
+
+retry:
+	p = tsearch(e->url, &cache_root, ce_compare);
+	if (!p) {
+		out_of_memory(0, cast_uchar "tsearch", 0);
+		goto retry;
+	}
+	if ((unsigned char *)*p != e->url) internal("cache_add_to_tree: url '%s' is already present", e->url);
+}
+
+static void cache_delete_from_tree(struct cache_entry *e)
+{
+	void *p;
+
+	if (!e->url[0]) return;
+
+	p = tdelete(e->url, &cache_root, ce_compare);
+	if (!p) internal("cache_delete_from_tree: url '%s' not found", e->url);
+}
+
+static struct cache_entry *cache_search_tree(unsigned char *url)
+{
+	void **p;
+	struct cache_entry diff;
+
+	p = tfind(url, &cache_root, ce_compare);
+	if (!p) return NULL;
+	return (struct cache_entry *)((char *)*p - ((char *)diff.url - (char *)&diff));
+}
+
+#else
+
+static void cache_add_to_tree(struct cache_entry *e) { }
+static void cache_delete_from_tree(struct cache_entry *e) { }
+
+static struct cache_entry *cache_search_tree(unsigned char *url)
+{
+	struct cache_entry *e;
+	foreach(e, cache)
+		if (!strcmp(cast_const_char e->url, cast_const_char url))
+			return e;
+	return NULL;
+}
+
+#endif
+
 
 my_uintptr_t cache_info(int type)
 {
@@ -64,7 +153,8 @@ int find_in_cache(unsigned char *url, struct cache_entry **f)
 {
 	struct cache_entry *e;
 	url = extract_proxy(url);
-	foreach(e, cache) if (!strcmp(cast_const_char e->url, cast_const_char url)) {
+	e = cache_search_tree(url);
+	if (e) {
 		e->refcount++;
 		del_from_list(e);
 		add_to_list(cache, e);
@@ -85,8 +175,9 @@ int new_cache_entry(unsigned char *url, struct cache_entry **f)
 	struct cache_entry *e;
 	shrink_memory(SH_CHECK_QUOTA, 0);
 	url = extract_proxy(url);
-	e = mem_calloc(sizeof(struct cache_entry));
-	e->url = mem_alloc(strlen(cast_const_char url)+1);
+	e = mem_calloc_mayfail(sizeof(struct cache_entry) + strlen(cast_const_char url));
+	if (!e)
+		return -1;
 	strcpy(cast_char e->url, cast_const_char url);
 	e->length = 0;
 	e->incomplete = 1;
@@ -98,6 +189,7 @@ int new_cache_entry(unsigned char *url, struct cache_entry **f)
 	e->refcount = 1;
 	e->decompressed = NULL;
 	e->decompressed_len = 0;
+	cache_add_to_tree(e);
 	add_to_list(cache, e);
 	*f = e;
 	return 0;
@@ -105,6 +197,7 @@ int new_cache_entry(unsigned char *url, struct cache_entry **f)
 
 void detach_cache_entry(struct cache_entry *e)
 {
+	cache_delete_from_tree(e);
 	e->url[0] = 0;
 }
 
@@ -367,9 +460,9 @@ void delete_cache_entry(struct cache_entry *e)
 #ifdef DEBUG
 	if (is_entry_used(e)) internal("deleting loading cache entry");
 #endif
+	cache_delete_from_tree(e);
 	delete_entry_content(e);
 	del_from_list(e);
-	mem_free(e->url);
 	if (e->head) mem_free(e->head);
 	if (e->last_modified) mem_free(e->last_modified);
 	if (e->redirect) mem_free(e->redirect);

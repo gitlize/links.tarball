@@ -63,6 +63,9 @@
 /* The number of bytes in a unsigned short.  */
 #define SIZEOF_UNSIGNED_SHORT 2
 
+/* Define if you have the ASN1_STRING_get0_data function.  */
+/* #undef HAVE_ASN1_STRING_GET0_DATA */
+
 /* Define if you have the DirectFBInit function.  */
 /* #undef HAVE_DIRECTFBINIT */
 
@@ -71,6 +74,9 @@
 
 /* Define if you have the MouOpen function.  */
 /* #undef HAVE_MOUOPEN */
+
+/* Define if you have the OPENSSL_init_ssl function.  */
+/* #undef HAVE_OPENSSL_INIT_SSL */
 
 /* Define if you have the RAND_add function.  */
 /* #undef HAVE_RAND_ADD */
@@ -87,11 +93,29 @@
 /* Define if you have the RAND_write_file function.  */
 /* #undef HAVE_RAND_WRITE_FILE */
 
+/* Define if you have the SSL_get_ssl_method function.  */
+/* #undef HAVE_SSL_GET_SSL_METHOD */
+
+/* Define if you have the SSL_load_error_strings function.  */
+/* #undef HAVE_SSL_LOAD_ERROR_STRINGS */
+
 /* Define if you have the SSLv2_client_method function.  */
 /* #undef HAVE_SSLV2_CLIENT_METHOD */
 
 /* Define if you have the SSLv3_client_method function.  */
 /* #undef HAVE_SSLV3_CLIENT_METHOD */
+
+/* Define if you have the TLSv1_1_client_method function.  */
+/* #undef HAVE_TLSV1_1_CLIENT_METHOD */
+
+/* Define if you have the TLSv1_2_client_method function.  */
+/* #undef HAVE_TLSV1_2_CLIENT_METHOD */
+
+/* Define if you have the TLSv1_client_method function.  */
+/* #undef HAVE_TLSV1_CLIENT_METHOD */
+
+/* Define if you have the X509_get_ext_d2i function.  */
+#define HAVE_X509_GET_EXT_D2I 1
 
 /* Define if you have the XCloseIM function.  */
 /* #undef HAVE_XCLOSEIM */
@@ -261,6 +285,9 @@
 /* Define if you have the memcpy function.  */
 #define HAVE_MEMCPY 1
 
+/* Define if you have the memmem function.  */
+/* #undef HAVE_MEMMEM */
+
 /* Define if you have the memmove function.  */
 #define HAVE_MEMMOVE 1
 
@@ -354,9 +381,6 @@
 /* Define if you have the sigdelset function.  */
 #define HAVE_SIGDELSET 1
 
-/* Define if you have the sigfillset function.  */
-#define HAVE_SIGFILLSET 1
-
 /* Define if you have the sigprocmask function.  */
 #define HAVE_SIGPROCMASK 1
 
@@ -423,8 +447,17 @@
 /* Define if you have the strtoul function.  */
 #define HAVE_STRTOUL 1
 
+/* Define if you have the tdelete function.  */
+/* #undef HAVE_TDELETE */
+
 /* Define if you have the tempnam function.  */
 #define HAVE_TEMPNAM 1
+
+/* Define if you have the tfind function.  */
+/* #undef HAVE_TFIND */
+
+/* Define if you have the tsearch function.  */
+/* #undef HAVE_TSEARCH */
 
 /* Define if you have the uname function.  */
 #define HAVE_UNAME 1
@@ -488,9 +521,6 @@
 
 /* Define if you have the <dirent.h> header file.  */
 #define HAVE_DIRENT_H 1
-
-/* Define if you have the <endian.h> header file.  */
-/* #undef HAVE_ENDIAN_H */
 
 /* Define if you have the <ev-event.h> header file.  */
 /* #undef HAVE_EV_EVENT_H */
@@ -567,6 +597,9 @@
 /* Define if you have the <linux/vt.h> header file.  */
 /* #undef HAVE_LINUX_VT_H */
 
+/* Define if you have the <locale.h> header file.  */
+#define HAVE_LOCALE_H 1
+
 /* Define if you have the <lzma.h> header file.  */
 /* #undef HAVE_LZMA_H */
 
@@ -594,6 +627,9 @@
 /* Define if you have the <netinet/ip.h> header file.  */
 /* #undef HAVE_NETINET_IP_H */
 
+/* Define if you have the <openssl/x509v3.h> header file.  */
+#define HAVE_OPENSSL_X509V3_H 1
+
 /* Define if you have the <png.h> header file.  */
 /* #undef HAVE_PNG_H */
 
@@ -605,6 +641,9 @@
 
 /* Define if you have the <pwd.h> header file.  */
 #define HAVE_PWD_H 1
+
+/* Define if you have the <search.h> header file.  */
+/* #undef HAVE_SEARCH_H */
 
 /* Define if you have the <setjmp.h> header file.  */
 #define HAVE_SETJMP_H 1
@@ -787,11 +826,11 @@
 #define PACKAGE "links"
 
 /* Version number of package */
-#define VERSION "2.13"
+#define VERSION "2.14"
 
 
 /* */
-#define VERSION "2.13"
+#define VERSION "2.14"
 
 /* */
 /* #undef HAVE_OPENMP */
@@ -827,10 +866,10 @@
 #define HAVE_ERRNO 1
 
 /* */
-#define C_BIG_ENDIAN 1
+/* #undef C_BIG_ENDIAN */
 
 /* */
-/* #undef C_LITTLE_ENDIAN */
+#define C_LITTLE_ENDIAN 1
 
 /* */
 #define RENAME_OVER_EXISTING_FILES 1
@@ -878,7 +917,13 @@
 #define HAVE_MEMSET 1
 
 /* */
+/* #undef HAVE_MEMMEM */
+
+/* */
 #define HAVE_STRERROR 1
+
+/* */
+#define HAVE_SIGFILLSET 1
 
 /* */
 #define HAVE_SIGSETJMP 1

@@ -403,7 +403,8 @@ static void get_mouse_background(unsigned char *buffer_ptr)
  */
 static void render_mouse_arrow(void)
 {
-	int x,y, reg0, reg1;
+	int x,y;
+	unsigned reg0, reg1;
 	unsigned char *mouse_ptr=mouse_buffer;
 	const unsigned *arrow_ptr=arrow;
 
@@ -413,7 +414,7 @@ static void render_mouse_arrow(void)
 		arrow_ptr+=2;
 		for (x=arrow_width;x;)
 		{
-			int mask=1<<(--x);
+			unsigned mask=1U<<(--x);
 
 			if (reg0&mask)
 				memcpy (mouse_ptr, &mouse_black, fb_pixelsize);
@@ -982,6 +983,15 @@ static void fb_gpm_in(void *nic)
 	if (gev.buttons & GPM_B_LEFT) ev.b = B_LEFT;
 	else if (gev.buttons & GPM_B_MIDDLE) ev.b = B_MIDDLE;
 	else if (gev.buttons & GPM_B_RIGHT) ev.b = B_RIGHT;
+#ifdef GPM_B_FOURTH
+	else if (gev.buttons & GPM_B_FOURTH) ev.b = B_FOURTH;
+#endif
+#ifdef GPM_B_UP
+	else if (gev.buttons & GPM_B_UP) ev.b = B_FIFTH;
+#endif
+#ifdef GPM_B_DOWN
+	else if (gev.buttons & GPM_B_DOWN) ev.b = B_SIXTH;
+#endif
 	else ev.b = 0;
 	if ((int)gev.type & GPM_DOWN) ev.b |= B_DOWN;
 	else if ((int)gev.type & GPM_UP) ev.b |= B_UP;
