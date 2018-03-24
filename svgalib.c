@@ -1704,7 +1704,7 @@ void dump_mode_info_into_file(vga_modeinfo* i)
 }
 #endif
 
-static void svgalib_key_in(void *p, unsigned char *ev_, int size)
+static void svgalib_key_in(struct itrm *p, unsigned char *ev_, int size)
 {
 	struct links_event *ev = (struct links_event *)(void *)ev_;
 	if (size != sizeof(struct links_event)) return;
@@ -1749,7 +1749,7 @@ static void mouse_event_handler(int button, int dx, int dy, int dz, int drx, int
 	void (*mh)(struct graphics_device *, int, int, int);
 	struct graphics_device *cd=current_virtual_device;
 
-	mh=cd?cd->mouse_handler:NULL;
+	mh=cd?cd->mouse_handler:(void(*)(struct graphics_device *dev, int x, int y, int buttons))NULL;
 	old_mouse_x=mouse_x;
 	old_mouse_y=mouse_y;
 
@@ -2258,7 +2258,7 @@ static void vtswitch_handler(void *nothing)
 }
 #endif
 
-static void svga_ctrl_c(struct itrm *i)
+static void svga_ctrl_c(void *i_)
 {
 	kbd_ctrl_c();
 }
@@ -2372,7 +2372,7 @@ static unsigned char *svga_init_driver(unsigned char *param, unsigned char *disp
 	ignore_signals();
 	errno = 0;
 	while (signal(SIGTSTP, SIG_IGN) == SIG_ERR && errno == EINTR) errno = 0;
-	install_signal_handler(SIGINT, (void (*)(void *))svga_ctrl_c, svgalib_kbd, 0);
+	install_signal_handler(SIGINT, svga_ctrl_c, svgalib_kbd, 0);
 	return NULL;
 }
 
@@ -2544,6 +2544,7 @@ struct graphics_driver svga_driver={
 	NULL, /* hscroll */
 	NULL, /* vscroll */
 	generic_set_clip_area,
+	NULL,
 	vga_block, /* block */
 	vga_unblock, /* unblock */
 	NULL, /* set_title */
@@ -2552,7 +2553,11 @@ struct graphics_driver svga_driver={
 	NULL, /* get_clipboard_text */
 	0,				/* depth */
 	0, 0,				/* size */
-	GD_NO_LIBEVENT,			/* flags */
+	GD_NO_LIBEVENT
+#ifndef SPAD
+		| GD_NOAUTO
+#endif
+		,			/* flags */
 	0,				/* codepage */
 	NULL,				/* shell */
 };

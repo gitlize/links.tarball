@@ -140,11 +140,15 @@ void svg_restart(struct cached_image *cimg, unsigned char *data, int length)
 	struct svg_decoder *deco = (struct svg_decoder *)cimg->decoder;
 #ifndef CURRENTCOLOR_HACK
 	GError *er = NULL;
+	int h;
 
+	h = close_stderr();
 	if (!rsvg_handle_write(deco->handle, (const guchar *)data, length, &er)) {
 		g_error_free(er);
+		restore_stderr(h);
 		img_end(cimg);
 	}
+	restore_stderr(h);
 #else
 	add_bytes_to_str(&deco->buffer, &deco->len, data, length);
 #endif
@@ -188,19 +192,26 @@ void svg_finish(struct cached_image *cimg)
 	cairo_surface_t *surf;
 	cairo_t *cairo;
 	unsigned char *end_buffer, *p;
+	int h;
 
 #ifdef CURRENTCOLOR_HACK
 	svg_hack_buffer(deco);
+	h = close_stderr();
 	if (!rsvg_handle_write(deco->handle, (const guchar *)deco->buffer, deco->len, &er)) {
 		g_error_free(er);
+		restore_stderr(h);
 		goto end;
 	}
+	restore_stderr(h);
 #endif
 
+	h = close_stderr();
 	if (!rsvg_handle_close(deco->handle, &er)) {
 		g_error_free(er);
+		restore_stderr(h);
 		goto end;
 	}
+	restore_stderr(h);
 
 	rsvg_handle_get_dimensions(deco->handle, &dim);
 
@@ -223,9 +234,10 @@ void svg_finish(struct cached_image *cimg)
 	if (dim.width && dim.height)
 		cairo_scale(cairo, (double)cimg->width / (double)dim.width, (double)cimg->height / (double)dim.height);
 
+	h = close_stderr();
 	rsvg_handle_render_cairo(deco->handle, cairo);
-
 	cairo_surface_flush(surf);
+	restore_stderr(h);
 
 	end_buffer = cimg->buffer + cimg->width * cimg->height * cimg->buffer_bytes_per_pixel;
 	if (htonl(0x12345678L) != 0x12345678L) {

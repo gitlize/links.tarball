@@ -158,10 +158,8 @@ static void gray_to_rgb(unsigned char *data, int pixels)
 /* Fixes returned data in case they are CMYK or grayscale. */
 static inline void fix_data( struct jpg_decoder *deco, int lines_read)
 {
-#ifdef __ICC
-	volatile	/* ICC bug */
-#endif
-	int a;
+	/* ICC bug */
+	icc_volatile int a;
 
 	switch (global_cinfo->output_components){
 		case 1:
@@ -250,6 +248,7 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 			break;
 		global_cinfo->buffered_image=TRUE;
 		deco->state=1;
+		/*-fallthrough*/
 
 		case 1:
 		/* If the scaling is sufficiently brutal we can leave out
@@ -327,6 +326,7 @@ void jpeg_restart(struct cached_image *cimg, unsigned char *data, int length)
 		}
 new_scan:
 		deco->state=2;
+		/*-fallthrough*/
 
 		case 2:
 		/* jpeg_start_output */
@@ -368,6 +368,7 @@ susp0:
 			}
 		}
 		deco->state=4;
+		/*-fallthrough*/
 
 		case 4:
 		/* jpeg_finish_output */
@@ -382,6 +383,7 @@ susp0:
 			goto new_scan;
 		}
 		deco->state=5;
+		/*-fallthrough*/
 
 		case 5:
 		/* jpeg_finish_decompress */

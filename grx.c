@@ -72,7 +72,7 @@ static void grx_set_clip(void)
 		);
 }
 
-static void grx_key_in(void *p, unsigned char *ev_, int size)
+static void grx_key_in(struct itrm *p, unsigned char *ev_, int size)
 {
 	int vd;
 	struct links_event *ev = (struct links_event *)(void *)ev_;
@@ -555,6 +555,7 @@ struct graphics_driver grx_driver = {
 	grx_hscroll,
 	grx_vscroll,
 	grx_set_clip_area,
+	NULL,
 	grx_block,
 	grx_unblock,
 	NULL, /* set_title */

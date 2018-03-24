@@ -19,6 +19,10 @@
 
 #if defined(__CYGWIN__) && defined(HAVE_LOCALE_H)
 #include <locale.h>
+#ifdef HAVE_LANGINFO_H
+#include <langinfo.h>
+#endif
+
 #endif
 
 #ifdef HAVE_PTHREADS
@@ -271,6 +275,43 @@ void init_os(void)
 #ifdef WIN
 	if (!GetConsoleCP())
 		force_g = 1;
+#if defined(__CYGWIN__) && defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE) && defined(LC_CTYPE)
+	{
+		unsigned char *l = cast_uchar setlocale(LC_CTYPE, "");
+		if (!l || !casestrcmp(l, cast_uchar "C")) {
+			setlocale(LC_CTYPE, "en_US.utf-8");
+		}
+	}
+#endif
+#if defined(__CYGWIN__)
+	/*
+	 * When started from cmd.exe and the argument contains some characters
+	 * not valid in the current locale, cygwin doesn't remove the quotation
+	 * marks around the argument. So, we must remove the quotation marks
+	 * here.
+	 */
+	if (getppid() == 1) {
+		int i;
+		for (i = 1; i < g_argc; i++) {
+			unsigned char *a = g_argv[i];
+			int l = (int)strlen(cast_const_char a);
+			if (l >= 3 && a[0] == '"' && a[l - 1] == '"') {
+				unsigned char *a2 = cast_uchar strdup(cast_const_char (a + 1));
+				if (a2) {
+					unsigned char *p, *q;
+					a2[l - 2] = 0;
+					for (p = q = a2; *p; p++) {
+						if (p[0] == '\\' && p[1] == '"')
+							continue;
+						*q++ = *p;
+					}
+					*q = 0;
+					g_argv[i] = a2;
+				}
+			}
+		}
+	}
+#endif
 #endif
 }
 #endif
@@ -359,11 +400,20 @@ void ignore_signals(void)
 #endif
 }
 
-ttime get_time(void)
+uttime get_absolute_time(void)
+{
+	struct timeval tv;
+	int rs;
+	EINTRLOOP(rs, gettimeofday(&tv, NULL));
+	if (rs) fatal_exit("gettimeofday failed: %d", errno);
+	return (uttime)tv.tv_sec * 1000 + (unsigned)tv.tv_usec / 1000;
+}
+
+uttime get_time(void)
 {
 #if defined(OS2) || defined(WIN)
 	static unsigned last_tim = 0;
-	static ttime add = 0;
+	static uttime add = 0;
 	unsigned tim;
 #if defined(OS2)
 	int rc;
@@ -373,37 +423,34 @@ ttime get_time(void)
 	tim = GetTickCount();
 #endif
 	if (tim < last_tim) {
-		add += (ttime)1 << 31 << 1;
+		add += (uttime)1 << 31 << 1;
 	}
 	last_tim = tim;
 	return tim | add;
 #else
-	union {
-		struct timeval tv;
-#if defined(HAVE_CLOCK_GETTIME) && defined(TIME_WITH_SYS_TIME)
-		struct timespec ts;
-#endif
-	} u;
+#if defined(HAVE_CLOCK_GETTIME) && defined(TIME_WITH_SYS_TIME) && (defined(CLOCK_MONOTONIC_RAW) || defined(CLOCK_MONOTONIC))
+	struct timespec ts;
 	int rs;
-#if defined(HAVE_CLOCK_GETTIME) && defined(TIME_WITH_SYS_TIME)
 #if defined(CLOCK_MONOTONIC_RAW)
-	EINTRLOOP(rs, clock_gettime(CLOCK_MONOTONIC_RAW, &u.ts));
-	if (!rs) return(uttime)u.ts.tv_sec * 1000 + u.ts.tv_nsec / 1000000;
+	EINTRLOOP(rs, clock_gettime(CLOCK_MONOTONIC_RAW, &ts));
+	if (!rs) return (uttime)ts.tv_sec * 1000 + (unsigned)ts.tv_nsec / 1000000;
 #endif
 #if defined(CLOCK_MONOTONIC)
-	EINTRLOOP(rs, clock_gettime(CLOCK_MONOTONIC, &u.ts));
-	if (!rs) return(uttime)u.ts.tv_sec * 1000 + u.ts.tv_nsec / 1000000;
+	EINTRLOOP(rs, clock_gettime(CLOCK_MONOTONIC, &ts));
+	if (!rs) return (uttime)ts.tv_sec * 1000 + (unsigned)ts.tv_nsec / 1000000;
 #endif
 #endif
-	EINTRLOOP(rs, gettimeofday(&u.tv, NULL));
-	if (rs) fatal_exit("gettimeofday failed: %d", errno);
-	return (uttime)u.tv.tv_sec * 1000 + u.tv.tv_usec / 1000;
+	return get_absolute_time();
 #endif
 }
 
 
-unsigned char *clipboard = NULL;
+static unsigned char *clipboard = NULL;
 
+void os_free_clipboard(void)
+{
+	if (clipboard) mem_free(clipboard), clipboard = NULL;
+}
 
 /* Terminal size */
 
@@ -475,10 +522,8 @@ int get_terminal_size(int fd, int *x, int *y)
 {
 	int rs = -1;
 #ifdef TIOCGWINSZ
-#ifdef __SUNPRO_C
-	volatile	/* Sun Studio misoptimizes it */
-#endif
-	struct winsize ws;
+	/* Sun Studio misoptimizes it */
+	sun_volatile struct winsize ws;
 	EINTRLOOP(rs, ioctl(1, TIOCGWINSZ, &ws));
 #endif
 	if ((rs == -1
@@ -519,7 +564,7 @@ static unsigned char winch_thread_running = 0;
 
 #define WINCH_SLEEPTIME 500 /* time in ms for winch thread to sleep */
 
-static void winch_thread(void)
+static void winch_thread(void *arg)
 {
 	/* A thread which regularly checks whether the size of
 	   window has changed. Then raise SIGWINCH or notifiy
@@ -562,7 +607,7 @@ void handle_terminal_resize(int fd, void (*fn)(void))
 	if (!winch_thread_running) {
 		if (c_pipe(winch_pipe) < 0) return;
 		winch_thread_running = 1;
-		if (_beginthread((void (*)(void *))winch_thread, NULL, 0x32000, NULL) == -1) {
+		if (_beginthread(winch_thread, NULL, 0x32000, NULL) == -1) {
 		}
 	}
 	set_handlers(winch_pipe[0], winch, NULL, fn);
@@ -886,9 +931,13 @@ int is_xterm(void)
 void close_fork_tty(void)
 {
 	struct terminal *t;
+	struct list_head *lt;
 	struct download *d;
+	struct list_head *ld;
 	struct connection *c;
+	struct list_head *lc;
 	struct k_conn *k;
+	struct list_head *lk;
 	int rs;
 #ifndef NO_SIGNAL_HANDLERS
 	EINTRLOOP(rs, close(signal_pipe[0]));
@@ -899,19 +948,19 @@ void close_fork_tty(void)
 #endif
 	if (terminal_pipe[1] != -1) EINTRLOOP(rs, close(terminal_pipe[1]));
 	if (s_unix_fd != -1) close(s_unix_fd);
-	foreach (t, terminals) {
+	foreach(struct terminal, t, lt, terminals) {
 		if (t->fdin > 0)
 			EINTRLOOP(rs, close(t->fdin));
 		if (t->handle_to_close >= 0)
 			EINTRLOOP(rs, close(t->handle_to_close));
 	}
-	foreach (d, downloads) if (d->handle > 0)
+	foreach(struct download, d, ld, downloads) if (d->handle > 0)
 		EINTRLOOP(rs, close(d->handle));
-	foreach (c, queue) {
+	foreach(struct connection, c, lc, queue) {
 		if (c->sock1 >= 0) EINTRLOOP(rs, close(c->sock1));
 		if (c->sock2 >= 0) EINTRLOOP(rs, close(c->sock2));
 	}
-	foreach (k, keepalive_connections)
+	foreach(struct k_conn, k, lk, keepalive_connections)
 		EINTRLOOP(rs, close(k->conn));
 }
 
@@ -1019,14 +1068,6 @@ void init_os_terminal(void)
 #ifdef OS2
 	if (os2_detached) {
 		fatal_exit("Links doesn't work in detached session");
-	}
-#endif
-#if defined(__CYGWIN__) && defined(HAVE_LOCALE_H) && defined(HAVE_SETLOCALE) && defined(LC_CTYPE)
-	{
-		unsigned char *l = cast_uchar setlocale(LC_CTYPE, "");
-		if (!l || !casestrcmp(l, cast_uchar "C")) {
-			setlocale(LC_CTYPE, "en_US.utf-8");
-		}
 	}
 #endif
 }
@@ -1296,7 +1337,9 @@ unsigned char *get_clipboard_text(struct terminal *term)
 		return drv->get_clipboard_text();
 	}
 #endif
-	return stracpy(clipboard);
+	if (!clipboard)
+		return NULL;
+	return convert(utf8_table, term_charset(term), clipboard, NULL);
 }
 
 /* links -> clipboard */
@@ -1309,7 +1352,7 @@ void set_clipboard_text(struct terminal *term, unsigned char *data)
 	}
 #endif
 	if (clipboard) mem_free(clipboard);
-	clipboard = stracpy(data);
+	clipboard = convert(term_charset(term), utf8_table, data, NULL);
 }
 
 int clipboard_support(struct terminal *term)
@@ -1531,15 +1574,31 @@ int exe_on_background(unsigned char *path, unsigned char *del)
 #endif
 }
 
+int windows_charset(void)
+{
+#if defined(HAVE_NL_LANGINFO) && defined(HAVE_LANGINFO_H) && defined(CODESET)
+	int idx;
+	unsigned char *cp;
+	cp = cast_uchar nl_langinfo(CODESET);
+	idx = get_cp_index(cp);
+	if (idx >= 0)
+		return idx;
+#endif
+	return utf8_table;
+}
+
 unsigned char *get_clipboard_text(struct terminal *term)
 {
 	unsigned char buffer[256];
-	unsigned char *str, *s, *d;
+	unsigned char *str, *s, *d, *result;
 	int l;
 	int r;
 	int rs;
 	int h;
-	if (!clipboard_support(term)) return stracpy(clipboard);
+	if (!clipboard_support(term)) {
+		str = stracpy(clipboard);
+		goto cvt_ret;
+	}
 	/* O_TEXT doesn't work on clipboard handle */
 	h = c_open(cast_uchar "/dev/clipboard", O_RDONLY);
 	if (h == -1) return stracpy(clipboard);
@@ -1556,28 +1615,32 @@ unsigned char *get_clipboard_text(struct terminal *term)
 	for (s = str, d = str; *s; s++)
 		if (!(s[0] == '\r' && s[1] == '\n')) *d++ = *s;
 	*d = 0;
-	return str;
+
+	cvt_ret:
+	result = convert(windows_charset(), term_charset(term), str, NULL);
+	mem_free(str);
+	return result;
 }
 
-/* Putting Czech characters to clipboard doesn't work, but it should be fixed
-   rather in Cygwin than here */
 void set_clipboard_text(struct terminal *term, unsigned char *data)
 {
+	unsigned char *p;
 	unsigned char *conv_data;
 	int l;
 	int h;
 	int rs;
 	if (clipboard) mem_free(clipboard);
-	clipboard = stracpy(data);
+	clipboard = convert(term_charset(term), windows_charset(), data, NULL);
 	if (!clipboard_support(term)) return;
 	/* O_TEXT doesn't work on clipboard handle */
 	h = c_open(cast_uchar "/dev/clipboard", O_WRONLY);
 	if (h == -1) return;
 	conv_data = init_str();
 	l = 0;
-	for (; *data; data++)
-		if (*data == '\n') add_to_str(&conv_data, &l, cast_uchar "\r\n");
-		else add_chr_to_str(&conv_data, &l, *data);
+	for (p = clipboard; *p; p++) {
+		if (*p == '\n') add_to_str(&conv_data, &l, cast_uchar "\r\n");
+		else add_chr_to_str(&conv_data, &l, *p);
+	}
 	hard_write(h, conv_data, l);
 	mem_free(conv_data);
 	EINTRLOOP(rs, close(h));
@@ -1639,11 +1702,11 @@ static void call_resize(unsigned char *x1, int x, int y)
 #ifndef _UWIN
 	int rs;
 #endif
-	unsigned char arg[MAX_STR_LEN];
+	unsigned char arg[64];
 #ifdef _UWIN
 	x++;
 #endif
-	sprintf(cast_char arg, "mode %d,%d", x, y);
+	snprintf(cast_char arg, (int)sizeof(arg), "mode %d,%d", x, y);
 #if defined(_UWIN) && !defined(__DMC__)
 	pid = spawnlp(x1, x1, "/c", arg, NULL);
 #else
@@ -2000,11 +2063,11 @@ static sem_id thr_sem;
 static struct list_head active_threads = { &active_threads, &active_threads };
 
 struct active_thread {
-	struct active_thread *next;
-	struct active_thread *prev;
+	list_entry_1st
 	thread_id tid;
 	void (*fn)(void *);
 	void *data;
+	list_entry_last
 };
 
 static int32 started_thr(void *data)
@@ -2052,11 +2115,13 @@ void terminate_osdep(void)
 {
 	struct list_head *p;
 	struct active_thread *thrd;
+	struct list_head *lthrd;
 	if (acquire_sem(thr_sem) < B_NO_ERROR) return;
-	foreach(thrd, active_threads) kill_thread(thrd->tid);
-	while ((p = active_threads.next) != &active_threads) {
-		del_from_list(p);
-		free(p);
+	foreach(struct active_thread, thrd, lthrd, active_threads) kill_thread(thrd->tid);
+	while (!list_empty(active_threads)) {
+		thrd = list_struct(active_threads.next, struct active_thread);
+		del_from_list(thrd);
+		free(thrd);
 	}
 	release_sem(thr_sem);
 }
@@ -2270,8 +2335,9 @@ static void mouse_thread(void *p)
 	/*free(oms);*/
 }
 
-static void mouse_handle(struct os2_mouse_spec *oms)
+static void mouse_handle(void *oms_)
 {
+	struct os2_mouse_spec *oms = (struct os2_mouse_spec *)oms_;
 	int r;
 	EINTRLOOP(r, (int)read(oms->p[0], oms->buffer + oms->bufptr, sizeof(struct links_event) - oms->bufptr));
 	if (r <= 0) {
@@ -2305,7 +2371,7 @@ void *handle_mouse(int cons, void (*fn)(void *, unsigned char *, int), void *dat
 	}
 	if (_beginthread(mouse_thread, NULL, 0x10000, (void *)oms) == -1) {
 	}
-	set_handlers(oms->p[0], (void (*)(void *))mouse_handle, NULL, oms);
+	set_handlers(oms->p[0], mouse_handle, NULL, oms);
 	return oms;
 }
 
@@ -2650,8 +2716,9 @@ static void restore_gpm_signals(void)
 		EINTRLOOP(rs, do_sigprocmask(SIG_SETMASK, &gpm_sigset, NULL));
 }
 
-static void gpm_mouse_in(struct gpm_mouse_spec *gms)
+static void gpm_mouse_in(void *gms_)
 {
+	struct gpm_mouse_spec *gms = (struct gpm_mouse_spec *)gms_;
 	int g;
 	Gpm_Event gev;
 	struct links_event ev;
@@ -2663,7 +2730,7 @@ static void gpm_mouse_in(struct gpm_mouse_spec *gms)
 		gms->h = -1;
 		return;
 	}
-	set_handlers(gms->h, (void (*)(void *))gpm_mouse_in, NULL, gms);
+	set_handlers(gms->h, gpm_mouse_in, NULL, gms);
 	ev.ev = EV_MOUSE;
 	ev.x = gev.x - 1;
 	ev.y = gev.y - 1;
@@ -2706,7 +2773,7 @@ void *handle_mouse(int cons, void (*fn)(void *, unsigned char *, int), void *dat
 	gms->h = h;
 	gms->fn = fn;
 	gms->data = data;
-	set_handlers(h, (void (*)(void *))gpm_mouse_in, NULL, gms);
+	set_handlers(h, gpm_mouse_in, NULL, gms);
 	return gms;
 }
 
@@ -3131,7 +3198,7 @@ int get_country_language(int c)
 	int idx, i;
 #define C_EQUAL(a, b)	countries[a].code == (b)
 #define C_ABOVE(a, b)	countries[a].code > (b)
-	BIN_SEARCH(sizeof(countries) / sizeof(*countries), C_EQUAL, C_ABOVE, c, idx);
+	BIN_SEARCH(array_elements(countries), C_EQUAL, C_ABOVE, c, idx);
 	if (idx == -1)
 		return -1;
 	for (i = 0; i < n_languages(); i++)
@@ -3199,8 +3266,16 @@ int os_default_language(void)
 int os_default_charset(void)
 {
 	unsigned char *term = cast_uchar getenv("TERM");
-	if (term && !casecmp(term, cast_uchar "cygwin", 6))
-		return utf8_table;
+	if (term) {
+		if (!casestrcmp(term, cast_uchar "cygwin")) {
+#if defined(HAVE_NL_LANGINFO) && defined(HAVE_LANGINFO_H) && defined(CODESET)
+			return windows_charset();
+#endif
+		}
+		if (!casestrcmp(term, cast_uchar "xterm")) {
+			return utf8_table;
+		}
+	}
 	return -1;
 }
 

@@ -5,7 +5,7 @@
 
 AC_INIT(main.c)
 
-AM_INIT_AUTOMAKE(links, 2.14)
+AM_INIT_AUTOMAKE(links, 2.15)
 
 ACLOCAL="./missing aclocal"
 AUTOCONF="./missing autoconf"
@@ -71,12 +71,6 @@ if test "$ac_cv_have_djgpp" = yes; then
 	test -n "$DJDIR" && test -d "$DJDIR/net/watt/inc" && CPPFLAGS="-I$DJDIR/net/watt/inc $CPPFLAGS"
 	test -n "$DJDIR" && test -d "$DJDIR/net/watt/lib" && LDFLAGS="-L$DJDIR/net/watt/lib $LDFLAGS"
 fi
-
-AC_CACHE_CHECK([for typeof], ac_cv_have_typeof,
-	AC_TRY_COMPILE(, [int a;
-	typeof(a) b;], ac_cv_have_typeof=yes, ac_cv_have_typeof=no)
-	)
-test "$ac_cv_have_typeof" = yes && AC_DEFINE(HAVE_TYPEOF)
 
 AC_CACHE_CHECK([for volatile], ac_cv_have_volatile,
 	AC_TRY_COMPILE([], [
@@ -183,7 +177,7 @@ fi
 dnl Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS(alloca.h arpa/inet.h cygwin/process.h cygwin/version.h fcntl.h grp.h ieee.h interix/interix.h inttypes.h io.h langinfo.h limits.h linux/falloc.h locale.h malloc.h math.h net/socket.h netinet/dhcp.h netinet/in_system.h netinet/in_systm.h netinet/ip.h poll.h process.h pwd.h search.h setjmp.h sgtty.h stdarg.h string.h strings.h sys/cygwin.h sys/file.h sys/fmutex.h sys/ioctl.h sys/resource.h sys/select.h sys/time.h sys/un.h sys/utsname.h termios.h time.h umalloc.h unistd.h unixlib.h utime.h uwin.h values.h)
+AC_CHECK_HEADERS(alloca.h arpa/inet.h cygwin/process.h cygwin/version.h fcntl.h grp.h ieee.h interix/interix.h inttypes.h io.h langinfo.h limits.h linux/falloc.h locale.h malloc.h math.h net/socket.h netinet/in_system.h netinet/in_systm.h netinet/ip.h poll.h process.h pwd.h search.h setjmp.h sgtty.h stdarg.h string.h strings.h sys/cygwin.h sys/file.h sys/fmutex.h sys/ioctl.h sys/resource.h sys/select.h sys/time.h sys/un.h sys/utsname.h termios.h time.h umalloc.h unistd.h unixlib.h utime.h uwin.h values.h)
 dnl javascript AC_CHECK_HEADERS(md5.h)
 
 if test "$ac_cv_header_stdarg_h" != yes; then
@@ -305,7 +299,7 @@ dnl Checks for library functions.
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_HAVE_FUNCS(bcmp bcopy bzero calloc cfmakeraw chmod cygwin_conv_path cygwin_conv_to_full_win32_path dirfd fallocate getcwd getgrgid getpagesize getpid getpwuid getrlimit gettimeofday kqueue malloc_trim mallopt mkdir mktime nl_langinfo poll popen posix_fallocate raise select setlocale setpgid setrlimit setsid sigaction sigblock sigdelset sigprocmask sigsetmask snprintf strdup strptime strtod strtoimax strtol strtoll strtoq strtoul tdelete tempnam tfind tsearch uname unixpath2win utime utimes uwin_path winpath2unix _heapmin _ucreate _udefault _udestroy _uopen __strtoll)
+AC_HAVE_FUNCS(bcmp bcopy bzero calloc cfmakeraw chmod cygwin_conv_path cygwin_conv_to_full_win32_path dirfd fallocate getcwd getgrgid getpagesize getpid getpwuid getrlimit gettimeofday kqueue malloc_trim mallopt mktime nl_langinfo poll popen posix_fallocate raise select setlocale setpgid setrlimit setsid sigaction sigblock sigdelset sigprocmask sigsetmask snprintf strdup strptime strtod strtoimax strtol strtoll strtoq strtoul tdelete tempnam tfind tsearch uname unixpath2win utime utimes uwin_path winpath2unix _heapmin _ucreate _udefault _udestroy _uopen __strtoll)
 
 
 AC_HAVE_FUNCS(strlen)
@@ -452,10 +446,17 @@ if test "$ac_cv_have_sigsetjmp" = yes; then
 fi
 
 AC_CACHE_CHECK([for __builtin_add_overflow], ac_cv_have___builtin_add_overflow,
-	AC_TRY_LINK([], [int a = 1, b = 2, c; return __builtin_add_overflow(a, b, &c);], ac_cv_have___builtin_add_overflow=yes, ac_cv_have___builtin_add_overflow=no)
+	AC_TRY_LINK([], [volatile int a = 1, b = 2; int c; return __builtin_add_overflow(a, b, &c);], ac_cv_have___builtin_add_overflow=yes, ac_cv_have___builtin_add_overflow=no)
 )
 if test "$ac_cv_have___builtin_add_overflow" = yes; then
 	AC_DEFINE(HAVE___BUILTIN_ADD_OVERFLOW)
+fi
+
+AC_CACHE_CHECK([for __builtin_clz], ac_cv_have___builtin_clz,
+	AC_TRY_LINK([], [volatile unsigned a = 1; return __builtin_clz(a);], ac_cv_have___builtin_clz=yes, ac_cv_have___builtin_clz=no)
+)
+if test "$ac_cv_have___builtin_clz" = yes; then
+	AC_DEFINE(HAVE___BUILTIN_CLZ)
 fi
 
 
@@ -515,6 +516,7 @@ dnl javascript 			AC_DEFINE(HAVE_REGEX)
 dnl javascript 			reg_exp_mode="LIBC"
 dnl javascript 		fi
 dnl javascript 	fi
+dnl javascript 	AC_CHECK_LIB(m, fmod)
 dnl javascript fi
 
 cf_use_graphics=no
@@ -602,7 +604,7 @@ else
 	cf_have_getaddrinfo=no
 fi
 
-AC_HAVE_FUNCS(inet_ntop inet_pton dhcp_option herror)
+AC_HAVE_FUNCS(inet_ntop inet_pton herror)
 
 AC_ARG_WITH(ipv6, [  --without-ipv6          compile without ipv6],[if test "$withval" = no; then disable_ipv6=yes; else disable_ipv6=no; fi])
 
@@ -828,15 +830,33 @@ if test -z "$disable_ssl"; then
 		if test "$cf_result" = nss; then
 			AC_DEFINE(HAVE_NSS)
 		fi
-		AC_HAVE_FUNCS(RAND_add RAND_egd RAND_file_name RAND_load_file RAND_write_file OPENSSL_init_ssl SSL_load_error_strings SSL_get_ssl_method SSLv2_client_method SSLv3_client_method TLSv1_client_method TLSv1_1_client_method TLSv1_2_client_method ASN1_STRING_get0_data X509_get_ext_d2i)
+		AC_HAVE_FUNCS(ASN1_STRING_get0_data ASN1_STRING_to_UTF8 OPENSSL_cleanup OPENSSL_init_ssl RAND_add RAND_egd RAND_file_name RAND_load_file RAND_write_file SSL_SESSION_is_resumable SSL_get1_session SSL_load_error_strings X509_check_host X509_check_ip)
+		AC_CACHE_CHECK([for CRYPTO_set_mem_functions without file/line], ac_cv_have_crypto_set_mem_functions_1,
+			AC_TRY_LINK([#include <openssl/crypto.h>
+			static int csmf(void *(*m)(size_t), void *(*r)(void *, size_t), void (*f)(void *)) { return 0; }
+			], [return (int)(CRYPTO_set_mem_functions - csmf);], ac_cv_have_crypto_set_mem_functions_1=yes, ac_cv_have_crypto_set_mem_functions_1=no)
+		)
+		if test "$ac_cv_have_crypto_set_mem_functions_1" = yes; then
+			AC_DEFINE(HAVE_CRYPTO_SET_MEM_FUNCTIONS_1)
+		fi
+		AC_CACHE_CHECK([for CRYPTO_set_mem_functions with file/line], ac_cv_have_crypto_set_mem_functions_2,
+			AC_TRY_LINK([#include <openssl/crypto.h>
+			static int csmf(void *(*m)(size_t, const char *, int), void *(*r)(void *, size_t, const char *, int), void (*f)(void *, const char *, int)) { return 0; }
+			], [return (int)(CRYPTO_set_mem_functions - csmf);], ac_cv_have_crypto_set_mem_functions_2=yes, ac_cv_have_crypto_set_mem_functions_2=no)
+		)
+		if test "$ac_cv_have_crypto_set_mem_functions_2" = yes; then
+			AC_DEFINE(HAVE_CRYPTO_SET_MEM_FUNCTIONS_2)
+		fi
 	fi
 fi
 #endif
 cf_have_ssl=$cf_result
 
 AC_ARG_WITH(zlib, [  --without-zlib          compile without zlib compression],[if test "$withval" = no; then disable_zlib=yes; else disable_zlib=no; fi])
+AC_ARG_WITH(brotli, [  --without-brotli        compile without brotli compression],[if test "$withval" = no; then disable_brotli=yes; else disable_brotli=no; fi])
 AC_ARG_WITH(bzip2, [  --without-bzip2         compile without bzip2 compression],[if test "$withval" = no; then disable_bzip2=yes; else disable_bzip2=no; fi])
 AC_ARG_WITH(lzma, [  --without-lzma          compile without lzma compression],[if test "$withval" = no; then disable_lzma=yes; else disable_lzma=no; fi])
+AC_ARG_WITH(lzip, [  --without-lzip          compile without lzip compression],[if test "$withval" = no; then disable_lzip=yes; else disable_lzip=no; fi])
 compression=""
 
 if test "$disable_zlib" != yes; then
@@ -847,6 +867,16 @@ if test "$disable_zlib" != yes; then
 		compression="$compression ZLIB"
 	fi
 fi
+
+if test "$disable_brotli" != yes; then
+	AC_CHECK_HEADERS(brotli/decode.h)
+	AC_CHECK_LIB(brotlidec, BrotliDecoderDecompressStream)
+	if test "$ac_cv_header_brotli_decode_h" = yes && test "$ac_cv_lib_brotlidec_BrotliDecoderDecompressStream" = yes; then
+		AC_DEFINE(HAVE_BROTLI)
+		compression="$compression BROTLI"
+	fi
+fi
+
 if test "$disable_bzip2" != yes; then
 	AC_CHECK_HEADERS(bzlib.h)
 	AC_CHECK_LIB(bz2, BZ2_bzDecompress)
@@ -865,6 +895,15 @@ if test "$disable_lzma" != yes; then
 	fi
 fi
 
+if test "$disable_lzip" != yes; then
+	AC_CHECK_HEADERS(lzlib.h)
+	AC_CHECK_LIB(lz, LZ_decompress_open)
+	if test "$ac_cv_header_lzlib_h" = yes && test "$ac_cv_lib_lz_LZ_decompress_open" = yes; then
+		AC_DEFINE(HAVE_LZIP)
+		compression="$compression LZIP"
+	fi
+fi
+
 
 cf_have_atheos=no
 
@@ -876,13 +915,16 @@ cf_have_openmp=no
 if test "$disable_openmp" != yes; then
 	AC_CACHE_CHECK([for OpenMP], ac_cv_have_openmp,
 		ac_cv_have_openmp=no
-		for openmp_cflags in "" -fopenmp -openmp -mp -xopenmp -omp -qsmp=omp "-mp -lstdc++"; do
+		for openmp_cflags in "" -fopenmp -openmp -fopenmp=libgomp -mp -xopenmp -omp -qsmp=omp "-mp -lstdc++"; do
 			CFLAGS_X="$CFLAGS"
 			CFLAGS="$CFLAGS $openmp_cflags"
 			AC_TRY_LINK([#include <omp.h>], [
 			int enabled = 1;
 			int i = 1;
 			int j = 3;
+			omp_set_dynamic(0);
+			i += omp_get_max_threads();
+			omp_set_num_threads(4);
 #pragma omp parallel default(none) firstprivate(i) shared(j) if (enabled)
 			{
 				int n;
@@ -1194,15 +1236,6 @@ fi
 	   test "$ac_cv_func_png_get_valid" != yes ||
 	   test "$ac_cv_func_png_get_sRGB" != yes; then
 		AC_ERROR([Your libpng is too old])
-	fi
-
-	AC_CACHE_CHECK(if you can include both setjmp.h and png.h, ac_cv_include_setjmp_png,
-		AC_TRY_COMPILE([#include <setjmp.h>
-		#include <png.h>], [jmp_buf bla;], ac_cv_include_setjmp_png=yes, ac_cv_include_setjmp_png=no)
-	)
-
-	if test "$ac_cv_include_setjmp_png" != yes; then
-		AC_DEFINE(DONT_INCLUDE_SETJMP)
 	fi
 
 	AC_ARG_WITH(libjpeg, [  --without-libjpeg	  compile without JPEG support],[if test "$withval" = no; then disable_jpeg=yes; else disable_jpeg=no; fi])

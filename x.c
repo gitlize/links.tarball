@@ -129,7 +129,7 @@ static unsigned char *x_display_string = NULL;
 static int x_screen;   /* screen */
 static int x_display_height,x_display_width;   /* screen dimensions */
 static unsigned long x_black_pixel;  /* black pixel */
-static int x_depth,x_bitmap_bpp;   /* bits per pixel and bytes per pixel */
+static int x_depth, x_bitmap_bpp;   /* bits per pixel and bytes per pixel */
 static int x_bitmap_scanline_pad; /* bitmap scanline_padding in bytes */
 static int x_colors;  /* colors in the palette (undefined when there's no palette) */
 static int x_have_palette;
@@ -212,7 +212,7 @@ static inline void X_SCHEDULE_PROCESS_EVENTS(void)
 {
 	if (!process_events_in_progress)
 	{
-		register_bottom_half(x_process_events,NULL);
+		register_bottom_half(x_process_events, NULL);
 		process_events_in_progress = 1;
 	}
 }
@@ -239,7 +239,7 @@ static inline void X_FLUSH(void)
 #else
 	if (!flush_in_progress)
 	{
-		register_bottom_half(x_do_flush,NULL);
+		register_bottom_half(x_do_flush, NULL);
 		flush_in_progress=1;
 	}
 #endif
@@ -279,7 +279,7 @@ static void x_clip_number(int *n,int l,int h)
 }
 
 
-static unsigned char * x_set_palette(void)
+static unsigned char *x_set_palette(void)
 {
 	XColor color;
 	unsigned a;
@@ -303,8 +303,7 @@ static unsigned char * x_set_palette(void)
 	return NULL;
 }
 
-static unsigned char static_color_table[256];
-static int use_static_color_table;
+static unsigned char *static_color_table = NULL;
 
 static unsigned char *x_query_palette(void)
 {
@@ -312,6 +311,8 @@ static unsigned char *x_query_palette(void)
 	XColor color[256];
 	unsigned char valid[256];
 	int some_valid = 0;
+	if (x_depth > 8)
+		return stracpy(cast_uchar "Static color supported for up to 8-bit depth\n");
 	memset(color, 0, sizeof color);
 	memset(valid, 0, sizeof valid);
 	for (i = 0; i < 1 << x_depth; i++) {
@@ -325,6 +326,7 @@ static unsigned char *x_query_palette(void)
 	}
 	if (!some_valid)
 		return stracpy(cast_uchar "Could not query static colormap\n");
+	static_color_table = mem_calloc(256);
 	for (i = 0; i < 1 << x_depth; i++) {
 		double best_distance = 0;
 		int best = -1;
@@ -341,7 +343,6 @@ static unsigned char *x_query_palette(void)
 		}
 		static_color_table[i] = (unsigned char)best;
 	}
-	use_static_color_table = 1;
 	return NULL;
 }
 
@@ -542,8 +543,8 @@ static void x_free_hash_table(void)
 {
 	int a,b;
 
-	unregister_bottom_half(x_process_events,NULL);
-	unregister_bottom_half(x_do_flush,NULL);
+	unregister_bottom_half(x_process_events, NULL);
+	unregister_bottom_half(x_do_flush, NULL);
 
 	for (a=0;a<X_HASH_TABLE_SIZE;a++)
 	{
@@ -554,6 +555,8 @@ static void x_free_hash_table(void)
 	}
 
 	x_clear_clipboard();
+
+	if (static_color_table) mem_free(static_color_table), static_color_table = NULL;
 
 	if (x_display) {
 		if (x_icon) XFreePixmap(x_display, x_icon), x_icon = 0;
@@ -810,6 +813,7 @@ static void x_process_events(void *data)
 				event.xclient.message_type!=x_wm_protocols_atom||
 				(Atom)event.xclient.data.l[0]!=x_delete_window_atom
 			)break;
+			/*-fallthrough*/
 
 			/* This event is destroy window event from window manager */
 
@@ -927,7 +931,7 @@ static void x_process_events(void *data)
 				}
 				x_clip_number(&(event.xmotion.x),gd->size.x1,gd->size.x2);
 				x_clip_number(&(event.xmotion.y),gd->size.y1,gd->size.y2);
-				gd->mouse_handler(gd,event.xbutton.x,event.xbutton.y,a|(a != B_WHEELDOWN && a != B_WHEELUP && a != B_WHEELLEFT && a != B_WHEELRIGHT ? B_DOWN : B_MOVE));
+				gd->mouse_handler(gd,event.xbutton.x, event.xbutton.y, a | (!BM_IS_WHEEL(a) ? B_DOWN : B_MOVE));
 				p_xx:;
 			}
 			break;
@@ -1051,7 +1055,7 @@ static XIC x_open_xic(Window w);
 #endif
 
 /* initiate connection with X server */
-static unsigned char * x_init_driver(unsigned char *param, unsigned char *display)
+static unsigned char *x_init_driver(unsigned char *param, unsigned char *display)
 {
 	XGCValues gcv;
 	XSetWindowAttributes win_attr;
@@ -1068,7 +1072,7 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 #ifdef X_DEBUG
 	{
 		unsigned char txt[256];
-		sprintf(txt,"x_init_driver(%s, %s)\n",param, display);
+		sprintf(txt,"x_init_driver(%s, %s)\n", param, display);
 		MESSAGE(txt);
 	}
 #endif
@@ -1115,36 +1119,40 @@ static unsigned char * x_init_driver(unsigned char *param, unsigned char *displa
 		return err;
 	}
 
-	x_bitmap_bit_order=BitmapBitOrder(x_display);
-	x_screen=DefaultScreen(x_display);
-	x_display_height=DisplayHeight(x_display,x_screen);
-	x_display_width=DisplayWidth(x_display,x_screen);
-	x_root_window=RootWindow(x_display,x_screen);
+	x_bitmap_bit_order = BitmapBitOrder(x_display);
+	x_screen = DefaultScreen(x_display);
+	x_display_height = DisplayHeight(x_display, x_screen);
+	x_display_width = DisplayWidth(x_display, x_screen);
+	x_root_window = RootWindow(x_display, x_screen);
 
-	x_default_window_width=x_display_width-50;
-	x_default_window_height=x_display_height-50;
+	x_default_window_width = x_display_width;
+	if (x_default_window_width >= 100)
+		x_default_window_width -= 50;
+	x_default_window_height = x_display_height;
+	if (x_default_window_height >= 150)
+		x_default_window_height -= 75;
 
-	x_driver_param=NULL;
+	x_driver_param = NULL;
 
 	if (param && *param)
 	{
 		unsigned char *e;
-		unsigned long w,h;
+		unsigned long w, h;
 
-		x_driver_param=stracpy(param);
+		x_driver_param = stracpy(param);
 
 		if (*x_driver_param < '0' || *x_driver_param > '9') {
 			invalid_param:
 			x_free_hash_table();
 			return stracpy(cast_uchar "Invalid parameter\n");
 		}
-		w=strtoul(cast_const_char x_driver_param,(char **)(void *)&e,10);
+		w=strtoul(cast_const_char x_driver_param, (char **)(void *)&e, 10);
 		if (upcase(*e) != 'X') goto invalid_param;
 		e++;
 		if (*e < '0' || *e > '9') goto invalid_param;
-		h=strtoul(cast_const_char e,(char **)(void *)&e,10);
+		h=strtoul(cast_const_char e, (char **)(void *)&e, 10);
 		if (*e) goto invalid_param;
-		if (w && h && w <= MAXINT && h <= MAXINT) {
+		if (w && h && w <= 30000 && h <= 30000) {
 			x_default_window_width=(int)w;
 			x_default_window_height=(int)h;
 		}
@@ -1290,7 +1298,6 @@ visual_found:;
 
 	x_colors=1<<x_depth;
 	x_have_palette=0;
-	use_static_color_table = 0;
 	if (vinfo.class==DirectColor||vinfo.class==PseudoColor)
 	{
 		unsigned char *t;
@@ -1381,6 +1388,12 @@ visual_found:;
 		}
 #endif
 		xim = XOpenIM(x_display, NULL, NULL, NULL);
+#if defined(HAVE_SETLOCALE) && defined(LC_CTYPE)
+		if (!xim) {
+			l = cast_uchar setlocale(LC_CTYPE, "en_US.UTF-8");
+			xim = XOpenIM(x_display, NULL, NULL, NULL);
+		}
+#endif
 		if (xim) {
 			XIC xic = x_open_xic(fake_window);
 			if (xic) {
@@ -1572,7 +1585,7 @@ static void x_shutdown_device(struct graphics_device *gd)
 static void x_translate_colors(unsigned char *data, int x, int y, int skip)
 {
 	int i, j;
-	if (!use_static_color_table)
+	if (!static_color_table)
 		return;
 	for (j = 0; j < y; j++) {
 		for (i = 0; i < x; i++)
@@ -1720,7 +1733,7 @@ static long x_get_color(int rgb)
 	b = (unsigned char *)&block;
 	/*fprintf(stderr, "bitmap bpp %d\n", x_bitmap_bpp);*/
 	switch (x_bitmap_bpp) {
-		case 1:		if (use_static_color_table)
+		case 1:		if (static_color_table)
 					return static_color_table[b[0]];
 				return b[0];
 		case 2:		if (x_bitmap_bit_order == LSBFirst)
@@ -2140,6 +2153,13 @@ static void x_commit_strip(struct bitmap *bmp, int top, int lines)
 }
 
 
+static void x_flush(struct graphics_device *gd)
+{
+	unregister_bottom_half(x_do_flush, NULL);
+	x_do_flush(NULL);
+}
+
+
 static void x_set_window_title(struct graphics_device *gd, unsigned char *title)
 {
 	unsigned char *t;
@@ -2462,6 +2482,7 @@ struct graphics_driver x_driver={
 	x_hscroll,
 	x_vscroll,
 	x_set_clip_area,
+	x_flush,
 	dummy_block,
 	dummy_unblock,
 	x_set_window_title,

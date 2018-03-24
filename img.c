@@ -73,15 +73,15 @@ static void mem_free_buffer(struct cached_image *cimg)
 
 static void img_destruct_image(struct g_object *object)
 {
-	struct g_object_image *goi=(struct g_object_image *)object;
+	struct g_object_image *goi = get_struct(object, struct g_object_image, goti.go);
 
-	if (goi->orig_src)mem_free(goi->orig_src);
-	if (goi->alt)mem_free(goi->alt);
-	if (goi->name)mem_free(goi->name);
-	if (goi->src)mem_free(goi->src);
-	release_image_map(goi->map);
-	if (goi->image_list.next)del_from_list(&goi->image_list);
-	if (goi->xw&&goi->yw){
+	if (goi->orig_src) mem_free(goi->orig_src);
+	if (goi->alt) mem_free(goi->alt);
+	if (goi->name) mem_free(goi->name);
+	if (goi->src) mem_free(goi->src);
+	release_image_map(goi->goti.map);
+	if (goi->list_entry.next) del_from_list(goi);
+	if (goi->goti.go.xw && goi->goti.go.yw) {
 		 /* At least one dimension is zero */
 		goi->cimg->refcount--;
 	}
@@ -111,6 +111,7 @@ void img_destruct_cached_image(struct cached_image *cimg)
 		}else{
 			mem_free_buffer(cimg);
 		}
+		/*-fallthrough*/
 		case 8:
 		case 10:
 		destroy_decoder(cimg);
@@ -702,6 +703,7 @@ void img_end(struct cached_image *cimg)
 			mem_free_buffer(cimg);
 		}
 		if (cimg->gamma_table) mem_free(cimg->gamma_table);
+		/*-fallthrough*/
 		case 8:
 		case 10:
 		destroy_decoder(cimg);
@@ -923,7 +925,7 @@ static int img_process_download(struct g_object_image *goi, struct f_data_c *fda
 			length=RESTART_SIZE;
 			chopped=1;
 			if (fdatac) {
-				refresh_image(fdatac,(struct g_object *)goi,0);
+				refresh_image(fdatac, &goi->goti.go, 0);
 			}
 		}
 		/* Decoder has been already started */
@@ -987,7 +989,7 @@ img_process_download.\n");
 		}
 	} else if (!chopped) {
 		if (fdatac && f_is_finished(fdatac->f_data)) {
-			refresh_image(fdatac,(struct g_object *)goi,2000);
+			refresh_image(fdatac, &goi->goti.go, 2000);
 		}
 	}
 	return chopped;
@@ -1100,11 +1102,11 @@ static void draw_picture(struct f_data_c *fdatac, struct g_object_image *goi,
 		internal("Nonexistent bitmap in said cimg->state in draw_picture");
 	}
 #endif /* #ifdef DEBUG */
-	restrict_clip_area(dev, &saved, x, y, x+goi->xw, y+goi->yw);
-	drv->draw_bitmap(dev,&cimg->bmp,x,y);
-	drv->fill_area(dev, x+cimg->bmp.x, y, x+goi->xw,y+cimg->bmp.y, bg);
-	drv->fill_area(dev, x,y+cimg->bmp.y,x+goi->xw, y+goi->yw,bg);
-	drv->set_clip_area(dev,&saved);
+	restrict_clip_area(dev, &saved, x, y, x+goi->goti.go.xw, y+goi->goti.go.yw);
+	drv->draw_bitmap(dev, &cimg->bmp,x,y);
+	drv->fill_area(dev, x + cimg->bmp.x, y, x + goi->goti.go.xw, y + cimg->bmp.y, bg);
+	drv->fill_area(dev, x, y + cimg->bmp.y, x + goi->goti.go.xw, y + goi->goti.go.yw,bg);
+	drv->set_clip_area(dev, &saved);
 }
 
 /* Ensures in buffer there is not newer picture than in bitmap. Allowed to be
@@ -1124,9 +1126,9 @@ static void update_bitmap(struct cached_image *cimg)
 }
 
 /* Draws the image at x,y. Is called from other C sources. */
-static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
-	int x, int y)
+static void img_draw_image(struct f_data_c *fdatac, struct g_object *goi_, int x, int y)
 {
+	struct g_object_image *goi = get_struct(goi_, struct g_object_image, goti.go);
 	long color_bg, color_fg;
 	struct cached_image *cimg = goi->cimg;
 	struct rect r;
@@ -1136,21 +1138,21 @@ static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 	 */
 
 	if (cimg) {
-		color_bg=dip_get_color_sRGB(cimg->background_color);
-		color_fg=dip_get_color_sRGB(get_foreground(cimg->background_color));
+		color_bg = dip_get_color_sRGB(cimg->background_color);
+		color_fg = dip_get_color_sRGB(get_foreground(cimg->background_color));
 	} else {
 		color_bg = dip_get_color_sRGB(0x00c0c0c0);
 		color_fg = dip_get_color_sRGB(0x00000000);
 	}
 
-	if (!(goi->xw&&goi->yw)) return; /* At least one dimension is zero */
+	if (!(goi->goti.go.xw && goi->goti.go.yw)) return; /* At least one dimension is zero */
 
 
 	memcpy(&r, &fdatac->ses->term->dev->clip, sizeof(struct rect));
-	if (fdatac->vs->g_display_link && fdatac->active && fdatac->vs->current_link != -1 && fdatac->vs->current_link == goi->link_num) {
-		draw_frame_mark(fdatac->ses->term->dev,x,y,goi->xw,
-			goi->yw,color_bg,color_fg,2);
-		restrict_clip_area(fdatac->ses->term->dev, &r, x + 2, y + 2, x + goi->xw - 2, y + goi->yw - 2);
+	if (fdatac->vs->g_display_link && fdatac->active && fdatac->vs->current_link != -1 && fdatac->vs->current_link == goi->goti.link_num) {
+		draw_frame_mark(fdatac->ses->term->dev,x,y,goi->goti.go.xw,
+			goi->goti.go.yw,color_bg,color_fg,2);
+		restrict_clip_area(fdatac->ses->term->dev, &r, x + 2, y + 2, x + goi->goti.go.xw - 2, y + goi->goti.go.yw - 2);
 	}
 
 	global_goi=goi;
@@ -1159,8 +1161,8 @@ static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 							* draw. */
 	/* Now we will only draw... */
 	if (!cimg || cimg->state<12){
-		draw_frame_mark(fdatac->ses->term->dev,x,y,goi->xw,
-			goi->yw,color_bg,color_fg,!cimg || cimg->state&1);
+		draw_frame_mark(fdatac->ses->term->dev,x,y,goi->goti.go.xw,
+			goi->goti.go.yw,color_bg,color_fg,!cimg || cimg->state&1);
 	}else
 #ifdef DEBUG
 	if (cimg->state<16){
@@ -1176,7 +1178,7 @@ static void img_draw_image (struct f_data_c *fdatac, struct g_object_image *goi,
 		internal("Invalid state in img_draw_image");
 	}
 #endif /* #ifdef DEBUG */
-	ret:;
+	ret:
 	drv->set_clip_area(fdatac->ses->term->dev, &r);
 #ifdef LINKS_TESTMODE_IMAGE_AUTO_EXIT
 	if (cimg->state & 1)
@@ -1197,12 +1199,12 @@ static void find_or_make_cached_image(struct g_object_image *image, unsigned cha
 {
 	struct cached_image *cimg;
 
-	if (!(cimg = find_cached_image(image->background, url, image->xw,
-		image->yw, image->xyw_meaning,scale, aspect))){
+	if (!(cimg = find_cached_image(image->background, url, image->goti.go.xw,
+		image->goti.go.yw, image->xyw_meaning, scale, aspect))){
 		/* We have to make a new image cache entry */
 		cimg = mem_alloc(sizeof(*cimg));
 		cimg->refcount = 1;
-		cimg->background_color=image->background;
+		cimg->background_color = image->background;
 #ifdef DEBUG
 		if (!url)
 			internal ("NULL url as argument of\
@@ -1211,11 +1213,11 @@ find_or_make_cached_image");
 		cimg->scale = scale;
 		cimg->aspect = aspect;
 		cimg->url = stracpy(url);
-		cimg->wanted_xw = image->xw;
-		cimg->wanted_yw = image->yw;
-		cimg->wanted_xyw_meaning=image->xyw_meaning;
-		cimg->xww = image->xw<0?img_scale_h(cimg->scale, 32):cimg->wanted_xw;
-		cimg->yww = image->yw<0?img_scale_v(cimg->scale, 32):cimg->wanted_yw;
+		cimg->wanted_xw = image->goti.go.xw;
+		cimg->wanted_yw = image->goti.go.yw;
+		cimg->wanted_xyw_meaning = image->xyw_meaning;
+		cimg->xww = image->goti.go.xw < 0 ? img_scale_h(cimg->scale, 32) : cimg->wanted_xw;
+		cimg->yww = image->goti.go.yw < 0 ? img_scale_v(cimg->scale, 32) : cimg->wanted_yw;
 		cimg->state=0;
 		/* width, height, image_type, buffer, buffer_bytes_per_pixel, red_gamma,
 		 * green_gamma, blue_gamma, gamma_stamp, bitmap, last_length, rows_added,
@@ -1224,13 +1226,13 @@ find_or_make_cached_image");
 		 */
 
 		/* last_count2 is unitialized */
-		cimg->eof_hit=0;
-		cimg->last_count=-1;
-		cimg->last_count2=-1;
-		if (cimg->wanted_xw>=0&&cimg->wanted_yw>=0) cimg->state|=2;
+		cimg->eof_hit = 0;
+		cimg->last_count = -1;
+		cimg->last_count2 = -1;
+		if (cimg->wanted_xw >= 0 && cimg->wanted_yw >=0) cimg->state |= 2;
 		add_image_to_cache(cimg);
 	}
-	global_cimg=image->cimg=cimg;
+	global_cimg = image->cimg = cimg;
 }
 
 /* The original (unscaled, in pixels pace) size is requested in im->xsize and im->ysize.
@@ -1244,101 +1246,99 @@ struct g_object_image *insert_image(struct g_part *p, struct image_description *
 	int retval;
 
 	image=mem_calloc(sizeof(struct g_object_image));
-	global_goi=image;
-	image->mouse_event=&g_text_mouse;
-	image->draw=&img_draw_image;
-	image->destruct=&img_destruct_image;
-	image->get_list=NULL;
-	image->link_num = im->link_num;
-	image->link_order = im->link_order;
-	image->map = NULL;
+	global_goi = image;
+	image->goti.go.mouse_event = g_text_mouse;
+	image->goti.go.draw = img_draw_image;
+	image->goti.go.destruct = img_destruct_image;
+	image->goti.go.get_list = NULL;
+	image->goti.link_num = im->link_num;
+	image->goti.link_order = im->link_order;
+	image->goti.map = NULL;
 	/*
-	image->x is already filled
-	image->y is already filled
+	image->goti.go.x is already filled
+	image->goti.go.y is already filled
 	*/
-	if (im->align == AL_MIDDLE) image->y = G_OBJ_ALIGN_MIDDLE;
-	if (im->align == AL_TOP) image->y = G_OBJ_ALIGN_TOP;
+	if (im->align == AL_MIDDLE) image->goti.go.y = G_OBJ_ALIGN_MIDDLE;
+	if (im->align == AL_TOP) image->goti.go.y = G_OBJ_ALIGN_TOP;
 
-	if (im->autoscale_x&&im->autoscale_y)
-	{
+	if (im->autoscale_x && im->autoscale_y) {
 		/* Autoscale requested */
-		image->xw=im->autoscale_x;
-		image->yw=im->autoscale_y;
-		image->xyw_meaning=MEANING_AUTOSCALE;
+		image->goti.go.xw = im->autoscale_x;
+		image->goti.go.yw = im->autoscale_y;
+		image->xyw_meaning = MEANING_AUTOSCALE;
 	}else{
 		/* Autoscale not requested */
-		image->xw=img_scale_h(d_opt->image_scale, im->xsize);
-		image->yw=img_scale_v(d_opt->image_scale, im->ysize);
-		image->xyw_meaning=MEANING_DIMS;
+		image->goti.go.xw = img_scale_h(d_opt->image_scale, im->xsize);
+		image->goti.go.yw = img_scale_v(d_opt->image_scale, im->ysize);
+		image->xyw_meaning = MEANING_DIMS;
 	}
-	if (image->xw >= 0 && image->yw >= 0) {
-		if (!is_image_size_sane(image->xw, image->yw)) {
+	if (image->goti.go.xw >= 0 && image->goti.go.yw >= 0) {
+		if (!is_image_size_sane(image->goti.go.xw, image->goti.go.yw)) {
 			mem_free(image);
 			return NULL;
 		}
 	}
 
 	/* Put the data for javascript inside */
-	image->id=(current_f_data->n_images)++;
-	image->name=stracpy(im->name);
-	image->alt=stracpy(im->alt);
-	image->orig_src=stracpy(im->src);
-	image->border=im->border;
-	image->vspace=im->vspace;
-	image->hspace=im->hspace;
-	image->src=stracpy(im->url);
+	image->id = current_f_data->n_images++;
+	image->name = stracpy(im->name);
+	image->alt = stracpy(im->alt);
+	image->orig_src = stracpy(im->src);
+	image->border = im->border;
+	image->vspace = im->vspace;
+	image->hspace = im->hspace;
+	image->src = stracpy(im->url);
 
-	if (!(image->xw&&image->yw)){
+	if (!(image->goti.go.xw && image->goti.go.yw)) {
 		/* At least one is zero */
-		if (image->xw<0) image->xw=0;
-		if (image->yw<0) image->yw=0;
-		if (im->insert_flag)add_to_list(current_f_data->images,&image->image_list);
-		else image->image_list.prev=NULL,image->image_list.next=NULL;
+		if (image->goti.go.xw < 0) image->goti.go.xw = 0;
+		if (image->goti.go.yw < 0) image->goti.go.yw = 0;
+		if (im->insert_flag) add_to_list(current_f_data->images, image);
+		else image->list_entry.prev = image->list_entry.next = NULL;
 		return image;
 	}
 	/*
 	image->parent is already filled
 	*/
-	image->af=request_additional_file(current_f_data,im->url);
-	if (image->xw < 0 || image->yw < 0) image->af->unknown_image_size = 1;
-	image->background=hack_rgb(p->root->bg->u.sRGB);
+	image->af = request_additional_file(current_f_data, im->url);
+	if (image->goti.go.xw < 0 || image->goti.go.yw < 0) image->af->unknown_image_size = 1;
+	image->background = hack_rgb(p->root->bg->u.sRGB);
 
 	/* This supplies the result into image->cimg and global_cimg */
 	find_or_make_cached_image(image, im->url, d_opt->image_scale);
-	cimg=global_cimg;
+	cimg = global_cimg;
 
 next_chunk:
-	retval=img_process_download(image,NULL);
-	if (retval&&!(cimg->state&4)) goto next_chunk;
-	image->xw=image->cimg->xww;
-	image->yw=image->cimg->yww;
-	if (cimg->state==0||cimg->state==8||(!image->af->rq->ce && image->af->unknown_image_size)) if (image->af->need_reparse != -1) image->af->need_reparse = 1;
-	if (im->insert_flag)add_to_list(current_f_data->images,&image->image_list);
-	else image->image_list.prev=NULL,image->image_list.next=NULL;
+	retval = img_process_download(image, NULL);
+	if (retval && !(cimg->state & 4)) goto next_chunk;
+	image->goti.go.xw = image->cimg->xww;
+	image->goti.go.yw = image->cimg->yww;
+	if (cimg->state == 0 || cimg->state == 8 || (!image->af->rq->ce && image->af->unknown_image_size)) if (image->af->need_reparse != -1) image->af->need_reparse = 1;
+	if (im->insert_flag) add_to_list(current_f_data->images, image);
+	else image->list_entry.prev = image->list_entry.next = NULL;
 	return image;
 }
 
 #ifdef JS
 
-void change_image (struct g_object_image *goi, unsigned char *url, unsigned char *src, struct f_data
-		*fdata)
+void change_image (struct g_object_image *goi, unsigned char *url, unsigned char *src, struct f_data *fdata)
 {
 	/*struct cached_image *cimg;*/
 
-	global_goi=goi;
+	global_goi = goi;
 	mem_free(goi->src);
-	goi->src=stracpy(url);
-	if (goi->orig_src)mem_free(goi->orig_src);
-	goi->orig_src=stracpy(src);
-	if (!(goi->xw&&goi->yw)) return;
+	goi->src = stracpy(url);
+	if (goi->orig_src) mem_free(goi->orig_src);
+	goi->orig_src = stracpy(src);
+	if (!(goi->goti.go.xw && goi->goti.go.yw)) return;
 	goi->cimg->refcount--;
-	goi->af=request_additional_file(fdata,url);
+	goi->af = request_additional_file(fdata,url);
 	goi->af->need_reparse = -1;
 
 	find_or_make_cached_image(goi, url, fdata->opt.image_scale);
 	/* Automatically sets up global_cimg */
 
-	refresh_image(fdata->fd,(struct g_object*)goi,0);
+	refresh_image(fdata->fd, &goi->goti.go, 0);
 }
 
 #endif

@@ -18,8 +18,8 @@ struct smb_connection_info {
 	unsigned char text[1];
 };
 
-static void smb_got_data(struct connection *);
-static void smb_got_text(struct connection *);
+static void smb_got_data(void *);
+static void smb_got_text(void *);
 static void end_smb_connection(struct connection *);
 
 void smb_func(struct connection *c)
@@ -66,7 +66,7 @@ void smb_func(struct connection *c)
 	if ((p = cast_uchar strchr(cast_const_char data, '/'))) share = memacpy(data, p - data), dir = p + 1;
 	else if (*data) {
 		if (!c->cache) {
-			if (get_cache_entry(c->url, &c->cache)) {
+			if (get_connection_cache_entry(c)) {
 				mem_free(host);
 				mem_free(port);
 				mem_free(user);
@@ -254,7 +254,7 @@ void smb_func(struct connection *c)
 			}
 			break;
 		default:
-			internal("unsuported smb client");
+			internal("unsupported smb client");
 		}
 		v[n++] = NULL;
 		EINTRLOOP(rs, execvp(cast_const_char v[0], (void *)v));
@@ -272,8 +272,8 @@ void smb_func(struct connection *c)
 	c->sock2 = pe[0];
 	EINTRLOOP(rs, close(po[1]));
 	EINTRLOOP(rs, close(pe[1]));
-	set_handlers(po[0], (void (*)(void *))smb_got_data, NULL, c);
-	set_handlers(pe[0], (void (*)(void *))smb_got_text, NULL, c);
+	set_handlers(po[0], smb_got_data, NULL, c);
+	set_handlers(pe[0], smb_got_text, NULL, c);
 	setcstate(c, S_CONN);
 }
 
@@ -379,8 +379,9 @@ static void smb_read_text(struct connection *c, int sock)
 	}
 }
 
-static void smb_got_data(struct connection *c)
+static void smb_got_data(void *c_)
 {
+	struct connection *c = (struct connection *)c_;
 	struct smb_connection_info *si = c->info;
 	unsigned char *buffer = mem_alloc(page_size);
 	int r;
@@ -409,7 +410,7 @@ static void smb_got_data(struct connection *c)
 	}
 	setcstate(c, S_TRANS);
 	if (!c->cache) {
-		if (get_cache_entry(c->url, &c->cache)) {
+		if (get_connection_cache_entry(c)) {
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c);
 			mem_free(buffer);
@@ -436,8 +437,9 @@ static void smb_got_data(struct connection *c)
 	mem_free(buffer);
 }
 
-static void smb_got_text(struct connection *c)
+static void smb_got_text(void *c_)
 {
+	struct connection *c = (struct connection *)c_;
 	smb_read_text(c, c->sock2);
 }
 
@@ -445,7 +447,7 @@ static void end_smb_connection(struct connection *c)
 {
 	struct smb_connection_info *si = c->info;
 	if (!c->cache) {
-		if (get_cache_entry(c->url, &c->cache)) {
+		if (get_connection_cache_entry(c)) {
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c);
 			return;

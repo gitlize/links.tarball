@@ -77,7 +77,7 @@ static unsigned char dos_mouse_buttons;
 static int dos_mouse_last_x;
 static int dos_mouse_last_y;
 static int dos_mouse_last_button;
-static ttime dos_mouse_time;
+static uttime dos_mouse_time;
 
 static struct links_event *dos_mouse_queue = DUMMY;
 static int dos_mouse_queue_n;
@@ -178,7 +178,7 @@ static void dos_mouse_poll(void)
 	__dpmi_regs r;
 	dos_poll_break();
 	if (dos_mouse_initialized) {
-		if (dos_mouse_initialized == 1 && (uttime)get_time() - (uttime)dos_mouse_time > DOS_MOUSE_FLUSH_TIME)
+		if (dos_mouse_initialized == 1 && get_time() - dos_mouse_time > DOS_MOUSE_FLUSH_TIME)
 			dos_mouse_initialized = 2;
 		for (i = 0; i < dos_mouse_buttons; i++) {
 			if (dos_mouse_initialized == 1 && i > 0) {
@@ -367,6 +367,7 @@ process_ansi:
 				continue;
 			case 10:
 				cursor_y++;
+				/*-fallthrough*/
 			case 13:
 				cursor_x = 0;
 				break;
@@ -376,6 +377,7 @@ process_ansi:
 					case ')':
 						if (!size--) goto ret;
 						str++;
+						continue;
 					case '7':
 					default:
 						continue;

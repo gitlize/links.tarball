@@ -39,7 +39,7 @@ static void ftp_retr_1(struct connection *);
 static void ftp_retr_file(struct connection *, struct read_buffer *);
 static void ftp_got_final_response(struct connection *, struct read_buffer *);
 static void created_data_connection(struct connection *);
-static void got_something_from_data_connection(struct connection *);
+static void got_something_from_data_connection(void *);
 static void ftp_end_request(struct connection *, int);
 static int get_ftp_response(struct connection *, struct read_buffer *, int);
 static int ftp_process_dirlist(struct cache_entry *, off_t *, int *, unsigned char *, int, int, int, int *);
@@ -80,8 +80,19 @@ static int get_ftp_response(struct connection *c, struct read_buffer *rb, int pa
 void ftp_func(struct connection *c)
 {
 	int we_are_in_root;
-	/*setcstate(c, S_CONN);*/
-	/*set_connection_timeout(c);*/
+	unsigned char *de, *d;
+	int del, bad_url;
+	d = get_url_data(c->url);
+	de = init_str(), del = 0;
+	add_conv_str(&de, &del, d, (int)strcspn(cast_const_char d, POST_CHAR_STRING), -2);
+	bad_url = !!strchr(cast_const_char de, 10);
+	mem_free(de);
+	if (bad_url) {
+		setcstate(c, S_BAD_URL);
+		abort_connection(c);
+		return;
+	}
+
 	if (get_keepalive_socket(c, &we_are_in_root)) {
 		int p;
 		if ((p = get_port(c->url)) == -1) {
@@ -259,15 +270,9 @@ static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c, int
 	struct ftp_connection_info *inf, *inf2;
 	unsigned char *s;
 	int l;
-	if (!d) {
-		internal("get_url_data failed");
-		setcstate(c, S_INTERNAL);
-		abort_connection(c);
-		return NULL;
-	}
 
 	de = init_str(), del = 0;
-	add_conv_str(&de, &del, d, (int)strlen(cast_const_char d), -2);
+	add_conv_str(&de, &del, d, (int)strcspn(cast_const_char d, POST_CHAR_STRING), -2);
 	d = de;
 	inf = mem_alloc(sizeof(struct ftp_connection_info));
 	memset(inf, 0, sizeof(struct ftp_connection_info));
@@ -318,7 +323,7 @@ static struct ftp_connection_info *add_file_cmd_to_str(struct connection *c, int
 #endif
 	dd = d;
 	while (*dd == '/') dd++;
-	if (!(de = cast_uchar strchr(cast_const_char dd, POST_CHAR))) de = cast_uchar strchr(cast_const_char dd, 0);
+	de = cast_uchar strchr(cast_const_char dd, 0);
 	if (dd == de || de[-1] == '/') {
 		inf->dir = 1;
 		inf->pending_commands = 3;
@@ -528,7 +533,7 @@ static void ftp_retr_file(struct connection *c, struct read_buffer *rb)
 		nol:;
 	}
 	if (!inf->pasv)
-		set_handlers(c->sock2, (void (*)(void *))got_something_from_data_connection, NULL, c);
+		set_handlers(c->sock2, got_something_from_data_connection, NULL, c);
 	/*read_from_socket(c, c->sock1, rb, ftp_got_final_response);*/
 	ftp_got_final_response(c, rb);
 }
@@ -542,7 +547,7 @@ static void ftp_got_final_response(struct connection *c, struct read_buffer *rb)
 	if (g == 425 || g == 450 || g == 500 || g == 501 || g == 550) {
 		if (c->url[strlen(cast_const_char c->url) - 1] == '/') goto skip_redir;
 		if (!c->cache) {
-			if (get_cache_entry(c->url, &c->cache)) {
+			if (get_connection_cache_entry(c)) {
 				setcstate(c, S_OUT_OF_MEM);
 				abort_connection(c);
 				return;
@@ -764,11 +769,12 @@ static void created_data_connection(struct connection *c)
 	}
 #endif
 	inf->d = 1;
-	set_handlers(c->sock2, (void (*)(void *))got_something_from_data_connection, NULL, c);
+	set_handlers(c->sock2, got_something_from_data_connection, NULL, c);
 }
 
-static void got_something_from_data_connection(struct connection *c)
+static void got_something_from_data_connection(void *c_)
 {
+	struct connection *c = (struct connection *)c_;
 	struct ftp_connection_info *inf = c->info;
 	int l;
 	int m;
@@ -783,11 +789,11 @@ static void got_something_from_data_connection(struct connection *c)
 		set_nonblock(ns);
 		EINTRLOOP(rs, close(c->sock2));
 		c->sock2 = ns;
-		set_handlers(ns, (void (*)(void *))got_something_from_data_connection, NULL, c);
+		set_handlers(ns, got_something_from_data_connection, NULL, c);
 		return;
 	}
 	if (!c->cache) {
-		if (get_cache_entry(c->url, &c->cache)) {
+		if (get_connection_cache_entry(c)) {
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c);
 			return;
@@ -799,14 +805,14 @@ static void got_something_from_data_connection(struct connection *c)
 		unsigned char *s0;
 		int s0l;
 		int err = 0;
-		static unsigned char ftp_head[] = "<html><head><title>/";
-		static unsigned char ftp_head2[] = "</title></head><body><h2>Directory /";
-		static unsigned char ftp_head3[] = "</h2><pre>";
+		static const unsigned char ftp_head[] = "<html><head><title>/";
+		static const unsigned char ftp_head2[] = "</title></head><body><h2>Directory /";
+		static const unsigned char ftp_head3[] = "</h2><pre>";
 #define A(s)							\
 do {								\
-	m = add_fragment(c->cache, c->from, s, strlen(cast_const_char s));	\
+	m = add_fragment(c->cache, c->from, s, strlen(cast_const_char s));\
 	if (m < 0 && !err) err = m;				\
-	c->from += strlen(cast_const_char s);					\
+	c->from += strlen(cast_const_char s);			\
 } while (0)
 		A(ftp_head);
 		ud = stracpy(get_url_data(c->url));

@@ -42,13 +42,14 @@ static void add_and_pad(unsigned char **s, int *l, struct terminal *term, unsign
 	while (len++ < maxlen) add_chr_to_str(s, l, ' ');
 }
 
-static void menu_version(struct terminal *term)
+static void menu_version(void *term_)
 {
+	struct terminal *term = (struct terminal *)term_;
 	int i;
 	int maxlen = 0;
 	unsigned char *s;
 	int l;
-	unsigned char * const *text_ptr;
+	unsigned char * const * decc_volatile text_ptr;
 	for (i = 0; version_texts[i]; i++) {
 		unsigned char *t = get_text_translation(version_texts[i], term);
 		int tl = cp_len(term_charset(term), t);
@@ -196,11 +197,7 @@ static void menu_version(struct terminal *term)
 	} else if (disable_openmp) {
 		add_to_str(&s, &l, get_text_translation(TEXT_(T_DISABLED), term));
 	} else {
-		int thr;
-		omp_start();
-#pragma omp parallel default(none) shared(thr)
-#pragma omp single
-			thr = omp_get_num_threads();
+		int thr = omp_start();
 		omp_end();
 		add_num_to_str(&s, &l, thr);
 		add_to_str(&s, &l, cast_uchar " ");
@@ -254,18 +251,18 @@ static void menu_copying(struct terminal *term, void *d, struct session *ses)
 
 static void menu_manual(struct terminal *term, void *d, struct session *ses)
 {
-	goto_url(ses, cast_uchar LINKS_MANUAL_URL);
+	goto_url_utf8(ses, cast_uchar LINKS_MANUAL_URL);
 }
 
 static void menu_homepage(struct terminal *term, void *d, struct session *ses)
 {
-	goto_url(ses, cast_uchar LINKS_HOMEPAGE_URL);
+	goto_url_utf8(ses, cast_uchar LINKS_HOMEPAGE_URL);
 }
 
 #ifdef G
 static void menu_calibration(struct terminal *term, void *d, struct session *ses)
 {
-	goto_url(ses, cast_uchar LINKS_CALIBRATION_URL);
+	goto_url_utf8(ses, cast_uchar LINKS_CALIBRATION_URL);
 }
 #endif
 
@@ -299,29 +296,38 @@ static void menu_reload(struct terminal *term, void *d, struct session *ses)
 	reload(ses, -1);
 }
 
-void really_exit_prog(struct session *ses)
+void really_exit_prog(void *ses_)
 {
-	register_bottom_half((void (*)(void *))destroy_terminal, ses->term);
+	struct session *ses = (struct session *)ses_;
+	register_bottom_half(destroy_terminal, ses->term);
 }
 
-static void dont_exit_prog(struct session *ses)
+static void dont_exit_prog(void *ses_)
 {
+	struct session *ses = (struct session *)ses_;
 	ses->exit_query = 0;
 }
 
 void query_exit(struct session *ses)
 {
+	int only_one_term = ses->term->list_entry.next == ses->term->list_entry.prev;
 	ses->exit_query = 1;
-	msg_box(ses->term, NULL, TEXT_(T_EXIT_LINKS), AL_CENTER, (ses->term->next == ses->term->prev && are_there_downloads()) ? TEXT_(T_DO_YOU_REALLY_WANT_TO_EXIT_LINKS_AND_TERMINATE_ALL_DOWNLOADS) : (!F || ses->term->next == ses->term->prev) ? TEXT_(T_DO_YOU_REALLY_WANT_TO_EXIT_LINKS) : TEXT_(T_DO_YOU_REALLY_WANT_TO_CLOSE_WINDOW), ses, 2, TEXT_(T_YES), (void (*)(void *))really_exit_prog, B_ENTER, TEXT_(T_NO), dont_exit_prog, B_ESC);
+	msg_box(ses->term, NULL, TEXT_(T_EXIT_LINKS), AL_CENTER,
+		only_one_term && are_there_downloads() ? TEXT_(T_DO_YOU_REALLY_WANT_TO_EXIT_LINKS_AND_TERMINATE_ALL_DOWNLOADS) :
+		!F || only_one_term ? TEXT_(T_DO_YOU_REALLY_WANT_TO_EXIT_LINKS) :
+		TEXT_(T_DO_YOU_REALLY_WANT_TO_CLOSE_WINDOW),
+		ses, 2, TEXT_(T_YES), really_exit_prog, B_ENTER, TEXT_(T_NO), dont_exit_prog, B_ESC);
 }
 
 void exit_prog(struct terminal *term, void *d, struct session *ses)
 {
+	int only_one_term;
 	if (!ses) {
-		register_bottom_half((void (*)(void *))destroy_terminal, term);
+		register_bottom_half(destroy_terminal, term);
 		return;
 	}
-	if (!ses->exit_query && (!d || (term->next == term->prev && are_there_downloads()))) {
+	only_one_term = ses->term->list_entry.next == ses->term->list_entry.prev;
+	if (!ses->exit_query && (!d || (only_one_term && are_there_downloads()))) {
 		query_exit(ses);
 		return;
 	}
@@ -337,8 +343,9 @@ struct refresh {
 	struct timer *timer;
 };
 
-static void refresh(struct refresh *r)
+static void refresh(void *r_)
 {
+	struct refresh *r = (struct refresh *)r_;
 	r->timer = NULL;
 	if (r->fn(r->term, r) > 0)
 		return;
@@ -482,19 +489,27 @@ static int resource_info(struct terminal *term, struct refresh *r2)
 	add_unsigned_long_num_to_str(&a, &l, dns_info(CI_FILES));
 	add_to_str(&a, &l, cast_uchar " ");
 	add_to_str(&a, &l, get_text_translation(TEXT_(T_SERVERS), term));
+#ifdef SSL_SESSION_RESUME
+	add_to_str(&a, &l, cast_uchar ", ");
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_TLS_SESSION_CACHE), term));
+	add_to_str(&a, &l, cast_uchar ": ");
+	add_unsigned_long_num_to_str(&a, &l, session_info(CI_FILES));
+	add_to_str(&a, &l, cast_uchar " ");
+	add_to_str(&a, &l, get_text_translation(TEXT_(T_SERVERS), term));
+#endif
 	add_to_str(&a, &l, cast_uchar ".");
 
 	if (r2 && !strcmp(cast_const_char a, cast_const_char *(unsigned char **)((struct dialog_data *)r2->win->data)->dlg->udata)) {
 		mem_free(a);
 		mem_free(r);
-		r2->timer = install_timer(RESOURCE_INFO_REFRESH, (void (*)(void *))refresh, r2);
+		r2->timer = install_timer(RESOURCE_INFO_REFRESH, refresh, r2);
 		return 1;
 	}
 
 	msg_box(term, getml(a, NULL), TEXT_(T_RESOURCES), AL_LEFT, a, r, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
-	r->win = term->windows.next;
+	r->win = list_struct(term->windows.next, struct window);
 	((struct dialog_data *)r->win->data)->dlg->abort = refresh_abort;
-	r->timer = install_timer(RESOURCE_INFO_REFRESH, (void (*)(void *))refresh, r);
+	r->timer = install_timer(RESOURCE_INFO_REFRESH, refresh, r);
 	return 0;
 }
 
@@ -552,14 +567,14 @@ static int memory_info(struct terminal *term, struct refresh *r2)
 	if (r2 && !strcmp(cast_const_char a, cast_const_char *(unsigned char **)((struct dialog_data *)r2->win->data)->dlg->udata)) {
 		mem_free(a);
 		mem_free(r);
-		r2->timer = install_timer(RESOURCE_INFO_REFRESH, (void (*)(void *))refresh, r2);
+		r2->timer = install_timer(RESOURCE_INFO_REFRESH, refresh, r2);
 		return 1;
 	}
 
 	msg_box(term, getml(a, NULL), TEXT_(T_MEMORY_INFO), AL_CENTER, a, r, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
-	r->win = term->windows.next;
+	r->win = list_struct(term->windows.next, struct window);
 	((struct dialog_data *)r->win->data)->dlg->abort = refresh_abort;
-	r->timer = install_timer(RESOURCE_INFO_REFRESH, (void (*)(void *))refresh, r);
+	r->timer = install_timer(RESOURCE_INFO_REFRESH, refresh, r);
 	return 0;
 }
 
@@ -581,15 +596,16 @@ void go_backwards(struct terminal *term, void *id_ptr, struct session *ses)
 {
 	unsigned want_id = (unsigned)(my_intptr_t)id_ptr;
 	struct location *l;
+	struct list_head *ll;
 	int n = 0;
-	foreach(l, ses->history) {
+	foreach(struct location, l, ll, ses->history) {
 		if (l->location_id == want_id) {
 			goto have_it;
 		}
 		n++;
 	}
 	n = -1;
-	foreach(l, ses->forward_history) {
+	foreach(struct location, l, ll, ses->forward_history) {
 		if (l->location_id == want_id) {
 			goto have_it;
 		}
@@ -610,7 +626,7 @@ static void add_history_menu_entry(struct terminal *term, struct menu_item **mi,
 {
 	unsigned char *url;
 	if (!*mi) *mi = new_menu(3);
-	url = display_url(term, l->url);
+	url = display_url(term, l->url, 1);
 	add_to_menu(mi, url, cast_uchar "", cast_uchar "", MENU_FUNC go_backwards, (void *)(my_intptr_t)l->location_id, 0, *n);
 	(*n)++;
 	if (*n == MAXINT) overalloc();
@@ -619,14 +635,15 @@ static void add_history_menu_entry(struct terminal *term, struct menu_item **mi,
 static void history_menu(struct terminal *term, void *ddd, struct session *ses)
 {
 	struct location *l;
+	struct list_head *ll;
 	struct menu_item *mi = NULL;
 	int n = 0;
 	int selected = 0;
-	foreachback(l, ses->forward_history) {
+	foreachback(struct location, l, ll, ses->forward_history) {
 		add_history_menu_entry(term, &mi, &n, l);
 	}
 	selected = n;
-	foreach(l, ses->history) {
+	foreach(struct location, l, ll, ses->history) {
 		add_history_menu_entry(term, &mi, &n, l);
 	}
 	if (!mi) do_menu(term, (struct menu_item *)no_hist_menu, ses);
@@ -641,9 +658,10 @@ static_const struct menu_item no_downloads_menu[] = {
 static void downloads_menu(struct terminal *term, void *ddd, struct session *ses)
 {
 	struct download *d;
+	struct list_head *ld;
 	struct menu_item *mi = NULL;
 	int n = 0;
-	foreachback(d, downloads) {
+	foreachback(struct download, d, ld, downloads) {
 		unsigned char *f, *ff;
 		if (!mi) mi = new_menu(7);
 		f = !d->prog ? d->orig_file : d->url;
@@ -657,13 +675,84 @@ static void downloads_menu(struct terminal *term, void *ddd, struct session *ses
 		if (!d->prog)
 			f = stracpy(f);
 		else
-			f = display_url(term, f);
+			f = display_url(term, f, 1);
 		add_to_menu(&mi, f, download_percentage(d, 0), cast_uchar "", MENU_FUNC display_download, d, 0, n);
 		n++;
 	}
 	if (!n) do_menu(term, (struct menu_item *)no_downloads_menu, ses);
 	else do_menu(term, mi, ses);
 }
+
+#ifndef GRDRV_VIRTUAL_DEVICES
+
+#define have_windows_menu	0
+
+#else
+
+#define have_windows_menu	(F && drv->init_device == init_virtual_device)
+
+static void window_switch(struct terminal *term, void *nump, void *ses)
+{
+	int n = (int)(my_intptr_t)nump;
+	switch_virtual_device(n);
+}
+
+static void windows_menu(struct terminal *term, void *xxx, struct session *ses)
+{
+	struct menu_item *mi = new_menu(15);
+	int i;
+	int selected = 0;
+	int pos = 0;
+	int have_free_slot = 0;
+	int o;
+	for (i = 0; i < n_virtual_devices; i++) {
+		if (virtual_devices[i]) {
+			struct session *xs;
+			struct list_head *ls;
+			unsigned char *l = init_str(), *r = init_str(), *h = init_str();
+			int ll = 0, rr = 0, hh = 0;
+			add_num_to_str(&l, &ll, i + 1);
+			add_to_str(&l, &ll, cast_uchar ".");
+			foreach(struct session, xs, ls, sessions) if ((void *)xs->term == virtual_devices[i]->user_data) {
+				if (xs->screen && xs->screen->f_data && xs->screen->f_data->title) {
+					add_chr_to_str(&l, &ll, ' ');
+					if (xs->screen->f_data->title[0]) {
+						add_to_str(&l, &ll, xs->screen->f_data->title);
+					} else if (xs->screen->rq && xs->screen->rq->url) {
+						unsigned char *url = display_url(term, xs->screen->rq->url, 1);
+						add_to_str(&l, &ll, url);
+						mem_free(url);
+					}
+				}
+				break;
+			}
+			if (n_virtual_devices > 10) {
+				add_to_str(&r, &rr, cast_uchar "Alt-F");
+				add_num_to_str(&r, &rr, i + 1);
+			} else {
+				add_to_str(&r, &rr, cast_uchar "Alt-");
+				add_chr_to_str(&r, &rr, (i + 1) % 10 + '0');
+			}
+			if (i < 10) {
+				add_chr_to_str(&h, &hh, (i + 1) % 10 + '0');
+			}
+			if (current_virtual_device == virtual_devices[i])
+				selected = pos;
+			add_to_menu(&mi, l, r, h, window_switch, (void *)(my_intptr_t)i, 0, pos++);
+		} else {
+			have_free_slot = 1;
+		}
+	}
+	if ((o = can_open_in_new(term)) && have_free_slot) {
+		add_to_menu(&mi, cast_uchar "", cast_uchar "", M_BAR, NULL, NULL, 0, pos++);
+		mi[pos - 1].free_i = 1;
+		add_to_menu(&mi, TEXT_(T_NEW_WINDOW), cast_uchar "", TEXT_(T_HK_NEW_WINDOW), MENU_FUNC open_in_new_window, (void *)send_open_new_xterm, o - 1, pos++);
+		mi[pos - 1].free_i = 1;
+	}
+	do_menu_selected(term, mi, ses, selected, NULL, NULL);
+}
+
+#endif
 
 static void menu_doc_info(struct terminal *term, void *ddd, struct session *ses)
 {
@@ -748,7 +837,7 @@ static void terminal_options(struct terminal *term, void *xxx, struct session *s
 	d->title = TEXT_(T_TERMINAL_OPTIONS);
 	d->fn = checkbox_list_fn;
 	d->udata = (void *)td_labels;
-	d->refresh = (void (*)(void *))terminal_options_ok;
+	d->refresh = terminal_options_ok;
 	d->items[0].type = D_CHECKBOX;
 	d->items[0].gid = 1;
 	d->items[0].gnum = TERM_DUMB;
@@ -883,7 +972,7 @@ static void screen_margins(struct terminal *term, void *xxx, struct session *ses
 	d->title = TEXT_(T_SCREEN_MARGINS);
 	d->fn = group_fn;
 	d->udata = (void *)margins_labels;
-	d->refresh = (void (*)(void *))margins_ok;
+	d->refresh = margins_ok;
 	d->refresh_data = term;
 	d->items[0].type = D_FIELD;
 	d->items[0].dlen = string_len;
@@ -933,23 +1022,26 @@ static unsigned char js_memory_limit_str[7];
 static inline void kill_js_recursively(struct f_data_c *fd)
 {
 	struct f_data_c *f;
+	struct list_head *lf;
 
 	if (fd->js) js_downcall_game_over(fd->js->ctx);
-	foreach(f,fd->subframes) kill_js_recursively(f);
+	foreach(struct f_data_c, f, lf, fd->subframes) kill_js_recursively(f);
 }
 
 
 static inline void quiet_kill_js_recursively(struct f_data_c *fd)
 {
 	struct f_data_c *f;
+	struct list_head *lf;
 
-	if (fd->js)js_downcall_game_over(fd->js->ctx);
-	foreach(f,fd->subframes) quiet_kill_js_recursively(f);
+	if (fd->js) js_downcall_game_over(fd->js->ctx);
+	foreach(struct f_data_c, f, lf, fd->subframes) quiet_kill_js_recursively(f);
 }
 
 
-static void refresh_javascript(struct session *ses)
+static void refresh_javascript(void *ses_)
 {
+	struct session *ses = (struct session *)ses_;
 	if (ses->screen->f_data)jsint_scan_script_tags(ses->screen);
 	if (kill_script_opt)
 		kill_js_recursively(ses->screen);
@@ -977,9 +1069,9 @@ static void javascript_options(struct terminal *term, void *xxx, struct session 
 	d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_JAVASCRIPT_OPTIONS);
 	d->fn = group_fn;
-	d->refresh = (void (*)(void *))refresh_javascript;
+	d->refresh = refresh_javascript;
 	d->refresh_data=ses;
-	d->udata = jsopt_labels;
+	d->udata = (void *)jsopt_labels;
 	d->items[0].type = D_CHECKBOX;
 	d->items[0].gid = 0;
 	d->items[0].dlen = sizeof(int);
@@ -1281,6 +1373,7 @@ static unsigned char max_cth_str[3];
 static unsigned char max_t_str[3];
 static unsigned char time_str[5];
 static unsigned char unrtime_str[5];
+static unsigned char addrtime_str[4];
 
 static void refresh_connections(void *xxx)
 {
@@ -1290,42 +1383,11 @@ static void refresh_connections(void *xxx)
 	max_tries = atoi(cast_const_char max_t_str);
 	receive_timeout = atoi(cast_const_char time_str);
 	unrestartable_receive_timeout = atoi(cast_const_char unrtime_str);
+	unrestartable_receive_timeout = atoi(cast_const_char addrtime_str);
 	refresh_network(xxx);
 }
 
-static unsigned char * const net_msg[] = {
-	TEXT_(T_MAX_CONNECTIONS),
-	TEXT_(T_MAX_CONNECTIONS_TO_ONE_HOST),
-	TEXT_(T_RETRIES),
-	TEXT_(T_RECEIVE_TIMEOUT_SEC),
-	TEXT_(T_TIMEOUT_WHEN_UNRESTARTABLE),
-	TEXT_(T_BIND_TO_LOCAL_IP_ADDRESS),
-	TEXT_(T_ASYNC_DNS_LOOKUP),
-	TEXT_(T_SET_TIME_OF_DOWNLOADED_FILES),
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-};
-
-#ifdef SUPPORT_IPV6
-static unsigned char * const net_msg_ipv6[] = {
-	TEXT_(T_MAX_CONNECTIONS),
-	TEXT_(T_MAX_CONNECTIONS_TO_ONE_HOST),
-	TEXT_(T_RETRIES),
-	TEXT_(T_RECEIVE_TIMEOUT_SEC),
-	TEXT_(T_TIMEOUT_WHEN_UNRESTARTABLE),
-	TEXT_(T_BIND_TO_LOCAL_IP_ADDRESS),
-	TEXT_(T_BIND_TO_LOCAL_IPV6_ADDRESS),
-	TEXT_(T_ASYNC_DNS_LOOKUP),
-	TEXT_(T_SET_TIME_OF_DOWNLOADED_FILES),
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-	cast_uchar "",
-};
-#endif
+static unsigned char *net_msg[10];
 
 static void dlg_net_options(struct terminal *term, void *xxx, void *yyy)
 {
@@ -1336,61 +1398,76 @@ static void dlg_net_options(struct terminal *term, void *xxx, void *yyy)
 	snprint(max_t_str, 3, max_tries);
 	snprint(time_str, 5, receive_timeout);
 	snprint(unrtime_str, 5, unrestartable_receive_timeout);
-	d = mem_calloc(sizeof(struct dialog) + 11 * sizeof(struct dialog_item));
+	snprint(addrtime_str, 4, timeout_multiple_addresses);
+	d = mem_calloc(sizeof(struct dialog) + 12 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_NETWORK_OPTIONS);
 	d->fn = group_fn;
-#ifdef SUPPORT_IPV6
-	if (support_ipv6) d->udata = (void *)net_msg_ipv6;
-	else
-#endif
-		d->udata = (void *)net_msg;
-	d->refresh = (void (*)(void *))refresh_connections;
+	d->udata = (void *)net_msg;
+	d->refresh = refresh_connections;
 	a = 0;
+	net_msg[a] = TEXT_(T_MAX_CONNECTIONS);
 	d->items[a].type = D_FIELD;
 	d->items[a].data = max_c_str;
 	d->items[a].dlen = 3;
 	d->items[a].fn = check_number;
 	d->items[a].gid = 1;
 	d->items[a++].gnum = 99;
+	net_msg[a] = TEXT_(T_MAX_CONNECTIONS_TO_ONE_HOST);
 	d->items[a].type = D_FIELD;
 	d->items[a].data = max_cth_str;
 	d->items[a].dlen = 3;
 	d->items[a].fn = check_number;
 	d->items[a].gid = 1;
 	d->items[a++].gnum = 99;
+	net_msg[a] = TEXT_(T_RETRIES);
 	d->items[a].type = D_FIELD;
 	d->items[a].data = max_t_str;
 	d->items[a].dlen = 3;
 	d->items[a].fn = check_number;
 	d->items[a].gid = 0;
 	d->items[a++].gnum = 16;
+	net_msg[a] = TEXT_(T_RECEIVE_TIMEOUT_SEC);
 	d->items[a].type = D_FIELD;
 	d->items[a].data = time_str;
 	d->items[a].dlen = 5;
 	d->items[a].fn = check_number;
 	d->items[a].gid = 1;
 	d->items[a++].gnum = 9999;
+	net_msg[a] = TEXT_(T_TIMEOUT_WHEN_UNRESTARTABLE);
 	d->items[a].type = D_FIELD;
 	d->items[a].data = unrtime_str;
 	d->items[a].dlen = 5;
 	d->items[a].fn = check_number;
 	d->items[a].gid = 1;
 	d->items[a++].gnum = 9999;
+#ifdef USE_GETADDRINFO
+	net_msg[a] = TEXT_(T_TIMEOUT_WHEN_TRYING_MULTIPLE_ADDRESSES);
+	d->items[a].type = D_FIELD;
+	d->items[a].data = addrtime_str;
+	d->items[a].dlen = 4;
+	d->items[a].fn = check_number;
+	d->items[a].gid = 1;
+	d->items[a++].gnum = 999;
+#endif
+	net_msg[a] = TEXT_(T_BIND_TO_LOCAL_IP_ADDRESS);
 	d->items[a].type = D_FIELD;
 	d->items[a].data = bind_ip_address;
 	d->items[a].dlen = sizeof(bind_ip_address);
 	d->items[a++].fn = check_local_ip_address;
 #ifdef SUPPORT_IPV6
 	if (support_ipv6) {
+		net_msg[a] = TEXT_(T_BIND_TO_LOCAL_IPV6_ADDRESS);
 		d->items[a].type = D_FIELD;
 		d->items[a].data = bind_ipv6_address;
 		d->items[a].dlen = sizeof(bind_ipv6_address);
 		d->items[a++].fn = check_local_ipv6_address;
 	}
 #endif
+	net_msg[a] = TEXT_(T_ASYNC_DNS_LOOKUP);
 	d->items[a].type = D_CHECKBOX;
 	d->items[a].data = (unsigned char *)&async_lookup;
 	d->items[a++].dlen = sizeof(int);
+	net_msg[a] = TEXT_(T_SET_TIME_OF_DOWNLOADED_FILES);
 	d->items[a].type = D_CHECKBOX;
 	d->items[a].data = (unsigned char *)&download_utime;
 	d->items[a++].dlen = sizeof(int);
@@ -1406,17 +1483,6 @@ static void dlg_net_options(struct terminal *term, void *xxx, void *yyy)
 	do_dialog(term, d, getml(d, NULL));
 }
 
-static unsigned char * const proxy_msg[] = {
-	TEXT_(T_HTTP_PROXY__HOST_PORT),
-	TEXT_(T_FTP_PROXY__HOST_PORT),
-#ifdef HAVE_SSL
-	TEXT_(T_HTTPS_PROXY__HOST_PORT),
-#endif
-	TEXT_(T_SOCKS_4A_PROXY__USER_HOST_PORT),
-	TEXT_(T_APPEND_TEXT_TO_SOCKS_LOOKUPS),
-	TEXT_(T_ONLY_PROXIES),
-};
-
 #ifdef SUPPORT_IPV6
 
 static unsigned char * const ipv6_labels[] = { TEXT_(T_IPV6_DEFAULT), TEXT_(T_IPV6_PREFER_IPV4), TEXT_(T_IPV6_PREFER_IPV6), TEXT_(T_IPV6_USE_ONLY_IPV4), TEXT_(T_IPV6_USE_ONLY_IPV6), NULL };
@@ -1428,6 +1494,7 @@ static void dlg_ipv6_options(struct terminal *term, void *xxx, void *yyy)
 	d->title = TEXT_(T_IPV6_OPTIONS);
 	d->fn = checkbox_list_fn;
 	d->udata = (void *)ipv6_labels;
+	d->refresh = refresh_network;
 	d->items[0].type = D_CHECKBOX;
 	d->items[0].gid = 1;
 	d->items[0].gnum = ADDR_PREFERENCE_DEFAULT;
@@ -1468,10 +1535,22 @@ static void dlg_ipv6_options(struct terminal *term, void *xxx, void *yyy)
 #endif
 
 #ifdef HAVE_SSL
-#define N_N	5
+#define N_N	6
 #else
-#define N_N	4
+#define N_N	5
 #endif
+
+static unsigned char * const proxy_msg[] = {
+	TEXT_(T_HTTP_PROXY__HOST_PORT),
+	TEXT_(T_FTP_PROXY__HOST_PORT),
+#ifdef HAVE_SSL
+	TEXT_(T_HTTPS_PROXY__HOST_PORT),
+#endif
+	TEXT_(T_SOCKS_4A_PROXY__USER_HOST_PORT),
+	TEXT_(T_APPEND_TEXT_TO_SOCKS_LOOKUPS),
+	TEXT_(T_NOPROXY_LIST),
+	TEXT_(T_ONLY_PROXIES),
+};
 
 static void proxy_fn(struct dialog_data *dlg)
 {
@@ -1545,6 +1624,7 @@ void reset_settings_for_tor(void)
 	http_options.no_compression = 0;
 	http_options.retry_internal_errors = 0;
 	http_options.header.do_not_track = 0;
+	http_options.header.referer = proxies.only_proxies ? REFERER_NONE : REFERER_REAL_SAME_SERVER;
 	http_options.header.extra_header[0] = 0;
 
 	ftp_options.eprt_epsv = 0;
@@ -1562,8 +1642,9 @@ void reset_settings_for_tor(void)
 static void data_cleanup(void)
 {
 	struct session *ses;
+	struct list_head *lses;
 	reset_settings_for_tor();
-	foreach(ses, sessions) {
+	foreach(struct session, ses, lses, sessions) {
 		ses->ds.tables = dds.tables;
 		ses->ds.frames = dds.frames;
 		ses->ds.auto_refresh = dds.auto_refresh;
@@ -1579,11 +1660,151 @@ static void data_cleanup(void)
 	shrink_memory(SH_FREE_ALL, 0);
 }
 
+static unsigned char http_proxy[MAX_STR_LEN];
+static unsigned char ftp_proxy[MAX_STR_LEN];
+static unsigned char https_proxy[MAX_STR_LEN];
+static unsigned char socks_proxy[MAX_STR_LEN];
+static unsigned char no_proxy[MAX_STR_LEN];
+
+static void display_proxy(struct terminal *term, unsigned char *result, unsigned char *proxy)
+{
+	unsigned char *url, *res;
+	int sl;
+
+	if (!proxy[0]) {
+		result[0] = 0;
+		return;
+	}
+
+	url = stracpy(cast_uchar "proxy://");
+	add_to_strn(&url, proxy);
+	add_to_strn(&url, cast_uchar "/");
+
+	res = display_url(term, url, 0);
+
+	sl = (int)strlen(cast_const_char res);
+	if (sl < 9 || strncmp(cast_const_char res, "proxy://", 8) || res[sl - 1] != '/') {
+		result[0] = 0;
+	} else {
+		res[sl - 1] = 0;
+		safe_strncpy(result, res + 8, MAX_STR_LEN);
+	}
+
+	mem_free(url);
+	mem_free(res);
+}
+
+static void display_noproxy_list(struct terminal *term, unsigned char *result, unsigned char *noproxy_list)
+{
+	unsigned char *res;
+	res = display_host_list(term, noproxy_list);
+	if (!res) {
+		result[0] = 0;
+	} else {
+		safe_strncpy(result, res, MAX_STR_LEN);
+	}
+	mem_free(res);
+}
+
+int save_proxy(int charset, unsigned char *result, unsigned char *proxy)
+{
+	unsigned char *url, *res;
+	int sl;
+	int retval;
+
+	if (!proxy[0]) {
+		result[0] = 0;
+		return 0;
+	}
+
+	proxy = convert(charset, utf8_table, proxy, NULL);
+
+	url = stracpy(cast_uchar "proxy://");
+	add_to_strn(&url, proxy);
+	add_to_strn(&url, cast_uchar "/");
+
+	mem_free(proxy);
+
+	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
+		mem_free(url);
+		result[0] = 0;
+		return -1;
+	}
+
+	res = idn_encode_url(url, 0);
+
+	mem_free(url);
+
+	if (!res) {
+		result[0] = 0;
+		return -1;
+	}
+	sl = (int)strlen(cast_const_char res);
+	if (sl < 9 || strncmp(cast_const_char res, "proxy://", 8) || res[sl - 1] != '/') {
+		result[0] = 0;
+		retval = -1;
+	} else {
+		res[sl - 1] = 0;
+		safe_strncpy(result, res + 8, MAX_STR_LEN);
+		retval = strlen(cast_const_char (res + 8)) >= MAX_STR_LEN ? -1 : 0;
+	}
+
+	mem_free(res);
+
+	return retval;
+}
+
+int save_noproxy_list(int charset, unsigned char *result, unsigned char *noproxy_list)
+{
+	unsigned char *res;
+
+	noproxy_list = convert(charset, utf8_table, noproxy_list, NULL);
+	res = idn_encode_host(noproxy_list, (int)strlen(cast_const_char noproxy_list), cast_uchar ".,", 0);
+	mem_free(noproxy_list);
+	if (!res) {
+		result[0] = 0;
+		return -1;
+	} else {
+		safe_strncpy(result, res, MAX_STR_LEN);
+		retval = strlen(cast_const_char res) >= MAX_STR_LEN ? -1 : 0;
+	}
+	mem_free(res);
+	return retval;
+}
+
+static int check_proxy_noproxy(struct dialog_data *dlg, struct dialog_item_data *di, int (*save)(int, unsigned char *, unsigned char *))
+{
+	unsigned char *result = mem_alloc(MAX_STR_LEN);
+	if (save(term_charset(dlg->win->term), result, di->cdata)) {
+		mem_free(result);
+		msg_box(dlg->win->term, NULL, TEXT_(T_BAD_STRING), AL_CENTER, TEXT_(T_BAD_PROXY_SYNTAX), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
+		return 1;
+	}
+	mem_free(result);
+	return 0;
+}
+
+static int check_proxy(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	return check_proxy_noproxy(dlg, di, save_proxy);
+}
+
+static int check_noproxy_list(struct dialog_data *dlg, struct dialog_item_data *di)
+{
+	return check_proxy_noproxy(dlg, di, save_noproxy_list);
+}
+
 static int proxy_ok_dialog(struct dialog_data *dlg, struct dialog_item_data *di)
 {
+	int charset = term_charset(dlg->win->term);
 	int op = proxies.only_proxies;
 	int r = ok_dialog(dlg, di);
 	if (r) return r;
+	save_proxy(charset, proxies.http_proxy, http_proxy);
+	save_proxy(charset, proxies.ftp_proxy, ftp_proxy);
+	save_proxy(charset, proxies.https_proxy, https_proxy);
+	save_proxy(charset, proxies.socks_proxy, socks_proxy);
+	save_noproxy_list(charset, proxies.no_proxy, no_proxy);
 	if (op != proxies.only_proxies) {
 		data_cleanup();
 	}
@@ -1595,30 +1816,44 @@ static void dlg_proxy_options(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
 	int a = 0;
-	d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
+	display_proxy(term, http_proxy, proxies.http_proxy);
+	display_proxy(term, ftp_proxy, proxies.ftp_proxy);
+	display_proxy(term, https_proxy, proxies.https_proxy);
+	display_proxy(term, socks_proxy, proxies.socks_proxy);
+	display_noproxy_list(term, no_proxy, proxies.no_proxy);
+	d = mem_calloc(sizeof(struct dialog) + (N_N + 3) * sizeof(struct dialog_item));
 	d->title = TEXT_(T_PROXIES);
 	d->fn = proxy_fn;
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.http_proxy;
+	d->items[a].data = http_proxy;
+	d->items[a].fn = check_proxy;
 	a++;
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.ftp_proxy;
+	d->items[a].data = ftp_proxy;
+	d->items[a].fn = check_proxy;
 	a++;
 #ifdef HAVE_SSL
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.https_proxy;
+	d->items[a].data = https_proxy;
+	d->items[a].fn = check_proxy;
 	a++;
 #endif
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
-	d->items[a].data = proxies.socks_proxy;
+	d->items[a].data = socks_proxy;
+	d->items[a].fn = check_proxy;
 	a++;
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
 	d->items[a].data = proxies.dns_append;
+	a++;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = no_proxy;
+	d->items[a].fn = check_noproxy_list;
 	a++;
 	d->items[a].type = D_CHECKBOX;
 	d->items[a].data = (unsigned char *)&proxies.only_proxies;
@@ -1686,7 +1921,18 @@ static int check_file_crt(struct dialog_data *dlg, struct dialog_item_data *di)
 	return check_file(dlg, di, 1);
 }
 
-static unsigned char * const ssl_labels[] = { TEXT_(T_ACCEPT_INVALID_CERTIFICATES), TEXT_(T_WARN_ON_INVALID_CERTIFICATES), TEXT_(T_REJECT_INVALID_CERTIFICATES), TEXT_(T_CLIENT_CERTIFICATE_KEY_FILE), TEXT_(T_CLIENT_CERTIFICATE_FILE), TEXT_(T_CLIENT_CERTIFICATE_KEY_PASSWORD), NULL };
+static unsigned char * const ssl_labels[] = {
+	TEXT_(T_ACCEPT_INVALID_CERTIFICATES),
+	TEXT_(T_WARN_ON_INVALID_CERTIFICATES),
+	TEXT_(T_REJECT_INVALID_CERTIFICATES),
+#ifdef HAVE_BUILTIN_SSL_CERTIFICATES
+	TEXT_(T_USE_BUILT_IN_CERTIFICATES),
+#endif
+	TEXT_(T_CLIENT_CERTIFICATE_KEY_FILE),
+	TEXT_(T_CLIENT_CERTIFICATE_FILE),
+	TEXT_(T_CLIENT_CERTIFICATE_KEY_PASSWORD),
+	NULL
+};
 
 static void ssl_options_fn(struct dialog_data *dlg)
 {
@@ -1737,46 +1983,67 @@ static void ssl_options_fn(struct dialog_data *dlg)
 static void dlg_ssl_options(struct terminal *term, void *xxx, void *yyy)
 {
 	struct dialog *d;
-	d = mem_calloc(sizeof(struct dialog) + 8 * sizeof(struct dialog_item));
+	int a = 0;
+	const int items = 8
+#ifdef HAVE_BUILTIN_SSL_CERTIFICATES
+		+ 1
+#endif
+		;
+	d = mem_calloc(sizeof(struct dialog) + items * sizeof(struct dialog_item));
 	d->title = TEXT_(T_SSL_OPTIONS);
 	d->fn = ssl_options_fn;
 	d->udata = (void *)ssl_labels;
-	d->refresh = (void (*)(void *))refresh_network;
-	d->items[0].type = D_CHECKBOX;
-	d->items[0].gid = 1;
-	d->items[0].gnum = SSL_ACCEPT_INVALID_CERTIFICATE;
-	d->items[0].dlen = sizeof(int);
-	d->items[0].data = (void *)&ssl_options.certificates;
-	d->items[1].type = D_CHECKBOX;
-	d->items[1].gid = 1;
-	d->items[1].gnum = SSL_WARN_ON_INVALID_CERTIFICATE;
-	d->items[1].dlen = sizeof(int);
-	d->items[1].data = (void *)&ssl_options.certificates;
-	d->items[2].type = D_CHECKBOX;
-	d->items[2].gid = 1;
-	d->items[2].gnum = SSL_REJECT_INVALID_CERTIFICATE;
-	d->items[2].dlen = sizeof(int);
-	d->items[2].data = (void *)&ssl_options.certificates;
-	d->items[3].type = D_FIELD;
-	d->items[3].dlen = MAX_STR_LEN;
-	d->items[3].data = ssl_options.client_cert_key;
-	d->items[3].fn = check_file_key;
-	d->items[4].type = D_FIELD;
-	d->items[4].dlen = MAX_STR_LEN;
-	d->items[4].data = ssl_options.client_cert_crt;
-	d->items[4].fn = check_file_crt;
-	d->items[5].type = D_FIELD_PASS;
-	d->items[5].dlen = MAX_STR_LEN;
-	d->items[5].data = ssl_options.client_cert_password;
-	d->items[6].type = D_BUTTON;
-	d->items[6].gid = B_ENTER;
-	d->items[6].fn = ok_dialog;
-	d->items[6].text = TEXT_(T_OK);
-	d->items[7].type = D_BUTTON;
-	d->items[7].gid = B_ESC;
-	d->items[7].fn = cancel_dialog;
-	d->items[7].text = TEXT_(T_CANCEL);
-	d->items[8].type = D_END;
+	d->refresh = refresh_network;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = SSL_ACCEPT_INVALID_CERTIFICATE;
+	d->items[a].dlen = sizeof(int);
+	d->items[a].data = (void *)&ssl_options.certificates;
+	a++;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = SSL_WARN_ON_INVALID_CERTIFICATE;
+	d->items[a].dlen = sizeof(int);
+	d->items[a].data = (void *)&ssl_options.certificates;
+	a++;
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 1;
+	d->items[a].gnum = SSL_REJECT_INVALID_CERTIFICATE;
+	d->items[a].dlen = sizeof(int);
+	d->items[a].data = (void *)&ssl_options.certificates;
+	a++;
+#ifdef HAVE_BUILTIN_SSL_CERTIFICATES
+	d->items[a].type = D_CHECKBOX;
+	d->items[a].gid = 0;
+	d->items[a].dlen = sizeof(int);
+	d->items[a].data = (void *)&ssl_options.built_in_certificates;
+	a++;
+#endif
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = ssl_options.client_cert_key;
+	d->items[a].fn = check_file_key;
+	a++;
+	d->items[a].type = D_FIELD;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = ssl_options.client_cert_crt;
+	d->items[a].fn = check_file_crt;
+	a++;
+	d->items[a].type = D_FIELD_PASS;
+	d->items[a].dlen = MAX_STR_LEN;
+	d->items[a].data = ssl_options.client_cert_password;
+	a++;
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ENTER;
+	d->items[a].fn = ok_dialog;
+	d->items[a].text = TEXT_(T_OK);
+	a++;
+	d->items[a].type = D_BUTTON;
+	d->items[a].gid = B_ESC;
+	d->items[a].fn = cancel_dialog;
+	d->items[a].text = TEXT_(T_CANCEL);
+	a++;
+	d->items[a].type = D_END;
 	do_dialog(term, d, getml(d, NULL));
 }
 
@@ -1910,7 +2177,7 @@ static void dlg_http_options(struct terminal *term, void *xxx, void *yyy)
 	d->title = TEXT_(T_HTTP_BUG_WORKAROUNDS);
 	d->fn = checkbox_list_fn;
 	d->udata = (void *)http_labels;
-	d->refresh = (void (*)(void *))refresh_network;
+	d->refresh = refresh_network;
 	d->items[a].type = D_CHECKBOX;
 	d->items[a].gid = 0;
 	d->items[a].dlen = sizeof(int);
@@ -2017,7 +2284,7 @@ static void dlg_ftp_options(struct terminal *term, void *xxx, void *yyy)
 	d = mem_calloc(sizeof(struct dialog) + 7 * sizeof(struct dialog_item));
 	d->title = TEXT_(T_FTP_OPTIONS);
 	d->fn = ftpopt_fn;
-	d->refresh = (void (*)(void *))refresh_network;
+	d->refresh = refresh_network;
 	a=0;
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = MAX_STR_LEN;
@@ -2294,7 +2561,7 @@ static void cache_opt(struct terminal *term, void *xxx, void *yyy)
 	else
 #endif
 	d->udata = (void *)cache_texts;
-	d->refresh = (void (*)(void *))cache_refresh;
+	d->refresh = cache_refresh;
 	d->items[a].type = D_FIELD;
 	d->items[a].dlen = 8;
 	d->items[a].data = mc_str;
@@ -2382,8 +2649,9 @@ static void session_refresh(struct session *ses)
 	draw_formatted(ses);
 }
 
-static void html_refresh(struct session *ses)
+static void html_refresh(void *ses_)
 {
+	struct session *ses = (struct session *)ses_;
 	ses->ds.margin = atoi(cast_const_char marg_str);
 #ifdef G
 	if (F) {
@@ -2467,7 +2735,7 @@ static void menu_html_options(struct terminal *term, void *xxx, struct session *
 	d->fn = group_fn;
 	d->udata = (void *)gf_val(html_texts, html_texts_g);
 	d->udata2 = ses;
-	d->refresh = (void (*)(void *))html_refresh;
+	d->refresh = html_refresh;
 	d->refresh_data = ses;
 	a=0;
 	d->items[a].type = D_CHECKBOX;
@@ -2580,8 +2848,9 @@ static unsigned char g_link_color_str[7];
 static unsigned char g_background_color_str[7];
 #endif
 
-static void html_color_refresh(struct session *ses)
+static void html_color_refresh(void *ses_)
 {
+	struct session *ses = (struct session *)ses_;
 #ifdef G
 	if (F) {
 		ses->ds.g_text_color = (int)strtol(cast_const_char g_text_color_str, NULL, 16);
@@ -2633,7 +2902,7 @@ static void menu_color(struct terminal *term, void *xxx, struct session *ses)
 	d->fn = group_fn;
 	d->udata = (void *)gf_val(color_texts, color_texts_g);
 	d->udata2 = ses;
-	d->refresh = (void (*)(void *))html_color_refresh;
+	d->refresh = html_color_refresh;
 	d->refresh_data = ses;
 
 	if (!F) {
@@ -2714,11 +2983,13 @@ static unsigned char scroll_bar_color_str[7];
 static unsigned char scroll_frame_color_str[7];
 #endif
 
-static void refresh_misc(struct session *ses)
+static void refresh_misc(void *ses_)
 {
+	struct session *ses = (struct session *)ses_;
 #ifdef G
 	if (F) {
 		struct session *ses;
+		struct list_head *lses;
 
 		menu_font_size=(int)strtol(cast_const_char menu_font_str,NULL,10);
 		G_BFU_FG_COLOR=(int)strtol(cast_const_char fg_color_str,NULL,16);
@@ -2729,7 +3000,7 @@ static void refresh_misc(struct session *ses)
 		shutdown_bfu();
 		init_bfu();
 		init_grview();
-		foreach(ses, sessions) {
+		foreach(struct session, ses, lses, sessions) {
 			ses->term->dev->resize_handler(ses->term->dev);
 		}
 	}
@@ -2860,7 +3131,7 @@ static void miscelaneous_options(struct terminal *term, void *xxx, struct sessio
 	struct dialog *d;
 	int a=0;
 
-	if (anonymous&&!F) return;	/* if you add something into text mode (or both text and graphics), remove this (and enable also miscelaneous_options in setip_menu_anon) */
+	if (anonymous&&!F) return;	/* if you add something into text mode (or both text and graphics), remove this (and enable also miscelaneous_options in do_setup_menu) */
 
 	safe_strncpy(new_bookmarks_file,bookmarks_file,MAX_STR_LEN);
 	new_bookmarks_codepage=bookmarks_codepage;
@@ -2879,7 +3150,7 @@ static void miscelaneous_options(struct terminal *term, void *xxx, struct sessio
 	}
 #endif
 	d->title = TEXT_(T_MISCELANEOUS_OPTIONS);
-	d->refresh = (void (*)(void *))refresh_misc;
+	d->refresh = refresh_misc;
 	d->refresh_data = ses;
 	d->fn=miscopt_fn;
 	if (!F)
@@ -3018,8 +3289,9 @@ static unsigned char * const resize_texts[] = { TEXT_(T_COLUMNS), TEXT_(T_ROWS) 
 static unsigned char x_str[4];
 static unsigned char y_str[4];
 
-static void do_resize_terminal(struct terminal *term)
+static void do_resize_terminal(void *term_)
 {
+	struct terminal *term = (struct terminal *)term_;
 	unsigned char str[8];
 	strcpy(cast_char str, cast_const_char x_str);
 	strcat(cast_char str, ",");
@@ -3038,7 +3310,7 @@ static void dlg_resize_terminal(struct terminal *term, void *xxx, struct session
 	d->title = TEXT_(T_RESIZE_TERMINAL);
 	d->fn = group_fn;
 	d->udata = (void *)resize_texts;
-	d->refresh = (void (*)(void *))do_resize_terminal;
+	d->refresh = do_resize_terminal;
 	d->refresh_data = term;
 	d->items[0].type = D_FIELD;
 	d->items[0].dlen = 4;
@@ -3149,7 +3421,7 @@ static void do_file_menu(struct terminal *term, void *xxx, struct session *ses)
 		memcpy(e, file_menu12, sizeof(file_menu12));
 		e += sizeof(file_menu12) / sizeof(struct menu_item);
 	}
-	if ((o = can_open_in_new(term))) {
+	if (!have_windows_menu && (o = can_open_in_new(term))) {
 		e->text = TEXT_(T_NEW_WINDOW);
 		e->rtext = o - 1 ? cast_uchar ">" : cast_uchar "";
 		e->hotkey = TEXT_(T_HK_NEW_WINDOW);
@@ -3346,6 +3618,11 @@ static void network_menu(struct terminal *term, void *xxx, void *yyy)
 		do_menu(term, (struct menu_item *)net_options_menu, NULL);
 }
 
+static void menu_write_config(struct terminal *term, void *xxx, void *yyy)
+{
+	write_config(term);
+}
+
 static_const struct menu_item setup_menu_1[] = {
 	{ TEXT_(T_LANGUAGE), cast_uchar ">", TEXT_(T_HK_LANGUAGE), MENU_FUNC menu_language_list, NULL, 1, 1 },
 };
@@ -3383,7 +3660,7 @@ static_const struct menu_item setup_menu_7[] = {
 	{ TEXT_(T_FILE_EXTENSIONS), cast_uchar "", TEXT_(T_HK_FILE_EXTENSIONS), MENU_FUNC menu_ext_manager, NULL, 0, 1 },
 	{ TEXT_(T_BLOCK_LIST), cast_uchar "", TEXT_(T_HK_BLOCK_LIST), MENU_FUNC block_manager, NULL, 0, 0 },
 	{ cast_uchar "", cast_uchar "", M_BAR, NULL, NULL, 0, 1 },
-	{ TEXT_(T_SAVE_OPTIONS), cast_uchar "", TEXT_(T_HK_SAVE_OPTIONS), MENU_FUNC write_config, NULL, 0, 1 },
+	{ TEXT_(T_SAVE_OPTIONS), cast_uchar "", TEXT_(T_HK_SAVE_OPTIONS), MENU_FUNC menu_write_config, NULL, 0, 1 },
 };
 
 static_const struct menu_item setup_menu_8[] = {
@@ -3464,17 +3741,38 @@ static_const struct menu_item main_menu_g[] = {
 	{ TEXT_(T_HELP), cast_uchar "", TEXT_(T_HK_HELP), MENU_FUNC do_menu, (struct menu_item *)help_menu_g, 1, 1 },
 	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
 };
+
+#ifdef GRDRV_VIRTUAL_DEVICES
+
+static_const struct menu_item main_menu_g_windows[] = {
+	{ TEXT_(T_FILE), cast_uchar "", TEXT_(T_HK_FILE), MENU_FUNC do_file_menu, NULL, 1, 1 },
+	{ TEXT_(T_VIEW), cast_uchar "", TEXT_(T_HK_VIEW), MENU_FUNC do_view_menu, NULL, 1, 1 },
+	{ TEXT_(T_LINK), cast_uchar "", TEXT_(T_HK_LINK), MENU_FUNC link_menu, NULL, 1, 1 },
+	{ TEXT_(T_DOWNLOADS), cast_uchar "", TEXT_(T_HK_DOWNLOADS), MENU_FUNC downloads_menu, NULL, 1, 1 },
+	{ TEXT_(T_WINDOWS), cast_uchar "", TEXT_(T_HK_WINDOWS), MENU_FUNC windows_menu, NULL, 1, 1 },
+	{ TEXT_(T_SETUP), cast_uchar "", TEXT_(T_HK_SETUP), MENU_FUNC do_setup_menu, NULL, 1, 1 },
+	{ TEXT_(T_HELP), cast_uchar "", TEXT_(T_HK_HELP), MENU_FUNC do_menu, (struct menu_item *)help_menu_g, 1, 1 },
+	{ NULL, NULL, 0, NULL, NULL, 0, 0 }
+};
+
 #endif
+
+#endif
+
 
 /* lame technology rulez ! */
 
 void activate_bfu_technology(struct session *ses, int item)
 {
 	struct terminal *term = ses->term;
-	/* volatile to avoid compiler bug */
-	struct menu_item * volatile m = (struct menu_item *)main_menu;
+	/* decc_volatile to avoid compiler bug */
+	struct menu_item * decc_volatile m = (struct menu_item *)main_menu;
 #ifdef G
-	struct menu_item * volatile mg = (struct menu_item *)main_menu_g;
+	struct menu_item * decc_volatile mg = (struct menu_item *)main_menu_g;
+#ifdef GRDRV_VIRTUAL_DEVICES
+	if (have_windows_menu)
+		mg = (struct menu_item *)main_menu_g_windows;
+#endif
 #endif
 	do_mainmenu(term, gf_val(m, mg), ses, item);
 }
@@ -3483,17 +3781,17 @@ struct history goto_url_history = { 0, { &goto_url_history.items, &goto_url_hist
 
 void dialog_goto_url(struct session *ses, unsigned char *url)
 {
-	input_field(ses->term, NULL, TEXT_(T_GOTO_URL), TEXT_(T_ENTER_URL), ses, &goto_url_history, MAX_INPUT_URL_LEN, url, 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) goto_url, TEXT_(T_CANCEL), NULL, NULL);
+	input_field(ses->term, NULL, TEXT_(T_GOTO_URL), TEXT_(T_ENTER_URL), ses, &goto_url_history, MAX_INPUT_URL_LEN, url, 0, 0, NULL, TEXT_(T_OK), goto_url, TEXT_(T_CANCEL), NULL, NULL);
 }
 
 void dialog_save_url(struct session *ses)
 {
-	input_field(ses->term, NULL, TEXT_(T_SAVE_URL), TEXT_(T_ENTER_URL), ses, &goto_url_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) save_url, TEXT_(T_CANCEL), NULL, NULL);
+	input_field(ses->term, NULL, TEXT_(T_SAVE_URL), TEXT_(T_ENTER_URL), ses, &goto_url_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), save_url, TEXT_(T_CANCEL), NULL, NULL);
 }
 
 
 struct does_file_exist_s {
-	void (*fn)(void *, unsigned char *, int);
+	void (*fn)(struct session *, unsigned char *, int);
 	void (*cancel)(void *);
 	int flags;
 	struct session *ses;
@@ -3536,11 +3834,12 @@ static void does_file_exist_cancel(void *data)
 static void does_file_exist_rename(void *data)
 {
 	struct does_file_exist_s *h=(struct does_file_exist_s *)data;
-	query_file(h->ses, h->url, h->head, (void (*)(struct session *, unsigned char *, int))h->fn, (void (*)(struct session *))h->cancel, h->flags);
+	query_file(h->ses, h->url, h->head, h->fn, h->cancel, h->flags);
 }
 
-static void does_file_exist(struct does_file_exist_s *d, unsigned char *file)
+static void does_file_exist(void *d_, unsigned char *file)
 {
+	struct does_file_exist_s *d = (struct does_file_exist_s *)d_;
 	unsigned char *f;
 	unsigned char *wd;
 	struct session *ses = d->ses;
@@ -3640,21 +3939,24 @@ free_h_ret:
 static struct history file_history = { 0, { &file_history.items, &file_history.items } };
 
 
-static void query_file_cancel(struct does_file_exist_s *d)
+static void query_file_cancel(void *d_)
 {
+	struct does_file_exist_s *d = (struct does_file_exist_s *)d_;
 	if (d->cancel) d->cancel(d->ses);
 }
 
 
-void query_file(struct session *ses, unsigned char *url, unsigned char *head, void (*fn)(struct session *, unsigned char *, int), void (*cancel)(struct session *), int flags)
+void query_file(struct session *ses, unsigned char *url, unsigned char *head, void (*fn)(struct session *, unsigned char *, int), void (*cancel)(void *), int flags)
 {
-	unsigned char *file, *def;
+	unsigned char *fc, *file, *def;
 	int dfl = 0;
 	struct does_file_exist_s *h;
 
 	h = mem_alloc(sizeof(struct does_file_exist_s));
 
-	file = get_filename_from_url(url, head, 0);
+	fc = get_filename_from_url(url, head, 0);
+	file = convert(utf8_table, 0, fc, NULL);
+	mem_free(fc);
 	check_filename(&file);
 
 	def = init_str();
@@ -3663,15 +3965,15 @@ void query_file(struct session *ses, unsigned char *url, unsigned char *head, vo
 	add_to_str(&def, &dfl, file);
 	mem_free(file);
 
-	h->fn = (void (*)(void *, unsigned char *, int))fn;
-	h->cancel = (void (*)(void *))cancel;
+	h->fn = fn;
+	h->cancel = cancel;
 	h->flags = flags;
 	h->ses = ses;
 	h->file = NULL;
 	h->url = stracpy(url);
 	h->head = stracpy(head);
 
-	input_field(ses->term, getml(h, h->url, h->head, NULL), TEXT_(T_DOWNLOAD), TEXT_(T_SAVE_TO_FILE), h, &file_history, MAX_INPUT_URL_LEN, def, 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *))does_file_exist, TEXT_(T_CANCEL), (void (*)(void *))query_file_cancel, NULL);
+	input_field(ses->term, getml(h, h->url, h->head, NULL), TEXT_(T_DOWNLOAD), TEXT_(T_SAVE_TO_FILE), h, &file_history, MAX_INPUT_URL_LEN, def, 0, 0, NULL, TEXT_(T_OK), does_file_exist, TEXT_(T_CANCEL), query_file_cancel, NULL);
 	mem_free(def);
 }
 
@@ -3683,7 +3985,7 @@ void search_back_dlg(struct session *ses, struct f_data_c *f, int a)
 		msg_box(ses->term, NULL, TEXT_(T_SEARCH), AL_LEFT, TEXT_(T_YOU_ARE_NOWHERE), NULL, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
 		return;
 	}
-	input_field(ses->term, NULL, TEXT_(T_SEARCH_BACK), TEXT_(T_SEARCH_FOR_TEXT), ses, &search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) search_for_back, TEXT_(T_CANCEL), NULL, NULL);
+	input_field(ses->term, NULL, TEXT_(T_SEARCH_BACK), TEXT_(T_SEARCH_FOR_TEXT), ses, &search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), search_for_back, TEXT_(T_CANCEL), NULL, NULL);
 }
 
 void search_dlg(struct session *ses, struct f_data_c *f, int a)
@@ -3692,16 +3994,16 @@ void search_dlg(struct session *ses, struct f_data_c *f, int a)
 		msg_box(ses->term, NULL, TEXT_(T_SEARCH_FOR_TEXT), AL_LEFT, TEXT_(T_YOU_ARE_NOWHERE), NULL, 1, TEXT_(T_OK), NULL, B_ENTER | B_ESC);
 		return;
 	}
-	input_field(ses->term, NULL, TEXT_(T_SEARCH), TEXT_(T_SEARCH_FOR_TEXT), ses, &search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) search_for, TEXT_(T_CANCEL), NULL, NULL);
+	input_field(ses->term, NULL, TEXT_(T_SEARCH), TEXT_(T_SEARCH_FOR_TEXT), ses, &search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), search_for, TEXT_(T_CANCEL), NULL, NULL);
 }
 
 void free_history_lists(void)
 {
-	free_list(goto_url_history.items);
-	free_list(file_history.items);
-	free_list(search_history.items);
+	free_history(goto_url_history);
+	free_history(file_history);
+	free_history(search_history);
 #ifdef JS
-	free_list(js_get_string_history.items);   /* is in jsint.c */
+	free_history(js_get_string_history);   /* is in jsint.c */
 #endif
 }
 

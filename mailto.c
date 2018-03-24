@@ -10,7 +10,8 @@
 static void prog_func(struct terminal *term, struct list_head *list, unsigned char *param, unsigned char *name)
 {
 	unsigned char *prog, *cmd;
-	if (!(prog = get_prog(list)) || !*prog) {
+	prog = get_prog(list);
+	if (!*prog) {
 		msg_box(term, NULL, TEXT_(T_NO_PROGRAM), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_NO_PROGRAM_SPECIFIED_FOR), cast_uchar " ", name, cast_uchar ".", NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		return;
 	}
@@ -49,8 +50,8 @@ static void tn_func(struct session *ses, unsigned char *url, struct list_head *p
 	unsigned char *hh, *pp = NULL	/* against warning */;
 	int f = 1;
 	if (parse_url(url, NULL, NULL, NULL, NULL, NULL, &h, &hl, &p, &pl, NULL, NULL, NULL) || !hl) goto fail;
-	if (!(hh = memacpy(h, hl))) goto fail;
-	if (pl && !(pp = memacpy(p, pl))) goto fail1;
+	hh = memacpy(h, hl);
+	if (pl) pp = memacpy(p, pl);
 	check_shell_security(&hh);
 	if (pl) check_shell_security(&pp);
 	m = mem_alloc(strlen(cast_const_char hh) + (pl ? strlen(cast_const_char pp) : 0) + 2);
@@ -64,7 +65,6 @@ static void tn_func(struct session *ses, unsigned char *url, struct list_head *p
 	prog_func(ses->term, prog, m, t1);
 	mem_free(m);
 	if (pl) mem_free(pp);
-	fail1:
 	mem_free(hh);
 	fail:
 	if (f) msg_box(ses->term, NULL, TEXT_(T_BAD_URL_SYNTAX), AL_CENTER, t2, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);

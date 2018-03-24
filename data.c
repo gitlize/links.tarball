@@ -72,7 +72,7 @@ void data_func(struct connection *c)
 	data = flags + 1;
 
 	if (!c->cache) {
-		if (get_cache_entry(c->url, &c->cache)) {
+		if (get_connection_cache_entry(c)) {
 			mem_free(mime);
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c);

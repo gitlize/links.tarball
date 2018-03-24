@@ -234,19 +234,24 @@ void png_restart(struct cached_image *cimg, unsigned char *data, int length)
 {
 	png_structp png_ptr;
 	png_infop info_ptr;
+	volatile int h;
 
 #ifdef DEBUG
 	if (!cimg->decoder)
 		internal("decoder NULL in png_restart\n");
+
 #endif /* #ifdef DEBUG */
+	h = close_stderr();
 	png_ptr=((struct png_decoder *)(cimg->decoder))->png_ptr;
 	info_ptr=((struct png_decoder *)(cimg->decoder))->info_ptr;
 	end_callback_hit=0;
-	if (setjmp(png_jmpbuf(png_ptr))){
+	if (setjmp(png_jmpbuf(png_ptr))) {
+		restore_stderr(h);
 		img_end(cimg);
 		return;
 	}
 	png_process_data(png_ptr, info_ptr, data, length);
+	restore_stderr(h);
 	if (end_callback_hit) img_end(cimg);
 }
 

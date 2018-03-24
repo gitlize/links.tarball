@@ -255,7 +255,7 @@ directfb_get_empty_bitmap (struct bitmap *bmp)
   retry:
   if (dfb->CreateSurface (dfb, &desc, &surface) != DFB_OK) {
     if (out_of_memory(MF_GPI, NULL, 0))
-   	goto retry;
+	goto retry;
     return -1;
   }
 
@@ -484,6 +484,14 @@ directfb_flip_surface (void *pointer)
   data->surface->Flip (data->surface, &data->flip_region, (DFBSurfaceFlipFlags)0);
 
   data->flip_pending = 0;
+}
+
+static void
+directfb_flush(struct graphics_device *gd)
+{
+  DFBDeviceData *data = gd->driver_data;
+  unregister_bottom_half (directfb_flip_surface, data);
+  directfb_flip_surface(data);
 }
 
 static void
@@ -813,6 +821,7 @@ struct graphics_driver directfb_driver =
   directfb_hscroll,
   directfb_vscroll,
   directfb_set_clip_area,
+  directfb_flush,
   dummy_block,
   dummy_unblock,
   NULL,	 /*  set_title  */

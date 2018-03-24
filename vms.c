@@ -1062,6 +1062,7 @@ void init_os(void)
 void os_seed_random(unsigned char **pool, int *pool_size)
 {
 	struct history_item *hi;
+	struct list_head *lhi;
 	DIR *dir;
 	int n, h;
 
@@ -1080,14 +1081,14 @@ void os_seed_random(unsigned char **pool, int *pool_size)
 	 * any URLs in the history.
 	 */
 	n = 0;
-	foreach(hi, goto_url_history.items) {
+	foreach(struct history_item, hi, lhi, goto_url_history.items) {
 		SHA_CTX ctx;
 		unsigned char result[SHA_DIGEST_LENGTH];
 		unsigned char sum;
 		int i;
 
 		SHA1_Init(&ctx);
-		SHA1_Update(&ctx, hi->d, strlen(cast_const_char hi->d));
+		SHA1_Update(&ctx, hi->str, strlen(cast_const_char hi->str));
 		SHA1_Final(result, &ctx);
 
 		sum = 0;

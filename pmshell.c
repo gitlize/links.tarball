@@ -301,15 +301,14 @@ static int icon_set;
 #define E_RESIZE	4
 
 struct pm_event {
-	struct pm_event *next;
-	struct pm_event *prev;
+	list_entry_1st
 	int type;
 	int x1, y1, x2, y2;
+	list_entry_last
 };
 
 struct pm_window {
-	struct pm_window *next;
-	struct pm_window *prev;
+	list_entry_1st
 	int x, y;
 	unsigned char in;
 	unsigned char minimized;
@@ -332,6 +331,7 @@ struct pm_window {
 	int button;
 	unsigned long lastpos;
 	struct list_head queue;
+	list_entry_last
 };
 
 #define WIN_HASH	64
@@ -397,7 +397,7 @@ static void pm_send_event(struct pm_window *win, int t, int x1, int y1, int x2, 
 static void pm_send_mouse_event(struct pm_window *win, int x1, int y1, int b)
 {
 	if (!list_empty(win->queue)) {
-		struct pm_event *last = win->queue.next;
+		struct pm_event *last = list_struct(win->queue.next, struct pm_event);
 		if (last->type == E_MOUSE && last->x2 == b) {
 			last->x1 = x1;
 			last->y1 = y1;
@@ -410,8 +410,9 @@ static void pm_send_mouse_event(struct pm_window *win, int x1, int y1, int b)
 static void pm_cancel_event(struct pm_window *win, int t, struct pm_event **pev)
 {
 	struct pm_event *ev;
+	struct list_head *lev;
 	if (pev) *pev = NULL;
-	foreachback(ev, win->queue) if (ev->type == t) {
+	foreachback(struct pm_event, ev, lev, win->queue) if (ev->type == t) {
 		if (pev) *pev = ev;
 		else {
 			del_from_list(ev);
@@ -1258,7 +1259,7 @@ static void *pm_dispatcher_win32(void *p)
 }
 #endif
 
-static void pm_pipe_error(void *p)
+static void pm_pipe_error(void)
 {
 	error("exception on pm pipe");
 	set_handlers(pm_pipe[0], NULL, NULL, NULL);
@@ -1273,9 +1274,9 @@ static void pm_handler(void *p)
 	pm_lock();
 	debug_call(("M: pm_handler: pm_locked"));
 	if (!list_empty(pm_event_windows)) {
-		win = pm_event_windows.prev;
+		win = list_struct(pm_event_windows.prev, struct pm_window);
 		if (!list_empty(win->queue)) {
-			ev = win->queue.prev;
+			ev = list_struct(win->queue.prev, struct pm_event);
 			del_from_list(ev);
 		}
 		if (list_empty(win->queue)) {
@@ -1287,7 +1288,7 @@ static void pm_handler(void *p)
 		int rd;
 		debug_call(("M: pm_handler: read"));
 		EINTRLOOP(rd, read(pm_pipe[0], &c, 1));
-		if (rd != 1) pm_pipe_error(NULL);
+		if (rd != 1) pm_pipe_error();
 	}
 	debug_call(("M: pm_handler: pm_unlock"));
 	pm_unlock();
@@ -1961,7 +1962,7 @@ static void pm_shutdown_device(struct graphics_device *dev)
 	pm_unlock();
 	debug_call(("M: pm_shutdown_device: free"));
 	while (!list_empty(win->queue)) {
-		struct pm_event *ev = win->queue.next;
+		struct pm_event *ev = list_struct(win->queue.next, struct pm_event);
 		del_from_list(ev);
 		free(ev);
 	}
@@ -2450,6 +2451,17 @@ static int pm_vscroll(struct graphics_device *dev, struct rect_set **ignore, int
 	return 0;
 }
 
+#ifdef OS2
+#define pm_flush	NULL
+#endif
+#ifdef WIN
+static void pm_flush(struct graphics_device *dev)
+{
+	PM_UNFLUSH();
+	pm_do_flush(NULL);
+}
+#endif
+
 struct graphics_driver pmshell_driver = {
 #ifdef OS2
 	cast_uchar "pmshell",
@@ -2480,6 +2492,7 @@ struct graphics_driver pmshell_driver = {
 	pm_hscroll,
 	pm_vscroll,
 	generic_set_clip_area,
+	pm_flush,
 	dummy_block,
 	dummy_unblock,
 	pm_set_window_title,

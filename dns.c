@@ -22,10 +22,10 @@ int support_ipv6;
 #endif
 
 struct dnsentry {
-	struct dnsentry *next;
-	struct dnsentry *prev;
-	ttime get_time;
+	list_entry_1st
+	uttime absolute_time;
 	struct lookup_result addr;
+	list_entry_last
 	unsigned char name[1];
 };
 
@@ -198,10 +198,22 @@ skip_addr:
 
 #endif
 
+#if MAX_ADDRESSES > 1
+static int memcmp_host_address(struct host_address *a, struct host_address *b)
+{
+	if (a->af != b->af || a->scope_id != b->scope_id)
+		return 1;
+	return memcmp(a->addr, b->addr, sizeof a->addr);
+}
+#endif
+
 static void add_address(struct lookup_result *host, int af, unsigned char *address, unsigned scope_id, int preference)
 {
 	struct host_address neww;
-	struct host_address *e, *n, *t;
+	struct host_address *e, *t;
+#if MAX_ADDRESSES > 1
+	struct host_address *n;
+#endif
 	if (af != AF_INET && preference == ADDR_PREFERENCE_IPV4_ONLY)
 		return;
 #ifdef SUPPORT_IPV6
@@ -216,8 +228,9 @@ static void add_address(struct lookup_result *host, int af, unsigned char *addre
 	neww.scope_id = scope_id;
 	e = &host->a[host->n];
 	t = e;
+#if MAX_ADDRESSES > 1
 	for (n = host->a; n != e; n++) {
-		if (!memcmp(n, &neww, sizeof(struct host_address)))
+		if (!memcmp_host_address(n, &neww))
 			return;
 		if (preference == ADDR_PREFERENCE_IPV4 && af == AF_INET && n->af != AF_INET) {
 			t = n;
@@ -231,6 +244,7 @@ static void add_address(struct lookup_result *host, int af, unsigned char *addre
 #endif
 	}
 	memmove(t + 1, t, (e - t) * sizeof(struct host_address));
+#endif
 	memcpy(t, &neww, sizeof(struct host_address));
 	host->n++;
 }
@@ -266,6 +280,34 @@ static int use_getaddrinfo(unsigned char *name, struct addrinfo *hints, int pref
 
 #endif
 
+void rotate_addresses(struct lookup_result *host)
+{
+#if MAX_ADDRESSES > 1
+	int first_type, first_different, i;
+
+	if (host->n <= 2)
+		return;
+
+	first_type = host->a[0].af;
+
+	for (i = 1; i < host->n; i++) {
+		if (host->a[i].af != first_type) {
+			first_different = i;
+			goto do_swap;
+		}
+	}
+	return;
+
+do_swap:
+	if (first_different > 1) {
+		struct host_address ha;
+		memcpy(&ha, &host->a[first_different], sizeof(struct host_address));
+		memmove(&host->a[2], &host->a[1], (first_different - 1) * sizeof(struct host_address));
+		memcpy(&host->a[1], &ha, sizeof(struct host_address));
+	}
+#endif
+}
+
 void do_real_lookup(unsigned char *name, int preference, struct lookup_result *host)
 {
 	unsigned char address[16];
@@ -273,15 +315,16 @@ void do_real_lookup(unsigned char *name, int preference, struct lookup_result *h
 	size_t nl;
 #endif
 
-	if (strlen(cast_const_char name) >= 6 && !casestrcmp((name - 6), cast_uchar ".onion"))
-		return;
+	memset(host, 0, sizeof(struct lookup_result));
+
+	if (strlen(cast_const_char name) >= 6 && !casestrcmp(name + strlen(cast_const_char name) - 6, cast_uchar ".onion"))
+		goto ret;
 
 	if (!support_ipv6) preference = ADDR_PREFERENCE_IPV4_ONLY;
 
-	memset(host, 0, sizeof(struct lookup_result));
 	if (!numeric_ip_address(name, address)) {
 		add_address(host, AF_INET, address, 0, preference);
-		return;
+		goto ret;
 	}
 #ifdef SUPPORT_IPV6
 	nl = strlen(cast_const_char name);
@@ -293,7 +336,7 @@ void do_real_lookup(unsigned char *name, int preference, struct lookup_result *h
 			if (!numeric_ipv6_address(n2, address, &scope_id)) {
 				free(n2);
 				add_address(host, AF_INET6, address, scope_id, preference);
-				return;
+				goto ret;
 			}
 			free(n2);
 		}
@@ -301,7 +344,7 @@ void do_real_lookup(unsigned char *name, int preference, struct lookup_result *h
 		unsigned scope_id;
 		if (!numeric_ipv6_address(name, address, &scope_id)) {
 			add_address(host, AF_INET6, address, scope_id, preference);
-			return;
+			goto ret;
 		}
 	}
 #endif
@@ -329,7 +372,8 @@ void do_real_lookup(unsigned char *name, int preference, struct lookup_result *h
 		int i;
 		struct hostent *hst;
 		if ((hst = gethostbyname(cast_const_char name))) {
-			if (hst->h_addrtype != AF_INET || hst->h_length != 4 || !hst->h_addr) return;
+			if (hst->h_addrtype != AF_INET || hst->h_length != 4 || !hst->h_addr)
+				goto ret;
 #ifdef h_addr
 			for (i = 0; hst->h_addr_list[i]; i++) {
 				add_address(host, AF_INET, cast_uchar hst->h_addr_list[i], 0, preference);
@@ -337,7 +381,7 @@ void do_real_lookup(unsigned char *name, int preference, struct lookup_result *h
 #else
 			add_address(host, AF_INET, cast_uchar hst->h_addr, 0, preference);
 #endif
-			return;
+			goto ret;
 		}
 	}
 #endif
@@ -345,15 +389,18 @@ void do_real_lookup(unsigned char *name, int preference, struct lookup_result *h
 #ifdef EXTERNAL_LOOKUP
 	if (!do_external_lookup(name, address)) {
 		add_address(host, AF_INET, address, 0, preference);
-		return;
+		goto ret;
 	}
 #endif
+
+ret:
 	return;
 }
 
 #ifndef NO_ASYNC_LOOKUP
-static void lookup_fn(struct dnsquery *q, int h)
+static void lookup_fn(void *q_, int h)
 {
+	struct dnsquery *q = (struct dnsquery *)q_;
 	struct lookup_result host;
 	do_real_lookup(q->name, q->addr_preference, &host);
 	/*{
@@ -366,8 +413,9 @@ static void lookup_fn(struct dnsquery *q, int h)
 	hard_write(h, (unsigned char *)&host, sizeof(struct lookup_result));
 }
 
-static void end_real_lookup(struct dnsquery *q)
+static void end_real_lookup(void *q_)
 {
+	struct dnsquery *q = (struct dnsquery *)q_;
 	int r = 1;
 	int rs;
 	if (!q->addr || hard_read(q->h, (unsigned char *)q->addr, sizeof(struct lookup_result)) != sizeof(struct lookup_result) || !q->addr->n) goto end;
@@ -394,9 +442,9 @@ static int do_lookup(struct dnsquery *q, int force_async)
 		return 0;
 #ifndef NO_ASYNC_LOOKUP
 	} else {
-		q->h = start_thread((void (*)(void *, int))lookup_fn, q, (int)((unsigned char *)strchr(cast_const_char q->name, 0) + 1 - (unsigned char *)q), 1);
+		q->h = start_thread(lookup_fn, q, (int)((unsigned char *)strchr(cast_const_char q->name, 0) + 1 - (unsigned char *)q), 1);
 		if (q->h == -1) goto sync_lookup;
-		set_handlers(q->h, (void (*)(void *))end_real_lookup, NULL, q);
+		set_handlers(q->h, end_real_lookup, NULL, q);
 		return 1;
 	}
 #endif
@@ -433,8 +481,9 @@ static void check_dns_cache_addr_preference(void)
 static int find_in_dns_cache(unsigned char *name, struct dnsentry **dnsentry)
 {
 	struct dnsentry *e;
+	struct list_head *le;
 	check_dns_cache_addr_preference();
-	foreach(e, dns_cache)
+	foreach(struct dnsentry, e, le, dns_cache)
 		if (!casestrcmp(e->name, name)) {
 			del_from_list(e);
 			add_to_list(dns_cache, e);
@@ -442,6 +491,12 @@ static int find_in_dns_cache(unsigned char *name, struct dnsentry **dnsentry)
 			return 0;
 		}
 	return -1;
+}
+
+static void free_dns_entry(struct dnsentry *dnsentry)
+{
+	del_from_list(dnsentry);
+	mem_free(dnsentry);
 }
 
 static void end_dns_lookup(struct dnsquery *q, int a)
@@ -466,16 +521,15 @@ static void end_dns_lookup(struct dnsquery *q, int a)
 			a = 0;
 			goto e;
 		}
-		del_from_list(dnsentry);
-		mem_free(dnsentry);
+		free_dns_entry(dnsentry);
 	}
 	if (a) goto e;
 	if (q->addr_preference != ipv6_options.addr_preference) goto e;
 	check_dns_cache_addr_preference();
-	dnsentry = mem_alloc(sizeof(struct dnsentry) + strlen(cast_const_char q->name) + 1);
+	dnsentry = mem_alloc(sizeof(struct dnsentry) + strlen(cast_const_char q->name));
 	strcpy(cast_char dnsentry->name, cast_const_char q->name);
 	memcpy(&dnsentry->addr, q->addr, sizeof(struct lookup_result));
-	dnsentry->get_time = get_time();
+	dnsentry->absolute_time = get_absolute_time();
 	add_to_list(dns_cache, dnsentry);
 	e:
 	if (q->s) *q->s = NULL;
@@ -502,7 +556,7 @@ int find_host_no_cache(unsigned char *name, struct lookup_result *addr, void **q
 	q->addr = addr;
 	q->addr_preference = ipv6_options.addr_preference;
 	strcpy(cast_char q->name, cast_const_char name);
-	if (qp) *(struct dnsquery **) qp = q;
+	if (qp) *qp = q;
 	return do_queued_lookup(q);
 }
 
@@ -511,7 +565,7 @@ int find_host(unsigned char *name, struct lookup_result *addr, void **qp, void (
 	struct dnsentry *dnsentry;
 	if (qp) *qp = NULL;
 	if (!find_in_dns_cache(name, &dnsentry)) {
-		if ((uttime)get_time() - (uttime)dnsentry->get_time > DNS_TIMEOUT) goto timeout;
+		if (get_absolute_time() - dnsentry->absolute_time > DNS_TIMEOUT) goto timeout;
 		memcpy(addr, &dnsentry->addr, sizeof(struct lookup_result));
 		fn(data, 0);
 		return 0;
@@ -528,6 +582,28 @@ void kill_dns_request(void **qp)
 	*qp = NULL;
 }
 
+#ifndef NO_ASYNC_LOOKUP
+static void dns_prefetch_end(void *addr_, int status)
+{
+	struct lookup_result *addr = (struct lookup_result *)addr_;
+	free(addr);
+}
+#endif
+
+void dns_prefetch(unsigned char *name)
+{
+#ifndef NO_ASYNC_LOOKUP
+	struct lookup_result *addr;
+	if (!async_lookup)
+		return;
+	addr = (struct lookup_result *)malloc(sizeof(struct lookup_result));
+	if (!addr)
+		return;
+	find_host(name, addr, NULL, dns_prefetch_end, addr);
+#endif
+}
+
+#if MAX_ADDRESSES > 1
 void dns_set_priority(unsigned char *name, struct host_address *address, int prefer)
 {
 	int i;
@@ -535,7 +611,7 @@ void dns_set_priority(unsigned char *name, struct host_address *address, int pre
 	if (find_in_dns_cache(name, &dnsentry))
 		return;
 	for (i = 0; i < dnsentry->addr.n; i++)
-		if (!memcmp(&dnsentry->addr.a[i], address, sizeof(struct host_address))) goto found_it;
+		if (!memcmp_host_address(&dnsentry->addr.a[i], address)) goto found_it;
 	return;
 	found_it:
 	if (prefer) {
@@ -546,16 +622,21 @@ void dns_set_priority(unsigned char *name, struct host_address *address, int pre
 		memcpy(&dnsentry->addr.a[dnsentry->addr.n - 1], address, sizeof(struct host_address));
 	}
 }
+#endif
+
+void dns_clear_host(unsigned char *name)
+{
+	struct dnsentry *dnsentry;
+	if (find_in_dns_cache(name, &dnsentry))
+		return;
+	free_dns_entry(dnsentry);
+}
 
 unsigned long dns_info(int type)
 {
 	switch (type) {
-		case CI_FILES: {
-			unsigned long n = 0;
-			struct dnsentry *e;
-			foreach(e, dns_cache) n++;
-			return n;
-		}
+		case CI_FILES:
+			return list_size(&dns_cache);
 		default:
 			internal("dns_info: bad request");
 	}
@@ -564,21 +645,65 @@ unsigned long dns_info(int type)
 
 static int shrink_dns_cache(int u)
 {
-	struct dnsentry *d, *e;
+	uttime now = get_absolute_time();
+	struct dnsentry *d;
+	struct list_head *ld;
 	int f = 0;
 	if (u == SH_FREE_SOMETHING && !list_empty(dns_cache)) {
-		d = dns_cache.prev;
-		goto free_e;
+		d = list_struct(dns_cache.prev, struct dnsentry);
+		goto delete_last;
 	}
-	foreach(d, dns_cache) if (u == SH_FREE_ALL || (uttime)get_time() - (uttime)d->get_time > DNS_TIMEOUT) {
-		free_e:
-		e = d;
-		d = d->prev;
-		del_from_list(e);
-		mem_free(e);
+	foreach(struct dnsentry, d, ld, dns_cache) if (u == SH_FREE_ALL || now - d->absolute_time > DNS_TIMEOUT) {
+delete_last:
+		ld = d->list_entry.prev;
+		free_dns_entry(d);
 		f = ST_SOMETHING_FREED;
 	}
 	return f | (list_empty(dns_cache) ? ST_CACHE_EMPTY : 0);
+}
+
+unsigned char *print_address(struct host_address *a)
+{
+#define SCOPE_ID_LEN	11
+#ifdef SUPPORT_IPV6
+	static unsigned char buffer[INET6_ADDRSTRLEN + SCOPE_ID_LEN];
+#else
+	static unsigned char buffer[INET_ADDRSTRLEN + SCOPE_ID_LEN];
+#endif
+#ifdef HAVE_INET_NTOP
+	union {
+		struct in_addr in;
+#ifdef SUPPORT_IPV6
+		struct in6_addr in6;
+#endif
+		char pad[16];
+	} u;
+	memcpy(&u, a->addr, 16);
+	if (!inet_ntop(a->af, &u, cast_char buffer, sizeof buffer - SCOPE_ID_LEN))
+		return NULL;
+#else
+	if (a->af == AF_INET)
+		snprintf(cast_char buffer, sizeof buffer, "%d.%d.%d.%d", a->addr[0], a->addr[1], a->addr[2], a->addr[3]);
+#ifdef SUPPORT_IPV6
+	else if (a->af == AF_INET6)
+		snprintf(cast_char buffer, sizeof buffer, "%x:%x:%x:%x:%x:%x:%x:%x",
+			(a->addr[0] << 8) | a->addr[1],
+			(a->addr[2] << 8) | a->addr[3],
+			(a->addr[4] << 8) | a->addr[5],
+			(a->addr[6] << 8) | a->addr[7],
+			(a->addr[8] << 8) | a->addr[9],
+			(a->addr[10] << 8) | a->addr[11],
+			(a->addr[12] << 8) | a->addr[13],
+			(a->addr[14] << 8) | a->addr[15]);
+#endif
+	else
+		return NULL;
+#endif
+	if (a->scope_id) {
+		unsigned char *end = cast_uchar strchr(cast_const_char buffer, 0);
+		snprintf(cast_char end, buffer + sizeof(buffer) - end, "%%%u", a->scope_id);
+	}
+	return buffer;
 }
 
 int ipv6_full_access(void)
@@ -618,13 +743,13 @@ void flood_memory(void)
 #endif
 	init_list(list);
 	while (!list_empty(dns_cache)) {
-		de = (struct dnsentry *)dns_cache.prev;
+		de = list_struct(dns_cache.prev, struct dnsentry);
 		del_from_list(de);
 		add_to_list(list, de);
 	}
 	while (1) {
 		while ((de = mem_alloc_mayfail(s))) {
-			de->get_time = get_time();
+			de->absolute_time = get_absolute_time();
 			memset(&de->addr, 0, sizeof de->addr);
 			de->name[0] = 0;
 			add_to_list(list, de);
@@ -634,7 +759,7 @@ void flood_memory(void)
 		if (s < sizeof(struct dnsentry)) s = sizeof(struct dnsentry);
 	}
 	while (!list_empty(list)) {
-		de = (struct dnsentry *)list.prev;
+		de = list_struct(list.prev, struct dnsentry);
 		del_from_list(de);
 		add_to_list(dns_cache, de);
 	}

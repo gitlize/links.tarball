@@ -4,8 +4,6 @@
 
 #include "suffix_x.inc"
 
-#define array_elements(a)	(sizeof(a) / sizeof(*a))
-
 static int search_list(const_char_ptr const *list, int len, unsigned char *name)
 {
 	int result;

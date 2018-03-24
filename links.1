@@ -136,6 +136,11 @@ Timeout on non restartable connections.
 (default: 600)
 
 .TP
+\f3-timeout-when-trying-multiple-addresses \f2<sec>\f1
+Timeout for connection when trying multiple addresses.
+(default: 3)
+
+.TP
 \f3-bind-address \f2<ip address>\f1
 Use a specific local IP address.
 
@@ -220,6 +225,11 @@ Append text to dns lookups. It is useful for specifying fixed tor exit node.
 (default: blank)
 
 .TP
+\f3-no-proxy-domains \f2<domain,domain...>\f1
+No proxy for specified domains.
+(default: blank)
+
+.TP
 \f3-only-proxies \f2<0>/<1>\f1
 "1" causes that Links won't initiate any non-proxy connection.
 It is useful for anonymization with tor or similar networks.
@@ -230,6 +240,11 @@ It is useful for anonymization with tor or similar networks.
 0 - ignore invalid certificate.
 1 - warn on invalid certificate.
 2 - reject invalid certificate.
+
+.TP
+\f3-ssl.builtin-certificates \f2<0>/<1>\f1
+(default 0; on DOS and OpenVMS default 1)
+Use built-in certificates instead of system certificates.
 
 .TP
 \f3-ssl.client-cert-key \f2<filename>\f1

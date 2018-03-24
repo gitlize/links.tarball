@@ -1,3 +1,173 @@
+=== RELEASE 2.15 ===
+
+Thu Jan 18 19:12:02 CET 2018 mikulas:
+
+	Rewrite google docs URLs to the download link, so that the file can be
+	viewed in external viewer
+
+Mon Nov 20 01:09:20 CET 2017 mikulas:
+
+	Add the list of domains for which proxy is not used
+
+Sun Nov 19 00:57:26 CET 2017 mikulas:
+
+	Temporarily replace the stderr handle with /dev/null when decoding
+	png or svg images because the libraries may write to stderr
+
+Sat Nov 11 21:31:45 CET 2017 mikulas:
+
+	Fix improper restarts of connection when http compression is used
+
+Thu Oct 12 21:07:06 CEST 2017 mikulas:
+
+	Free cache when using the -source flag, so that memory consumption is
+	not dependent on downloaded file size
+
+Thu Oct 12 20:39:00 CEST 2017 mikulas:
+
+	Do not download compressed files. When the server returns compressed
+	file and we are downloading, restart the connection without compression.
+
+Tue Oct 10 19:38:04 CEST 2017 mikulas:
+
+	Allow browsing files containing characters < 32 in the filename
+
+Sun Oct  8 22:28:56 CEST 2017 mikulas:
+
+	Limit the number of OpenMP threads to 8
+
+Sun Oct  8 21:47:12 CEST 2017 mikulas:
+
+	Fix premature call to OPENSSL_cleanup while some SSL objects could
+	still exist
+
+Sat Sep 30 12:44:39 CEST 2017 mikulas:
+
+	Enable -ftree-vectorize and -ffast-math for GCC, so that it uses
+	vector instructions. It improves performance of image scaler.
+
+Mon Sep  4 04:46:20 CEST 2017 mikulas:
+
+	Support international domain names
+
+Mon Aug 28 04:24:09 CEST 2017 mikulas:
+
+	Fix reordering of blocked URLs each time options were saved and loaded
+
+Wed Aug  2 19:35:00 CEST 2017 mikulas:
+
+	Fix reading one byte beyond allocated space in case of corrupted
+	UTF-8 data - CVE-2017-11114
+
+Tue Jul 18 22:10:00 CEST 2017 mikulas:
+
+	Support the brotli compression algorithm using libbrotli:
+	https://github.com/bagder/libbrotli
+
+Sun Jul 16 15:19:17 CEST 2017 mikulas:
+
+	Support lzip compression
+
+Sun Jul  2 21:31:32 CEST 2017 mikulas:
+
+	Add a new main menu item 'Windows' for switching windows on framebuffer
+
+Thu Jun 22 19:50:01 CEST 2017 mikulas:
+
+	Fix an internal error if the gpm server is terminated while links is
+	running on a framebuffer
+
+Wed Jun 21 01:22:27 CEST 2017 mikulas:
+
+	Use fsync() when writing the bookmarks or settings
+
+Sat Jun  3 01:25:07 CEST 2017 mikulas:
+
+	Clear host entry in DNS cache when connection failed
+
+Mon May 29 02:20:08 CEST 2017 mikulas:
+
+	Use built-in SSL certificates
+	This improves tor hardening (the tor exit node could not differentiate
+	links users from each other based on installed certificates)
+	It also makes it possible to use certificate verification on systems
+	with no default certificate store
+
+Sat May 27 21:17:28 CEST 2017 mikulas:
+
+	Encode strings to UTF-8 when storing them in a history, it fixes a bug
+	when browsing the history if Links is run on multiple terminals with
+	different character sets
+
+Wed Mar 29 20:48:43 CEST 2017 mikulas:
+
+	Use absolute time when calculating the time to flush DNS cache, HTTPS
+	session cache and keepalive connection cache, so that the cache gets
+	flushed when the machine is kept suspended for a long time.
+
+Sat Mar 18 22:17:36 CET 2017 mikulas:
+
+	Report IP addresses in the "Document info" box.
+
+Fri Mar 10 21:05:08 CET 2017 mikulas:
+
+	Implement a small connection timeout when connecting to a host with
+	multiple addresses, so that there is faster fallback from IPv6 to IPv4.
+
+Tue Mar  7 20:30:01 CET 2017 mikulas:
+
+	Replace OpenSSL malloc functions with CRYPTO_set_mem_functions, so that
+	when malloc returns NULL, we can free some cached data and retry
+
+Sat Feb 25 15:59:57 CET 2017 mikulas:
+
+	Avoid reallocating the line array over and over with the same size.
+	Most realloc implementations fall back to no operation if a memory chunk
+	is reallocated to the same size, however, the address sanitizer always
+	copies the array - this resulted in quadratic complexity and performance
+	degradation on big files.
+
+Fri Feb 24 20:42:48 CET 2017 mikulas:
+
+	Refactor list processing code so that it conforms to C89 aliasing rules
+	Also, avoid warning when using ubsan on x32 architecture
+
+Sun Feb 19 23:21:29 CET 2017 mikulas:
+
+	Terminate keepalive connection when changing the IPv6 address preference
+
+Sun Feb 19 22:41:08 CET 2017 mikulas:
+
+	Links contained a code that tests for ".onion" address suffix and
+	rejects DNS lookups for it. The code was buggy, it was never activated
+	and it accessed invalid memory.
+
+Sat Jan 28 20:45:34 CET 2017 mikulas:
+
+	Avoid memcpy with NULL source argument and zero length (it doesn't
+	crash, but it's formally incorrect and the sanitizer warns about it)
+
+Wed Jan 18 22:52:09 CET 2017 mikulas:
+
+	Make the "dns-prefetch" link prefetch just dns, not the whole document
+
+Wed Jan 18 21:16:27 CET 2017 mikulas:
+
+	Fix compilation failure on OpenBSD because OpenBSD removed
+	the timeout_* macros from libevent
+
+Tue Jan 17 21:31:38 CET 2017 mikulas:
+
+	Use OpenSSL functions X509_check_host and X509_check_ip if available
+
+Mon Dec 26 16:49:38 CET 2016 mikulas:
+
+	Report status when formatting document or searching
+
+Wed Dec 14 04:55:32 CET 2016 mikulas:
+
+	Use session cache on https
+
 === RELEASE 2.14 ===
 
 Thu Nov  3 19:45:34 CET 2016 mikulas:

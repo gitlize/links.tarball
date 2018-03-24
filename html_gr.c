@@ -113,23 +113,6 @@ static struct style *get_style_by_ta(struct text_attrib *ta)
 
 #define rm(x) ((x).width - (x).rightmargin * G_HTML_MARGIN > 0 ? (x).width - (x).rightmargin * G_HTML_MARGIN : 0)
 
-#ifndef SPAD
-static inline int pw2(int a)
-{
-	int x = 1;
-	while (x < a && x) {
-		if ((unsigned)x > MAXINT / 2) overalloc();
-		x <<= 1;
-	}
-	return x;
-}
-#else
-static inline int pw2(int a)
-{
-	return a;
-}
-#endif
-
 void flush_pending_line_to_obj(struct g_part *p, int minheight)
 {
 	int i, pp, pos, w, lbl;
@@ -139,11 +122,12 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 		return;
 	}
 	for (i = l->n_entries - 1; i >= 0; i--) {
-		struct g_object_text *go = (struct g_object_text *)l->entries[i];
+		struct g_object *go = l->entries[i];
 		if (go->draw == g_text_draw) {
-			int l = (int)strlen(cast_const_char go->text);
-			while (l && go->text[l - 1] == ' ') go->text[--l] = 0, go->xw -= g_char_width(go->style, ' ');
-			if (go->xw < 0) internal("xw(%d) < 0", go->xw);
+			struct g_object_text *got = get_struct(go, struct g_object_text, goti.go);
+			int l = (int)strlen(cast_const_char got->text);
+			while (l && got->text[l - 1] == ' ') got->text[--l] = 0, got->goti.go.xw -= g_char_width(got->style, ' ');
+			if (got->goti.go.xw < 0) internal("xw(%d) < 0", got->goti.go.xw);
 		}
 		if (!go->xw) continue;
 		break;
@@ -181,19 +165,20 @@ void flush_pending_line_to_obj(struct g_part *p, int minheight)
 			l->entries[i]->y = (w - safe_add(l->entries[i]->yw, 1)) / 2;
 		}
 	}
-	l->x = 0;
-	l->xw = par_format.width;
-	l->yw = w;
-	l->y = p->cy;
-	if (l->xw > p->root->xw) p->root->xw = l->xw;
+	l->go.x = 0;
+	l->go.xw = par_format.width;
+	l->go.yw = w;
+	l->go.y = p->cy;
+	a = p->root;
+	if (l->go.xw > a->go.xw) a->go.xw = l->go.xw;
 	p->cy = safe_add(p->cy, w);
-	p->root->yw = p->cy;
-	p->root->n_lines = safe_add(p->root->n_lines, 1);
-	if ((unsigned)p->root->n_lines > (MAXINT - sizeof(struct g_object_area)) / 2 / sizeof(struct g_object_text *) + 1) overalloc();
-	a = mem_realloc(p->root, sizeof(struct g_object_area) + sizeof(struct g_object_text *) * pw2(p->root->n_lines + 1));
-		/* note: +1 is for extend_area */
-	p->root = a;
-	p->root->lines[p->root->n_lines - 1] = l;
+	a->go.yw = p->cy;
+	if (!(a->n_lines & (a->n_lines + 1))) {
+		if ((unsigned)a->n_lines > ((MAXINT - sizeof(struct g_object_area)) / sizeof(struct g_object_text *) - 1) / 2) overalloc();
+		a = mem_realloc(a, sizeof(struct g_object_area) + sizeof(struct g_object_text *) * (a->n_lines * 2 + 1));
+		p->root = a;
+	}
+	a->lines[a->n_lines++] = l;
 	p->line = NULL;
 	p->w.pos = 0;
 	p->w.last_wrap = NULL;
@@ -209,14 +194,14 @@ void add_object_to_line(struct g_part *pp, struct g_object_line **lp, struct g_o
 	}
 	if (!*lp) {
 		l = mem_calloc(sizeof(struct g_object_line) + sizeof(struct g_object_text *));
-		l->mouse_event = g_line_mouse;
-		l->draw = g_line_draw;
-		l->destruct = g_line_destruct;
-		l->get_list = g_line_get_list;
-		/*l->x = 0;
-		l->y = 0;
-		l->xw = 0;
-		l->yw = 0;*/
+		l->go.mouse_event = g_line_mouse;
+		l->go.draw = g_line_draw;
+		l->go.destruct = g_line_destruct;
+		l->go.get_list = g_line_get_list;
+		/*l->go.x = 0;
+		l->go.y = 0;
+		l->go.xw = 0;
+		l->go.yw = 0;*/
 		l->bg = pp->root->bg;
 		if (!go) {
 			*lp = l;
@@ -244,7 +229,7 @@ void flush_pending_text_to_line(struct g_part *p)
 {
 	struct g_object_text *t = p->text;
 	if (!t) return;
-	add_object_to_line(p, &p->line, (struct g_object *)t);
+	add_object_to_line(p, &p->line, &t->goti.go);
 	p->text = NULL;
 }
 
@@ -254,7 +239,7 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 	struct g_object_line *l2;
 	int n;
 	if (!ptr) {
-		if (p->line && p->line->n_entries && (struct g_object *)text == p->line->entries[p->line->n_entries - 1]) {
+		if (p->line && p->line->n_entries && &text->goti.go == p->line->entries[p->line->n_entries - 1]) {
 			flush_pending_line_to_obj(p, 0);
 			goto wwww;
 		}
@@ -269,10 +254,10 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		internal("split_line_object: split point (%p) pointing out of object (%p,%lx)", ptr, text->text, (unsigned long)strlen(cast_const_char text->text));
 #endif
 	t2 = mem_calloc(sizeof(struct g_object_text) + strlen(cast_const_char ptr));
-	t2->mouse_event = g_text_mouse;
-	t2->draw = g_text_draw;
-	t2->destruct = g_text_destruct;
-	t2->get_list = NULL;
+	t2->goti.go.mouse_event = g_text_mouse;
+	t2->goti.go.draw = g_text_draw;
+	t2->goti.go.destruct = g_text_destruct;
+	t2->goti.go.get_list = NULL;
 	if (*ptr == ' ') {
 		strcpy(cast_char t2->text, cast_const_char(ptr + 1));
 		*ptr = 0;
@@ -282,13 +267,13 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		ptr[0] = '-';
 		ptr[1] = 0;
 	}
-	t2->y = text->y;
+	t2->goti.go.y = text->goti.go.y;
 	t2->style = g_clone_style(text->style);
-	t2->link_num = text->link_num;
-	t2->link_order = text->link_order;
-	text->xw = g_text_width(text->style, text->text);
+	t2->goti.link_num = text->goti.link_num;
+	t2->goti.link_order = text->goti.link_order;
+	text->goti.go.xw = g_text_width(text->style, text->text);
 	nt2:
-	if (p->line) for (n = 0; n < p->line->n_entries; n++) if (p->line->entries[n] == (struct g_object *)text) goto found;
+	if (p->line) for (n = 0; n < p->line->n_entries; n++) if (p->line->entries[n] == &text->goti.go) goto found;
 	if (text != p->text) {
 		internal("split_line_object: bad wrap");
 		return;
@@ -299,20 +284,20 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		found:
 		n = safe_add(n, !ptr);
 		l2 = mem_calloc(sizeof(struct g_object_line) + (p->line->n_entries - n) * sizeof(struct g_object_text *));
-		l2->mouse_event = g_line_mouse;
-		l2->draw = g_line_draw;
-		l2->destruct = g_line_destruct;
-		l2->get_list = g_line_get_list;
+		l2->go.mouse_event = g_line_mouse;
+		l2->go.draw = g_line_draw;
+		l2->go.destruct = g_line_destruct;
+		l2->go.get_list = g_line_get_list;
 		l2->bg = p->root->bg;
 		l2->n_entries = p->line->n_entries - n;
-		l2->entries[0] = (struct g_object *)t2;
+		l2->entries[0] = &t2->goti.go;
 		memcpy(&l2->entries[!!ptr], p->line->entries + safe_add(n, !!ptr), (l2->n_entries - !!ptr) * sizeof(struct g_object_text *));
 		p->line->n_entries = safe_add(n, !!ptr);
 		flush_pending_line_to_obj(p, 0);
 		p->line = l2;
 		if (ptr) {
-			t2->xw = g_text_width(t2->style, t2->text);
-			t2->yw = text->yw;
+			t2->goti.go.xw = g_text_width(t2->style, t2->text);
+			t2->goti.go.yw = text->goti.go.yw;
 			p->w.pos = 0;
 		}
 		for (nn = 0; nn < l2->n_entries; nn++) {
@@ -327,11 +312,11 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		flush_pending_text_to_line(p);
 		flush_pending_line_to_obj(p, 0);
 		p->line = NULL;
-		t2->xw = g_text_width(t2->style, t2->text);
-		t2->yw = text->yw;
+		t2->goti.go.xw = g_text_width(t2->style, t2->text);
+		t2->goti.go.yw = text->goti.go.yw;
 		p->text = t2;
 		p->pending_text_len = -1;
-		p->w.pos = t2->xw;
+		p->w.pos = t2->goti.go.xw;
 		p->cx_w = g_char_width(t2->style, ' ');
 	}
 	p->w.last_wrap = NULL;
@@ -341,10 +326,10 @@ static void split_line_object(struct g_part *p, struct g_object_text *text, unsi
 		int sl = (int)strlen(cast_const_char t2->text);
 		if (sl >= 1 && t2->text[sl - 1] == ' ') {
 			p->w.last_wrap = &t2->text[sl - 1];
-			p->w.last_wrap_obj = t2;
+			p->w.last_wrap_obj = &t2->goti.go;
 		} else if (sl >= 2 && t2->text[sl - 2] == 0xc2 && t2->text[sl - 1] == 0xad) {
 			p->w.last_wrap = &t2->text[sl - 2];
-			p->w.last_wrap_obj = t2;
+			p->w.last_wrap_obj = &t2->goti.go;
 		}
 	}
 }
@@ -497,8 +482,8 @@ static void do_image(struct g_part *p, struct image_description *im)
 	}
 	io = insert_image(p, im);
 	if (!io) goto ab;
-	io->ismap = im->ismap;
-	add_object(p, (struct g_object *)io);
+	io->goti.ismap = im->ismap;
+	add_object(p, &io->goti.go);
 	if (im->usemap && p->data) {
 		unsigned char *tag = extract_position(im->usemap);
 		struct additional_file *af = request_additional_file(current_f_data, im->usemap);
@@ -546,7 +531,7 @@ static void do_image(struct g_part *p, struct image_description *im)
 						while (*p >= '0' && *p <= '9') p++;
 					}
 					if (*p == '%' && num < 1000) {
-						int m = io->xw < io->yw ? io->xw : io->yw;
+						int m = io->goti.go.xw < io->goti.go.yw ? io->goti.go.xw : io->goti.go.yw;
 						num = num * m / 100;
 						p++;
 					} else num = num * d_opt->image_scale / 100;
@@ -580,7 +565,7 @@ static void do_image(struct g_part *p, struct image_description *im)
 				}
 				if (last_link) mem_free(last_link), last_link = NULL;
 			}
-			io->map = map;
+			io->goti.map = map;
 			freeml(ml);
 			ft:;
 		}
@@ -594,20 +579,19 @@ static void g_hr(struct g_part *gp, struct hr_param *hr)
 	unsigned char bgstr[8];
 	struct g_object_line *o;
 	o = mem_calloc(sizeof(struct g_object_line));
-	o->mouse_event = g_line_mouse;
-	o->draw = g_line_draw;
-	o->destruct = g_line_bg_destruct;
-	o->get_list = g_line_get_list;
-	/*o->x = 0;
-	o->y = 0;*/
-	o->xw = hr->width;
-	o->yw = hr->size;
+	o->go.mouse_event = g_line_mouse;
+	o->go.draw = g_line_draw;
+	o->go.destruct = g_line_bg_destruct;
+	o->go.get_list = g_line_get_list;
+	/*o->go.x = 0;
+	o->go.y = 0;*/
+	o->go.xw = hr->width;
+	o->go.yw = hr->size;
 	table_bg(&format_, bgstr);
 	o->bg = get_background(NULL, bgstr);
 	o->n_entries = 0;
 	flush_pending_text_to_line(gp);
-	/*flush_pending_line_to_obj(gp, get_real_font_size(format_.fontsize));*/
-	add_object_to_line(gp, &gp->line, (struct g_object *)o);
+	add_object_to_line(gp, &gp->line, &o->go);
 	line_breax = 0;
 	gp->cx = -1;
 	gp->cx_w = 0;
@@ -633,12 +617,12 @@ static void *g_html_special(void *p_, int c, ...)
 			va_end(l);
 			/* not needed to convert %AB here because html_tag will be called anyway */
 			tag = mem_calloc(sizeof(struct g_object_tag) + strlen(cast_const_char t));
-			tag->mouse_event = g_dummy_mouse;
-			tag->draw = g_dummy_draw;
-			tag->destruct = g_tag_destruct;
+			tag->go.mouse_event = g_dummy_mouse;
+			tag->go.draw = g_dummy_draw;
+			tag->go.destruct = g_tag_destruct;
 			strcpy(cast_char tag->name, cast_const_char t);
 			flush_pending_text_to_line(p);
-			add_object_to_line(p, &p->line, (struct g_object *)tag);
+			add_object_to_line(p, &p->line, &tag->go);
 			break;
 		case SP_CONTROL:
 			fc = va_arg(l, struct form_control *);
@@ -695,7 +679,8 @@ static void *g_html_special(void *p_, int c, ...)
 	return NULL;
 }
 
-static unsigned char to_je_ale_prasarna[] = "";
+static const unsigned char to_je_ale_prasarna_[] = "";
+#define to_je_ale_prasarna	(cast_uchar to_je_ale_prasarna_)
 
 static unsigned char *cached_font_face = to_je_ale_prasarna;
 static struct text_attrib_beginning ta_cache = { -1, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0, 0 };
@@ -757,17 +742,17 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 	if (!p->text) {
 		link = NULL;
 		t = mem_calloc(sizeof(struct g_object_text) + ALLOC_GR);
-		t->mouse_event = g_text_mouse;
-		t->draw = g_text_draw;
-		t->destruct = g_text_destruct;
-		t->get_list = NULL;
+		t->goti.go.mouse_event = g_text_mouse;
+		t->goti.go.draw = g_text_draw;
+		t->goti.go.destruct = g_text_destruct;
+		t->goti.go.get_list = NULL;
 		t->style = g_clone_style(p->current_style);
-		t->yw = t->style->height;
-		/*t->xw = 0;
-		t->y = 0;*/
+		t->goti.go.yw = t->style->height;
+		/*t->goti.go.xw = 0;
+		t->goti.go.y = 0;*/
 		if (format_.baseline) {
-			if (format_.baseline < 0) t->y = -(t->style->height / 3);
-			if (format_.baseline > 0) t->y = get_real_font_size(format_.baseline) - (t->style->height / 2);
+			if (format_.baseline < 0) t->goti.go.y = -(t->style->height / 3);
+			if (format_.baseline > 0) t->goti.go.y = get_real_font_size(format_.baseline) - (t->style->height / 2);
 		}
 		check_link:
 		if (last_link || last_image || last_form || format_.link || format_.image || format_.form
@@ -779,10 +764,10 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 			return;
 		}
 
-		if (!link) t->link_num = -1;
+		if (!link) t->goti.link_num = -1;
 		else {
-			t->link_num = (int)(link - p->data->links);
-			t->link_order = link->obj_order++;
+			t->goti.link_num = (int)(link - p->data->links);
+			t->goti.link_order = link->obj_order++;
 		}
 
 		t->text[0] = 0;
@@ -804,21 +789,21 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 		if ((unsigned)ptl + (unsigned)l > MAXINT - ALLOC_GR) overalloc();
 		t = mem_realloc(p->text, sizeof(struct g_object_text) + ((ptl + l + ALLOC_GR - 1) & ~(ALLOC_GR - 1)));
 		if (p->w.last_wrap >= p->text->text && p->w.last_wrap < p->text->text + p->pending_text_len) p->w.last_wrap = p->w.last_wrap + ((unsigned char *)t - (unsigned char *)p->text);
-		if (p->w.last_wrap_obj == p->text) p->w.last_wrap_obj = t;
+		if (p->w.last_wrap_obj == &p->text->goti.go) p->w.last_wrap_obj = &t->goti.go;
 		p->text = t;
 	}
 	memcpy(p->text->text + p->pending_text_len, s, l), p->text->text[p->pending_text_len = safe_add(p->pending_text_len, l)] = 0;
 	qw = g_text_width(p->text->style, p->text->text + p->pending_text_len - l);
-	p->text->xw = safe_add(p->text->xw, qw); /* !!! FIXME: move to g_wrap_text */
+	p->text->goti.go.xw = safe_add(p->text->goti.go.xw, qw); /* !!! FIXME: move to g_wrap_text */
 	if (par_format.align != AL_NO /*&& par_format.align != AL_NO_BREAKABLE*/) {
 		p->w.text = p->text->text + p->pending_text_len - l;
 		p->w.style = p->text->style;
-		p->w.obj = p->text;
+		p->w.obj = &p->text->goti.go;
 		p->w.width = rm(par_format) - par_format.leftmargin * G_HTML_MARGIN;
 		p->w.force_break = 0;
 		if (p->w.width < 0) p->w.width = 0;
 		if (!g_wrap_text(&p->w)) {
-			split_line_object(p, p->w.last_wrap_obj, p->w.last_wrap);
+			split_line_object(p, get_struct(p->w.last_wrap_obj, struct g_object_text, goti.go), p->w.last_wrap);
 		}
 	}
 	return;
@@ -895,8 +880,7 @@ static void g_put_chars(void *p_, unsigned char *s, int l)
 static void g_do_format(unsigned char *start, unsigned char *end, struct g_part *part, unsigned char *head)
 {
 	pr(
-	parse_html(start, end, (void (*)(void *, unsigned char *, int))g_put_chars, g_line_break, (void *(*)(void *, int, ...))g_html_special, part, head);
-	/*if ((part->y -= line_breax) < 0) part->y = 0;*/
+	parse_html(start, end, g_put_chars, g_line_break, g_html_special, part, head);
 	flush_pending_text_to_line(part);
 	flush_pending_line_to_obj(part, 0);
 	) {};
@@ -908,6 +892,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	struct g_part *p;
 	struct html_element *e;
 	struct form_control *fc;
+	struct list_head *lfc;
 	int lm = margin;
 
 	if (par_format.implicit_pre_wrap) {
@@ -938,14 +923,14 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	p = mem_calloc(sizeof(struct g_part));
 	{
 		struct g_object_area *a;
-		a = mem_calloc(sizeof(struct g_object_area) + sizeof(struct g_object_line *));
+		a = mem_calloc(sizeof(struct g_object_area));
 		a->bg = get_background(bg, bgcolor);
 		if (bgcolor) decode_color(bgcolor, &format_.bg);
 		if (bgcolor) decode_color(bgcolor, &par_format.bgcolor);
-		a->mouse_event = g_area_mouse;
-		a->draw = g_area_draw;
-		a->destruct = g_area_destruct;
-		a->get_list = g_area_get_list;
+		a->go.mouse_event = g_area_mouse;
+		a->go.draw = g_area_draw;
+		a->go.destruct = g_area_destruct;
+		a->go.get_list = g_area_get_list;
 		/*a->n_lines = 0;*/
 		p->root = a;
 		init_list(p->uf);
@@ -985,7 +970,7 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	if (wa > p->x) p->x = wa;
 	g_x_extend_area(p->root, p->x, 0, align);
 	if (p->x > p->xmax) p->xmax = p->x;
-	p->y = p->root->yw;
+	p->y = p->root->go.yw;
 	/*debug("WIDTH: obj (%d, %d), p (%d %d)", p->root->xw, p->root->yw, p->x, p->y);*/
 
 	kill_html_stack_item(&html_top);
@@ -993,8 +978,8 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 	if (cached_font_face && cached_font_face != to_je_ale_prasarna) mem_free(cached_font_face);
 	cached_font_face = to_je_ale_prasarna;
 
-	foreach(fc, p->uf) destroy_fc(fc);
-	free_list(p->uf);
+	foreach(struct form_control, fc, lfc, p->uf) destroy_fc(fc);
+	free_list(struct form_control, p->uf);
 
 	margin = lm;
 
@@ -1015,9 +1000,9 @@ struct g_part *g_format_html_part(unsigned char *start, unsigned char *end, int 
 
 void g_release_part(struct g_part *p)
 {
-	if (p->text) p->text->destruct(p->text);
-	if (p->line) p->line->destruct(p->line);
-	if (p->root) p->root->destruct(p->root);
+	if (p->text) p->text->goti.go.destruct(&p->text->goti.go);
+	if (p->line) p->line->go.destruct(&p->line->go);
+	if (p->root) p->root->go.destruct(&p->root->go);
 	if (p->current_style) g_free_style(p->current_style);
 }
 
@@ -1026,8 +1011,8 @@ static void g_scan_lines(struct g_object_line **o, int n, int *w)
 	while (n--) {
 		if ((*o)->n_entries) {
 			struct g_object *oo = (*o)->entries[(*o)->n_entries - 1];
-			if (safe_add(safe_add((*o)->x, oo->x), oo->xw) > *w)
-				*w = (*o)->x + oo->x + oo->xw;
+			if (safe_add(safe_add((*o)->go.x, oo->x), oo->xw) > *w)
+				*w = (*o)->go.x + oo->x + oo->xw;
 		}
 		o++;
 	}
@@ -1044,36 +1029,34 @@ void g_x_extend_area(struct g_object_area *a, int width, int height, int align)
 {
 	struct g_object_line *l;
 	int i;
-	a->xw = width;
+	a->go.xw = width;
 	for (i = 0; i < a->n_lines; i++) {
-		a->lines[i]->xw = width;
+		a->lines[i]->go.xw = width;
 	}
 	if (align != AL_NO && par_format.align != AL_NO_BREAKABLE) for (i = a->n_lines - 1; i >= 0; i--) {
 		l = a->lines[i];
 		if (!l->n_entries) {
-			a->yw -= l->yw;
-			l->destruct(l);
+			a->go.yw -= l->go.yw;
+			l->go.destruct(&l->go);
 			a->n_lines--;
 			continue;
 		}
 		break;
 	}
-	if (a->yw >= height) return;
+	if (a->go.yw >= height) return;
 	l = mem_calloc(sizeof(struct g_object_line));
-	l->mouse_event = g_line_mouse;
-	l->draw = g_line_draw;
-	l->destruct = g_line_destruct;
-	l->get_list = g_line_get_list;
-	l->x = 0;
-	l->y = a->yw;
-	l->xw = width;
-	l->yw = height - a->yw;
+	l->go.mouse_event = g_line_mouse;
+	l->go.draw = g_line_draw;
+	l->go.destruct = g_line_destruct;
+	l->go.get_list = g_line_get_list;
+	l->go.x = 0;
+	l->go.y = a->go.yw;
+	l->go.xw = width;
+	l->go.yw = height - a->go.yw;
 	l->bg = a->bg;
 	l->n_entries = 0;
 	a->lines[a->n_lines] = l;
 	a->n_lines++;
 }
-
-
 
 #endif

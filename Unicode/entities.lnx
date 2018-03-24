@@ -493,6 +493,7 @@ static CONST UC_entity_info unicode_entities[] = {
   {"dlcrop",	0x230D},  /* BOTTOM LEFT CROP				   */
   {"dollar",	0x0024},  /* DOLLAR SIGN				   */
   {"dot",	0x02D9},  /* DOT ABOVE					   */
+  {"downarrow",	0x2193},  /* DOWNWARDS ARROW				   */
   {"drarr",	0x2198},  /* SOUTH EAST ARROW				   */
   {"drcorn",	0x231F},  /* BOTTOM RIGHT CORNER			   */
   {"drcrop",	0x230C},  /* BOTTOM RIGHT CROP				   */
@@ -670,6 +671,7 @@ static CONST UC_entity_info unicode_entities[] = {
   {"ldquo",	0x201C},  /* LEFT DOUBLE QUOTATION MARK 		   */
   {"ldquor",	0x201E},  /* DOUBLE LOW-9 QUOTATION MARK		   */
   {"le",	0x2264},  /* LESS-THAN OR EQUAL TO			   */
+  {"leftarrow",	0x2190},  /* LEFTWARDS ARROW				   */
   {"leg",	0x22DA},  /* LESS-THAN EQUAL TO OR GREATER-THAN 	   */
   {"les",	0x2264},  /* LESS-THAN OR EQUAL TO			   */
   {"lfloor",	0x230A},  /* LEFT FLOOR 				   */
@@ -884,6 +886,7 @@ static CONST UC_entity_info unicode_entities[] = {
   {"rharu",	0x21C0},  /* RIGHTWARDS HARPOON WITH BARB UPWARDS	   */
   {"rho",	0x03C1},  /* GREEK SMALL LETTER RHO			   */
   {"rhov",	0x03F1},  /* GREEK RHO SYMBOL				   */
+  {"rightarrow",0x2192},  /* RIGHT ARROW				   */
   {"ring",	0x02DA},  /* RING ABOVE 				   */
   {"rlarr2",	0x21C4},  /* RIGHTWARDS ARROW OVER LEFTWARDS ARROW	   */
   {"rlhar2",	0x21CC},  /* RIGHTWARDS HARPOON OVER LEFTWARDS HARPOON	   */
@@ -925,12 +928,17 @@ static CONST UC_entity_info unicode_entities[] = {
   {"sharp",	0x266F},  /* MUSIC SHARP SIGN				   */
   {"shchcy",	0x0449},  /* CYRILLIC SMALL LETTER SHCHA		   */
   {"shcy",	0x0448},  /* CYRILLIC SMALL LETTER SHA			   */
+  {"shortdownarrow",0x2193},/* DOWNWARDS ARROW				   */
+  {"shortleftarrow",0x2190},/* LEFTWARDS ARROW				   */
+  {"shortrightarrow",0x2192},/* RIGHTWARDS ARROW			   */
+  {"shortuparrow",0x2191},/* UPWARDS ARROW				   */
   {"shy",	0x00AD},  /* SOFT HYPHEN				   */
   {"sigma",	0x03C3},  /* GREEK SMALL LETTER SIGMA			   */
   {"sigmaf",	0x03C2},  /* GREEK SMALL LETTER FINAL SIGMA		   */
   {"sigmav",	0x03C2},  /* GREEK SMALL LETTER FINAL SIGMA		   */
   {"sim",	0x223C},  /* TILDE OPERATOR				   */
   {"sime",	0x2243},  /* ASYMPTOTICALLY EQUAL TO			   */
+  {"slarr",	0x2190},  /* LEFTWARDS ARROW				   */
   {"smile",	0x2323},  /* SMILE					   */
   {"softcy",	0x044C},  /* CYRILLIC SMALL LETTER SOFT SIGN		   */
   {"sol",	0x002F},  /* SOLIDUS					   */
@@ -945,6 +953,7 @@ static CONST UC_entity_info unicode_entities[] = {
   {"squ",	0x25A1},  /* WHITE SQUARE				   */
   {"square",	0x25A1},  /* WHITE SQUARE				   */
   {"squf",	0x25AA},  /* BLACK SMALL SQUARE 			   */
+  {"srarr",	0x2192},  /* RIGHTWARDS ARROW				   */
   {"ssetmn",	0x2216},  /* SET MINUS					   */
   {"ssmile",	0x2323},  /* SMILE					   */
   {"sstarf",	0x22C6},  /* STAR OPERATOR				   */
@@ -1017,6 +1026,7 @@ static CONST UC_entity_info unicode_entities[] = {
   {"umacr",	0x016B},  /* LATIN SMALL LETTER U WITH MACRON		   */
   {"uml",	0x00A8},  /* DIAERESIS					   */
   {"uogon",	0x0173},  /* LATIN SMALL LETTER U WITH OGONEK		   */
+  {"uparrow",	0x2191},  /* UPWARDS ARROW				   */
   {"uplus",	0x228E},  /* MULTISET UNION				   */
   {"upsi",	0x03C5},  /* GREEK SMALL LETTER UPSILON 		   */
   {"upsih",	0x03D2},  /* GREEK UPSILON WITH HOOK SYMBOL		   */

@@ -10,6 +10,18 @@
 #define DEBUG_CALLS
 */
 
+#ifdef USE_LIBEVENT
+#if defined(evtimer_set) && !defined(timeout_set)
+#define timeout_set	evtimer_set
+#endif
+#if defined(evtimer_add) && !defined(timeout_add)
+#define timeout_add	evtimer_add
+#endif
+#if defined(evtimer_del) && !defined(timeout_del)
+#define timeout_del	evtimer_del
+#endif
+#endif
+
 struct thread {
 	void (*read_func)(void *);
 	void (*write_func)(void *);
@@ -32,14 +44,14 @@ static fd_set x_write;
 static int w_max;
 
 struct timer {
-	struct timer *next;
-	struct timer *prev;
+	list_entry_1st
 	uttime interval;
 	void (*func)(void *);
 	void *data;
+	list_entry_last
 };
 
-static struct list_head timers = {&timers, &timers};
+static struct list_head timers = { &timers, &timers };
 
 
 #ifndef OPENVMS
@@ -110,18 +122,56 @@ int can_read(int fd)
 }
 
 
+int close_stderr(void)
+{
+#ifndef DOS
+	int n, h, rs;
+	fflush(stderr);
+	n = c_open(cast_uchar "/dev/null", O_WRONLY | O_NOCTTY);
+	if (n == -1)
+		goto fail1;
+	h = c_dup(2);
+	if (h == -1)
+		goto fail2;
+	EINTRLOOP(rs, dup2(n, 2));
+	if (rs == -1)
+		goto fail3;
+	EINTRLOOP(rs, close(n));
+	return h;
+
+fail3:
+	EINTRLOOP(rs, close(h));
+fail2:
+	EINTRLOOP(rs, close(n));
+fail1:
+#endif
+	return -1;
+}
+
+void restore_stderr(int h)
+{
+#ifndef DOS
+	int rs;
+	fflush(stderr);
+	if (h == -1)
+		return;
+	EINTRLOOP(rs, dup2(h, 2));
+	EINTRLOOP(rs, close(h));
+#endif
+}
+
+
 unsigned long select_info(int type)
 {
-	int i = 0, j;
-	struct timer *ce;
+	int i, j;
 	switch (type) {
 		case CI_FILES:
+			i = 0;
 			for (j = 0; j < w_max; j++)
 				if (threads[j].read_func || threads[j].write_func) i++;
 			return i;
 		case CI_TIMERS:
-			foreach(ce, timers) i++;
-			return i;
+			return list_size(&timers);
 		default:
 			internal("select_info_info: bad request");
 	}
@@ -129,33 +179,33 @@ unsigned long select_info(int type)
 }
 
 struct bottom_half {
-	struct bottom_half *next;
-	struct bottom_half *prev;
+	list_entry_1st
 	void (*fn)(void *);
 	void *data;
+	list_entry_last
 };
 
 static struct list_head bottom_halves = { &bottom_halves, &bottom_halves };
 
-int register_bottom_half(void (*fn)(void *), void *data)
+void register_bottom_half(void (*fn)(void *), void *data)
 {
 	struct bottom_half *bh;
-	foreach(bh, bottom_halves) if (bh->fn == fn && bh->data == data) return 0;
+	struct list_head *lbh;
+	foreach(struct bottom_half, bh, lbh, bottom_halves) if (bh->fn == fn && bh->data == data) return;
 	bh = mem_alloc(sizeof(struct bottom_half));
 	bh->fn = fn;
 	bh->data = data;
 	add_to_list(bottom_halves, bh);
-	return 0;
 }
 
 void unregister_bottom_half(void (*fn)(void *), void *data)
 {
 	struct bottom_half *bh;
-	retry:
-	foreach(bh, bottom_halves) if (bh->fn == fn && bh->data == data) {
+	struct list_head *lbh;
+	foreach(struct bottom_half, bh, lbh, bottom_halves) if (bh->fn == fn && bh->data == data) {
 		del_from_list(bh);
 		mem_free(bh);
-		goto retry;
+		return;
 	}
 }
 
@@ -166,7 +216,7 @@ void check_bottom_halves(void)
 	void *data;
 	rep:
 	if (list_empty(bottom_halves)) return;
-	bh = bottom_halves.prev;
+	bh = list_struct(bottom_halves.prev, struct bottom_half);
 	fn = bh->fn;
 	data = bh->data;
 	del_from_list(bh);
@@ -176,7 +226,7 @@ void check_bottom_halves(void)
 #endif
 	pr(fn(data)) {
 #ifdef OOPS
-		free_list(bottom_halves);
+		free_list(struct bottom_half, bottom_halves);
 		return;
 #endif
 	};
@@ -319,6 +369,7 @@ static void enable_libevent(void)
 {
 	int i;
 	struct timer *tm;
+	struct list_head *ltm;
 
 	if (disable_libevent)
 		return;
@@ -362,7 +413,7 @@ static void enable_libevent(void)
 	for (i = 0; i < w_max; i++)
 		set_events_for_handle(i);
 
-	foreach(tm, timers)
+	foreach(struct timer, tm, ltm, timers)
 		set_event_for_timer(tm);
 }
 
@@ -446,20 +497,29 @@ void add_event_string(unsigned char **s, int *l, struct terminal *term)
 }
 
 
-static ttime last_time;
+static uttime last_time;
 
 static void check_timers(void)
 {
-	uttime interval = (uttime)get_time() - (uttime)last_time;
-	struct timer * volatile t;	/* volatile because of setjmp */
-	foreach(t, timers) {
+	uttime interval = get_time() - last_time;
+	struct timer *
+#ifdef OOPS
+		volatile
+#endif
+		t;		/* volatile because of setjmp */
+	struct list_head *
+#ifdef OOPS
+		volatile	/* volatile because of setjmp */
+#endif
+		lt;
+	foreach(struct timer, t, lt, timers) {
 		if (t->interval < interval)
 			t->interval = 0;
 		else
-			t->interval -= (uttime)interval;
+			t->interval -= interval;
 	}
 	while (!list_empty(timers)) {
-		struct timer *t = (struct timer *)timers.next;
+		struct timer *t = list_struct(timers.next, struct timer);
 		if (t->interval)
 			break;
 #ifdef DEBUG_CALLS
@@ -472,12 +532,12 @@ static void check_timers(void)
 		kill_timer(t);
 		CHK_BH;
 	}
-	last_time += (uttime)interval;
+	last_time += interval;
 }
 
-struct timer *install_timer(ttime t, void (*func)(void *), void *data)
+struct timer *install_timer(uttime t, void (*func)(void *), void *data)
 {
-	struct timer *tm, *tt;
+	struct timer *tm;
 #ifdef USE_LIBEVENT
 	{
 		unsigned char *q = mem_alloc(sizeof_struct_event + sizeof(struct timer));
@@ -486,8 +546,7 @@ struct timer *install_timer(ttime t, void (*func)(void *), void *data)
 #else
 	tm = mem_alloc(sizeof(struct timer));
 #endif
-	if (t < 0) t = 0;
-	tm->interval = (uttime)t;
+	tm->interval = t;
 	tm->func = func;
 	tm->data = data;
 #ifdef USE_LIBEVENT
@@ -497,8 +556,10 @@ struct timer *install_timer(ttime t, void (*func)(void *), void *data)
 	} else
 #endif
 	{
-		foreach(tt, timers) if (tt->interval >= (uttime)t) break;
-		add_at_pos(tt->prev, tm);
+		struct timer *tt;
+		struct list_head *ltt;
+		foreach(struct timer, tt, ltt, timers) if (tt->interval >= t) break;
+		add_before_list_entry(ltt, &tm->list_entry);
 	}
 	return tm;
 }
@@ -515,20 +576,27 @@ void kill_timer(struct timer *tm)
 #endif
 }
 
-void *get_handler(int fd, int tp)
+void (*get_handler(int fd, int tp))(void *)
 {
 	if (fd < 0)
 		internal("get_handler: handle %d", fd);
-	if (fd >= w_max) {
+	if (fd >= w_max)
 		return NULL;
-	}
 	switch (tp) {
-		case H_READ:	return (void *)threads[fd].read_func;
-		case H_WRITE:	return (void *)threads[fd].write_func;
-		case H_DATA:	return threads[fd].data;
+		case H_READ:	return threads[fd].read_func;
+		case H_WRITE:	return threads[fd].write_func;
 	}
 	internal("get_handler: bad type %d", tp);
 	return NULL;
+}
+
+void *get_handler_data(int fd)
+{
+	if (fd < 0)
+		internal("get_handler: handle %d", fd);
+	if (fd >= w_max)
+		return NULL;
+	return threads[fd].data;
 }
 
 void set_handlers_file_line(int fd, void (*read_func)(void *), void (*write_func)(void *), void *data)
@@ -555,6 +623,8 @@ void set_handlers_file_line(int fd, void (*read_func)(void *), void (*write_func
 		memset(threads + n_threads, 0, (fd + 1 - n_threads) * sizeof(struct thread));
 		n_threads = fd + 1;
 	}
+	if (threads[fd].read_func == read_func && threads[fd].write_func == write_func && threads[fd].data == data)
+		return;
 	threads[fd].read_func = read_func;
 	threads[fd].write_func = write_func;
 	threads[fd].data = data;
@@ -679,7 +749,7 @@ void install_signal_handler(int sig, void (*fn)(void *), void *data, int critica
 	}
 	if (!fn) sa.sa_handler = SIG_IGN;
 	else sa.sa_handler = (void (*)(int))got_signal;
-	sigfillset(&sa.sa_mask);
+	sig_fill_set(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART;
 	if (!fn)
 		EINTRLOOP(rs, sigaction(sig, &sa, NULL));
@@ -708,7 +778,7 @@ void interruptible_signal(int sig, int in)
 	}
 	if (!signal_handlers[sig].fn) return;
 	sa.sa_handler = (void (*)(int))got_signal;
-	sigfillset(&sa.sa_mask);
+	sig_fill_set(&sa.sa_mask);
 	if (!in) sa.sa_flags = SA_RESTART;
 	EINTRLOOP(rs, sigaction(sig, &sa, NULL));
 #endif
@@ -721,7 +791,7 @@ void block_signals(int except1, int except2)
 {
 	int rs;
 	sigset_t mask;
-	sigfillset(&mask);
+	sig_fill_set(&mask);
 #ifdef HAVE_SIGDELSET
 	if (except1) sigdelset(&mask, except1);
 	if (except2) sigdelset(&mask, except2);
@@ -805,6 +875,43 @@ void set_sigcld(void)
 void set_sigcld(void)
 {
 }
+#endif
+
+#ifdef HAVE_OPENMP
+
+static int num_threads = -1;
+
+int omp_start(void)
+{
+	int thr;
+	if (disable_openmp || num_threads == 1)
+		return 1;
+	block_signals(0, 0);
+	if (num_threads != -1)
+		return num_threads;
+	omp_set_dynamic(0);
+	thr = omp_get_max_threads();
+	if (thr > OPENMP_MAX_THREADS)
+		thr = OPENMP_MAX_THREADS;
+	omp_set_num_threads(thr);
+	if (thr > 1) {
+#pragma omp parallel shared(thr)
+#pragma omp single
+			thr = omp_get_num_threads();
+		omp_set_num_threads(thr);
+	}
+	num_threads = thr;
+	if (thr == 1)
+		unblock_signals();
+	return thr;
+}
+
+void omp_end(void)
+{
+	if (!disable_openmp || num_threads == 1)
+		unblock_signals();
+}
+
 #endif
 
 void reinit_child(void)
@@ -897,8 +1004,7 @@ void select_loop(void (*init)(void))
 		tm = &tv;
 #endif
 		if (!list_empty(timers)) {
-			ttime tt = (uttime)((struct timer *)timers.next)->interval + 1;
-			if (tt < 0) tt = 0;
+			uttime tt = list_struct(timers.next, struct timer)->interval + 1;
 #ifdef OS_BAD_SIGNALS
 			if (tt < 1000)
 #endif

@@ -52,7 +52,7 @@ static void decompress_error(struct terminal *term, struct cache_entry *ce, unsi
 		}
 	}
 	if (!display_error(term, TEXT_(T_DECOMPRESSION_ERROR), errp)) return;
-	u = display_url(term, ce->url);
+	u = display_url(term, ce->url, 1);
 	msg_box(term, getml(u, NULL), TEXT_(T_DECOMPRESSION_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_DECOMPRESSING_), u, TEXT_(T__wITH_), lib, cast_uchar ": ", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
@@ -72,6 +72,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, int defl, 
 	int r;
 	unsigned char *p;
 	struct fragment *f;
+	struct list_head *lf;
 	size_t size;
 
 	retry_after_memory_error:
@@ -120,7 +121,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, int defl, 
 					goto after_inflateend;
 	}
 	offset = 0;
-	foreach(f, ce->frag) {
+	foreach(struct fragment, f, lf, ce->frag) {
 		if (f->offset != offset) break;
 		z.next_in = f->data;
 		z.avail_in = (unsigned)f->length;
@@ -176,7 +177,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, int defl, 
 			z.avail_in -= headlen;
 			skip_gzip_header = 0;
 		}
-		r = inflate(&z, (void *)f->next == (void *)&ce->frag ? Z_SYNC_FLUSH : Z_NO_FLUSH);
+		r = inflate(&z, f->list_entry.next == &ce->frag ? Z_SYNC_FLUSH : Z_NO_FLUSH);
 		switch (r) {
 			case Z_OK:		break;
 			case Z_BUF_ERROR:	break;
@@ -224,7 +225,7 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, int defl, 
 		/* In zlib 1.1.3, inflate(Z_SYNC_FLUSH) doesn't work.
 		   The following line fixes it --- for last fragment, loop until
 		   we get an eof. */
-		if (r == Z_OK && (void *)f->next == (void *)&ce->frag) goto repeat_frag;
+		if (r == Z_OK && f->list_entry.next == &ce->frag) goto repeat_frag;
 		offset += f->length;
 	}
 	finish:
@@ -262,6 +263,93 @@ static int decode_gzip(struct terminal *term, struct cache_entry *ce, int defl, 
 }
 #endif
 
+#ifdef HAVE_BROTLI
+#if defined(__TINYC__) && defined(__STDC_VERSION__)
+#undef __STDC_VERSION__
+#endif
+#include <brotli/decode.h>
+static void *brotli_alloc(void *opaque, size_t size)
+{
+	return mem_alloc_mayfail(size);
+}
+static void brotli_free(void *opaque, void *ptr)
+{
+	if (ptr) mem_free(ptr);
+}
+static int decode_brotli(struct terminal *term, struct cache_entry *ce, int *errp)
+{
+	unsigned char err;
+	BrotliDecoderState *br;
+	const unsigned char *next_in;
+	size_t avail_in;
+	unsigned char *next_out;
+	size_t avail_out;
+	off_t offset;
+	BrotliDecoderResult res;
+	unsigned char *p;
+	struct fragment *f;
+	struct list_head *lf;
+	size_t size;
+
+	err = 0;
+	decoder_memory_init(&p, &size, ce->length);
+	next_out = p;
+	avail_out = size;
+	br = BrotliDecoderCreateInstance(brotli_alloc, brotli_free, NULL);
+	if (!br) {
+		decompress_error(term, ce, cast_uchar "brotli", TEXT_(T_OUT_OF_MEMORY), errp);
+		err = 1;
+		goto after_inflateend;
+	}
+
+	offset = 0;
+	foreach(struct fragment, f, lf, ce->frag) {
+		if (f->offset != offset) break;
+		next_in = f->data;
+		avail_in = (size_t)f->length;
+		if ((off_t)avail_in != f->length) overalloc();
+		repeat_frag:
+		res = BrotliDecoderDecompressStream(br, &avail_in, &next_in, &avail_out, &next_out, NULL);
+		if (res == BROTLI_DECODER_RESULT_ERROR) {
+			decompress_error(term, ce, cast_uchar "brotli", cast_uchar BrotliDecoderErrorString(BrotliDecoderGetErrorCode(br)), errp);
+			err = 1;
+			goto finish;
+		}
+		if (!avail_out) {
+			size_t addsize;
+			if (decoder_memory_expand(&p, size, &addsize) < 0) {
+				decompress_error(term, ce, cast_uchar "brotli", TEXT_(T_OUT_OF_MEMORY), errp);
+				err = 1;
+				goto finish;
+			}
+			next_out = p + size;
+			avail_out = addsize;
+			size += addsize;
+			goto repeat_frag;
+		}
+		if (avail_in) goto repeat_frag;
+		/*
+		BrotliDecoderHasMoreOutput(br) returns BROTLI_BOOL which is defined differently for different compilers, so we must not use it
+		if (BrotliDecoderHasMoreOutput(br)) goto repeat_frag;
+		*/
+		offset += f->length;
+	}
+
+	finish:
+	BrotliDecoderDestroyInstance(br);
+	after_inflateend:
+	if (err && next_out == p) {
+		mem_free(p);
+		return 1;
+	}
+	ce->decompressed = p;
+	ce->decompressed_len = next_out - p;
+	decompressed_cache_size += ce->decompressed_len;
+	ce->decompressed = mem_realloc(ce->decompressed, ce->decompressed_len);
+	return 0;
+}
+#endif
+
 #ifdef HAVE_BZIP2
 #include <bzlib.h>
 static int decode_bzip2(struct terminal *term, struct cache_entry *ce, int *errp)
@@ -273,6 +361,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, int *errp
 	int r;
 	unsigned char *p;
 	struct fragment *f;
+	struct list_head *lf;
 	size_t size;
 
 	retry_after_memory_error:
@@ -306,7 +395,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, int *errp
 					goto after_inflateend;
 	}
 	offset = 0;
-	foreach(f, ce->frag) {
+	foreach(struct fragment, f, lf, ce->frag) {
 		if (f->offset != offset) break;
 		z.next_in = cast_char f->data;
 		z.avail_in = (unsigned)f->length;
@@ -343,6 +432,7 @@ static int decode_bzip2(struct terminal *term, struct cache_entry *ce, int *errp
 			z.next_out = cast_char(p + size);
 			z.avail_out = (unsigned)addsize;
 			size += addsize;
+			goto repeat_frag;
 		}
 		if (z.avail_in) goto repeat_frag;
 		offset += f->length;
@@ -395,6 +485,7 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, int *errp)
 	int r;
 	unsigned char *p;
 	struct fragment *f;
+	struct list_head *lf;
 	size_t size;
 
 	retry_after_memory_error:
@@ -424,7 +515,7 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, int *errp)
 					goto after_inflateend;
 	}
 	offset = 0;
-	foreach(f, ce->frag) {
+	foreach(struct fragment, f, lf, ce->frag) {
 		if (f->offset != offset) break;
 		z.next_in = f->data;
 		z.avail_in = (size_t)f->length;
@@ -473,6 +564,7 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, int *errp)
 			z.next_out = p + size;
 			z.avail_out = addsize;
 			size += addsize;
+			goto repeat_frag;
 		}
 		if (z.avail_in) goto repeat_frag;
 		offset += f->length;
@@ -499,6 +591,116 @@ static int decode_lzma(struct terminal *term, struct cache_entry *ce, int *errp)
 }
 #endif
 
+#ifdef HAVE_LZIP
+#include <lzlib.h>
+static int decode_lzip(struct terminal *term, struct cache_entry *ce, int *errp)
+{
+	unsigned char err;
+	unsigned char memory_error;
+	void *lz;
+	off_t offset;
+	int r;
+	enum LZ_Errno le;
+	unsigned char *p;
+	struct fragment *f;
+	struct list_head *lf;
+	size_t size;
+	size_t used_size;
+
+	retry_after_memory_error:
+	err = 0;
+	memory_error = 0;
+	decoder_memory_init(&p, &size, ce->length);
+	used_size = 0;
+
+	lz = LZ_decompress_open();
+	if (!lz) {
+		err = 1;
+		memory_error = 1;
+		goto after_inflateend;
+	}
+	if (LZ_decompress_errno(lz) != LZ_ok) {
+lz_error:
+		le = LZ_decompress_errno(lz);
+		if (0)
+mem_error:		le = LZ_mem_error;
+		err = 1;
+		if (le == LZ_mem_error) {
+			memory_error = 1;
+		} else if (!ce->incomplete) {
+			decompress_error(term, ce, cast_uchar "lzip", cast_uchar LZ_strerror(le), errp);
+		}
+		goto finish;
+	}
+
+	offset = 0;
+	foreach(struct fragment, f, lf, ce->frag) {
+		unsigned char *current_ptr;
+		int current_len;
+		if (f->offset != offset) break;
+		current_ptr = f->data;
+		current_len = (int)f->length;
+		while (current_len) {
+			r = LZ_decompress_write(lz, current_ptr, current_len);
+			if (r == -1)
+				goto lz_error;
+			current_ptr += r;
+			current_len -= r;
+			do {
+				if (used_size == size) {
+					size_t addsize;
+					if (decoder_memory_expand(&p, size, &addsize) < 0)
+						goto mem_error;
+					size += addsize;
+				}
+				r = LZ_decompress_read(lz, p + used_size, (int)(size - used_size));
+				if (r == -1)
+					goto lz_error;
+				used_size += r;
+			} while (r);
+		}
+		offset += f->length;
+	}
+	r = LZ_decompress_finish(lz);
+	if (r == -1)
+		goto lz_error;
+	while ((r = LZ_decompress_finished(lz)) == 0) {
+		if (used_size == size) {
+			size_t addsize;
+			if (decoder_memory_expand(&p, size, &addsize) < 0)
+				goto mem_error;
+			size += addsize;
+		}
+		r = LZ_decompress_read(lz, p + used_size, (int)(size - used_size));
+		if (r == -1)
+			goto lz_error;
+		used_size += r;
+	}
+	if (r == -1)
+		goto lz_error;
+
+finish:
+	LZ_decompress_close(lz);
+after_inflateend:
+	if (memory_error) {
+		mem_free(p);
+		if (out_of_memory(0, NULL, 0))
+			goto retry_after_memory_error;
+		decompress_error(term, ce, cast_uchar "lzip", TEXT_(T_OUT_OF_MEMORY), errp);
+		return 1;
+	}
+	if (err && !used_size) {
+		mem_free(p);
+		return 1;
+	}
+	ce->decompressed = p;
+	ce->decompressed_len = used_size;
+	decompressed_cache_size += ce->decompressed_len;
+	ce->decompressed = mem_realloc(ce->decompressed, ce->decompressed_len);
+	return 0;
+}
+#endif
+
 int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned char **start, unsigned char **end, int *errp)
 {
 	unsigned char *enc;
@@ -515,13 +717,20 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 		*end = ce->decompressed + ce->decompressed_len;
 		return 0;
 	}
-	enc = get_content_encoding(ce->head, ce->url);
+	enc = get_content_encoding(ce->head, ce->url, 0);
 	if (enc) {
 #ifdef HAVE_ZLIB
 		if (!casestrcmp(enc, cast_uchar "gzip") || !casestrcmp(enc, cast_uchar "x-gzip") || !casestrcmp(enc, cast_uchar "deflate")) {
 			int defl = !casestrcmp(enc, cast_uchar "deflate");
 			mem_free(enc);
 			if (decode_gzip(term, ce, defl, errp)) goto uncompressed;
+			goto return_decompressed;
+		}
+#endif
+#ifdef HAVE_BROTLI
+		if (!casestrcmp(enc, cast_uchar "br")) {
+			mem_free(enc);
+			if (decode_brotli(term, ce, errp)) goto uncompressed;
 			goto return_decompressed;
 		}
 #endif
@@ -539,6 +748,13 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 			goto return_decompressed;
 		}
 #endif
+#ifdef HAVE_LZIP
+		if (!casestrcmp(enc, cast_uchar "lzip")) {
+			mem_free(enc);
+			if (decode_lzip(term, ce, errp)) goto uncompressed;
+			goto return_decompressed;
+		}
+#endif
 		mem_free(enc);
 		goto uncompressed;
 	}
@@ -546,12 +762,13 @@ int get_file_by_term(struct terminal *term, struct cache_entry *ce, unsigned cha
 	if ((e = defrag_entry(ce)) < 0) {
 		unsigned char *msg = get_err_msg(e);
 		if (display_error(term, TEXT_(T_ERROR), errp)) {
-			unsigned char *u = display_url(term, ce->url);
+			unsigned char *u = display_url(term, ce->url, 1);
 			msg_box(term, getml(u, NULL), TEXT_(T_ERROR), AL_CENTER | AL_EXTD_TEXT, TEXT_(T_ERROR_LOADING), cast_uchar " ", u, cast_uchar ":\n\n", msg, NULL, NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 		}
 	}
-	fr = ce->frag.next;
-	if ((void *)fr == &ce->frag || fr->offset || !fr->length) return 1;
+	if (list_empty(ce->frag)) return 1;
+	fr = list_struct(ce->frag.next, struct fragment);
+	if (fr->offset || !fr->length) return 1;
 	*start = fr->data, *end = fr->data + fr->length;
 	return 0;
 }
@@ -593,6 +810,20 @@ void add_compress_methods(unsigned char **s, int *l)
 #endif
 	}
 #endif
+#ifdef HAVE_BROTLI
+	{
+		unsigned bv = BrotliDecoderVersion();
+		if (!cl) cl = 1; else add_to_str(s, l, cast_uchar ", ");
+		add_to_str(s, l, cast_uchar "BROTLI");
+		add_to_str(s, l, cast_uchar " (");
+		add_num_to_str(s, l, bv >> 24);
+		add_to_str(s, l, cast_uchar ".");
+		add_num_to_str(s, l, (bv >> 12) & 0xfff);
+		add_to_str(s, l, cast_uchar ".");
+		add_num_to_str(s, l, bv & 0xfff);
+		add_to_str(s, l, cast_uchar ")");
+	}
+#endif
 #ifdef HAVE_BZIP2
 	{
 		unsigned char *b = (unsigned char *)BZ2_bzlibVersion();
@@ -610,6 +841,15 @@ void add_compress_methods(unsigned char **s, int *l)
 		add_to_str(s, l, cast_uchar "LZMA");
 		add_to_str(s, l, cast_uchar " (");
 		add_to_str(s, l, cast_uchar lzma_version_string());
+		add_to_str(s, l, cast_uchar ")");
+	}
+#endif
+#ifdef HAVE_LZIP
+	{
+		if (!cl) cl = 1; else add_to_str(s, l, cast_uchar ", ");
+		add_to_str(s, l, cast_uchar "LZIP");
+		add_to_str(s, l, cast_uchar " (");
+		add_to_str(s, l, cast_uchar LZ_version());
 		add_to_str(s, l, cast_uchar ")");
 	}
 #endif

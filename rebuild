@@ -140,6 +140,6 @@ if [ "$1" = reconf ]; then
 	sed -n '{h;s/X11R6/X11R7/p;x;p;}' <configure >configure.tmp &&
 	mv -f configure.tmp configure &&
 	chmod a+x configure &&
-	./configure --enable-graphics
+	./configure --enable-graphics --enable-debuglevel=2
 	if [ $? != 0 ]; then echo CONFIGURE FAILED; exit 1; fi
 fi

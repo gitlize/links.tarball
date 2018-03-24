@@ -699,7 +699,7 @@ static void make_16_table(int *table, int bits, int pos, float_double gamma, int
 	float_double rev_gamma=1/gamma;
 	const float_double inv_65535=(float_double)(1/65535.);
 	int last_grade, last_content;
-	ttime start_time = get_time();
+	uttime start_time = get_time();
 	int sample_state = 0;
 	int x_slow_fpu = slow_fpu;
 	if (gamma_bits != 2) x_slow_fpu = !gamma_bits;
@@ -717,11 +717,11 @@ static void make_16_table(int *table, int bits, int pos, float_double gamma, int
 				}
 			} else {
 				if (!(j & (j - 1))) {
-					ttime now = get_time();
+					uttime now = get_time();
 					if (!sample_state) {
 						if (now != start_time) start_time = now, sample_state = 1;
 					} else {
-						if ((uttime)now - (uttime)start_time > SLOW_FPU_DETECT_THRESHOLD && ((uttime)now - (uttime)start_time) * 65536 / j > SLOW_FPU_MAX_STARTUP / 3) {
+						if (now - start_time > SLOW_FPU_DETECT_THRESHOLD && (now - start_time) * 65536 / j > SLOW_FPU_MAX_STARTUP / 3) {
 							x_slow_fpu = 1;
 							goto repeat_loop;
 						}
@@ -822,10 +822,8 @@ void dither_restart(unsigned short *in, struct bitmap *out, int *dregs)
 static void make_round_tables(void)
 {
 	int a;
-#ifdef __ICC
-	volatile	/* ICC bug */
-#endif
-	unsigned short v;
+	/* ICC bug */
+	icc_volatile unsigned short v;
 
 	for (a=0;a<256;a++){
 		/* a is sRGB coordinate */

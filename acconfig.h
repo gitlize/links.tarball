@@ -8,9 +8,6 @@
 #undef HAVE_OPENMP
 
 /* */
-#undef HAVE_TYPEOF
-
-/* */
 #undef HAVE_LONG_LONG
 
 /* */
@@ -104,6 +101,9 @@
 #undef HAVE___BUILTIN_ADD_OVERFLOW
 
 /* */
+#undef HAVE___BUILTIN_CLZ
+
+/* */
 #undef DEBUGLEVEL
 
 /* */
@@ -164,13 +164,25 @@
 #undef HAVE_NSS
 
 /* */
+#undef HAVE_CRYPTO_SET_MEM_FUNCTIONS_1
+
+/* */
+#undef HAVE_CRYPTO_SET_MEM_FUNCTIONS_2
+
+/* */
 #undef HAVE_ZLIB
+
+/* */
+#undef HAVE_BROTLI
 
 /* */
 #undef HAVE_BZIP2
 
 /* */
 #undef HAVE_LZMA
+
+/* */
+#undef HAVE_LZIP
 
 /* */
 #undef G
@@ -198,9 +210,6 @@
 
 /* */
 #undef GRDRV_GRX
-
-/* */
-#undef DONT_INCLUDE_SETJMP
 
 /* Jpeg by Clock */
 #undef HAVE_JPEG

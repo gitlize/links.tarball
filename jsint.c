@@ -46,8 +46,7 @@ vypisuje to: jaky kod byl zarazen do fronty. jaky kod byl predan interpretu do j
 */
 
 struct js_request {
-	struct js_request *next;
-	struct js_request *prev;
+	list_entry_1st
 	int onclick_submit;	/* >=0 (znamena cislo formulare) pokud tohle je request onclick handleru u submit tlacitka nebo onsubmit handleru */
 	int onsubmit;		/* dtto pro submit handler */
 	struct links_event ev;	/* event, ktery se ma poslat pri uspechu */
@@ -55,6 +54,7 @@ struct js_request {
 	int wrote;	/* this request called document.write */
 	int len;
 	tcount seq;
+	list_entry_last
 	unsigned char code[1];
 };
 
@@ -88,16 +88,16 @@ struct js_request {
  */
 
 /* prototypes */
-void jsint_send_event(struct f_data_c *fd, struct links_event *ev);
-int jsint_create(struct f_data_c *);
-void jsint_done_execution(struct f_data_c *);
-int jsint_can_access(struct f_data_c *, struct f_data_c *);
-struct f_data_c *jsint_find_recursive(struct f_data_c *, long);  /* line 89 */
-void *jsint_find_object(struct f_data_c *, long);
-long *add_id(long *, int *, long );
-long *add_fd_id(long *, int *, long, long, unsigned char *);
-void send_vodevri_v_novym_vokne(struct terminal *, void (*)(struct terminal *, unsigned char *, unsigned char *), struct session *);
-void add_all_recursive_in_fd(long **, int *, struct f_data_c *, struct f_data_c *);
+static void jsint_send_event(struct f_data_c *fd, struct links_event *ev);
+static int jsint_create(struct f_data_c *);
+static void jsint_done_execution(void *);
+static int jsint_can_access(struct f_data_c *, struct f_data_c *);
+static struct f_data_c *jsint_find_recursive(struct f_data_c *, long);  /* line 89 */
+static void *jsint_find_object(struct f_data_c *, long);
+static long *add_id(long *, int *, long );
+static long *add_fd_id(long *, int *, long, long, unsigned char *);
+static void send_vodevri_v_novym_vokne(struct terminal *, int (*)(struct terminal *, unsigned char *, unsigned char *), struct session *);
+static void add_all_recursive_in_fd(long **, int *, struct f_data_c *, struct f_data_c *);
 
 
 void jsint_set_cookies(struct f_data_c *fd, int final_flush)
@@ -195,7 +195,7 @@ int jsint_object_type(long to_je_on_Padre)
 }
 
 
-int jsint_create(struct f_data_c *fd)
+static int jsint_create(struct f_data_c *fd)
 {
 	struct js_state *js;
 
@@ -219,8 +219,8 @@ void jsint_destroy(struct f_data_c *fd)
 	pr(js_destroy_context(js->ctx)) return;
 	if (js->src) mem_free(js->src);
 	if (js->active) mem_free(js->active);
-	js_zaflaknuto_pameti-=js->newdata;
-	free_list(js->queue);
+	js_zaflaknuto_pameti -= js->newdata;
+	free_list(struct js_request, js->queue);
 	mem_free(js);
 }
 
@@ -232,7 +232,7 @@ void javascript_func(struct session *ses, unsigned char *hlavne_ze_je_vecirek)
 	jsint_execute_code(current_frame(ses),code,strlen(cast_const_char code),-1,-1,-1, NULL);
 }
 
-void jsint_send_event(struct f_data_c *fd, struct links_event *ev)
+static void jsint_send_event(struct f_data_c *fd, struct links_event *ev)
 {
 	if (!ev || !ev->b) return;
 	send_event(fd->ses, ev);
@@ -247,6 +247,7 @@ void jsint_send_event(struct f_data_c *fd, struct links_event *ev)
 void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int write_pos, int onclick_submit, int onsubmit, struct links_event *ev)
 {
 	struct js_request *r, *q;
+	struct list_head *lq;
 
 	for (;code&&len&&*code&&((*code)==' '||(*code)==9||(*code)==13||(*code)==10);code++,len--);
 
@@ -280,20 +281,20 @@ void jsint_execute_code(struct f_data_c *fd, unsigned char *code, int len, int w
 	memcpy(r->code, code, len);
 	if (ev) memcpy(&r->ev, ev, sizeof(struct links_event));
 	if (write_pos == -1) {
-		struct list_head *l = (struct list_head *)fd->js->queue.prev;
-		add_to_list(*l, r);
+		add_to_list_end(fd->js->queue, r);
 	} else {
 		/* add it beyond all <SCRIPT> requests but before non-<SCRIPT> ones */
-		foreach(q, fd->js->queue) if (q->write_pos == -1) break;
-		q = q->prev;
-		add_at_pos(q, r);
+		foreach(struct js_request, q, lq, fd->js->queue) if (q->write_pos == -1) break;
+		add_before_list_entry(lq, &r->list_entry);
 	}
 	jsint_run_queue(fd);
 }
 
-void jsint_done_execution(struct f_data_c *fd)
+static void jsint_done_execution(void *fd_)
 {
+	struct f_data_c *fd = (struct f_data_c *)fd_;
 	struct js_request *r, *to_exec;
+	struct list_head *lr;
 	struct js_state *js = fd->js;
 	struct links_event ev = { 0, 0, 0, 0 };
 	if (!js) {
@@ -322,7 +323,7 @@ void jsint_done_execution(struct f_data_c *fd)
 		/* pokud je handler od stejneho formulare, jako je defered, tak odlozeny skok znicime a zlikvidujem prislusny onsubmit handler z fronty */
 		if (js->active->onclick_submit == fd->ses->defered_data)
 		{
-			foreach (r,js->queue)
+			foreach(struct js_request, r, lr,js->queue)
 				/* to je onsubmit od naseho formulare, tak ho smazem */
 				if (r->onsubmit == js->active->onclick_submit)
 				{
@@ -353,7 +354,7 @@ void jsint_done_execution(struct f_data_c *fd)
 	}
 
 	to_exec = js->active;
-	if (!to_exec && !list_empty(fd->js->queue)) to_exec = fd->js->queue.next;
+	if (!to_exec && !list_empty(fd->js->queue)) to_exec = list_struct(fd->js->queue.next, struct js_request);
 	if (fd->ses->defered_url && (!to_exec || (to_exec->seq > fd->ses->defered_seq && to_exec->write_pos == -1)))
 	{
 		unsigned char *url, *target;
@@ -377,14 +378,14 @@ void jsint_run_queue(struct f_data_c *fd)
 
 	if ((!fd->done && fd->f_data) || !js || js->active || list_empty(js->queue)) return;
 
-	r = js->queue.next;
+	r = list_struct(js->queue.next, struct js_request);
 	del_from_list(r);
 	js->active = r;
 #ifdef TRACE_EXECUTE
 	fprintf(stderr, "Executing: ^^%.*s^^\n", r->len, r->code);
 
 #endif
-	pr(js_execute_code(js->ctx, r->code, r->len, (void (*)(void *))jsint_done_execution)) {};
+	pr(js_execute_code(js->ctx, r->code, r->len, jsint_done_execution)) {};
 }
 
 /* returns: 1 - source is modified by document.write
@@ -405,7 +406,7 @@ int jsint_get_source(struct f_data_c *fd, unsigned char **start, unsigned char *
  * tests if script running in frame "running" can access document in frame "accessed"
  * 0=no permission, 1=permission OK
  */
-int jsint_can_access(struct f_data_c *running, struct f_data_c *accessed)
+static int jsint_can_access(struct f_data_c *running, struct f_data_c *accessed)
 {
 	int a;
 	unsigned char *h1, *h2;
@@ -422,11 +423,12 @@ int jsint_can_access(struct f_data_c *running, struct f_data_c *accessed)
 
 /* doc_id is real document id, whithout any type */
 /* fd must be a valid pointer */
-struct f_data_c *jsint_find_recursive(struct f_data_c *fd, long doc_id)
+static struct f_data_c *jsint_find_recursive(struct f_data_c *fd, long doc_id)
 {
 	struct f_data_c *sub, *fdd;
+	struct list_head *lsub;
 	if (fd->id == doc_id) return fd;
-	foreach(sub, fd->subframes) {
+	foreach(struct f_data_c, sub, lsub, fd->subframes) {
 		if ((fdd = jsint_find_recursive(sub, doc_id))) return fdd;
 	}
 	return NULL;
@@ -439,12 +441,13 @@ struct f_data_c *jsint_find_document(long doc_id)
 {
 	struct f_data_c *fd;
 	struct session *ses;
+	struct list_head *lses;
 	int type=jsint_object_type(doc_id);
 
 	if (type!=JS_OBJ_T_DOCUMENT&&type!=JS_OBJ_T_FRAME)
 		{unsigned char txt[256]; snprintf(txt,256,"jsint_find_document called with type=%d\n",type);internal(txt);}
 	doc_id>>=JS_OBJ_MASK_SIZE;
-	foreach(ses, sessions) if ((fd = jsint_find_recursive(ses->screen, doc_id))) return fd;
+	foreach(struct session, ses, lses, sessions) if ((fd = jsint_find_recursive(ses->screen, doc_id))) return fd;
 	return NULL;
 }
 
@@ -561,7 +564,7 @@ struct hopla_mladej
  * interpret the pointer in the right way.
  */
 
-void *jsint_find_object(struct f_data_c *document, long obj_id)
+static void *jsint_find_object(struct f_data_c *document, long obj_id)
 {
 	int type=obj_id&JS_OBJ_MASK;
 	int orig_obj_id=obj_id;
@@ -589,7 +592,7 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 			struct hopla_mladej *hopla;
 
 			struct form_control *fc;
-			/*int n=document->vs->form_info_len;*/
+			struct list_head *lfc;
 			int a=0;
 
 			if (obj_id<0/*||obj_id>=n*/)return NULL;
@@ -597,11 +600,11 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 
 			if (!(document->f_data)){mem_free(hopla);return NULL;};
 
-			foreachback(fc,document->f_data->forms)
+			foreachback(struct form_control, fc, lfc, document->f_data->forms)
 				if (fc->g_ctrl_num==obj_id){a=1;break;}
 			if (!a){mem_free(hopla);return NULL;}
 
-			if (!(hopla->fs=find_form_state(document, fc))){mem_free(hopla);return NULL;}
+			hopla->fs=find_form_state(document, fc);
 			hopla->fc=fc;
 			return hopla;
 		}
@@ -629,9 +632,10 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 		case JS_OBJ_T_FORM:
 		{
 			struct form_control *f;
+			struct list_head *lf;
 
 			if (!(document->f_data))return NULL;
-			foreachback(f, document->f_data->forms) if ((f->form_num)==obj_id)return f;
+			foreachback(struct form_control, f, lf, document->f_data->forms) if ((f->form_num)==obj_id)return f;
 			return NULL;
 		}
 
@@ -641,10 +645,11 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 		case JS_OBJ_T_ANCHOR:
 		{
 			struct tag *t;
+			struct list_head *lt;
 			int a=0;
 
 			if (!(document->f_data))return NULL;
-			foreach(t,document->f_data->tags)
+			foreach(struct tag, t, lt, document->f_data->tags)
 			{
 				if (obj_id==a)return t;
 				a++;
@@ -666,18 +671,13 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 		 */
 		case JS_OBJ_T_IMAGE:
 #ifdef G
-		if (F)
-		{
-			struct xlist_head *fi;
+		if (F) {
+			struct g_object_image *gi;
+			struct list_head *lgi;
 
-			if (!document->f_data)return NULL;
-			foreach(fi,document->f_data->images)
-			{
-				struct g_object_image *gi;
-				struct g_object_image goi;
-
-				gi = (struct g_object_image *)((char *)fi + ((char *)&goi - (char *)&(goi.image_list)));
-				if (gi->id==obj_id)return gi;
+			if (!document->f_data) return NULL;
+			foreach(struct g_object_image, gi, lgi, document->f_data->images) {
+				if (gi->id == obj_id) return gi;
 			}
 			return NULL;
 		}else
@@ -691,7 +691,7 @@ void *jsint_find_object(struct f_data_c *document, long obj_id)
 }
 
 
-long *add_id(long *field,int *len,long id)
+static long *add_id(long *field,int *len,long id)
 {
 	long *p;
 	int a;
@@ -733,38 +733,35 @@ static long js_upcall_get_frame_id(void *data);
 static long *find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, long *pole_vole, int *n_items, unsigned char *takhle_tomu_u_nas_nadavame)
 {
 	struct f_data_c *ff;
+	struct list_head *lff;
 	struct form_control *f;
-#ifdef G
-	struct xlist_head *fi;
-#endif
+	struct list_head *lf;
 
 	/* search frame */
-	foreach(ff,fd->subframes)
+	foreach(struct f_data_c, ff, lff, fd->subframes)
 		if (ff->loc&&ff->loc->name&&!strcmp(cast_const_char ff->loc->name,cast_const_char takhle_tomu_u_nas_nadavame)&&jsint_can_access(js_ctx,ff))	/* to je on! */
 			if (!(pole_vole=add_id(pole_vole,n_items,js_upcall_get_frame_id(ff))))return NULL;
 
 	if (!(fd->f_data))goto a_je_po_ptakach;
 
 #ifdef G
-	if (F)
-	/* search images */
-	foreach(fi,fd->f_data->images)
-	{
+	if (F) {
 		struct g_object_image *gi;
-		struct g_object_image goi;
-
-		gi = (struct g_object_image *)((char *)fi + ((char *)(&goi) - (char *)(&(goi.image_list))));
-		if (gi->name&&!strcmp(cast_const_char gi->name, cast_const_char takhle_tomu_u_nas_nadavame))
-			if (!(pole_vole=add_id(pole_vole,n_items,JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE))))return NULL;
+		struct list_head *lgi;
+		/* search images */
+		foreach(struct g_object_image, gi, lgi, fd->f_data->images) {
+			if (gi->name&&!strcmp(cast_const_char gi->name, cast_const_char takhle_tomu_u_nas_nadavame))
+				if (!(pole_vole=add_id(pole_vole,n_items,JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE))))return NULL;
+		}
 	}
 #endif
 	/* search forms */
-	foreachback(f,fd->f_data->forms)
+	foreachback(struct form_control, f, lf, fd->f_data->forms)
 		if (f->form_name&&!strcmp(cast_const_char f->form_name,cast_const_char takhle_tomu_u_nas_nadavame))   /* tak tohle JE Jim Beam */
 			if (!(pole_vole=add_id(pole_vole,n_items,((f->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM)))return NULL;
 
 	/* search form elements */
-	foreachback(f,fd->f_data->forms)
+	foreachback(struct form_control, f, lf, fd->f_data->forms)
 		if (f->name&&!strcmp(cast_const_char f->name,cast_const_char takhle_tomu_u_nas_nadavame))   /* tak tohle JE Jim Beam */
 		{
 			long tak_mu_to_ukaz=0;
@@ -790,7 +787,7 @@ static long *find_in_subframes(struct f_data_c *js_ctx, struct f_data_c *fd, lon
 
 a_je_po_ptakach:
 	/* find in all rq==NULL */
-	foreach(ff,fd->subframes)
+	foreach(struct f_data_c, ff, lff, fd->subframes)
 		if (!(ff->rq)) pole_vole=find_in_subframes(js_ctx,ff,pole_vole,n_items,takhle_tomu_u_nas_nadavame);
 
 
@@ -830,10 +827,11 @@ long *jsint_resolve(void *context, long obj_id, char *takhle_tomu_u_nas_nadavame
 		{
 			struct form_control *fc=jsint_find_object(js_ctx,obj_id);
 			struct form_control *f;
+			struct list_head *lf;
 			if (!fc){mem_free(pole_vole);return NULL;}
 
 			if (!(js_ctx->f_data)){mem_free(pole_vole);return NULL;}
-			foreachback(f,js_ctx->f_data->forms)
+			foreachback(struct form_control, f, lf, js_ctx->f_data->forms)
 			{
 				if (f->form_num==fc->form_num)	/* this form */
 					if (f->name&&!strcmp(cast_const_char f->name,cast_const_char takhle_tomu_u_nas_nadavame))   /* this IS Jim Beam */
@@ -894,7 +892,7 @@ static void redraw_document(struct f_data_c *f)
 	if (F) {
 		f->xl = -1;
 		f->yl = -1;
-		draw_to_window(f->ses->win, (void (*)(struct terminal *, void *))draw_doc, f);
+		draw_to_window(f->ses->win, draw_doc, f);
 	}
 	*/
 	draw_fd(f);
@@ -937,7 +935,7 @@ void js_upcall_document_write(void *p, unsigned char *str, int len)
 	if (!js->src) {
 		unsigned char *s, *eof;
 		if (get_file(fd->rq, &s, &eof)) return;
-		if (!(js->src = memacpy(s, eof - s))) return;
+		js->src = memacpy(s, eof - s);
 		js->srclen = eof - s;
 	}
 	if ((unsigned)js->srclen + (unsigned)len > MAXINT) overalloc();
@@ -1047,12 +1045,12 @@ unsigned char *js_upcall_document_last_modified(void *data, long document_id)
 /* returns allocated string with user-agent */
 unsigned char *js_upcall_get_useragent(void *data)
 {
-	struct f_data_c *fd;
+	/*struct f_data_c *fd;*/
 	unsigned char *retval=init_str();
 	int l=0;
 
 	if (!data)internal("js_upcall_get_useragent called with NULL pointer!");
-	fd=(struct f_data_c *)data;
+	/*fd=(struct f_data_c *)data;*/
 
 	if (!http_options.header.fake_useragent||!(*http_options.header.fake_useragent)) {
 		add_to_str(&retval, &l, "Links (" VERSION_STRING "; ");
@@ -1372,7 +1370,7 @@ void js_upcall_close_window(void *data)
 	else
 	{
 		js_mem_free(s);
-		if (term->next == term->prev && are_there_downloads())
+		if (term->list_entry.next == term->list_entry.prev && are_there_downloads())
 			query_exit(fd->ses);
 		else
 			really_exit_prog(fd->ses);
@@ -1405,6 +1403,10 @@ static void js_upcall_get_string_ok_pressed(void *data, unsigned char *str)
 	js_downcall_vezmi_string(fd->js->ctx, stracpy(str));   /* call downcall */
 }
 
+static void js_upcall_get_string_kill_script_pressed(void *data, unsigned char *str)
+{
+	js_kill_script_pressed(data);
+}
 
 struct history js_get_string_history={0, {&js_get_string_history.items, &js_get_string_history.items}};
 
@@ -1459,7 +1461,7 @@ void js_upcall_get_string(void *data)
 		TEXT_(T_OK),   /* ok button */
 		js_upcall_get_string_ok_pressed,
 		TEXT_(T_KILL_SCRIPT),  /* cancel button */
-		js_kill_script_pressed,
+		js_upcall_get_string_kill_script_pressed,
 		NULL
 	);
 	js_mem_free(s);
@@ -1505,7 +1507,7 @@ long *js_upcall_get_links(void *data, long document_id, int *len)
 {
 	struct f_data_c *js_ctx=(struct f_data_c*)data;
 	struct f_data_c *fd;
-	struct link *l;
+	/*struct link *l;*/
 	int a;
 	long *to_je_Ono;
 
@@ -1515,7 +1517,7 @@ long *js_upcall_get_links(void *data, long document_id, int *len)
 	if (!(fd->f_data))return NULL;
 	*len=fd->f_data->nlinks;
 	if (!(*len))return NULL;
-	l=fd->f_data->links;
+	/*l=fd->f_data->links;*/
 	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
 	to_je_Ono=mem_alloc((*len)*sizeof(long));
 
@@ -1559,6 +1561,7 @@ long *js_upcall_get_forms(void *data, long document_id, int *len)
 	struct f_data_c *js_ctx=(struct f_data_c *)data;
 	struct f_data_c *fd;
 	struct form_control *fc;
+	struct list_head *lfc;
 	long *to_je_Ono;
 	long last=0;
 
@@ -1572,8 +1575,7 @@ long *js_upcall_get_forms(void *data, long document_id, int *len)
 
 	*len=0;
 
-	foreachback(fc, fd->f_data->forms)
-	{
+	foreachback(struct form_control, fc, lfc, fd->f_data->forms) {
 		long *p;
 		int a;
 
@@ -1931,6 +1933,7 @@ long *js_upcall_get_form_elements(void *data, long document_id, long form_id, in
 	struct f_data_c *js_ctx=(struct f_data_c *)data;
 	struct f_data_c *fd;
 	struct form_control *fc, *fc2;
+	struct list_head *lfc2;
 	long *pole_Premysla_Zavorace;
 	int b;
 
@@ -1944,7 +1947,7 @@ long *js_upcall_get_form_elements(void *data, long document_id, long form_id, in
 
 	*len=0;
 
-	foreach (fc2, fd->f_data->forms)
+	foreach(struct form_control, fc2, lfc2, fd->f_data->forms)
 		if (fc2->form_num==fc->form_num)(*len)++;
 
 	if (!(*len))return NULL;
@@ -1953,7 +1956,7 @@ long *js_upcall_get_form_elements(void *data, long document_id, long form_id, in
 	pole_Premysla_Zavorace=mem_alloc((*len)*sizeof(long));
 
 	b=0;
-	foreachback (fc2, fd->f_data->forms)
+	foreachback(struct form_control, fc2, lfc2, fd->f_data->forms)
 		if (fc2->form_num==fc->form_num)
 		{
 			switch (fc2->type)
@@ -1989,7 +1992,6 @@ long *js_upcall_get_anchors(void *hej_Hombre, long document_id, int *len)
 {
 	struct f_data_c *js_ctx=(struct f_data_c*)hej_Hombre;
 	struct f_data_c *fd;
-	struct tag *t;
 	int a;
 	long *to_je_Ono;
 	*len=0;
@@ -1999,17 +2001,13 @@ long *js_upcall_get_anchors(void *hej_Hombre, long document_id, int *len)
 	if (!fd||!jsint_can_access(js_ctx,fd))return NULL;
 
 	if (!(fd->f_data))return NULL;
-	foreach(t,fd->f_data->tags)(*len)++;
-	if (!(*len))return NULL;
+	*len = (int)list_size(&fd->f_data->tags);
+	if (!*len) return NULL;
 	if ((unsigned)*len > MAXINT / sizeof(long)) overalloc();
-	to_je_Ono=mem_alloc((*len)*sizeof(long));
+	to_je_Ono = mem_alloc((*len)*sizeof(long));
 
-	a=0;
-	foreach(t,fd->f_data->tags)
-	{
-		to_je_Ono[a]=JS_OBJ_T_ANCHOR+(a<<JS_OBJ_MASK_SIZE);
-		a++;
-	}
+	for (a = 0; a < *len; a++)
+		to_je_Ono[a] = JS_OBJ_T_ANCHOR + (a << JS_OBJ_MASK_SIZE);
 	return to_je_Ono;
 
 }
@@ -2479,9 +2477,11 @@ static int find_go_link_num;
 static struct g_object *to_je_on_bidak;
 static void find_go(struct g_object *p, struct g_object *c)
 {
-	if (c->draw==(void (*)(struct f_data_c *, struct g_object *, int, int))g_text_draw)
-		if (((struct g_object_text*)c)->link_num==find_go_link_num){to_je_on_bidak=c;return;}
-	if (c->get_list)c->get_list(c,find_go);
+	if (c->draw == g_text_draw) {
+		struct g_object_text *t = get_struct(c, struct g_object_text, goti.go);
+		if (t->goti.link_num==find_go_link_num){to_je_on_bidak=c;return;}
+	}
+	if (c->get_list) c->get_list(c, find_go);
 }
 #endif
 
@@ -2515,8 +2515,8 @@ void js_upcall_focus(void *bidak, long document_id, long elem_id)
 				if (l->form&&l->form==hopla->fc)	/* to je on! */
 				{
 					struct session *ses = fd->ses;
-					int x = 0;
-					while (fd != current_frame(ses)) next_frame(ses, 1), x = 1;
+					/*int x = 0;*/
+					while (fd != current_frame(ses)) next_frame(ses, 1)/*, x = 1*/;
 					fd->vs->current_link=a;
 					fd->vs->orig_link=a;
 					if (fd->ses->term->spec->braille) {
@@ -2659,6 +2659,7 @@ int js_upcall_get_radio_length(void *p, long document_id, long radio_id)
 	struct f_data_c *js_ctx=(struct f_data_c*)p;
 	struct f_data_c *fd;
 	struct form_control *f;
+	struct list_head *lf;
 	struct hopla_mladej *hopla;
 	struct form_control *radio;
 	int count=0;
@@ -2673,7 +2674,7 @@ int js_upcall_get_radio_length(void *p, long document_id, long radio_id)
 	radio=hopla->fc;
 
 	/* find form elements with the same type, form_num (belonging to the same form) and name */
-	foreachback(f,fd->f_data->forms)
+	foreachback(struct form_control, f, lf, fd->f_data->forms)
 		if (f->type==radio->type&&f->form_num==radio->form_num&&!strcmp(cast_const_char radio->name,cast_const_char f->name))count++;
 	mem_free(hopla);
 	return count;
@@ -2773,7 +2774,7 @@ struct gimme_js_id_string
 };
 
 /* open a link in a new xterm */
-void send_vodevri_v_novym_vokne(struct terminal *term, void (*open_window)(struct terminal *term, unsigned char *, unsigned char *), struct session *ses)
+static void send_vodevri_v_novym_vokne(struct terminal *term, int (*open_window)(struct terminal *term, unsigned char *, unsigned char *), struct session *ses)
 {
 	if (ses->dn_url) {
 		unsigned char *enc_url = encode_url(ses->dn_url);
@@ -2917,14 +2918,10 @@ goto_url_failed:
 int js_upcall_get_history_length(void *context)
 {
 	struct f_data_c *fd=(struct f_data_c*)context;
-	struct location *l;
-	int len=0;
 
 	if (!fd)internal("PerMe, PerMe, ja si te podam!\n");
 
-	foreach(l,fd->ses->history)len++;
-
-	return len;
+	return (int)list_size(&fd->ses->history);
 }
 
 
@@ -2933,14 +2930,12 @@ static void js_upcall_goto_history_ok_pressed(void *data)
 {
 	struct f_data_c *fd;
 	struct gimme_js_id_string *jsid=(struct gimme_js_id_string*)data;
-	struct location *loc;
 	int a;
 
 	fd=jsint_find_document(jsid->id);
 	if (!fd)return;  /* context no longer exists */
 
-	a=0;
-	foreach(loc,fd->ses->history)a++;
+	a = (int)list_size(&fd->ses->history);
 
 	if (a<jsid->n&&(fd->js)&&jsid->js_id==fd->js->ctx->js_id){js_downcall_vezmi_null(fd->js->ctx);return;}   /* call downcall */
 
@@ -2991,14 +2986,14 @@ void js_upcall_goto_history(void * data)
 	if (s->num)	/* goto n-th item */
 	{
 		struct location *loc;
+		struct list_head *lloc;
 		int a=0;
 
 		if ((s->num)>0){if (s->string)js_mem_free(s->string);js_mem_free(data);goto goto_history_failed;} /* forward not supported */
 		s->num=-s->num;
 		history_num=s->num;
 
-		foreach(loc,fd->ses->history)
-		{
+		foreach(struct location, loc, lloc, fd->ses->history) {
 			if (a==s->num){url=stracpy(loc->url);break;}
 			a++;
 		}
@@ -3006,10 +3001,10 @@ void js_upcall_goto_history(void * data)
 	else	/* goto given url */
 	{
 		struct location *loc;
+		struct list_head *lloc;
 		int a=0;
 
-		foreach(loc,fd->ses->history)
-		{
+		foreach(struct location, loc, lloc, fd->ses->history) {
 			if (!strcmp(cast_const_char s->string,cast_const_char loc->url)){url=stracpy(s->string);history_num=a;break;}
 			a++;
 		}
@@ -3184,9 +3179,11 @@ unsigned char * js_upcall_get_cookies(void *context)
 	unsigned char *s=init_str();
 	int l=0;
 	int nc=0;
-	struct cookie *c, *d;
+	struct cookie *c;
+	struct list_head *lc;
 	unsigned char *server, *data;
 	struct c_domain *cd;
+	struct list_head *lcd;
 
 	if (!fd)internal("Tak tomu rikam selhani komunikace...\n");
 
@@ -3201,20 +3198,18 @@ unsigned char * js_upcall_get_cookies(void *context)
 	data = get_url_data(fd->rq->url);
 
 	if (data > fd->rq->url) data--;
-	foreach (cd, c_domains) if (is_in_domain(cd->domain, server)) goto ok;
+	foreach(struct c_domain, cd, lcd, c_domains) if (is_in_domain(cd->domain, server)) goto ok;
 	mem_free(server);
 ty_uz_se_nevratis:
 	if (fd->js->ctx->cookies)add_to_str(&s,&l,fd->js->ctx->cookies);
 	else {mem_free(s);s=NULL;}
 	return s;
 	ok:
-	foreach (c, all_cookies) if (is_in_domain(c->domain, server)) if (is_path_prefix(c->path, data)) {
+	foreach(struct cookie, c, lc, all_cookies) if (is_in_domain(c->domain, server)) if (is_path_prefix(c->path, data)) {
 		if (cookie_expired(c)) {
-			d = c;
-			c = c->prev;
-			del_from_list(d);
-			free_cookie(d);
-			mem_free(d);
+			lc = lc->prev;
+			del_from_list(c);
+			free_cookie(c);
 			continue;
 		}
 		if (c->secure) continue;
@@ -3244,17 +3239,15 @@ ty_uz_se_nevratis:
 
 
 /* adds all in given f_data_c, the f_data_c must be accessible by the javascript */
-void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct f_data_c *js_ctx)
+static void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct f_data_c *js_ctx)
 {
 	struct f_data_c *ff;
+	struct list_head *lff;
 	struct form_control *fc;
-
-#ifdef G
-	struct xlist_head *fi;
-#endif
+	struct list_head *lfc;
 
 	/* add all accessible frames */
-	foreach(ff,fd->subframes)
+	foreach(struct f_data_c, ff, lff, fd->subframes)
 		if (jsint_can_access(js_ctx,ff))
 			if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),js_upcall_get_frame_id(ff),ff->f_data?ff->f_data->opt.framename:NULL)))return;
 
@@ -3262,22 +3255,21 @@ void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct
 
 #ifdef G
 	/* add all images */
-	if (F)
-		foreach(fi,fd->f_data->images)
-		{
-			struct g_object_image *gi;
-			struct g_object_image goi;
+	if (F) {
+		struct g_object_image *gi;
+		struct list_head *lgi;
 
-			gi = (struct g_object_image *)((char *)fi + ((char *)(&goi) - (char *)(&(goi.image_list))));
+		foreach(struct g_object_image, gi, lgi, fd->f_data->images) {
 			if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),JS_OBJ_T_IMAGE+((gi->id)<<JS_OBJ_MASK_SIZE),gi->name)))return;
 		}
+	}
 #endif
 	/* add all forms */
-	foreachback(fc,fd->f_data->forms)
+	foreachback(struct form_control, fc, lfc, fd->f_data->forms)
 		if (!((*field)=add_fd_id(*field,len,js_upcall_get_frame_id(fd),((fc->form_num)<<JS_OBJ_MASK_SIZE)+JS_OBJ_T_FORM,fc->form_name)))return;
 
 	/* add all form elements */
-	foreachback(fc,fd->f_data->forms)
+	foreachback(struct form_control, fc, lfc, fd->f_data->forms)
 		{
 			long tak_mu_to_ukaz=0;
 			tak_mu_to_ukaz=(fc->g_ctrl_num)<<JS_OBJ_MASK_SIZE;
@@ -3302,7 +3294,7 @@ void add_all_recursive_in_fd(long **field, int *len, struct f_data_c *fd, struct
 
 tady_uz_nic_peknyho_nebude:
 
-	foreach(ff,fd->subframes)
+	foreach(struct f_data_c, ff, lff, fd->subframes)
 		if (jsint_can_access(js_ctx,ff)) add_all_recursive_in_fd(field,len,ff,js_ctx);
 }
 
@@ -3350,18 +3342,17 @@ long *js_upcall_get_images(void *chuligane, long document_id, int *len)
 	struct f_data_c *fd;
 	struct f_data_c *js_ctx=(struct f_data_c*)chuligane;
 	long *pole_Premysla_Zavorace;
-	struct xlist_head *fi;
 	int a;
 
-	if (F)
-	{
+	if (F) {
+		struct g_object_image *gi;
+		struct list_head *lgi;
+
 		if (!js_ctx)internal("js_upcall_get_images called with NULL context pointer\n");
 		fd=jsint_find_document(document_id);
 		if (!fd||!fd->f_data||!jsint_can_access(js_ctx,fd))return NULL;
 
-		*len=0;
-
-		foreach(fi,fd->f_data->images)(*len)++;
+		*len = list_size(&fd->f_data->images);
 
 		if (!(*len))return NULL;
 
@@ -3369,18 +3360,13 @@ long *js_upcall_get_images(void *chuligane, long document_id, int *len)
 		pole_Premysla_Zavorace=mem_alloc((*len)*sizeof(long));
 
 		a=0;
-		foreachback(fi,fd->f_data->images)
-		{
-			unsigned id;
-			struct g_object_image gi;
-
-			id=((struct g_object_image *)((char *)fi + ((char *)&gi - (char *)&(gi.image_list))))->id;
-
+		foreach(struct g_object_image, gi, lgi, fd->f_data->images) {
+			unsigned id = gi->id;;
 			pole_Premysla_Zavorace[a]=JS_OBJ_T_IMAGE+(id<<JS_OBJ_MASK_SIZE);
 			a++;
 		}
 		return pole_Premysla_Zavorace;
-	}else
+	} else
 #endif
 	{
 		document_id=document_id;
@@ -3408,7 +3394,7 @@ int js_upcall_get_image_width(void *chuligane, long document_id, long image_id)
 
 		if (!gi)return -1;
 
-		return gi->xw;
+		return gi->goti.go.xw;
 	}else
 #endif
 	{
@@ -3438,7 +3424,7 @@ int js_upcall_get_image_height(void *chuligane, long document_id, long image_id)
 
 		if (!gi)return -1;
 
-		return gi->yw;
+		return gi->goti.go.yw;
 	}else
 #endif
 	{
@@ -3658,9 +3644,9 @@ void js_upcall_set_image_alt(void *chuligane, long document_id, long image_id, u
 
 		if (gi->alt)mem_free(gi->alt);
 		gi->alt=stracpy(alt);	/* radeji takhle, protoze to je bezpecnejsi: az PerM zase do neceho slapne, tak se to pozna hned tady a ne buhvikde */
-		if (fd->f_data&&gi->link_num>=0&&gi->link_num<fd->f_data->nlinks)
+		if (fd->f_data&&gi->goti.link_num>=0&&gi->goti.link_num<fd->f_data->nlinks)
 		{
-			struct link *l=&fd->f_data->links[gi->link_num];
+			struct link *l=&fd->f_data->links[gi->goti.link_num];
 
 			if (l->img_alt)mem_free(l->img_alt);
 			l->img_alt=stracpy(alt);
@@ -3849,6 +3835,7 @@ long * js_upcall_get_subframes(void *chuligane, long frame_id, int *count)
 	struct f_data_c *js_ctx=(struct f_data_c*)chuligane;
 	struct f_data_c *fd;
 	struct f_data_c *f;
+	struct list_head *lf;
 	int a;
 	long *pole;
 	*count=0;
@@ -3858,15 +3845,15 @@ long * js_upcall_get_subframes(void *chuligane, long frame_id, int *count)
 	fd=jsint_find_document(frame_id);
 	if (!fd||!jsint_can_access(js_ctx,fd))return NULL;
 
-	foreach(f,fd->subframes)
-		if (jsint_can_access(fd,f))(*count)++;
+	foreach(struct f_data_c, f, lf, fd->subframes)
+		if (jsint_can_access(fd,f)) (*count)++;
 
 	if (!*count)return NULL;
 	if ((unsigned)*count > MAXINT / sizeof(long)) overalloc();
 	pole=mem_alloc((*count)*sizeof(long));
 
 	a=0;
-	foreach(f,fd->subframes)
+	foreach(struct f_data_c, f, lf, fd->subframes)
 		if (jsint_can_access(fd,f))
 			{pole[a]=js_upcall_get_frame_id(f);a++;}
 	return pole;

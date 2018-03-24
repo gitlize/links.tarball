@@ -110,13 +110,6 @@ char *tempnam(const char *dir, const char *pfx)
 	return cast_char a;
 }
 #endif
-#ifndef HAVE_SIGFILLSET
-int sigfillset(sigset_t *set)
-{
-	memset(set, -1, sizeof(sigset_t));
-	return 0;
-}
-#endif
 #ifndef HAVE_STRDUP
 char *strdup(const char *s)
 {

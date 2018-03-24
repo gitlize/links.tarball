@@ -117,11 +117,11 @@ struct alloc_header {
 };
 #else
 struct alloc_header {
-	struct alloc_header *next;
-	struct alloc_header *prev;
+	list_entry_1st
 	size_t size;
 	unsigned char *file;
 	unsigned char *comment;
+	list_entry_last
 	int line;
 	int magic;
 };
@@ -161,7 +161,8 @@ void check_memory_leaks(void)
 		{
 			int r = 0;
 			struct alloc_header *ah;
-			foreach (ah, memory_list) {
+			struct list_head *lah;
+			foreach(struct alloc_header, ah, lah, memory_list) {
 				fprintf(stderr, "%s%p:%lu @ %s:%d", r ? ", ": "", (unsigned char *)ah + L_D_S, (unsigned long)ah->size, ah->file, ah->line), r = 1;
 				if (ah->comment) fprintf(stderr, ":\"%s\"", ah->comment);
 			}
@@ -222,8 +223,7 @@ void int_error(char *m, ...)
 	va_list l;
 	fatal_tty_exit();
 	va_start(l, m);
-	sprintf(cast_char errbuf, "\n"ANSI_SET_BOLD"INTERNAL ERROR"ANSI_CLEAR_BOLD" at %s:%d: ", errfile, errline);
-	strcat(cast_char errbuf, cast_const_char m);
+	sprintf(cast_char errbuf, "\n"ANSI_SET_BOLD"INTERNAL ERROR"ANSI_CLEAR_BOLD" at %s:%d: %s", errfile, errline, m);
 	er(1, cast_char errbuf, l);
 	va_end(l);
 	force_dump();
@@ -235,8 +235,7 @@ void debug_msg(char *m, ...)
 {
 	va_list l;
 	va_start(l, m);
-	sprintf(cast_char errbuf, "\nDEBUG MESSAGE at %s:%d: ", errfile, errline);
-	strcat(cast_char errbuf, cast_const_char m);
+	sprintf(cast_char errbuf, "\nDEBUG MESSAGE at %s:%d: %s", errfile, errline, m);
 	er(0, cast_char errbuf, l);
 	va_end(l);
 }
@@ -441,8 +440,7 @@ void *debug_mem_realloc(unsigned char *file, int line, void *p, size_t size, int
 	ah->size = size;
 	ah->magic = ALLOC_MAGIC;
 #ifdef LEAK_DEBUG_LIST
-	ah->prev->next = ah;
-	ah->next->prev = ah;
+	fix_list_after_realloc(ah);
 #endif
 #endif
 	return (unsigned char *)p + L_D_S;
@@ -588,12 +586,12 @@ unsigned char *debug_stracpy(unsigned char *f, int l, const unsigned char *src)
 #ifdef OOPS
 
 struct prot {
-	struct prot *next;
-	struct prot *prev;
+	list_entry_1st
 	sigjmp_buf buf;
+	list_entry_last
 };
 
-static struct list_head prot = {&prot, &prot };
+static struct list_head prot = { &prot, &prot };
 
 static void fault(void *dummy)
 {
@@ -603,7 +601,7 @@ static void fault(void *dummy)
 		fatal_tty_exit();
 		exit(0);
 	}
-	p = prot.next;
+	p = list_struct(prot.next, struct prot);
 	del_from_list(p);
 	longjmp(p->buf, 1);
 }
@@ -638,7 +636,7 @@ sigjmp_buf *new_stack_frame(void)
 void xpr(void)
 {
 	if (!list_empty(prot)) {
-		struct prot *next = prot.next;
+		struct prot *next = list_struct(prot.next, struct prot);
 		del_from_list(next);
 		mem_free(next);
 	}
@@ -646,7 +644,7 @@ void xpr(void)
 
 void nopr(void)
 {
-	free_list(prot);
+	free_list(struct prot, prot);
 }
 
 #endif

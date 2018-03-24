@@ -55,7 +55,7 @@ static void finger_get_response(struct connection *c, struct read_buffer *rb)
 	int a;
 	set_connection_timeout(c);
 	if (!c->cache) {
-		if (get_cache_entry(c->url, &c->cache)) {
+		if (get_connection_cache_entry(c)) {
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c);
 			return;

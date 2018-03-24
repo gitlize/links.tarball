@@ -66,6 +66,9 @@
 /* Define if you have the ASN1_STRING_get0_data function.  */
 /* #undef HAVE_ASN1_STRING_GET0_DATA */
 
+/* Define if you have the ASN1_STRING_to_UTF8 function.  */
+/* #undef HAVE_ASN1_STRING_TO_UTF8 */
+
 /* Define if you have the DirectFBInit function.  */
 /* #undef HAVE_DIRECTFBINIT */
 
@@ -74,6 +77,9 @@
 
 /* Define if you have the MouOpen function.  */
 /* #undef HAVE_MOUOPEN */
+
+/* Define if you have the OPENSSL_cleanup function.  */
+/* #undef HAVE_OPENSSL_CLEANUP */
 
 /* Define if you have the OPENSSL_init_ssl function.  */
 /* #undef HAVE_OPENSSL_INIT_SSL */
@@ -93,29 +99,20 @@
 /* Define if you have the RAND_write_file function.  */
 /* #undef HAVE_RAND_WRITE_FILE */
 
-/* Define if you have the SSL_get_ssl_method function.  */
-/* #undef HAVE_SSL_GET_SSL_METHOD */
+/* Define if you have the SSL_SESSION_is_resumable function.  */
+/* #undef HAVE_SSL_SESSION_IS_RESUMABLE */
+
+/* Define if you have the SSL_get1_session function.  */
+/* #undef HAVE_SSL_GET1_SESSION */
 
 /* Define if you have the SSL_load_error_strings function.  */
 /* #undef HAVE_SSL_LOAD_ERROR_STRINGS */
 
-/* Define if you have the SSLv2_client_method function.  */
-/* #undef HAVE_SSLV2_CLIENT_METHOD */
+/* Define if you have the X509_check_host function.  */
+/* #undef HAVE_X509_CHECK_HOST */
 
-/* Define if you have the SSLv3_client_method function.  */
-/* #undef HAVE_SSLV3_CLIENT_METHOD */
-
-/* Define if you have the TLSv1_1_client_method function.  */
-/* #undef HAVE_TLSV1_1_CLIENT_METHOD */
-
-/* Define if you have the TLSv1_2_client_method function.  */
-/* #undef HAVE_TLSV1_2_CLIENT_METHOD */
-
-/* Define if you have the TLSv1_client_method function.  */
-/* #undef HAVE_TLSV1_CLIENT_METHOD */
-
-/* Define if you have the X509_get_ext_d2i function.  */
-#define HAVE_X509_GET_EXT_D2I 1
+/* Define if you have the X509_check_ip function.  */
+/* #undef HAVE_X509_CHECK_IP */
 
 /* Define if you have the XCloseIM function.  */
 /* #undef HAVE_XCLOSEIM */
@@ -191,9 +188,6 @@
 
 /* Define if you have the cygwin_conv_to_full_win32_path function.  */
 /* #undef HAVE_CYGWIN_CONV_TO_FULL_WIN32_PATH */
-
-/* Define if you have the dhcp_option function.  */
-/* #undef HAVE_DHCP_OPTION */
 
 /* Define if you have the dirfd function.  */
 /* #undef HAVE_DIRFD */
@@ -293,9 +287,6 @@
 
 /* Define if you have the memset function.  */
 #define HAVE_MEMSET 1
-
-/* Define if you have the mkdir function.  */
-#define HAVE_MKDIR 1
 
 /* Define if you have the mktime function.  */
 #define HAVE_MKTIME 1
@@ -504,6 +495,9 @@
 /* Define if you have the <atheos/threads.h> header file.  */
 /* #undef HAVE_ATHEOS_THREADS_H */
 
+/* Define if you have the <brotli/decode.h> header file.  */
+/* #undef HAVE_BROTLI_DECODE_H */
+
 /* Define if you have the <bzlib.h> header file.  */
 /* #undef HAVE_BZLIB_H */
 
@@ -600,6 +594,9 @@
 /* Define if you have the <locale.h> header file.  */
 #define HAVE_LOCALE_H 1
 
+/* Define if you have the <lzlib.h> header file.  */
+/* #undef HAVE_LZLIB_H */
+
 /* Define if you have the <lzma.h> header file.  */
 /* #undef HAVE_LZMA_H */
 
@@ -614,9 +611,6 @@
 
 /* Define if you have the <net/socket.h> header file.  */
 #define HAVE_NET_SOCKET_H 1
-
-/* Define if you have the <netinet/dhcp.h> header file.  */
-/* #undef HAVE_NETINET_DHCP_H */
 
 /* Define if you have the <netinet/in_system.h> header file.  */
 /* #undef HAVE_NETINET_IN_SYSTEM_H */
@@ -744,6 +738,9 @@
 /* Define if you have the atheos library (-latheos).  */
 /* #undef HAVE_LIBATHEOS */
 
+/* Define if you have the brotlidec library (-lbrotlidec).  */
+/* #undef HAVE_LIBBROTLIDEC */
+
 /* Define if you have the bz2 library (-lbz2).  */
 /* #undef HAVE_LIBBZ2 */
 
@@ -770,6 +767,9 @@
 
 /* Define if you have the jpeg library (-ljpeg).  */
 /* #undef HAVE_LIBJPEG */
+
+/* Define if you have the lz library (-llz).  */
+/* #undef HAVE_LIBLZ */
 
 /* Define if you have the lzma library (-llzma).  */
 /* #undef HAVE_LIBLZMA */
@@ -826,17 +826,14 @@
 #define PACKAGE "links"
 
 /* Version number of package */
-#define VERSION "2.14"
+#define VERSION "2.15"
 
 
 /* */
-#define VERSION "2.14"
+#define VERSION "2.15"
 
 /* */
 /* #undef HAVE_OPENMP */
-
-/* */
-/* #undef HAVE_TYPEOF */
 
 /* */
 #define HAVE_LONG_LONG 1
@@ -932,6 +929,9 @@
 /* #undef HAVE___BUILTIN_ADD_OVERFLOW */
 
 /* */
+/* #undef HAVE___BUILTIN_CLZ */
+
+/* */
 #define DEBUGLEVEL 0
 
 /* */
@@ -992,13 +992,25 @@
 /* #undef HAVE_NSS */
 
 /* */
+#undef HAVE_CRYPTO_SET_MEM_FUNCTIONS_1
+
+/* */
+#undef HAVE_CRYPTO_SET_MEM_FUNCTIONS_2
+
+/* */
 /* #undef HAVE_ZLIB */
+
+/* */
+/* #undef HAVE_BROTLI */
 
 /* */
 /* #undef HAVE_BZIP2 */
 
 /* */
 /* #undef HAVE_LZMA */
+
+/* */
+/* #undef HAVE_LZIP */
 
 /* */
 /* #undef G */
@@ -1026,9 +1038,6 @@
 
 /* */
 /* #undef GRDRV_GRX */
-
-/* */
-/* #undef DONT_INCLUDE_SETJMP */
 
 /* Jpeg by Clock */
 /* #undef HAVE_JPEG */

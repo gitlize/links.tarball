@@ -107,6 +107,13 @@ int get_default_language(void)
 	return default_language;
 }
 
+int get_current_language(void)
+{
+	if (current_language >= 0)
+		return current_language;
+	return get_default_language();
+}
+
 int get_default_charset(void)
 {
 	static int default_charset = -1;
@@ -119,7 +126,9 @@ int get_default_charset(void)
 	if (i >= 0)
 		goto ret_i;
 
-	lang = cast_uchar getenv("LANG");
+	lang = cast_uchar getenv("LC_CTYPE");
+	if (!lang)
+		lang = cast_uchar getenv("LANG");
 	if (!lang) {
 		i = 0;
 		goto ret_i;
@@ -130,7 +139,9 @@ int get_default_charset(void)
 		if (strlen(cast_const_char lang) > 5 && !casestrcmp(cast_uchar (strchr(cast_const_char lang, 0) - 5), cast_uchar "@euro")) {
 			p = cast_uchar "ISO-8859-15";
 		} else {
-			int def_lang = get_default_language();
+			int def_lang = get_language_from_lang(lang);
+			if (def_lang < 0)
+				def_lang = get_default_language();
 			p = cast_uchar translations[def_lang].t[T__DEFAULT_CHAR_SET].name;
 			if (!p)
 				p = cast_uchar "";
@@ -142,15 +153,17 @@ int get_default_charset(void)
 		i = 0;
 
 	ret_i:
+#ifndef ENABLE_UTF8
+	if (!F && i == utf8_table)
+		i = 0;
+#endif
 	default_charset = i;
 	return i;
 }
 
-int get_current_language(void)
+int get_commandline_charset(void)
 {
-	if (current_language >= 0)
-		return current_language;
-	return get_default_language();
+	return dump_codepage == -1 ? get_default_charset() : dump_codepage;
 }
 
 static inline int is_direct_text(unsigned char *text)

@@ -23,10 +23,8 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 		{
 #ifdef t2c
 			t2c v=*(t2c *)do_not_optimize_here(pattern);
-#ifdef __ICC
-			volatile	/* ICC has an optimization bug here */
-#endif
-			int a;
+			/* ICC has an optimization bug here */
+			icc_volatile int a;
 
 			if ((v & 255) == ((v >> 8) & 255)) {
 				memset(dest, v, n);
@@ -101,10 +99,8 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 		} else {
 #ifdef t4c
 			t4c v=*(t4c *)do_not_optimize_here(pattern);
-#ifdef __ICC
-			volatile	/* ICC has an optimization bug here */
-#endif
-			int a;
+			/* ICC has an optimization bug here */
+			icc_volatile int a;
 
 			{
 #ifdef t8c
@@ -146,12 +142,14 @@ static inline void pixel_set(unsigned char *dest, int n,void * pattern)
 		}
 		break;
 
+#if 0
 		default:
 		{
 			int a;
 			for (a=0;a<n/fb_pixelsize;a++,dest+=fb_pixelsize) memcpy(dest,pattern,fb_pixelsize);
 		}
 		break;
+#endif
 	}
 }
 

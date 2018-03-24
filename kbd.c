@@ -33,8 +33,8 @@ struct itrm {
 };
 
 static void free_trm(struct itrm *);
-static void in_kbd(struct itrm *);
-static void in_sock(struct itrm *);
+static void in_kbd(void *);
+static void in_sock(void *);
 
 static struct itrm *ditrm = NULL;
 
@@ -44,7 +44,8 @@ int is_blocked(void)
 #ifdef G
 	if (F) {
 		struct terminal *term;
-		foreach(term, terminals)
+		struct list_head *lterm;
+		foreach(struct terminal, term, lterm, terminals)
 			if (term->blocked != -1)
 				return 1;
 		return 0;
@@ -58,31 +59,30 @@ void free_all_itrms(void)
 	if (ditrm) ditrm->free_trm(ditrm);
 }
 
-static void itrm_error(struct itrm *itrm)
+static void itrm_error(void *itrm_)
 {
+	struct itrm *itrm = (struct itrm *)itrm_;
 	itrm->free_trm(itrm);
 	terminate_loop = 1;
 }
 
-static void write_ev_queue(struct itrm *itrm)
+static void write_ev_queue(void *itrm_)
 {
-	int l;
+	struct itrm *itrm = (struct itrm *)itrm_;
+	int l, to_write;
 	if (!itrm->eqlen) internal("event queue empty");
-	EINTRLOOP(l, (int)write(itrm->sock_out, itrm->ev_queue, itrm->eqlen > 128 ? 128 : itrm->eqlen));
-	if (l == -1) {
+	to_write = itrm->eqlen > 128 ? 128 : itrm->eqlen;
+retry:
+	EINTRLOOP(l, (int)write(itrm->sock_out, itrm->ev_queue, to_write));
+	if (l <= 0) {
+		if (to_write > 1) {
+			to_write >>= 2;
+			goto retry;
+		}
 		itrm_error(itrm);
-		return;
 	}
 	memmove(itrm->ev_queue, itrm->ev_queue + l, itrm->eqlen -= l);
-	if (!itrm->eqlen) set_handlers(itrm->sock_out, (void (*)(void *))get_handler(itrm->sock_out, H_READ), NULL, get_handler(itrm->sock_out, H_DATA));
-}
-
-static void queue_event(struct itrm *itrm, unsigned char *data, int len);
-
-static void mouse_queue_event(struct itrm *itrm, unsigned char *data, int len)
-{
-	if (itrm->blocked) return;
-	queue_event(itrm, data, len);
+	if (!itrm->eqlen) set_handlers(itrm->sock_out, get_handler(itrm->sock_out, H_READ), NULL, get_handler_data(itrm->sock_out));
 }
 
 static void queue_event(struct itrm *itrm, unsigned char *data, int len)
@@ -90,9 +90,15 @@ static void queue_event(struct itrm *itrm, unsigned char *data, int len)
 	int w = 0;
 	if (!len) return;
 	if (!itrm->eqlen && can_write(itrm->sock_out)) {
-		EINTRLOOP(w, (int)write(itrm->sock_out, data, len));
+		int to_write = len;
+retry:
+		EINTRLOOP(w, (int)write(itrm->sock_out, data, to_write));
 		if (w <= 0) {
-			register_bottom_half((void (*)(void *))itrm_error, itrm);
+			if (to_write > 1) {
+				to_write >>= 1;
+				goto retry;
+			}
+			register_bottom_half(itrm_error, itrm);
 			return;
 		}
 	}
@@ -101,8 +107,15 @@ static void queue_event(struct itrm *itrm, unsigned char *data, int len)
 		itrm->ev_queue = mem_realloc(itrm->ev_queue, itrm->eqlen + len - w);
 		memcpy(itrm->ev_queue + itrm->eqlen, data + w, len - w);
 		itrm->eqlen += len - w;
-		set_handlers(itrm->sock_out, (void (*)(void *))get_handler(itrm->sock_out, H_READ), (void (*)(void *))write_ev_queue, itrm);
+		set_handlers(itrm->sock_out, get_handler(itrm->sock_out, H_READ), write_ev_queue, itrm);
 	}
+}
+
+static void mouse_queue_event(void *itrm_, unsigned char *data, int len)
+{
+	struct itrm *itrm = (struct itrm *)itrm_;
+	if (itrm->blocked) return;
+	queue_event(itrm, data, len);
 }
 
 void kbd_ctrl_c(void)
@@ -183,7 +196,7 @@ static void os_cfmakeraw(struct termios *t)
 	fprintf(stderr, "%08x %08x %08x\n", t->c_iflag, t->c_oflag, t->c_lflag);
 	{
 		int i;
-		for (i = 0; i < sizeof(t->c_cc) / sizeof(*t->c_cc); i++) {
+		for (i = 0; i < array_elements(t->c_cc); i++) {
 			fprintf(stderr, "%d - %d\n", i, t->c_cc[i]);
 		}
 	}
@@ -363,8 +376,8 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	itrm->ev_queue = DUMMY;
 	itrm->eqlen = 0;
 	setraw(itrm->ctl_in, 1);
-	set_handlers(std_in, (void (*)(void *))in_kbd, NULL, itrm);
-	if (sock_in != std_out) set_handlers(sock_in, (void (*)(void *))in_sock, NULL, itrm);
+	set_handlers(std_in, in_kbd, NULL, itrm);
+	if (sock_in != std_out) set_handlers(sock_in, in_sock, NULL, itrm);
 	ev.x = x;
 	ev.y = y;
 	handle_terminal_resize(ctl_in, resize_terminal);
@@ -401,7 +414,7 @@ void handle_trm(int std_in, int std_out, int sock_in, int sock_out, int ctl_in, 
 	itrm->orig_title = get_window_title();
 	set_window_title(cast_uchar "Links");
 	send_init_sequence(std_out, itrm->flags);
-	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))mouse_queue_event, itrm);
+	itrm->mouse_h = handle_mouse(0, mouse_queue_event, itrm);
 }
 
 static void unblock_itrm_x(void *h)
@@ -420,10 +433,10 @@ int unblock_itrm(int fd)
 	if (itrm->blocked != fd + 1) return -2;
 	itrm->blocked = 0;
 	send_init_sequence(itrm->std_out, itrm->flags);
-	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, itrm);
+	set_handlers(itrm->std_in, in_kbd, NULL, itrm);
 	handle_terminal_resize(itrm->ctl_in, resize_terminal);
 	unblock_stdin();
-	itrm->mouse_h = handle_mouse(0, (void (*)(void *, unsigned char *, int))mouse_queue_event, itrm);
+	itrm->mouse_h = handle_mouse(0, mouse_queue_event, itrm);
 	resize_terminal();
 	return 0;
 }
@@ -456,6 +469,7 @@ static void free_trm(struct itrm *itrm)
 	set_handlers(itrm->sock_in, NULL, NULL, NULL);
 	set_handlers(itrm->std_out, NULL, NULL, NULL);
 	set_handlers(itrm->sock_out, NULL, NULL, NULL);
+	unregister_bottom_half(itrm_error, itrm);
 	if (itrm->tm != NULL) kill_timer(itrm->tm);
 	mem_free(itrm->ev_queue);
 	mem_free(itrm);
@@ -512,8 +526,9 @@ do {								\
 	xx = cc;						\
 } while (0)
 
-static void in_sock(struct itrm *itrm)
+static void in_sock(void *itrm_)
 {
+	struct itrm *itrm = (struct itrm *)itrm_;
 	unsigned char buf[OUT_BUF_SIZE];
 
 	unsigned char *path, *delet;
@@ -577,14 +592,14 @@ static void in_sock(struct itrm *itrm)
 		strcpy(cast_char(param + 1), cast_const_char path);
 		strcpy(cast_char(param + 1 + strlen(cast_const_char path) + 1), cast_const_char delet);
 		if (fg == 1) block_itrm(0);
-		if ((blockh = start_thread((void (*)(void *, int))exec_thread, param, (int)strlen(cast_const_char path) + (int)strlen(cast_const_char delet) + 3, *delet != 0)) == -1) {
+		if ((blockh = start_thread(exec_thread, param, (int)strlen(cast_const_char path) + (int)strlen(cast_const_char delet) + 3, *delet != 0)) == -1) {
 			if (fg == 1) unblock_itrm(0);
 			mem_free(param);
 			goto to_je_ale_hnus;
 		}
 		mem_free(param);
 		if (fg == 1) {
-			set_handlers(blockh, (void (*)(void *))unblock_itrm_x, NULL, (void *)(my_intptr_t)blockh);
+			set_handlers(blockh, unblock_itrm_x, NULL, (void *)(my_intptr_t)blockh);
 		} else {
 			set_handlers(blockh, close_handle, NULL, (void *)(my_intptr_t)blockh);
 		}
@@ -603,8 +618,9 @@ static void in_sock(struct itrm *itrm)
 static int process_queue(struct itrm *);
 static int get_esc_code(unsigned char *, int, unsigned char *, int *, int *);
 
-static void kbd_timeout(struct itrm *itrm)
+static void kbd_timeout(void *itrm_)
 {
+	struct itrm *itrm = (struct itrm *)itrm_;
 	struct links_event ev = { EV_KBD, KBD_ESC, 0, 0 };
 	unsigned char code;
 	int num;
@@ -1003,6 +1019,7 @@ static int process_queue(struct itrm *itrm)
 						ev.x = KBD_END;
 						break;
 					}
+					/*-fallthrough*/
 				case 'G': ev.x = KBD_PAGE_DOWN; break;
 				case 'P':
 					if (is_ibm()) {
@@ -1255,15 +1272,16 @@ do_alt:
 	}
 	memmove(itrm->kqueue, itrm->kqueue + el, itrm->qlen -= el);
 	end:
-	if (itrm->qlen < IN_BUF_SIZE && !itrm->blocked) set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, itrm);
+	if (itrm->qlen < IN_BUF_SIZE && !itrm->blocked) set_handlers(itrm->std_in, in_kbd, NULL, itrm);
 	return el;
 	ret:
-	itrm->tm = install_timer(ESC_TIMEOUT, (void (*)(void *))kbd_timeout, itrm);
+	itrm->tm = install_timer(ESC_TIMEOUT, kbd_timeout, itrm);
 	return 0;
 }
 
-static void in_kbd(struct itrm *itrm)
+static void in_kbd(void *itrm_)
 {
+	struct itrm *itrm = (struct itrm *)itrm_;
 	int r;
 	if (!can_read(itrm->std_in)) return;
 	if (itrm->tm != NULL) kill_timer(itrm->tm), itrm->tm = NULL;
@@ -1293,7 +1311,7 @@ static void in_kbd(struct itrm *itrm)
 		;
 }
 
-#if defined(GRDRV_SVGALIB) || defined(GRDRV_FB) || defined(GRDRV_GRX)
+#ifdef GRDRV_VIRTUAL_DEVICES
 
 int kbd_set_raw;
 
@@ -1303,23 +1321,24 @@ void svgalib_free_trm(struct itrm *itrm)
 	if (!itrm) return;
 	if (kbd_set_raw) setcooked(itrm->ctl_in);
 	set_handlers(itrm->std_in, NULL, NULL, NULL);
+	unregister_bottom_half(itrm_error, itrm);
 	if (itrm->tm != NULL) kill_timer(itrm->tm);
 	mem_free(itrm);
 	if (itrm == ditrm) ditrm = NULL;
 }
 
-struct itrm *handle_svgalib_keyboard(void (*queue_event)(void *, unsigned char *, int))
+struct itrm *handle_svgalib_keyboard(void (*queue_event)(struct itrm *, unsigned char *, int))
 {
 	struct itrm *itrm;
 	itrm = mem_calloc(sizeof(struct itrm));
 	ditrm = itrm;
-	itrm->queue_event = (void (*)(struct itrm *, unsigned char *, int))queue_event;
+	itrm->queue_event = queue_event;
 	itrm->free_trm = svgalib_free_trm;
 	itrm->std_in = 0;
 	itrm->ctl_in = 0;
 	itrm->tm = NULL;
 	if (kbd_set_raw) setraw(itrm->ctl_in, 1);
-	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, itrm);
+	set_handlers(itrm->std_in, in_kbd, NULL, itrm);
 	/*debug("svgalib_handle: %p", itrm);*/
 	return itrm;
 }
@@ -1330,7 +1349,7 @@ int svgalib_unblock_itrm(struct itrm *itrm)
 	if (!itrm) return -1;
 	if (kbd_set_raw) if (setraw(itrm->ctl_in, 0)) return -1;
 	itrm->blocked = 0;
-	set_handlers(itrm->std_in, (void (*)(void *))in_kbd, NULL, itrm);
+	set_handlers(itrm->std_in, in_kbd, NULL, itrm);
 	unblock_stdin();
 	return 0;
 }

@@ -284,16 +284,6 @@ int dos_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t, int
 #define PRINTF_FORMAT(a, b)
 #endif
 
-#if defined(__GNUC__)
-#if __GNUC__ >= 2
-#define ATTR_PACKED		__attribute__((packed))
-#define HAVE_ATTR_PACKED
-#endif
-#endif
-#ifndef ATTR_PACKED
-#define ATTR_PACKED
-#endif
-
 #if defined(__clang_analyzer__)
 #define ATTR_NORETURN		__attribute__((analyzer_noreturn))
 #elif defined(__GNUC__) && defined(__GNUC_MINOR__)
@@ -303,6 +293,15 @@ int dos_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t, int
 #endif
 #ifndef ATTR_NORETURN
 #define ATTR_NORETURN
+#endif
+
+#if defined(__GNUC__) && defined(__GNUC_MINOR__)
+#if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1)
+#define ATTR_NOINLINE		__attribute__((__noinline__))
+#endif
+#endif
+#ifndef ATTR_NOINLINE
+#define ATTR_NOINLINE
 #endif
 
 #if defined(HAVE_GETADDRINFO) && defined(HAVE_FREEADDRINFO) && !defined(ATHEOS)
@@ -315,6 +314,9 @@ int dos_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t, int
 #endif
 #endif
 
+#if !defined(INET_ADDRSTRLEN)
+#define INET_ADDRSTRLEN		16
+#endif
 #if !defined(INET6_ADDRSTRLEN)
 #define INET6_ADDRSTRLEN	46
 #endif
@@ -331,9 +333,30 @@ int dos_select(int n, fd_set *rs, fd_set *ws, fd_set *es, struct timeval *t, int
 
 #if defined(__DECC_VER) && !defined(OPENVMS)
 #define static_const	static
+#define decc_volatile	volatile
 #else
 #define static_const	static const
+#define decc_volatile
 #endif
+
+#ifdef __HIGHC__
+#define highc_volatile	volatile
+#else
+#define highc_volatile
+#endif
+
+#ifdef __ICC
+#define icc_volatile	volatile
+#else
+#define icc_volatile
+#endif
+
+#ifdef __SUNPRO_C
+#define sun_volatile	volatile
+#else
+#define sun_volatile
+#endif
+
 typedef const char *const_char_ptr;
 
 #if defined(BEOS) || (defined(HAVE_BEGINTHREAD) && defined(OS2)) || defined(HAVE_PTHREADS) || (defined(HAVE_ATHEOS_THREADS_H) && defined(HAVE_SPAWN_THREAD) && defined(HAVE_RESUME_THREAD))

@@ -36,8 +36,7 @@ void g_draw_background(struct graphics_device *dev, struct background *bg, int x
 		if (dev->clip.y2 > halfy) g_draw_background(dev, bg, x, halfy, xw, y + yw - halfy);
 		return;
 	}
-	drv->fill_area(dev, x, y, x + xw, y + yw
-		       , dip_get_color_sRGB(bg->u.sRGB));
+	drv->fill_area(dev, x, y, x + xw, y + yw , dip_get_color_sRGB(bg->u.sRGB));
 }
 
 void g_release_background(struct background *bg)
@@ -49,8 +48,9 @@ void g_dummy_draw(struct f_data_c *fd, struct g_object *t, int x, int y)
 {
 }
 
-void g_tag_destruct(struct g_object *t)
+void g_tag_destruct(struct g_object *t_)
 {
+	struct g_object_tag *t = get_struct(t_, struct g_object_tag,  go);
 	mem_free(t);
 }
 
@@ -69,11 +69,11 @@ static int g_find_text_pos(struct g_object_text *t, int x)
 	unsigned char *text=t->text;
 	int ox, oy;
 
-	get_object_pos((struct g_object *)t, &ox, &oy);
+	get_object_pos(&t->goti.go, &ox, &oy);
 	x -= ox;
 
 	if (x < 0) x = 0;
-	if (x > t->xw) x = t->xw;
+	if (x > t->goti.go.xw) x = t->goti.go.xw;
 
 	while (1) {
 		unsigned c;
@@ -83,7 +83,7 @@ static int g_find_text_pos(struct g_object_text *t, int x)
 		old_text = text;
 		if (!*text) break;
 		GET_UTF_8(text, c);
-		w=g_char_width(t->style, c);
+		w = g_char_width(t->style, c);
 		if (x < (p + (w >> 1))) break;
 		p += w;
 		i += (int)(text - old_text);
@@ -95,8 +95,8 @@ static int g_find_text_pos(struct g_object_text *t, int x)
 static int g_text_no_search(struct f_data *f, struct g_object_text *t)
 {
 	struct link *l;
-	if (t->link_num < 0) return 0;
-	l = f->links + t->link_num;
+	if (t->goti.link_num < 0) return 0;
+	l = f->links + t->goti.link_num;
 	if (l->type == L_SELECT || l->type == L_FIELD || l->type == L_AREA) return 1;
 	return 0;
 }
@@ -114,8 +114,9 @@ static int prepare_input_field_char(unsigned char *p, unsigned char tx[7])
 	return (int)(p - pp);
 }
 
-void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
+void g_text_draw(struct f_data_c *fd, struct g_object *t_, int x, int y)
 {
+	struct g_object_text *t = get_struct(t_, struct g_object_text, goti.go);
 	struct form_control *form;
 	struct form_state *fs;
 	struct link *link;
@@ -127,19 +128,20 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 	struct line_info *ln, *lnx;
 	struct graphics_device *dev = fd->ses->term->dev;
 
-	if (x + t->xw <= fd->ses->term->dev->clip.x1)
+	if (x + t->goti.go.xw <= fd->ses->term->dev->clip.x1)
 		return;
 	if (x >= fd->ses->term->dev->clip.x2)
 		return;
 	if (!print_all_textarea) {
-		if (y + t->yw <= fd->ses->term->dev->clip.y1)
+		if (y + t->goti.go.yw <= fd->ses->term->dev->clip.y1)
 			return;
 		if (y >= fd->ses->term->dev->clip.y2)
 			return;
 	}
 
-	link = t->link_num >= 0 ? fd->f_data->links + t->link_num : NULL;
-	if (link && ((form = link->form)) && ((fs = find_form_state(fd, form)))) {
+	link = t->goti.link_num >= 0 ? fd->f_data->links + t->goti.link_num : NULL;
+	if (link && ((form = link->form))) {
+		fs = find_form_state(fd, form);
 		switch (form->type) {
 			struct style *inv;
 			int in;
@@ -161,7 +163,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				fixup_select_state(form, fs);
 				l = 0;
 				if (fs->state < form->nvalues) g_print_text(dev, x, y, inv, form->labels[fs->state], &l);
-				while (l < t->xw) g_print_text(dev, x + l, y, inv, cast_uchar "_", &l);
+				while (l < t->goti.go.xw) g_print_text(dev, x + l, y, inv, cast_uchar "_", &l);
 				if (in) g_free_style(inv);
 				return;
 			case FC_TEXT:
@@ -185,11 +187,11 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				l = 0;
 				i = 0;
 				ll = (int)strlen(cast_const_char fs->value);
-				while (l < t->xw) {
+				while (l < t->goti.go.xw) {
 					struct style *st = t->style;
 					int sm = 0;
 					unsigned char tx[7];
-					if (fs->state == fs->vpos + i && t->link_num == fd->vs->current_link && fd->ses->locked_link) {
+					if (fs->state == fs->vpos + i && t->goti.link_num == fd->vs->current_link && fd->ses->locked_link) {
 						st = g_invert_style(t->style);
 						sm = 1;
 					}
@@ -207,7 +209,7 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 				cur = area_cursor(fd, form, fs);
 				lnx = format_text(fs->value, form->cols, form->wrap, fd->f_data->opt.cp);
 				ln = lnx;
-				yy = y - t->link_order * t->style->height;
+				yy = y - t->goti.link_order * t->style->height;
 				for (j = 0; j < fs->vypos; j++) if (ln->st) ln++;
 				for (j = 0; j < form->rows; j++) {
 					unsigned char *pp = ln->st;
@@ -216,11 +218,11 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 						FWD_UTF_8(pp);
 						xx--;
 					}
-					if (cur >= 0 && cur < form->cols && t->link_num == fd->vs->current_link && fd->ses->locked_link && fd->active) {
+					if (cur >= 0 && cur < form->cols && t->goti.link_num == fd->vs->current_link && fd->ses->locked_link && fd->active) {
 						unsigned char tx[7];
 						int xx = x;
 
-						if (print_all_textarea || j == t->link_order) while (xx < x + t->xw) {
+						if (print_all_textarea || j == t->goti.link_order) while (xx < x + t->goti.go.xw) {
 							struct style *st = t->style;
 							if (ln->st && pp < ln->en) {
 								pp += prepare_input_field_char(pp, tx);
@@ -238,14 +240,14 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 							cur--;
 						} else cur -= form->cols;
 					} else {
-						if (print_all_textarea || j == t->link_order) {
+						if (print_all_textarea || j == t->goti.link_order) {
 							int aa;
 							unsigned char *a;
 							struct rect old;
 							if (ln->st && pp < ln->en) a = memacpy(pp, ln->en - pp);
 							else a = stracpy(cast_uchar "");
 							for (aa = 0; aa < form->cols; aa += 4) add_to_strn(&a, cast_uchar "____");
-							restrict_clip_area(dev, &old, x, 0, x + t->xw, dev->size.y2);
+							restrict_clip_area(dev, &old, x, 0, x + t->goti.go.xw, dev->size.y2);
 							g_print_text(dev, x, yy + j * t->style->height, t->style, a, NULL);
 							drv->set_clip_area(dev, &old);
 							mem_free(a);
@@ -330,52 +332,57 @@ void g_text_draw(struct f_data_c *fd, struct g_object_text *t, int x, int y)
 	}
 }
 
-void g_text_destruct(struct g_object_text *t)
+void g_text_destruct(struct g_object *t_)
 {
-	release_image_map(t->map);
+	struct g_object_text *t = get_struct(t_, struct g_object_text, goti.go);
+	release_image_map(t->goti.map);
 	g_free_style(t->style);
 	mem_free(t);
 }
 
-void g_line_draw(struct f_data_c *fd, struct g_object_line *l, int xx, int yy)
+void g_line_draw(struct f_data_c *fd, struct g_object *l_, int xx, int yy)
 {
+	struct g_object_line *l = get_struct(l_, struct g_object_line, go);
 	struct graphics_device *dev = fd->ses->term->dev;
 	int i;
 	int x = 0;
 	for (i = 0; i < l->n_entries; i++) {
-		struct g_object *o = (struct g_object *)l->entries[i];
-		if (o->x > x) g_draw_background(dev, l->bg, xx + x, yy, o->x - x, l->yw);
+		struct g_object *o = l->entries[i];
+		if (o->x > x) g_draw_background(dev, l->bg, xx + x, yy, o->x - x, l->go.yw);
 		if (o->y > 0) g_draw_background(dev, l->bg, xx + o->x, yy, o->xw, o->y);
-		if (o->y + o->yw < l->yw) g_draw_background(dev, l->bg, xx + o->x, yy + o->y + o->yw, o->xw, l->yw - o->y - o->yw);
+		if (o->y + o->yw < l->go.yw) g_draw_background(dev, l->bg, xx + o->x, yy + o->y + o->yw, o->xw, l->go.yw - o->y - o->yw);
 		o->draw(fd, o, xx + o->x, yy + o->y);
 		x = o->x + o->xw;
 	}
-	if (x < l->xw) g_draw_background(dev, l->bg, xx + x, yy, l->xw - x, l->yw);
+	if (x < l->go.xw) g_draw_background(dev, l->bg, xx + x, yy, l->go.xw - x, l->go.yw);
 }
 
-void g_line_destruct(struct g_object_line *l)
+void g_line_destruct(struct g_object *l_)
 {
+	struct g_object_line *l = get_struct(l_, struct g_object_line, go);
 	int i;
 	for (i = 0; i < l->n_entries; i++) l->entries[i]->destruct(l->entries[i]);
 	mem_free(l);
 }
 
-void g_line_bg_destruct(struct g_object_line *l)
+void g_line_bg_destruct(struct g_object *l_)
 {
+	struct g_object_line *l = get_struct(l_, struct g_object_line, go);
 	g_release_background(l->bg);
-	g_line_destruct(l);
+	g_line_destruct(&l->go);
 }
 
-void g_line_get_list(struct g_object_line *l, void (*f)(struct g_object *parent, struct g_object *child))
+void g_line_get_list(struct g_object *l_, void (*f)(struct g_object *parent, struct g_object *child))
 {
+	struct g_object_line *l = get_struct(l_, struct g_object_line, go);
 	int i;
-	for (i = 0; i < l->n_entries; i++) f((struct g_object *)l, l->entries[i]);
+	for (i = 0; i < l->n_entries; i++) f(&l->go, l->entries[i]);
 }
 
-#define OBJ_EQ(n, b)	(*a[n]).y <= (b) && (*a[n]).y + (*a[n]).yw > (b)
-#define OBJ_ABOVE(n, b)	(*a[n]).y > (b)
+#define OBJ_EQ(n, b)	(*a[n]).go.y <= (b) && (*a[n]).go.y + (*a[n]).go.yw > (b)
+#define OBJ_ABOVE(n, b)	(*a[n]).go.y > (b)
 
-static inline struct g_object **g_find_line(struct g_object **a, int n, int p)
+static inline struct g_object_line **g_find_line(struct g_object_line **a, int n, int p)
 {
 	int res = -1;
 	BIN_SEARCH(n, OBJ_EQ, OBJ_ABOVE, p, res);
@@ -386,46 +393,51 @@ static inline struct g_object **g_find_line(struct g_object **a, int n, int p)
 #undef OBJ_EQ
 #undef OBJ_ABOVE
 
-void g_area_draw(struct f_data_c *fd, struct g_object_area *a, int xx, int yy)
+void g_area_draw(struct f_data_c *fd, struct g_object *a_, int xx, int yy)
 {
-	struct g_object **i;
+	struct g_object_area *a = get_struct(a_, struct g_object_area, go);
+	struct g_object_line **i;
 	int rx = root_x, ry = root_y;
 	int y1 = fd->ses->term->dev->clip.y1 - yy;
 	int y2 = fd->ses->term->dev->clip.y2 - yy - 1;
-	struct g_object **l1;
-	struct g_object **l2;
+	struct g_object_line **l1;
+	struct g_object_line **l2;
 	if (fd->ses->term->dev->clip.y1 == fd->ses->term->dev->clip.y2 || fd->ses->term->dev->clip.x1 == fd->ses->term->dev->clip.x2) return;
-	l1 = g_find_line((struct g_object **)(void *)&a->lines, a->n_lines, y1);
-	l2 = g_find_line((struct g_object **)(void *)&a->lines, a->n_lines, y2);
+	l1 = g_find_line(a->lines, a->n_lines, y1);
+	l2 = g_find_line(a->lines, a->n_lines, y2);
 	root_x = xx, root_y = yy;
 	if (!l1) {
-		if (y1 > a->yw) return;
-		else l1 = (struct g_object **)(void *)&a->lines[0];
+		if (y1 > a->go.yw) return;
+		else l1 = &a->lines[0];
 	}
 	if (!l2) {
 		if (y2 < 0) return;
-		else l2 = (struct g_object **)(void *)&a->lines[a->n_lines - 1];
+		else l2 = &a->lines[a->n_lines - 1];
 	}
 	for (i = l1; i <= l2; i++) {
-		struct g_object *o = *i;
+		struct g_object *o = &(*i)->go;
 		o->draw(fd, o, xx + o->x, yy + o->y);
 	}
-	/* !!! FIXME: floating objects */
 	root_x = rx, root_y = ry;
 }
 
-void g_area_destruct(struct g_object_area *a)
+void g_area_destruct(struct g_object *a_)
 {
+	struct g_object_area *a = get_struct(a_, struct g_object_area, go);
 	int i;
 	g_release_background(a->bg);
-	for (i = 0; i < a->n_lines; i++) a->lines[i]->destruct(a->lines[i]);
+	for (i = 0; i < a->n_lines; i++) {
+		struct g_object *o = &a->lines[i]->go;
+		o->destruct(o);
+	}
 	mem_free(a);
 }
 
-void g_area_get_list(struct g_object_area *a, void (*f)(struct g_object *parent, struct g_object *child))
+void g_area_get_list(struct g_object *a_, void (*f)(struct g_object *parent, struct g_object *child))
 {
+	struct g_object_area *a = get_struct(a_, struct g_object_area, go);
 	int i;
-	for (i = 0; i < a->n_lines; i++) f((struct g_object *)a, (struct g_object *)a->lines[i]);
+	for (i = 0; i < a->n_lines; i++) f(&a->go, &a->lines[i]->go);
 }
 
 /*
@@ -650,8 +662,9 @@ struct draw_data {
 	struct g_object *o;
 };
 
-static void draw_one_object_fn(struct terminal *t, struct draw_data *d)
+static void draw_one_object_fn(struct terminal *t, void *d_)
 {
+	struct draw_data *d = (struct draw_data *)d_;
 	struct rect clip;
 	struct f_data_c *scr = d->fd;
 	struct g_object *o = d->o;
@@ -678,7 +691,7 @@ void draw_one_object(struct f_data_c *scr, struct g_object *o)
 		highlight_lengths = scr->f_data->search_lengths;
 		n_highlight_positions = scr->f_data->n_search_positions;
 	}
-	draw_to_window(scr->ses->win, (void (*)(struct terminal *, void *))draw_one_object_fn, &d);
+	draw_to_window(scr->ses->win, draw_one_object_fn, &d);
 	highlight_positions = h1;
 	highlight_lengths = h2;
 	n_highlight_positions = h3;
@@ -698,30 +711,32 @@ int g_forward_mouse(struct f_data_c *fd, struct g_object *a, int x, int y, int b
 	return r;
 }
 
-void g_area_mouse(struct f_data_c *fd, struct g_object_area *a, int x, int y, int b)
+void g_area_mouse(struct f_data_c *fd, struct g_object *a_, int x, int y, int b)
 {
+	struct g_object_area *a = get_struct(a_, struct g_object_area, go);
 	int found, g;
-#define A_EQ(m, n)	((g = g_forward_mouse(fd, (struct g_object *)a->lines[m], x, y, b)), !g)
+#define A_EQ(m, n)	((g = g_forward_mouse(fd, &a->lines[m]->go, x, y, b)), !g)
 #define A_AB(m, n)	(g & 4)
 	BIN_SEARCH(a->n_lines, A_EQ, A_AB, *, found);
 	found = found + 1;	/* against warning */
 #undef A_EQ
 #undef A_AB
 	/*int i;
-	for (i = 0; i < a->n_lines; i++) if (!g_forward_mouse(fd, (struct g_object *)a->lines[i], x, y, b)) return;*/
+	for (i = 0; i < a->n_lines; i++) if (!g_forward_mouse(fd, &a->lines[i]->go, x, y, b)) return;*/
 }
 
-void g_line_mouse(struct f_data_c *fd, struct g_object_line *a, int x, int y, int b)
+void g_line_mouse(struct f_data_c *fd, struct g_object *a_, int x, int y, int b)
 {
+	struct g_object_line *a = get_struct(a_, struct g_object_line, go);
 	int found, g;
-#define A_EQ(m, n)	((g = g_forward_mouse(fd, (struct g_object *)a->entries[m], x, y, b)), !g)
+#define A_EQ(m, n)	((g = g_forward_mouse(fd, a->entries[m], x, y, b)), !g)
 #define A_AB(m, n)	(g & 1)
 	BIN_SEARCH(a->n_entries, A_EQ, A_AB, *, found);
 	found = found + 1;	/* against warning */
 #undef A_EQ
 #undef A_AB
 	/*int i;
-	for (i = 0; i < a->n_entries; i++) if (!g_forward_mouse(fd, (struct g_object *)a->entries[i], x, y, b)) return;*/
+	for (i = 0; i < a->n_entries; i++) if (!g_forward_mouse(fd, a->entries[i], x, y, b)) return;*/
 }
 
 static struct f_data *ffff;
@@ -731,14 +746,16 @@ static void get_parents_sub(struct g_object *p, struct g_object *c)
 	c->parent = p;
 	if (c->get_list) c->get_list(c, get_parents_sub);
 	if (c->destruct == g_tag_destruct) {
+		struct g_object_tag *tg = get_struct(c, struct g_object_tag, go);
 		int x = 0, y = 0;
 		struct g_object *o;
 		c->y -= c->parent->yw;
 		for (o = c; o; o = o->parent) x += o->x, y += o->y;
-		html_tag(ffff, ((struct g_object_tag *)c)->name, x, y);
+		html_tag(ffff, tg->name, x, y);
 	}
-	if (c->mouse_event == (void (*)(struct f_data_c *, struct g_object *, int, int, int))g_text_mouse) {
-		int l = ((struct g_object_text *)c)->link_num;
+	if (c->mouse_event == g_text_mouse) {
+		struct g_object_text_image *tc = get_struct(c, struct g_object_text_image, go);
+		int l = tc->link_num;
 		if (l >= 0) {
 			struct link *link = &ffff->links[l];
 			int x = 0, y = 0;
@@ -771,7 +788,7 @@ static void get_object_pos(struct g_object *o, int *x, int *y)
 }
 
 /* if set_position is 1 sets cursor position in FIELD/AREA elements */
-static void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int x, int y, int set_position)
+static void g_set_current_link(struct f_data_c *fd, struct g_object_text_image *a, int x, int y, int set_position)
 {
 	if (a->map) {
 		int i;
@@ -789,62 +806,66 @@ static void g_set_current_link(struct f_data_c *fd, struct g_object_text *a, int
 		fd->vs->current_link = a->link_num;
 		fd->vs->orig_link = fd->vs->current_link;
 		/* if link is a field, set cursor position */
-		if (set_position&&a->link_num>=0&&a->link_num<fd->f_data->nlinks) /* valid link */
-		{
-			struct link *l=&fd->f_data->links[a->link_num];
+		if (set_position && a->link_num >= 0 && a->link_num < fd->f_data->nlinks) { /* valid link */
+			struct link *l = &fd->f_data->links[a->link_num];
 			struct form_state *fs;
-			int xx,yy;
+			int xx, yy;
 
-			if (!l->form)return;
-			if (l->type==L_AREA)
-			{
+			if (!l->form) return;
+			if (l->type == L_AREA) {
+				struct g_object_text *at = get_struct(a, struct g_object_text, goti);
 				struct line_info *ln;
 				int aa;
-				if (!(fs=find_form_state(fd,l->form)))return;
+				fs = find_form_state(fd,l->form);
 
-				if (g_char_width(a->style,' ')) {
-					xx=x/g_char_width(a->style,' ');
-				} else xx=x;
-				xx+=fs->vpos;
-				xx=xx<0?0:xx;
-				yy=a->link_order;
-				yy+=fs->vypos;
+				if (g_char_width(at->style, ' '))
+					xx = x / g_char_width(at->style, ' ');
+				else
+					xx = x;
+				xx += fs->vpos;
+				xx= xx < 0 ? 0 : xx;
+				yy = a->link_order;
+				yy += fs->vypos;
 				ln = format_text(fs->value, l->form->cols, l->form->wrap, fd->f_data->opt.cp);
 				for (aa = 0; ln[aa].st; aa++) if (aa==yy){
-					int bla=textptr_diff(ln[aa].en,ln[aa].st, fd->f_data->opt.cp);
+					int bla = textptr_diff(ln[aa].en, ln[aa].st, fd->f_data->opt.cp);
 
-					fs->state=(int)(ln[aa].st-fs->value);
+					fs->state = (int)(ln[aa].st-fs->value);
 					fs->state = (int)(textptr_add(fs->value + fs->state, xx<bla?xx:bla, fd->f_data->opt.cp) - fs->value);
 					break;
 				}
 				return;
 			}
-			if (l->type!=L_FIELD||!(fs=find_form_state(fd,l->form)))return;
-			if (g_char_width(a->style,' ')) {
-				xx=x/g_char_width(a->style,' ');
-			} else xx=x;
-			fs->state=(int)(textptr_add(fs->value + ((size_t)fs->vpos > strlen(cast_const_char fs->value) ? strlen(cast_const_char fs->value) : (size_t)fs->vpos), (xx<0?0:xx), fd->f_data->opt.cp) - fs->value);
+			if (l->type == L_FIELD) {
+				struct g_object_text *at = get_struct(a, struct g_object_text, goti);
+				fs = find_form_state(fd, l->form);
+				if (g_char_width(at->style, ' '))
+					xx = x / g_char_width(at->style, ' ');
+				else
+					xx = x;
+				fs->state=(int)(textptr_add(fs->value + ((size_t)fs->vpos > strlen(cast_const_char fs->value) ? strlen(cast_const_char fs->value) : (size_t)fs->vpos), (xx<0?0:xx), fd->f_data->opt.cp) - fs->value);
+			}
 		}
 	}
 }
 
-void g_text_mouse(struct f_data_c *fd, struct g_object_text *a, int x, int y, int b)
+void g_text_mouse(struct f_data_c *fd, struct g_object *a_, int x, int y, int b)
 {
+	struct g_object_text_image *a = get_struct(a_, struct g_object_text_image, go);
 	int e;
 	g_set_current_link(fd, a, x, y, (b == (B_UP | B_LEFT)));
 
 #ifdef JS
-	if (fd->vs&&fd->f_data&&fd->vs->current_link>=0&&fd->vs->current_link<fd->f_data->nlinks)
-	{
+	if (fd->vs && fd->f_data && fd->vs->current_link >= 0 && fd->vs->current_link < fd->f_data->nlinks) {
 		/* fd->vs->current links is a valid link */
 
-		struct link *l=&(fd->f_data->links[fd->vs->current_link]);
+		struct link *l = &fd->f_data->links[fd->vs->current_link];
 
-		if (l->js_event&&l->js_event->up_code&&(b&BM_ACT)==B_UP)
-			jsint_execute_code(fd,l->js_event->up_code,strlen(cast_const_char l->js_event->up_code),-1,-1,-1, NULL);
+		if (l->js_event && l->js_event->up_code && (b & BM_ACT) == B_UP)
+			jsint_execute_code(fd, l->js_event->up_code, strlen(cast_const_char l->js_event->up_code), -1, -1, -1, NULL);
 
-		if (l->js_event&&l->js_event->down_code&&(b&BM_ACT)==B_DOWN)
-			jsint_execute_code(fd,l->js_event->down_code,strlen(cast_const_char l->js_event->down_code),-1,-1,-1, NULL);
+		if (l->js_event && l->js_event->down_code && (b & BM_ACT) == B_DOWN)
+			jsint_execute_code(fd, l->js_event->down_code, strlen(cast_const_char l->js_event->down_code), -1, -1, -1, NULL);
 	}
 #endif
 
@@ -859,10 +880,10 @@ void g_text_mouse(struct f_data_c *fd, struct g_object_text *a, int x, int y, in
 		ismap_link = il;
 		if (e) {
 			print_all_textarea = 1;
-			draw_one_object(fd, (struct g_object *)a);
+			draw_one_object(fd, &a->go);
 			print_all_textarea = 0;
 		}
-		if (e == 2) fd->f_data->locked_on = (struct g_object *)a;
+		if (e == 2) fd->f_data->locked_on = &a->go;
 		return;
 	}
 	if (b == (B_UP | B_RIGHT)) {
@@ -1347,7 +1368,7 @@ void draw_title(struct f_data_c *f)
 	unsigned char *title = stracpy(!drv->set_title && f->f_data && f->f_data->title && f->f_data->title[0] ? f->f_data->title : NULL);
 	if (!title) {
 		if (f->rq && f->rq->url)
-			title = display_url(f->ses->term, f->rq->url);
+			title = display_url(f->ses->term, f->rq->url, 1);
 		else
 			title = stracpy((unsigned char *)"");
 	}
@@ -1367,14 +1388,14 @@ static struct f_data *srch_f_data;
 
 static void get_searched_sub(struct g_object *p, struct g_object *c)
 {
-	if (c->draw == (void (*)(struct f_data_c *, struct g_object *, int, int))g_text_draw && !g_text_no_search(srch_f_data, (struct g_object_text *)c)) {
-		struct g_object_text *t = (struct g_object_text *)c;
+	if (c->draw == g_text_draw && !g_text_no_search(srch_f_data, get_struct(c, struct g_object_text, goti.go))) {
+		struct g_object_text *t = get_struct(c, struct g_object_text, goti.go);
 		int pos = srch_f_data->srch_string_size;
 		t->srch_pos = pos;
 		add_to_str(&srch_f_data->srch_string, &srch_f_data->srch_string_size, t->text);
 	}
 	if (c->get_list) c->get_list(c, get_searched_sub);
-	if (c->draw == (void (*)(struct f_data_c *, struct g_object *, int, int))g_line_draw) {
+	if (c->draw == g_line_draw) {
 		if (srch_f_data->srch_string_size && srch_f_data->srch_string[srch_f_data->srch_string_size - 1] != ' ')
 			add_to_str(&srch_f_data->srch_string, &srch_f_data->srch_string_size, cast_uchar " ");
 	}
@@ -1426,31 +1447,31 @@ static void find_nearest_sub(struct g_object *p, struct g_object *c)
 
 	if (a >= fnd_obj_dist) return;
 
-	if (c->draw == (void (*)(struct f_data_c *, struct g_object *, int, int))g_text_draw && !g_text_no_search(fnd_f, (struct g_object_text *)c)) {
+	if (c->draw == g_text_draw && !g_text_no_search(fnd_f, get_struct(c, struct g_object_text, goti.go))) {
 
-		fnd_obj = (struct g_object_text *)c;
+		fnd_obj = get_struct(c, struct g_object_text, goti.go);
 		fnd_obj_dist = a;
 	}
-	if (c->get_list == (void (*)(struct g_object *, void (*)(struct g_object *, struct g_object *)))g_area_get_list) {
-		struct g_object_area *ar = (struct g_object_area *)c;
+	if (c->get_list == g_area_get_list) {
+		struct g_object_area *ar = get_struct(c, struct g_object_area, go);
 		struct g_object_line **ln;
 		int idx, i, dist;
 		if (!ar->n_lines) return;
-		ln = (struct g_object_line **)g_find_line((struct g_object **)(void *)&ar->lines, ar->n_lines, fnd_y - ty);
+		ln = g_find_line(ar->lines, ar->n_lines, fnd_y - ty);
 		if (!ln) {
 			if (fnd_y < ty) ln = &ar->lines[0];
 			else ln = &ar->lines[ar->n_lines - 1];
 		}
 		idx = (int)(ln - &ar->lines[0]);
 		for (i = idx; i < ar->n_lines; i++) {
-			dist = dist_to_rect(0, fnd_y, 0, ty + ar->lines[i]->y, 0, ty + ar->lines[i]->y + ar->lines[i]->yw);
+			dist = dist_to_rect(0, fnd_y, 0, ty + ar->lines[i]->go.y, 0, ty + ar->lines[i]->go.y + ar->lines[i]->go.yw);
 			if (dist >= fnd_obj_dist) break;
-			find_nearest_sub(NULL, (struct g_object *)ar->lines[i]);
+			find_nearest_sub(NULL, &ar->lines[i]->go);
 		}
 		for (i = idx - 1; i >= 0; i--) {
-			dist = dist_to_rect(0, fnd_y, 0, ty + ar->lines[i]->y, 0, ty + ar->lines[i]->y + ar->lines[i]->yw);
+			dist = dist_to_rect(0, fnd_y, 0, ty + ar->lines[i]->go.y, 0, ty + ar->lines[i]->go.y + ar->lines[i]->go.yw);
 			if (dist >= fnd_obj_dist) break;
-			find_nearest_sub(NULL, (struct g_object *)ar->lines[i]);
+			find_nearest_sub(NULL, &ar->lines[i]->go);
 		}
 		return;
 	}
@@ -1485,8 +1506,8 @@ static struct f_data *find_opt_f_data;
 
 static void find_next_sub(struct g_object *p, struct g_object *c)
 {
-	if (c->draw == (void (*)(struct f_data_c *, struct g_object *, int, int))g_text_draw && !g_text_no_search(find_opt_f_data, (struct g_object_text *)c)) {
-		struct g_object_text *t = (struct g_object_text *)c;
+	if (c->draw == g_text_draw && !g_text_no_search(find_opt_f_data, get_struct(c, struct g_object_text, goti.go))) {
+		struct g_object_text *t = get_struct(c, struct g_object_text, goti.go);
 		int start = t->srch_pos;
 		int end = t->srch_pos + (int)strlen(cast_const_char t->text);
 		int found;
@@ -1494,7 +1515,7 @@ static void find_next_sub(struct g_object *p, struct g_object *c)
 		if (found != -1) {
 			int x, y, yy;
 			get_object_pos(c, &x, &y);
-			y += t->yw / 2;
+			y += t->goti.go.yw / 2;
 			yy = y;
 			if (yy < find_refline) yy += MAXINT / 2;
 			if (find_direction < 0) yy = MAXINT - yy;
@@ -1511,7 +1532,7 @@ static void find_next_sub(struct g_object *p, struct g_object *c)
 				find_opt_y = y;
 				find_opt_yw = t->style->height;
 				find_opt_x = x;
-				find_opt_xw = t->xw;
+				find_opt_xw = t->goti.go.xw;
 				if (highlight_positions[found] < start) sx = 0;
 				else sx = highlight_positions[found] - start;
 				if (highlight_positions[found] + highlight_lengths[found] > end) ex = end - start;

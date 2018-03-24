@@ -87,13 +87,14 @@ struct frameset_desc *copy_frameset_desc(struct frameset_desc *fd)
 void free_additional_files(struct additional_files **a)
 {
 	struct additional_file *af;
+	struct list_head *laf;
 	if (!*a) return;
 	if (--(*a)->refcount) {
 		*a = NULL;
 		return;
 	}
-	foreach(af, (*a)->af) release_object(&af->rq);
-	free_list((*a)->af);
+	foreach(struct additional_file, af, laf, (*a)->af) release_object(&af->rq);
+	free_list(struct additional_file, (*a)->af);
 	mem_free(*a);
 	*a = NULL;
 }
@@ -103,6 +104,7 @@ static void clear_formatted(struct f_data *scr)
 	int n;
 	int y;
 	struct form_control *fc;
+	struct list_head *lfc;
 	if (!scr) return;
 
 	if (scr->search_chr) {
@@ -146,14 +148,14 @@ static void clear_formatted(struct f_data *scr)
 	if (scr->lines1) mem_free(scr->lines1);
 	if (scr->lines2) mem_free(scr->lines2);
 	if (scr->opt.framename) mem_free(scr->opt.framename);
-	foreach(fc, scr->forms) {
+	foreach(struct form_control, fc, lfc, scr->forms) {
 		destroy_fc(fc);
 	}
-	free_list(scr->forms);
-	free_list(scr->tags);
-	free_list(scr->nodes);
+	free_list(struct form_control, scr->forms);
+	free_list(struct tag, scr->tags);
+	free_list(struct node, scr->nodes);
 #ifdef G
-	free_list(scr->image_refresh);
+	free_list(struct image_refresh, scr->image_refresh);
 	if (scr->srch_string) mem_free(scr->srch_string);
 	if (scr->last_search) mem_free(scr->last_search);
 	if (scr->search_positions) mem_free(scr->search_positions);
@@ -219,7 +221,7 @@ int find_nearest_color(struct rgb *r, int l)
 	static struct rgb_cache_entry rgb_cache[RGB_HASH_SIZE];
 	static int cache_init = 0;
 	int h;
-	if ((size_t)l > sizeof(palette_16_colors) / sizeof(*palette_16_colors))
+	if ((size_t)l > array_elements(palette_16_colors))
 		internal("invalid length %d", l);
 	if (!cache_init) goto initialize;
 	back:
@@ -419,13 +421,14 @@ static inline void set_hline_uni(struct part *p, int x, int y, int xl, char_t *d
 }
 
 static int last_link_to_move;
-static struct tag *last_tag_to_move;
-static struct tag *last_tag_for_newline;
+static struct list_head *last_tag_to_move;
+static struct list_head *last_tag_for_newline;
 
 static inline void move_links(struct part *p, int xf, int yf, int xt, int yt)
 {
 	int n;
 	struct tag *t;
+	struct list_head *lt;
 	int w = 0;
 	if (!p->data) return;
 	xpand_lines(p, yt);
@@ -451,7 +454,7 @@ static inline void move_links(struct part *p, int xf, int yf, int xt, int yt)
 		if (!w) last_link_to_move = n;
 	}
 	w = 0;
-	if (yt >= 0) for (t = last_tag_to_move->next; (void *)t != &p->data->tags; t = t->next) {
+	if (yt >= 0) foreachfrom(struct tag, t, lt, p->data->tags, last_tag_to_move->next) {
 		if (t->y == Y(yf)) {
 			w = 1;
 			if (t->x >= X(xf)) {
@@ -462,7 +465,7 @@ static inline void move_links(struct part *p, int xf, int yf, int xt, int yt)
 					t->x += -xf + xt;
 			}
 		}
-		if (!w) last_tag_to_move = t;
+		if (!w) last_tag_to_move = &t->list_entry;
 	}
 }
 
@@ -574,12 +577,12 @@ void html_tag(struct f_data *f, unsigned char *t, int x, int y)
 	tt = init_str();
 	ll = 0;
 	add_conv_str(&tt, &ll, t, (int)strlen(cast_const_char t), -2);
-	tag = mem_alloc(sizeof(struct tag) + strlen(cast_const_char tt) + 1);
+	tag = mem_alloc(sizeof(struct tag) + strlen(cast_const_char tt));
 	tag->x = x;
 	tag->y = y;
 	strcpy(cast_char tag->name, cast_const_char tt);
 	add_to_list(f->tags, tag);
-	if ((void *)last_tag_for_newline == &f->tags) last_tag_for_newline = tag;
+	if (last_tag_for_newline == &f->tags) last_tag_for_newline = &tag->list_entry;
 	mem_free(tt);
 }
 
@@ -615,7 +618,7 @@ static void put_chars(void *p_, unsigned char *c, int l)
 	if (!l) return;
 	if (p->cx < par_format.leftmargin) p->cx = par_format.leftmargin;
 	if (c[0] != ' ' || (c[1] && c[1] != ' ')) {
-		last_tag_for_newline = (void *)&p->data->tags;
+		last_tag_for_newline = &p->data->tags;
 	}
 #ifdef ENABLE_UTF8
 	if (d_opt->cp == utf8_table && !(format_.attr & AT_GRAPHICS)) {
@@ -825,7 +828,7 @@ static void line_break(void *p_)
 {
 	struct part *p = p_;
 	struct tag *t;
-	/*printf("-break-\n");*/
+	struct list_head *lt;
 	if (p->cx >= 0 && safe_add(p->cx, par_format.rightmargin) > p->x) p->x = p->cx + par_format.rightmargin;
 	if (nobreak) {
 		nobreak = 0;
@@ -837,7 +840,7 @@ static void line_break(void *p_)
 	xpand_lines(p, safe_add(p->cy, 1));
 	if (p->cx > par_format.leftmargin && LEN(p->cy) > p->cx - 1 && POS(p->cx-1, p->cy).ch == ' ') del_chars(p, p->cx-1, p->cy), p->cx--;
 	if (p->cx > 0) align_line(p, p->cy);
-	if (p->data) for (t = last_tag_for_newline; t && (void *)t != &p->data->tags; t = t->prev) {
+	if (p->data) foreachbackfrom(struct tag, t, lt, p->data->tags, last_tag_for_newline) {
 		t->x = X(0);
 		t->y = Y(p->cy + 1);
 	}
@@ -1013,7 +1016,7 @@ static void *html_special(void *p_, int c, ...)
 static void do_format(unsigned char *start, unsigned char *end, struct part *part, unsigned char *head)
 {
 	pr(
-	parse_html(start, end, (void (*)(void *, unsigned char *, int))put_chars, line_break, (void *(*)(void *, int, ...))html_special, part, head);
+	parse_html(start, end, put_chars, line_break, html_special, part, head);
 	) {};
 }
 
@@ -1024,10 +1027,11 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	struct part *p;
 	struct html_element *e;
 	int llm = last_link_to_move;
-	struct tag *ltm = last_tag_to_move;
+	struct list_head *ltm = last_tag_to_move;
 	int lm = margin;
 	int ef = empty_format;
 	struct form_control *fc;
+	struct list_head *lfc;
 
 	if (par_format.implicit_pre_wrap) {
 		if (width > d_opt->xw)
@@ -1051,8 +1055,8 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 		add_to_list(data->nodes, n);
 	}
 	last_link_to_move = data ? data->nlinks : 0;
-	last_tag_to_move = data ? (void *)&data->tags : NULL;
-	last_tag_for_newline = data ? (void *)&data->tags: NULL;
+	last_tag_to_move = data ? &data->tags : NULL;
+	last_tag_for_newline = data ? &data->tags : NULL;
 	margin = m;
 	empty_format = !data;
 	if (last_link) mem_free(last_link);
@@ -1112,11 +1116,11 @@ struct part *format_html_part(unsigned char *start, unsigned char *end, int alig
 	kill_html_stack_item(&html_top);
 	mem_free(p->spaces);
 	if (data) {
-		struct node *n = data->nodes.next;
+		struct node *n = list_struct(data->nodes.next, struct node);
 		n->yw = ys - n->y + p->y;
 	}
-	foreach(fc, p->uf) destroy_fc(fc);
-	free_list(p->uf);
+	foreach(struct form_control, fc, lfc, p->uf) destroy_fc(fc);
+	free_list(struct form_control, p->uf);
 	last_link_to_move = llm;
 	last_tag_to_move = ltm;
 	margin = lm;
@@ -1139,7 +1143,7 @@ static void release_part(struct part *p)
 static void push_base_format(unsigned char *url, struct document_options *opt, int frame, int implicit_pre_wrap)
 {
 	struct html_element *e;
-	if (html_stack.next != &html_stack) {
+	if (!list_empty(html_stack)) {
 		internal("something on html stack");
 		init_list(html_stack);
 	}
@@ -1176,18 +1180,18 @@ struct conv_table *get_convert_table(unsigned char *head, int to, int def, int *
 	int from = -1;
 	unsigned char *a, *b;
 	unsigned char *p = head;
-	while (from == -1 && p && (a = parse_http_header(p, cast_uchar "Content-Type", &p))) {
+	while (from == -1 && (a = parse_http_header(p, cast_uchar "Content-Type", &p))) {
 		if ((b = parse_header_param(a, cast_uchar "charset", 0))) {
 			from = get_cp_index(b);
 			mem_free(b);
 		}
 		mem_free(a);
 	}
-	if (from == -1 && head && (a = parse_http_header(head, cast_uchar "Content-Charset", NULL))) {
+	if (from == -1 && (a = parse_http_header(head, cast_uchar "Content-Charset", NULL))) {
 		from = get_cp_index(a);
 		mem_free(a);
 	}
-	if (from == -1 && head && (a = parse_http_header(head, cast_uchar "Charset", NULL))) {
+	if (from == -1 && (a = parse_http_header(head, cast_uchar "Charset", NULL))) {
 		from = get_cp_index(a);
 		mem_free(a);
 	}
@@ -1231,7 +1235,13 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 		);
 	if (d_opt->break_long_lines) implicit_pre_wrap = 1;
 	if (d_opt->plain) *t = 0;
-	convert_table = get_convert_table(head, screen->opt.cp, screen->opt.assume_cp, &screen->cp, &screen->ass, screen->opt.hard_assume);
+	if (screen->opt.plain == 2) {
+		screen->cp = utf8_table;
+		screen->ass = -1;
+		convert_table = get_translation_table(utf8_table, screen->opt.cp);
+	} else {
+		convert_table = get_convert_table(head, screen->opt.cp, screen->opt.assume_cp, &screen->cp, &screen->ass, screen->opt.hard_assume);
+	}
 	screen->opt.real_cp = screen->cp;
 	i = d_opt->plain; d_opt->plain = 0;
 	screen->title = convert_string(convert_table, t, (int)strlen(cast_const_char t), d_opt);
@@ -1253,11 +1263,11 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 			int w = screen->opt.xw;
 			int h = screen->opt.yw;
 			screen->x = rp->x;
-			screen->y = rp->root->yw;
+			screen->y = rp->root->go.yw;
 			if (screen->x > w) w = screen->x;
 			if (screen->y > h) h = screen->y;
 			g_x_extend_area(rp->root, w, h, AL_LEFT);
-			screen->root = (struct g_object *)rp->root, rp->root = NULL;
+			screen->root = &rp->root->go, rp->root = NULL;
 			g_release_part(rp);
 			mem_free(rp);
 			get_parents(screen, screen->root);
@@ -1283,8 +1293,8 @@ void really_format_html(struct cache_entry *ce, unsigned char *start, unsigned c
 	fg_col = find_nearest_color(&format_.fg, 16);
 	fg_col = fg_color(fg_col, bg_col);
 	screen->bg = get_attribute(fg_col, bg_col);
-	kill_html_stack_item(html_stack.next);
-	if (html_stack.next != &html_stack) {
+	kill_html_stack_item(&html_top);
+	if (!list_empty(html_stack)) {
 		internal("html stack not empty after operation");
 		init_list(html_stack);
 	}
@@ -1449,13 +1459,14 @@ static int add_srch_chr(struct f_data *f, unsigned c, int x, int y, int nn)
 static int get_srch(struct f_data *f)
 {
 	struct node *n;
+	struct list_head *ln;
 	get_srch_reset();
 #define add_srch(c_, x_, y_, n_)		\
 do {						\
 	if (add_srch_chr(f, c_, x_, y_, n_))	\
 		return -1;			\
 } while (0)
-	foreachback(n, f->nodes) {
+	foreachback(struct node, n, ln, f->nodes) {
 		int x, y;
 		int xm = safe_add(n->x, n->xw), ym = safe_add(n->y, n->yw);
 		/*printf("%d %d - %d %d\n", n->x, n->y, xm, ym);

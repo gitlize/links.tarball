@@ -335,6 +335,7 @@ static int draw_bfu_element(struct terminal * term, int x, int y, unsigned char 
 
 			drv->fill_area(dev,x+2+(int)(.5*BFU_GRX_WIDTH),y+1+(int)(.5*BFU_GRX_HEIGHT),x+BFU_GRX_WIDTH,y-3+BFU_GRX_HEIGHT,b);
 			drv->fill_area(dev,x+2+BFU_GRX_WIDTH,y+1+(int)(.5*BFU_GRX_HEIGHT),x+(int)(1.5*BFU_GRX_WIDTH),y-3+BFU_GRX_HEIGHT,b);
+			/*-fallthrough*/
 
 			case BFU_ELEMENT_OPEN:
 			case BFU_ELEMENT_OPEN_DOWN:
@@ -418,15 +419,16 @@ static void redraw_list(struct terminal *term, void *bla);
 /* when list is flat returns next item */
 static struct list *next_in_tree(struct list_description *ld, struct list *item)
 {
-	int depth=item->depth;
+	int depth = item->depth;
 
 	/* flat list */
-	if (!(ld->type))return item->next;
+	if (!ld->type)
+		return list_next(item);
 
-	if (!((item->type)&1)||((item->type)&2))  /* item or opened folder */
-		return item->next;
+	if (!(item->type & 1) || (item->type & 2))  /* item or opened folder */
+		return list_next(item);
 	/* skip content of this folder */
-	do item=item->next; while (item->depth>depth);   /* must stop on head 'cause it's depth is -1 */
+	do item=list_next(item); while (item->depth > depth);   /* must stop on head 'cause it's depth is -1 */
 	return item;
 }
 
@@ -437,26 +439,29 @@ static struct list *next_in_tree(struct list_description *ld, struct list *item)
 static struct list *prev_in_tree(struct list_description *ld, struct list *item)
 {
 	struct list *last_closed;
-	int depth=item->depth;
+	int depth = item->depth;
 
 	/* flat list */
-	if (!(ld->type))return item->prev;
+	if (!ld->type)
+		return list_prev(item);
 
-	if (item==ld->list)depth=0;
+	if (item == ld->list)
+		depth=0;
 
 	/* items with same or lower depth must be visible, because current item is visible */
-	if ((((struct list*)(item->prev))->depth)<=(item->depth))return item->prev;
+	if (list_prev(item)->depth <= item->depth)
+		return list_prev(item);
 
 	/* find item followed with opened fotr's only */
 	/* searched item is last closed folder (going up from item) or item->prev */
-	last_closed=item->prev;
-	item=item->prev;
-	while (1)
-	{
-		if (((item->type)&3)==1)/* closed folder */
-			last_closed=item;
-		if ((item->depth)<=depth)break;
-		item=item->fotr;
+	last_closed = list_prev(item);
+	item = list_prev(item);
+	while (1) {
+		if ((item->type & 3) == 1)	/* closed folder */
+			last_closed = item;
+		if (item->depth <= depth)
+			break;
+		item = item->fotr;
 	}
 	return last_closed;
 }
@@ -537,121 +542,115 @@ static void unselect_in_folder(struct list_description *ld, struct list *l)
 {
 	int depth;
 
-	depth=l->depth;
-	for(l=l->next;l!=ld->list&&l->depth>depth;l=l->next)
-		l->type&=~4;
+	depth = l->depth;
+	for (l = list_next(l); l != ld->list && l->depth > depth; l = list_next(l))
+		l->type &= ~4;
 }
 
 
 /* aux function for list_item_add */
-static void list_insert_behind_item(struct dialog_data *dlg, void *p, void *i, struct list_description *ld)
+static void list_insert_behind_item(struct dialog_data *dlg, struct list *pos, struct list *item, struct list_description *ld)
 {
-	struct list *item=(struct list *)i;
-	struct list *pos=(struct list *)p;
 	struct list *a;
 	struct redraw_data rd;
 
 /*  BEFORE:  ... <----> pos <--(possible invisible items)--> a <----> ... */
 /*  AFTER:   ... <----> pos <--(possible invisible items)--> item <----> a <----> ... */
 
-	a=next_in_tree(ld,pos);
-	((struct list*)(a->prev))->next=item;
-	item->prev=a->prev;
-	item->next=a;
-	a->prev=item;
+	a = next_in_tree(ld,pos);
+	add_before_pos(a, item);
 
 	/* if list is flat a->fotr will contain nosenses, but it won't crash ;-) */
-	if (((pos->type)&3)==3||(pos->depth)==-1){item->fotr=pos;item->depth=pos->depth+1;}  /* open directory or head */
-	else {item->fotr=pos->fotr;item->depth=pos->depth;}
+	if ((pos->type & 3) == 3 || pos->depth == -1) { item->fotr=pos; item->depth=pos->depth+1; }  /* open directory or head */
+	else { item->fotr = pos->fotr; item->depth = pos->depth; }
 
-	ld->current_pos=next_in_tree(ld,ld->current_pos);   /* ld->current_pos->next==item */
+	ld->current_pos = next_in_tree(ld, ld->current_pos);   /* ld->current_pos->next==item */
 	ld->win_pos++;
-	if (ld->win_pos>ld->n_items-1)  /* scroll down */
-	{
-		ld->win_pos=ld->n_items-1;
-		ld->win_offset=next_in_tree(ld,ld->win_offset);
+	if (ld->win_pos > ld->n_items - 1) {  /* scroll down */
+		ld->win_pos = ld->n_items - 1;
+		ld->win_offset = next_in_tree(ld, ld->win_offset);
 	}
 
-	ld->modified=1;
+	ld->modified = 1;
 
-	rd.ld=ld;
-	rd.dlg=dlg;
-	rd.n=0;
+	rd.ld = ld;
+	rd.dlg = dlg;
+	rd.n = 0;
 
-	draw_to_window(dlg->win,redraw_list,&rd);
+	draw_to_window(dlg->win, redraw_list, &rd);
 }
 
 
 /* aux function for list_item_edit */
 /* copies data of src to dest and calls free on the src */
 /* first argument is argument passed to user function */
-static void list_copy_item(struct dialog_data *dlg, void *d, void *s, struct list_description *ld)
+static void list_copy_item(struct dialog_data *dlg, struct list *dest, struct list *src, struct list_description *ld)
 {
-	struct list *src=(struct list *)s;
-	struct list *dest=(struct list *)d;
 	struct redraw_data rd;
 
-	ld->copy_item(src,dest);
+	ld->copy_item(src, dest);
 	ld->delete_item(src);
 
-	ld->modified=1;  /* called after an successful edit */
-	rd.ld=ld;
-	rd.dlg=dlg;
-	rd.n=0;
+	ld->modified = 1;  /* called after an successful edit */
+	rd.ld = ld;
+	rd.dlg = dlg;
+	rd.n = 0;
 
-	draw_to_window(dlg->win,redraw_list,&rd);
+	draw_to_window(dlg->win, redraw_list, &rd);
 }
 
 
 /* creates new item (calling new_item function) and calls edit_item function */
-static int list_item_add(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_item_add(struct dialog_data *dlg, struct dialog_item_data *useless)
 {
-	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
-	struct list *item=ld->current_pos;
+	struct list_description *ld = (struct list_description *)dlg->dlg->udata2;
+	struct list *item = ld->current_pos;
 	struct list *new_item;
 
-	if (!(new_item=ld->new_item(ld->default_value ? ld->default_value((struct session*)(dlg->dlg->udata),0) : NULL)))return 1;
-	new_item->prev=0;
-	new_item->next=0;
-	new_item->type=0;
-	new_item->depth=0;
+	if (!(new_item = ld->new_item(ld->default_value ? ld->default_value((struct session *)dlg->dlg->udata, 0) : NULL)))
+		return 1;
+	new_item->list_entry.prev = NULL;
+	new_item->list_entry.next = NULL;
+	new_item->type = 0;
+	new_item->depth = 0;
 
-	ld->edit_item(dlg,new_item,list_insert_behind_item,item,TITLE_ADD);
+	ld->edit_item(dlg,new_item, list_insert_behind_item, item, TITLE_ADD);
 	return 0;
 }
 
 
 /* like list_item_add but creates folder */
-static int list_folder_add(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_folder_add(struct dialog_data *dlg, struct dialog_item_data *useless)
 {
-	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
-	struct list *item=ld->current_pos;
+	struct list_description *ld = (struct list_description *)dlg->dlg->udata2;
+	struct list *item = ld->current_pos;
 	struct list *new_item;
 
-	if (!(new_item=ld->new_item(NULL)))return 1;
-	new_item->prev=0;
-	new_item->next=0;
-	new_item->type=1;
-	new_item->depth=0;
+	if (!(new_item = ld->new_item(NULL)))
+		return 1;
+	new_item->list_entry.prev = NULL;
+	new_item->list_entry.next = NULL;
+	new_item->type = 1 | 2;
+	new_item->depth = 0;
 
-	ld->edit_item(dlg,new_item,list_insert_behind_item,item,TITLE_ADD);
+	ld->edit_item(dlg, new_item, list_insert_behind_item, item, TITLE_ADD);
 	return 0;
 }
 
 
 static int list_item_edit(struct dialog_data *dlg,struct dialog_item_data *useless)
 {
-	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
-	struct list *item=ld->current_pos;
+	struct list_description *ld = (struct list_description *)dlg->dlg->udata2;
+	struct list *item = ld->current_pos;
 	struct list *new_item;
 
-	if (item==ld->list)return 0;  /* head */
-	if (!(new_item=ld->new_item(NULL)))return 1;
-	new_item->prev=0;
-	new_item->next=0;
+	if (item == ld->list) return 0;  /* head */
+	if (!(new_item = ld->new_item(NULL))) return 1;
+	new_item->list_entry.prev = NULL;
+	new_item->list_entry.next = NULL;
 
-	ld->copy_item(item,new_item);
-	ld->edit_item(dlg,new_item,list_copy_item,item,TITLE_EDIT);
+	ld->copy_item(item, new_item);
+	ld->edit_item(dlg, new_item, list_copy_item, item, TITLE_EDIT);
 
 	return 0;
 }
@@ -667,105 +666,98 @@ static inline int is_parent(struct list_description *ld, struct list *item, stru
 	return 0;
 }
 
-static int list_item_move(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_item_move(struct dialog_data *dlg, struct dialog_item_data *useless)
 {
-	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
+	struct list_description *ld = (struct list_description *)dlg->dlg->udata2;
 	struct list *i;
-	struct list *behind=ld->current_pos;
+	struct list *behind = ld->current_pos;
 	struct redraw_data rd;
-	int window_moved=0;
-	int count=0;
+	int window_moved = 0;
+	int count = 0;
 
-	if (ld->current_pos->type&4)  /* odznacime current_pos, kdyby nahodou byla oznacena */
-	{
+	if (ld->current_pos->type & 4) {  /* odznacime current_pos, kdyby nahodou byla oznacena */
 		count++;
-		ld->current_pos->type&=~4;
+		ld->current_pos->type &= ~4;
 	}
 
-	for (i=ld->list->next;i!=ld->list;)
-	{
-		struct list *next=next_in_tree(ld,i);
-		struct list *prev=i->prev;
-		struct list *behind_next=next_in_tree(ld,behind);	/* to se musi pocitat pokazdy, protoze by se nam mohlo stat, ze to je taky oznaceny */
-		struct list *item_last=next->prev; /* last item of moved block */
+	for (i = list_next(ld->list); i != ld->list; ) {
+		struct list *next = next_in_tree(ld, i);
+		struct list *prev = list_prev(i);
+		struct list *behind_next = next_in_tree(ld, behind);	/* to se musi pocitat pokazdy, protoze by se nam mohlo stat, ze to je taky oznaceny */
+		struct list *item_last = list_prev(next); /* last item of moved block */
 
-		if (is_parent(ld, ld->current_pos, i)) /* we're moving directory into itself - let's behave like item was not selected */
-		{
-			i->type&=~4;
-			i=next;
+		if (is_parent(ld, ld->current_pos, i)) { /* we're moving directory into itself - let's behave like item was not selected */
+			i->type &= ~4;
+			i = next;
 			count++;
 			continue;
 		}
-		if (!(i->type&4)){i=next;continue;}
+		if (!(i->type & 4)) { i = next; continue; }
 
-		if ((i->type&3)==3) /* dirty trick */
-		{
-			i->type&=~2;
-			next=next_in_tree(ld,i);
-			prev=i->prev;
-			item_last=next->prev;
-			i->type|=2;
+		if ((i->type & 3) == 3) { /* dirty trick */
+			i->type &= ~2;
+			next = next_in_tree(ld, i);
+			prev = list_prev(i);
+			item_last = list_prev(next);
+			i->type |= 2;
 		}
 
-		if (i==ld->win_offset)
-		{
-			window_moved=1;
-			if (next!=ld->list)ld->win_offset=next;
+		if (i == ld->win_offset) {
+			window_moved = 1;
+			if (next != ld->list) ld->win_offset = next;
 		}
 
 		/* upravime fotrisko a hloubku */
-		if (ld->type)
-		{
-			int a=i->depth;
-			struct list *l=i;
+		if (ld->type) {
+			int a = i->depth;
+			struct list *l = i;
 
-			if (((behind->type)&3)==3||behind==ld->list)/* open folder or head */
-				{i->fotr=behind;i->depth=behind->depth+1;}
-			else {i->fotr=behind->fotr;i->depth=behind->depth;}
-			a=i->depth-a;
+			if ((behind->type & 3) == 3 || behind == ld->list) { /* open folder or head */
+				i->fotr = behind;
+				i->depth = behind->depth + 1;
+			} else {
+				i->fotr = behind->fotr;
+				i->depth = behind->depth;
+			}
+			a = i->depth - a;
 
 			/* poopravime hloubku v adresari */
-			if (l!=item_last)
-			{
-				do{
-					l=l->next;
-					l->depth+=a;
-				} while(l!=item_last);
+			while (l != item_last) {
+				l = list_next(l);
+				l->depth += a;
 			}
 		}
 
-		if (behind_next==i)goto predratovano;	/* to uz je vsechno, akorat menime hloubku */
+		if (behind_next == i) goto predratovano;	/* to uz je vsechno, akorat menime hloubku */
 
 		/* predratujeme ukazatele kolem bloku na stare pozici */
-		prev->next=next;
-		next->prev=prev;
+		prev->list_entry.next = &next->list_entry;
+		next->list_entry.prev = &prev->list_entry;
 
 		/* posuneme na novou pozici (tesne pred behind_next) */
-		i->prev=behind_next->prev;
-		((struct list*)(behind_next->prev))->next=i;
-		item_last->next=behind_next;
-		behind_next->prev=item_last;
+		i->list_entry.prev = behind_next->list_entry.prev;
+		behind_next->list_entry.prev->next = &i->list_entry;
+		item_last->list_entry.next = &behind_next->list_entry;
+		behind_next->list_entry.prev = &item_last->list_entry;
 
 predratovano:
 		/* odznacime */
-		i->type&=~4;
-		unselect_in_folder(ld,i);
+		i->type &= ~4;
+		unselect_in_folder(ld, i);
 
 		/* upravime pointery pro dalsi krok */
-		behind=i;
-		i=next;
+		behind = i;
+		i = next;
 		count++;
 	}
 
-	if (window_moved)
-	{
-		ld->current_pos=ld->win_offset;
-		ld->win_pos=0;
-	}
-	else
-		ld->win_pos=get_win_pos(ld);
+	if (window_moved) {
+		ld->current_pos = ld->win_offset;
+		ld->win_pos = 0;
+	} else
+		ld->win_pos = get_win_pos(ld);
 
-	if (!count)
+	if (!count) {
 		msg_box(
 			dlg->win->term,   /* terminal */
 			NULL,  /* blocks to free */
@@ -774,38 +766,37 @@ predratovano:
 			TEXT_(T_NO_ITEMS_SELECTED),  /* text */
 			NULL,  /* data */
 			1,  /* # of buttons */
-			TEXT_(T_CANCEL),NULL,B_ESC|B_ENTER  /* button1 */
+			TEXT_(T_CANCEL), NULL, B_ESC|B_ENTER  /* button1 */
 		);
-	else
-	{
-		ld->modified=1;
-		rd.ld=ld;
-		rd.dlg=dlg;
-		rd.n=0;
-		draw_to_window(dlg->win,redraw_list,&rd);
+	} else {
+		ld->modified = 1;
+		rd.ld = ld;
+		rd.dlg = dlg;
+		rd.n = 0;
+		draw_to_window(dlg->win, redraw_list, &rd);
 	}
 	return 0;
 }
 
 
 /* unselect all items */
-static int list_item_unselect(struct dialog_data *dlg,struct dialog_item_data *useless)
+static int list_item_unselect(struct dialog_data *dlg, struct dialog_item_data *useless)
 {
-	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
+	struct list_description *ld = (struct list_description *)dlg->dlg->udata2;
 	struct list *item;
 	struct redraw_data rd;
 
-	item=ld->list;
-	do{
-		item->type&=~4;
-		item=item->next;
-	}while(item!=ld->list);
+	item = ld->list;
+	do {
+		item->type &= ~4;
+		item = list_next(item);
+	} while (item != ld->list);
 
-	rd.ld=ld;
-	rd.dlg=dlg;
-	rd.n=0;
+	rd.ld = ld;
+	rd.dlg = dlg;
+	rd.n = 0;
 
-	draw_to_window(dlg->win,redraw_list,&rd);
+	draw_to_window(dlg->win, redraw_list, &rd);
 	return 0;
 }
 
@@ -813,15 +804,15 @@ static int list_item_unselect(struct dialog_data *dlg,struct dialog_item_data *u
 /* user button function - calls button_fn with current item */
 static int list_item_button(struct dialog_data *dlg, struct dialog_item_data *useless)
 {
-	struct list_description *ld=(struct list_description*)(dlg->dlg->udata2);
-	struct list *item=ld->current_pos;
-	struct session *ses=(struct session *)(dlg->dlg->udata);
+	struct list_description *ld = (struct list_description *)dlg->dlg->udata2;
+	struct list *item = ld->current_pos;
+	struct session *ses = (struct session *)dlg->dlg->udata;
 
-	if (!(ld->button_fn))internal("Links got schizophrenia! Call "BOHNICE".\n");
+	if (!ld->button_fn) internal("Links got schizophrenia! Call "BOHNICE".\n");
 
-	if (item==(ld->list)||list_empty(*item))return 0;  /* head or empty list */
+	if (item == ld->list || list_empty(item->list_entry)) return 0;  /* head or empty list */
 
-	if (ld->type&&((item->type)&1)) {
+	if (ld->type && (item->type & 1)) {
 		list_edit_toggle(dlg, ld);
 		return 0;  /* this is tree list and item is directory */
 	}
@@ -832,94 +823,92 @@ static int list_item_button(struct dialog_data *dlg, struct dialog_item_data *us
 }
 
 
-struct ve_skodarne_je_jeste_vetsi_narez
-{
-	struct list_description* ld;
+struct ve_skodarne_je_jeste_vetsi_narez {
+	struct list_description *ld;
 	struct dialog_data *dlg;
-	struct list* item;
+	struct list *item;
 };
 
 
 /* when delete is confirmed adjusts current_pos and calls delete function */
-static void delete_ok(void * data)
+static void delete_ok(void *data)
 {
-	struct list_description* ld=((struct ve_skodarne_je_jeste_vetsi_narez*)data)->ld;
-	struct list* item=((struct ve_skodarne_je_jeste_vetsi_narez*)data)->item;
-	struct dialog_data* dlg=((struct ve_skodarne_je_jeste_vetsi_narez*)data)->dlg;
+	struct ve_skodarne_je_jeste_vetsi_narez *skd = (struct ve_skodarne_je_jeste_vetsi_narez *)data;
+	struct list_description *ld = skd->ld;
+	struct list *item = skd->item;
+	struct dialog_data *dlg = skd->dlg;
 	struct redraw_data rd;
 
 	/* strong premise: we can't delete head of the list */
-	if (ld->current_pos->next!=ld->list) {
-		if (ld->current_pos == ld->win_offset) ld->win_offset = ld->current_pos->next;
-		ld->current_pos=ld->current_pos->next;
-	}
-	else  /* last item */
-	{
-		if (!(ld->win_pos))  /* only one line on the screen */
-			ld->win_offset=prev_in_tree(ld,ld->win_offset);
-		else ld->win_pos--;
-		ld->current_pos=prev_in_tree(ld,ld->current_pos);
+	if (list_next(ld->current_pos) != ld->list) {
+		if (ld->current_pos == ld->win_offset) ld->win_offset = list_next(ld->current_pos);
+		ld->current_pos = list_next(ld->current_pos);
+	} else { /* last item */
+		if (!ld->win_pos)  /* only one line on the screen */
+			ld->win_offset = prev_in_tree(ld, ld->win_offset);
+		else
+			ld->win_pos--;
+		ld->current_pos = prev_in_tree(ld, ld->current_pos);
 	}
 
 	ld->delete_item(item);
 
-	rd.ld=ld;
-	rd.dlg=dlg;
-	rd.n=0;
+	rd.ld = ld;
+	rd.dlg = dlg;
+	rd.n = 0;
 
-	ld->modified=1;
-	draw_to_window(dlg->win,redraw_list,&rd);
+	ld->modified = 1;
+	draw_to_window(dlg->win, redraw_list, &rd);
 }
 
 
 /* when delete folder is confirmed adjusts current_pos and calls delete function */
-static void delete_folder_recursively(void * data)
+static void delete_folder_recursively(void *data)
 {
-	struct list_description* ld=((struct ve_skodarne_je_jeste_vetsi_narez*)data)->ld;
-	struct list* item=((struct ve_skodarne_je_jeste_vetsi_narez*)data)->item;
-	struct dialog_data* dlg=((struct ve_skodarne_je_jeste_vetsi_narez*)data)->dlg;
+	struct ve_skodarne_je_jeste_vetsi_narez *skd = (struct ve_skodarne_je_jeste_vetsi_narez *)data;
+	struct list_description *ld = skd->ld;
+	struct list *item = skd->item;
+	struct dialog_data *dlg = skd->dlg;
 	struct redraw_data rd;
-	struct list *i,*j;
+	struct list *i, *j;
 	int depth;
 
-	for (i=item->next,depth=item->depth;i!=ld->list&&i->depth>depth;)
-	{
-		j=i;
-		i=i->next;
+	for (i = list_next(item), depth = item->depth; i != ld->list && i->depth > depth; ) {
+		j = i;
+		i = list_next(i);
 		ld->delete_item(j);
 	}
 
 	/* strong premise: we can't delete head of the list */
-	if (ld->current_pos->next!=ld->list) {
-		if (ld->current_pos == ld->win_offset) ld->win_offset = ld->current_pos->next;
-		ld->current_pos=ld->current_pos->next;
-	}
-	else  /* last item */
-	{
-		if (!(ld->win_pos))  /* only one line on the screen */
-			ld->win_offset=prev_in_tree(ld,ld->win_offset);
-		else ld->win_pos--;
-		ld->current_pos=prev_in_tree(ld,ld->current_pos);
+	if (list_next(ld->current_pos) != ld->list) {
+		if (ld->current_pos == ld->win_offset) ld->win_offset = list_next(ld->current_pos);
+		ld->current_pos = list_next(ld->current_pos);
+	} else { /* last item */
+		if (!ld->win_pos)  /* only one line on the screen */
+			ld->win_offset = prev_in_tree(ld, ld->win_offset);
+		else
+			ld->win_pos--;
+		ld->current_pos = prev_in_tree(ld, ld->current_pos);
 	}
 
 	ld->delete_item(item);
 
-	rd.ld=ld;
-	rd.dlg=dlg;
-	rd.n=0;
+	rd.ld = ld;
+	rd.dlg = dlg;
+	rd.n = 0;
 
-	ld->modified=1;
-	draw_to_window(dlg->win,redraw_list,&rd);
+	ld->modified = 1;
+	draw_to_window(dlg->win, redraw_list, &rd);
 }
 
 
 /* tests if directory is emty */
 static int is_empty_dir(struct list_description *ld, struct list *dir)
 {
-	if (!(ld->type))return 1;  /* flat list */
-	if (!((dir->type)&1))return 1;   /* not a directory */
+	if (!ld->type) return 1;  /* flat list */
+	if (!(dir->type & 1)) return 1;   /* not a directory */
 
-	return (((struct list *)(dir->next))->depth<=dir->depth);  /* head depth is -1 */
+	return list_next(dir)->depth <= dir->depth;  /* head depth is -1 */
 }
 
 
@@ -933,7 +922,7 @@ static int list_item_delete(struct dialog_data *dlg,struct dialog_item_data *use
 	unsigned char *txt;
 	struct ve_skodarne_je_jeste_vetsi_narez *narez;
 
-	if (item==(ld->list)||list_empty(*item))return 0;  /* head or empty list */
+	if (item==ld->list||list_empty(item->list_entry))return 0;  /* head or empty list */
 
 	narez=mem_alloc(sizeof(struct ve_skodarne_je_jeste_vetsi_narez));
 	narez->ld=ld;narez->item=item;narez->dlg=dlg;
@@ -1023,7 +1012,7 @@ static int redraw_list_element(struct terminal *term, struct dialog_data *dlg, i
 		switch (ld->type) {
 		case 0:
 			element = BFU_ELEMENT_TEE;
-			if (l->next == ld->list)
+			if (list_next(l) == ld->list)
 				element = BFU_ELEMENT_L;
 			x+=draw_bfu_element(term,dlg->x+DIALOG_LB,y,color,bgcolor,fgcolor,element,(l->type)&4);
 			break;
@@ -1031,7 +1020,7 @@ static int redraw_list_element(struct terminal *term, struct dialog_data *dlg, i
 			xp = mem_alloc(l->depth + 1);
 			memset(xp, 0, l->depth + 1);
 			xd = l->depth + 1;
-			for (lx = l->next; lx != ld->list; lx = lx->next) {
+			for (lx = list_next(l); lx != ld->list; lx = list_next(lx)) {
 				if (lx->depth < xd) {
 					xd = lx->depth;
 					xp[xd] = 1;
@@ -1281,9 +1270,10 @@ static void list_find_next(struct redraw_data *rd, int direction)
 		msg_box(ses->term, NULL, TEXT_(T_SEARCH), AL_CENTER, TEXT_(T_SEARCH_STRING_NOT_FOUND), NULL, 1, TEXT_(T_CANCEL), NULL, B_ENTER | B_ESC);
 }
 
-static void list_search_for_back(struct redraw_data *rd, unsigned char *str)
+static void list_search_for_back(void *rd_, unsigned char *str)
 {
-	struct list_description *ld=rd->ld;
+	struct redraw_data *rd = (struct redraw_data *)rd_;
+	struct list_description *ld = rd->ld;
 
 	if (!*str) return;
 	if (!ld->open) return;
@@ -1295,9 +1285,10 @@ static void list_search_for_back(struct redraw_data *rd, unsigned char *str)
 	list_find_next(rd, ld->search_direction);
 }
 
-static void list_search_for(struct redraw_data *rd, unsigned char *str)
+static void list_search_for(void *rd_, unsigned char *str)
 {
-	struct list_description *ld=rd->ld;
+	struct redraw_data *rd = (struct redraw_data *)rd_;
+	struct list_description *ld = rd->ld;
 
 	if (!*str) return;
 	if (!ld->open) return;
@@ -1366,7 +1357,7 @@ static int list_event_handler(struct dialog_data *dlg, struct links_event *ev)
 			r->ld=ld;
 			r->dlg=dlg;
 
-			input_field(ses->term, getml(r,NULL), TEXT_(T_SEARCH), TEXT_(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) list_search_for, TEXT_(T_CANCEL), NULL, NULL);
+			input_field(ses->term, getml(r,NULL), TEXT_(T_SEARCH), TEXT_(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), list_search_for, TEXT_(T_CANCEL), NULL, NULL);
 			return EVENT_PROCESSED;
 		}
 		if (ev->x=='?') /* search back */
@@ -1377,7 +1368,7 @@ static int list_event_handler(struct dialog_data *dlg, struct links_event *ev)
 			r->ld=ld;
 			r->dlg=dlg;
 
-			input_field(ses->term, getml(r,NULL), TEXT_(T_SEARCH_BACK), TEXT_(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), (void (*)(void *, unsigned char *)) list_search_for_back, TEXT_(T_CANCEL), NULL, NULL);
+			input_field(ses->term, getml(r,NULL), TEXT_(T_SEARCH_BACK), TEXT_(T_SEARCH_FOR_TEXT), r, ld->search_history, MAX_INPUT_URL_LEN, cast_uchar "", 0, 0, NULL, TEXT_(T_OK), list_search_for_back, TEXT_(T_CANCEL), NULL, NULL);
 			return EVENT_PROCESSED;
 		}
 		if (ev->x=='n') /* find next */

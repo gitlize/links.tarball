@@ -155,7 +155,7 @@ static void stat_date(unsigned char **p, int *l, struct stat *stp)
 	time_t current_time;
 	time_t when;
 	struct tm *when_local;
-	unsigned char *fmt;
+	unsigned char *fmt, *e;
 	unsigned char str[13];
 	static unsigned char fmt1[] = "%b %e  %Y";
 	static unsigned char fmt2[] = "%b %e %H:%M";
@@ -171,7 +171,12 @@ static void stat_date(unsigned char **p, int *l, struct stat *stp)
 	    (ulonglong)current_time < (ulonglong)when - 60L * 60L) fmt = fmt1;
 	else fmt = fmt2;
 #ifdef HAVE_STRFTIME
+again:
 	wr = (int)strftime(cast_char str, 13, cast_const_char fmt, when_local);
+	if (wr && strstr(cast_const_char str, " e ") && ((e = cast_uchar strchr(cast_const_char fmt, 'e')))) {
+		*e = 'd';
+		goto again;
+	}
 #else
 	wr = 0;
 #endif
@@ -201,8 +206,10 @@ struct dirs {
 	unsigned char *f;
 };
 
-LIBC_CALLBACK static int comp_de(struct dirs *d1, struct dirs *d2)
+LIBC_CALLBACK static int comp_de(const void *d1_, const void *d2_)
 {
+	const struct dirs *d1 = (const struct dirs *)d1_;
+	const struct dirs *d2 = (const struct dirs *)d2_;
 	if (d1->f[0] == '.' && d1->f[1] == '.' && !d1->f[2]) return -1;
 	if (d2->f[0] == '.' && d2->f[1] == '.' && !d2->f[2]) return 1;
 	if (d1->s[0] == 'd' && d2->s[0] != 'd') return -1;
@@ -214,7 +221,7 @@ void file_func(struct connection *c)
 {
 	struct cache_entry *e;
 	unsigned char *file, *name, *head = NULL; /* against warning */
-	int fl;
+	int fl, flo;
 	DIR *d;
 	int h, r;
 	struct stat stt;
@@ -263,7 +270,7 @@ void file_func(struct connection *c)
 		dir = DUMMY, dirl = 0;
 		if (name[0] && !dir_sep(name[strlen(cast_const_char name) - 1])) {
 			if (!c->cache) {
-				if (get_cache_entry(c->url, &c->cache)) {
+				if (get_connection_cache_entry(c)) {
 					mem_free(name);
 					closedir(d);
 					setcstate(c, S_OUT_OF_MEM); abort_connection(c); return;
@@ -286,9 +293,13 @@ void file_func(struct connection *c)
 		file = init_str();
 		fl = 0;
 		add_to_str(&file, &fl, cast_uchar "<html><head><title>");
+		flo = fl;
 		add_conv_str(&file, &fl, name, (int)strlen(cast_const_char name), -1);
+		convert_file_charset(&file, &fl, flo);
 		add_to_str(&file, &fl, cast_uchar "</title></head><body><h2>Directory ");
+		flo = fl;
 		add_conv_str(&file, &fl, name, (int)strlen(cast_const_char name), -1);
+		convert_file_charset(&file, &fl, flo);
 		add_to_str(&file, &fl, cast_uchar "</h2>\n<pre>");
 		while (1) {
 			struct stat stt, *stp;
@@ -330,7 +341,7 @@ void file_func(struct connection *c)
 			stat_date(p, &l, stp);
 		}
 		closedir(d);
-		if (dirl) qsort(dir, dirl, sizeof(struct dirs), (int(*)(const void *, const void *))comp_de);
+		if (dirl) qsort(dir, dirl, sizeof(struct dirs), (int (*)(const void *, const void *))comp_de);
 		for (i = 0; i < dirl; i++) {
 			unsigned char *lnk = NULL;
 #ifdef FS_UNIX_SOFTLINKS
@@ -372,7 +383,9 @@ void file_func(struct connection *c)
 			}
 			add_to_str(&file, &fl, cast_uchar "\">");
 			/*if (dir[i].s[0] == 'd') add_to_str(&file, &fl, cast_uchar "<font color=\"yellow\">");*/
+			flo = fl;
 			add_conv_str(&file, &fl, dir[i].f, (int)strlen(cast_const_char dir[i].f), 0);
+			convert_file_charset(&file, &fl, flo);
 			/*if (dir[i].s[0] == 'd') add_to_str(&file, &fl, cast_uchar "</font>");*/
 			add_to_str(&file, &fl, cast_uchar "</a>");
 			if (lnk) {
@@ -423,7 +436,7 @@ void file_func(struct connection *c)
 		head = stracpy(cast_uchar "");
 	}
 	if (!c->cache) {
-		if (get_cache_entry(c->url, &c->cache)) {
+		if (get_connection_cache_entry(c)) {
 			mem_free(file);
 			mem_free(head);
 			setcstate(c, S_OUT_OF_MEM); abort_connection(c); return;
@@ -435,7 +448,9 @@ void file_func(struct connection *c)
 	e->head = head;
 	if ((r = add_fragment(e, 0, file, fl)) < 0) {
 		mem_free(file);
-		setcstate(c, r); abort_connection(c); return;
+		setcstate(c, r);
+		abort_connection(c);
+		return;
 	}
 	truncate_entry(e, fl, 1);
 	mem_free(file);

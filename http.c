@@ -18,8 +18,9 @@ struct http_connection_info {
 };
 
 /* prototypes */
-static void http_send_header(struct connection *);
-static void http_get_header(struct connection *);
+static void http_send_header(struct connection *c);
+static void http_get_header(struct connection *c);
+static void test_restart(struct connection *c);
 static void add_user_agent(unsigned char **hdr, int *l);
 static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url);
 static void add_accept(unsigned char **hdr, int *l);
@@ -27,6 +28,7 @@ static void add_accept_language(unsigned char **hdr, int *l, struct http_connect
 static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct connection *c);
 static void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info *info);
 static void add_connection(unsigned char **hdr, int *l, int http10, int proxy, int post);
+static void add_upgrade(unsigned char **hdr, int *l);
 static void add_dnt(unsigned char **hdr, int *l);
 static void add_if_modified(unsigned char **hdr, int *l, struct connection *c);
 static void add_range(unsigned char **hdr, int *l, unsigned char *url, struct connection *c);
@@ -55,15 +57,13 @@ unsigned char *parse_http_header(unsigned char *head, unsigned char *item, unsig
 			for (g = ++f; *g >= ' '; g++)
 				;
 			while (g > f && g[-1] == ' ') g--;
-			h = mem_alloc(g - f + 1);
-			memcpy(h, f, g - f);
-			h[g - f] = 0;
+			h = memacpy(f, g - f);
 			if (ptr) {
 				*ptr = f;
 			}
 			return h;
 		}
-		cont:;
+		cont:
 		f--;
 	}
 	return NULL;
@@ -192,7 +192,7 @@ static void add_url_to_str(unsigned char **str, int *l, unsigned char *url)
 {
 	unsigned char *sp;
 	for (sp = url; *sp && *sp != POST_CHAR; sp++) {
-		if (*sp <= ' ') {
+		if (*sp <= ' ' || *sp >= 127) {
 			unsigned char esc[4];
 			sprintf(cast_char esc, "%%%02X", (int)*sp);
 			add_to_str(str, l, esc);
@@ -219,7 +219,7 @@ static void http_send_header(struct connection *c)
 			c->cache->refcount--;
 	}
 
-	proxy = upcase(c->url[0]) == 'P';
+	proxy = is_proxy_url(c->url);
 	host = remove_proxy_prefix(c->url);
 	set_connection_timeout(c);
 	info = mem_calloc(sizeof(struct http_connection_info));
@@ -261,7 +261,7 @@ static void http_send_header(struct connection *c)
 		goto added_connect;
 	} else
 #endif
-	  if (!post) {
+	if (!post) {
 		add_to_str(&hdr, &l, cast_uchar "GET ");
 	} else {
 		add_to_str(&hdr, &l, cast_uchar "POST ");
@@ -318,6 +318,7 @@ static void http_send_header(struct connection *c)
 	add_user_agent(&hdr, &l);
 	if (proxy) add_proxy_auth_string(&hdr, &l, c->url);
 	if (!info->https_forward) {
+		test_restart(c);
 		add_referer(&hdr, &l, host, c->prev_url);
 		add_accept(&hdr, &l);
 		add_accept_language(&hdr, &l, info);
@@ -325,6 +326,7 @@ static void http_send_header(struct connection *c)
 		add_accept_charset(&hdr, &l, info);
 		add_dnt(&hdr, &l);
 		add_connection(&hdr, &l, http10, proxy, !info->send_close);
+		add_upgrade(&hdr, &l);
 		add_if_modified(&hdr, &l, c);
 		add_range(&hdr, &l, host, c);
 		add_pragma_no_cache(&hdr, &l, c->no_cache);
@@ -350,11 +352,33 @@ static void http_send_header(struct connection *c)
 	setcstate(c, S_SENT);
 }
 
+static void test_restart(struct connection *c)
+{
+/* If the cached entity is compressed, request the whole file and turn off compression */
+	if (c->cache && c->from) {
+		unsigned char *d;
+		if ((d = parse_http_header(c->cache->head, cast_uchar "Content-Encoding", NULL))) {
+			mem_free(d);
+			c->from = 0;
+			c->no_compress = 1;
+#ifdef HAVE_ANY_COMPRESSION
+			if (c->tries >= 1) {
+				unsigned char *h;
+				if ((h = get_host_name(c->url))) {
+					add_blacklist_entry(h, BL_NO_COMPRESSION);
+					mem_free(h);
+				}
+			}
+#endif
+		}
+	}
+}
+
 static void add_user_agent(unsigned char **hdr, int *l)
 {
 	add_to_str(hdr, l, cast_uchar "User-Agent: ");
 	if (SCRUB_HEADERS) {
-		add_to_str(hdr, l, cast_uchar "Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0\r\n");
+		add_to_str(hdr, l, cast_uchar "Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0\r\n");
 	} else if (!(*http_options.header.fake_useragent)) {
 		add_to_str(hdr, l, cast_uchar("Links (" VERSION_STRING "; "));
 		add_to_str(hdr, l, system_name);
@@ -363,8 +387,9 @@ static void add_user_agent(unsigned char **hdr, int *l)
 		add_to_str(hdr, l, cast_uchar "; ");
 		if (!F && !list_empty(terminals)) {
 			struct terminal *term;
+			struct list_head *lterm;
 			unsigned char *t = cast_uchar "text";
-			foreach(term, terminals) if (term->spec->braille) t = cast_uchar "braille";
+			foreach(struct terminal, term, lterm, terminals) if (term->spec->braille) t = cast_uchar "braille";
 			add_to_str(hdr, l, t);
 		}
 #ifdef G
@@ -384,24 +409,22 @@ static void add_user_agent(unsigned char **hdr, int *l)
 
 static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigned char *prev_url)
 {
-	if (proxies.only_proxies)
-		return;
-	switch (http_options.header.referer)
-	{
-		case REFERER_FAKE:
-		add_to_str(hdr, l, cast_uchar "Referer: ");
-		add_to_str(hdr, l, http_options.header.fake_referer);
-		add_to_str(hdr, l, cast_uchar "\r\n");
-		break;
+	switch (http_options.header.referer) {
+		case REFERER_FAKE: {
+			add_to_str(hdr, l, cast_uchar "Referer: ");
+			add_to_str(hdr, l, http_options.header.fake_referer);
+			add_to_str(hdr, l, cast_uchar "\r\n");
+			break;
+		}
 
-		case REFERER_SAME_URL:
-		add_to_str(hdr, l, cast_uchar "Referer: ");
-		add_url_to_str(hdr, l, url);
-		add_to_str(hdr, l, cast_uchar "\r\n");
-		break;
+		case REFERER_SAME_URL: {
+			add_to_str(hdr, l, cast_uchar "Referer: ");
+			add_url_to_str(hdr, l, url);
+			add_to_str(hdr, l, cast_uchar "\r\n");
+			break;
+		}
 
-		case REFERER_REAL_SAME_SERVER:
-		{
+		case REFERER_REAL_SAME_SERVER: {
 			unsigned char *h, *j;
 			int brk = 1;
 			if ((h = get_host_name(url))) {
@@ -412,16 +435,18 @@ static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigne
 						int q = (int)strlen(".blog.cz");
 						if (l > q && !casestrcmp((j + l - q), cast_uchar ".blog.cz")) brk = 0;
 						else if (!casestrcmp(j, cast_uchar "blog.cz")) brk = 0;
+					} else if (!casestrcmp(h, cast_uchar "www.google.com")) {
+						unsigned char *c = get_url_data(url);
+						if (c && !strncmp(cast_const_char c, "recaptcha/api/", 14)) brk = 0;
 					}
 					mem_free(j);
 				}
 				mem_free(h);
 			}
 			if (brk) break;
-			/* fall through */
 		}
-		case REFERER_REAL:
-		{
+			/*-fallthrough*/
+		case REFERER_REAL: {
 			unsigned char *ref;
 			unsigned char *user, *ins;
 			int ulen;
@@ -435,8 +460,8 @@ static void add_referer(unsigned char **hdr, int *l, unsigned char *url, unsigne
 			add_url_to_str(hdr, l, ref);
 			add_to_str(hdr, l, cast_uchar "\r\n");
 			mem_free(ref);
+			break;
 		}
-		break;
 	}
 }
 
@@ -489,7 +514,7 @@ static int advertise_compression(unsigned char *url, struct connection *c)
 
 static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url, struct connection *c)
 {
-#if defined(HAVE_ZLIB) || defined(HAVE_BZIP2) || defined(HAVE_LZMA)
+#if defined(HAVE_ANY_COMPRESSION)
 #define info	((struct http_connection_info *)c->info)
 	if (advertise_compression(url, c)) {
 		int orig_l = *l;
@@ -499,6 +524,16 @@ static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url,
 #if defined(HAVE_ZLIB)
 		if (*l != l1) add_to_str(hdr, l, cast_uchar ", ");
 		add_to_str(hdr, l, cast_uchar "gzip, deflate");
+#endif
+#if defined(HAVE_BROTLI)
+		if ((!SCRUB_HEADERS
+#ifdef HAVE_SSL
+		    || c->ssl
+#endif
+		    ) && !(info->bl_flags & BL_NO_BZIP2)) {
+			if (*l != l1) add_to_str(hdr, l, cast_uchar ", ");
+			add_to_str(hdr, l, cast_uchar "br");
+		}
 #endif
 #if defined(HAVE_BZIP2)
 		if (!SCRUB_HEADERS && !(info->bl_flags & BL_NO_BZIP2)) {
@@ -513,6 +548,12 @@ static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url,
 			add_to_str(hdr, l, cast_uchar "lzma, lzma2");
 		}
 #endif
+#if defined(HAVE_LZIP)
+		if (!SCRUB_HEADERS && !(info->bl_flags & BL_NO_BZIP2)) {
+			if (*l != l1) add_to_str(hdr, l, cast_uchar ", ");
+			add_to_str(hdr, l, cast_uchar "lzip");
+		}
+#endif
 		if (*l != l1) add_to_str(hdr, l, cast_uchar "\r\n");
 		else *l = orig_l;
 	}
@@ -523,8 +564,12 @@ static void add_accept_encoding(unsigned char **hdr, int *l, unsigned char *url,
 static void add_accept_charset(unsigned char **hdr, int *l, struct http_connection_info *info)
 {
 	static unsigned char *accept_charset = NULL;
-	if (SCRUB_HEADERS)
+
+	if (SCRUB_HEADERS ||
+	    info->bl_flags & BL_NO_CHARSET ||
+	    http_options.no_accept_charset)
 		return;
+
 	if (!accept_charset) {
 		int i;
 		unsigned char *cs, *ac;
@@ -536,17 +581,14 @@ static void add_accept_charset(unsigned char **hdr, int *l, struct http_connecti
 			add_to_str(&ac, &aclen, cs);
 		}
 		if (aclen) add_to_str(&ac, &aclen, cast_uchar "\r\n");
-		retry:
-		if (!(accept_charset = malloc(strlen(cast_const_char ac) + 1))) {
-			if (out_of_memory(0, NULL, 0))
-				goto retry;
+		if (!(accept_charset = cast_uchar strdup(cast_const_char ac))) {
+			add_to_str(hdr, l, ac);
 			mem_free(ac);
 			return;
 		}
-		strcpy(cast_char accept_charset, cast_const_char ac);
 		mem_free(ac);
 	}
-	if (!(info->bl_flags & BL_NO_CHARSET) && !http_options.no_accept_charset) add_to_str(hdr, l, accept_charset);
+	add_to_str(hdr, l, accept_charset);
 }
 
 static void add_dnt(unsigned char **hdr, int *l)
@@ -562,6 +604,13 @@ static void add_connection(unsigned char **hdr, int *l, int http10, int proxy, i
 		else add_to_str(hdr, l, cast_uchar "Proxy-Connection: ");
 		if (alive) add_to_str(hdr, l, cast_uchar "keep-alive\r\n");
 		else add_to_str(hdr, l, cast_uchar "close\r\n");
+	}
+}
+
+static void add_upgrade(unsigned char **hdr, int *l)
+{
+	if (proxies.only_proxies) {
+		add_to_str(hdr, l, cast_uchar "Upgrade-Insecure-Requests: 1\r\n");
 	}
 }
 
@@ -598,17 +647,6 @@ static void add_range(unsigned char **hdr, int *l, unsigned char *url, struct co
 			return;
 	}
 	if (c->from /*&& (c->est_length == -1 || c->from < c->est_length)*/ && c->no_cache < NC_IF_MOD && !(info->bl_flags & BL_NO_RANGE)) {
-/* If the cached entity is compressed and we turned off compression,
-   request the whole file */
-#ifdef HAVE_ANY_COMPRESSION
-		if (!advertise_compression(url, c) && e) {
-			unsigned char *d;
-			if ((d = parse_http_header(e->head, cast_uchar "Transfer-Encoding", NULL))) {
-				mem_free(d);
-				return;
-			}
-		}
-#endif
 		add_to_str(hdr, l, cast_uchar "Range: bytes=");
 		add_num_to_str(hdr, l, c->from);
 		add_to_str(hdr, l, cast_uchar "-\r\n");
@@ -851,15 +889,15 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	set_connection_timeout(c);
 	info = c->info;
 	if (rb->close == 2) {
-		unsigned char *h;
-		if (!c->tries && (h = get_host_name(host))) {
+		unsigned char *hs;
+		if (!c->tries && (hs = get_host_name(host))) {
 			if (info->bl_flags & BL_NO_CHARSET) {
-				del_blacklist_entry(h, BL_NO_CHARSET);
+				del_blacklist_entry(hs, BL_NO_CHARSET);
 			} else {
-				add_blacklist_entry(h, BL_NO_CHARSET);
+				add_blacklist_entry(hs, BL_NO_CHARSET);
 				c->tries = -1;
 			}
-			mem_free(h);
+			mem_free(hs);
 		}
 		setcstate(c, S_CANT_READ);
 		retry_connection(c);
@@ -947,6 +985,18 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		http_end_request(c, 0, 1, S__OK);
 		return;
 	}
+	if (h == 431) {
+		unsigned char *hs;
+		if (!(info->bl_flags & BL_NO_CHARSET) && (hs = get_host_name(host))) {
+			mem_free(head);
+			add_blacklist_entry(hs, BL_NO_CHARSET);
+			mem_free(hs);
+			c->tries = -1;
+			setcstate(c, S_RESTART);
+			retry_connection(c);
+			return;
+		}
+	}
 	if ((h == 500 || h == 502 || h == 503 || h == 504) && http_options.retry_internal_errors && is_connection_restartable(c)) {
 			/* !!! FIXME: wait some time ... */
 		if (is_last_try(c)) {
@@ -962,7 +1012,7 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 		return;
 	}
 	if (!c->cache) {
-		if (get_cache_entry(c->url, &c->cache)) {
+		if (get_connection_cache_entry(c)) {
 			mem_free(head);
 			setcstate(c, S_OUT_OF_MEM);
 			abort_connection(c);
@@ -1010,8 +1060,8 @@ static void http_got_header(struct connection *c, struct read_buffer *rb)
 	}
 #endif
 	if (e->redirect) mem_free(e->redirect), e->redirect = NULL;
+	if ((h == 302 || h == 303 || h == 307 || h == 511) && !e->expire_time) e->expire_time = 1;
 	if (h == 301 || h == 302 || h == 303 || h == 307) {
-		if ((h == 302 || h == 303 || h == 307) && !e->expire_time) e->expire_time = 1;
 		if ((d = parse_http_header(e->head, cast_uchar "Location", NULL))) {
 			unsigned char *user, *ins;
 			unsigned char *newuser, *newpassword;

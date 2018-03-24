@@ -13,31 +13,32 @@
 static struct list_head image_cache = { &image_cache, &image_cache };
 
 /* xyw_meaning either MEANING_DIMS or MEANING_AUTOSCALE. */
-struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int
-		yw, int xyw_meaning, int scale, unsigned aspect)
+struct cached_image *find_cached_image(int bg, unsigned char *url, int xw, int yw, int xyw_meaning, int scale, unsigned aspect)
 {
 	struct cached_image *i;
-	if (xw>=0&&yw>=0&&xyw_meaning==MEANING_DIMS){
+	struct list_head *li;
+	if (xw >= 0 && yw >= 0 && xyw_meaning == MEANING_DIMS) {
 		/* The xw and yw is already scaled so that scale and
 		 * aspect don't matter.
 		 */
-		foreach (i, image_cache) {
+		foreach(struct cached_image, i, li, image_cache) {
 			if (i->background_color == bg
 				&& !strcmp(cast_const_char i->url, cast_const_char url)
-				&& i->wanted_xw==xw
-				&& i->wanted_yw==yw
-				&& i->wanted_xyw_meaning==xyw_meaning
+				&& i->wanted_xw == xw
+				&& i->wanted_yw == yw
+				&& i->wanted_xyw_meaning == xyw_meaning
 				) goto hit;
 		}
 	}else{
-		foreach (i, image_cache) {
+		foreach(struct cached_image, i, li, image_cache) {
 			if (i->background_color == bg
 				&& !strcmp(cast_const_char i->url, cast_const_char url)
-				&& i->wanted_xw==xw
-				&& i->wanted_yw==yw
-				&& i->wanted_xyw_meaning==xyw_meaning
-				&& i->scale==scale
-				&& i->aspect==aspect) goto hit;
+				&& i->wanted_xw == xw
+				&& i->wanted_yw == yw
+				&& i->wanted_xyw_meaning == xyw_meaning
+				&& i->scale == scale
+				&& i->aspect == aspect
+				) goto hit;
 		}
 	}
 	return NULL;
@@ -91,37 +92,38 @@ static unsigned long image_size(struct cached_image *cimg)
 static int shrink_image_cache(int u)
 {
 	struct cached_image *i;
+	struct list_head *li;
 	longlong si = 0;
 	int r = 0;
-	foreach(i, image_cache) if (!i->refcount) si += image_size(i);
-	while ((si >= image_cache_size || u == SH_FREE_ALL || u == SH_FREE_SOMETHING) && !list_empty(image_cache)) {
-		i = image_cache.prev;
-		while (i->refcount) {
-			i = i->prev;
-			if ((void *)i == &image_cache) goto no;
-		}
-		r |= ST_SOMETHING_FREED;
+	foreach(struct cached_image, i, li, image_cache) if (!i->refcount) si += image_size(i);
+	foreachback(struct cached_image, i, li, image_cache) {
+		if (si <= image_cache_size && u == SH_CHECK_QUOTA)
+			break;
+		if (i->refcount)
+			continue;
+		li = li->next;
+		r = ST_SOMETHING_FREED;
 		si -= image_size(i);
 		del_from_list(i);
 		img_destruct_cached_image(i);
 		if (u == SH_FREE_SOMETHING) break;
 	}
-	no:
 	return r | (list_empty(image_cache) ? ST_CACHE_EMPTY : 0);
 }
 
 my_uintptr_t imgcache_info(int type)
 {
 	struct cached_image *i;
+	struct list_head *li;
 	my_uintptr_t n = 0;
-	foreach(i, image_cache) {
+	foreach(struct cached_image, i, li, image_cache) {
 		switch (type) {
 			case CI_BYTES:
 				n += image_size(i);
 				break;
 			case CI_LOCKED:
 				if (!i->refcount) break;
-				/* fall through */
+				/*-fallthrough*/
 			case CI_FILES:
 				n++;
 				break;

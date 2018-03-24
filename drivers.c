@@ -224,7 +224,7 @@ void generic_set_clip_area(struct graphics_device *dev, struct rect *r)
 	}
 }
 
-#if defined(GRDRV_SVGALIB) || defined(GRDRV_FB) || defined(GRDRV_GRX)
+#ifdef GRDRV_VIRTUAL_DEVICES
 
 struct graphics_device **virtual_devices;
 int n_virtual_devices = 0;

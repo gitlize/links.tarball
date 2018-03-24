@@ -90,7 +90,7 @@ static_const struct { int x; char *s; } unicode_7b [2320] = {
 	{ 0x00d4, "O" },
 	{ 0x00d5, "O" },
 	{ 0x00d6, "O:" },
-	{ 0x00d7, " *" },
+	{ 0x00d7, "*" },
 	{ 0x00d8, "O/" },
 	{ 0x00d9, "U" },
 	{ 0x00da, "U" },

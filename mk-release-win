@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
-cp ../links-current/links*.nsi ../links-current/links.crt ../links-current/COPYING ../links-current/BRAILLE_HOWTO ../links-current/KEYS ../links-current/README .
+cp ../links-current/links*.nsi ../links-current/certs/links.crt ../links-current/COPYING ../links-current/BRAILLE_HOWTO ../links-current/KEYS ../links-current/README .
 cp ../links-current/linkswin.ico links.ico
 unix2dos COPYING BRAILLE_HOWTO KEYS README
 CC=gcc
@@ -15,9 +15,9 @@ else
 	fi
 fi
 if [ "`uname -m`" != x86_64 ]; then
-	ARCH_CFLAGS="-O3 -march=pentiumpro -mtune=generic"
+	ARCH_CFLAGS="-O2 -march=pentium4 -mtune=generic"
 else
-	ARCH_CFLAGS="-O3 -mtune=generic"
+	ARCH_CFLAGS="-O2 -mtune=generic"
 fi
 CFLAGS="$ARCH_CFLAGS $LTO_ARGS -shared-libgcc -Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wmissing-declarations -Wstrict-prototypes"
 export CFLAGS

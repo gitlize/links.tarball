@@ -57,28 +57,48 @@ void extend_str(unsigned char **s, int n)
 
 void add_bytes_to_str(unsigned char **s, int *l, unsigned char *a, size_t ll)
 {
-	unsigned char *p=*s;
-	unsigned long old_length;
-	unsigned long new_length;
-	unsigned long x;
+	unsigned char *p;
+	size_t old_length;
+	size_t new_length;
+	size_t x;
 
-	old_length=*l;
-	if (ll + old_length >= (unsigned)MAXINT / 2 || ll + old_length < (unsigned)ll) overalloc();
-	new_length=old_length+ll;
-	*l=(int)new_length;
-	x=old_length^new_length;
-	if (x>=old_length){
+	if (!ll)
+		return;
+
+	p = *s;
+	old_length = (unsigned)*l;
+	if (ll + old_length >= (unsigned)MAXINT / 2 || ll + old_length < ll) overalloc();
+	new_length = old_length + ll;
+	*l = (int)new_length;
+	x = old_length ^ new_length;
+	if (x >= old_length) {
 		/* Need to realloc */
-		new_length|=(new_length>>1);
-		new_length|=(new_length>>2);
-		new_length|=(new_length>>4);
-		new_length|=(new_length>>8);
-		new_length|=(new_length>>16);
-		p=(unsigned char *)mem_realloc(p,new_length+1);
-		*s=p;
+#ifdef HAVE___BUILTIN_CLZ
+#if !(defined(__tune_i386__) || defined(__tune_i486__) || defined(__tune_i586__) || defined(__tune_k6__) || defined(__tune_lakemont__) || (defined(__alpha__) && !defined(__alpha_cix__)) || (defined(__mips) && __mips < 32) || (defined(__ARM_ARCH) && __ARM_ARCH < 5) || (defined(__sparc__) && (!defined(__VIS__) || __VIS__ < 0x300)) || defined(__hppa) || defined(__sh__))
+		if (!(sizeof(unsigned) & (sizeof(unsigned) - 1))) {
+			new_length = 2U << ((sizeof(unsigned) * 8 - 1)
+#ifdef __ICC
+				-
+#else
+				^
+#endif
+				__builtin_clz(new_length));
+		} else
+#endif
+#endif
+		{
+			new_length |= new_length >> 1;
+			new_length |= new_length >> 2;
+			new_length |= new_length >> 4;
+			new_length |= new_length >> 8;
+			new_length |= new_length >> 16;
+			new_length++;
+		}
+		p = (unsigned char *)mem_realloc(p, new_length);
+		*s = p;
 	}
-	memcpy(p+old_length,a,ll);
-	p[*l]=0;
+	p[*l] = 0;
+	memcpy(p + old_length, a, ll);
 }
 
 void add_to_str(unsigned char **s, int *l, unsigned char *a)

@@ -22,6 +22,7 @@ struct codepage_desc {
 #include "uni_7b.inc"
 #include "entity.inc"
 #include "upcase.inc"
+#include "locase.inc"
 
 static_const unsigned char strings[256][2] = {
 	"\000", "\001", "\002", "\003", "\004", "\005", "\006", "\007",
@@ -75,7 +76,7 @@ static void new_translation_table(struct conv_table *p)
 	for (; i < 256; i++) p[i].t = 0, p[i].u.str = cast_uchar no_str;
 }
 
-static_const int strange_chars[32] = {
+static_const unsigned short strange_chars[32] = {
 	0x20ac, 0x0000, 0x002a, 0x0000, 0x201e, 0x2026, 0x2020, 0x2021,
 	0x005e, 0x2030, 0x0160, 0x003c, 0x0152, 0x0000, 0x0000, 0x0000,
 	0x0000, 0x0060, 0x0027, 0x0022, 0x0022, 0x002a, 0x2013, 0x2014,
@@ -94,6 +95,7 @@ unsigned char *u2cp(int u, int to, int fallback)
 {
 	int j, s;
 	again:
+	if (u < 0) return cast_uchar "";
 	if (u < 128) return cast_uchar strings[u];
 	if (is_nbsp(u)) return cast_uchar strings[1];
 	if (u == 0xad) return cast_uchar strings[0];
@@ -126,7 +128,8 @@ static unsigned char utf_buffer[7];
 unsigned char *encode_utf_8(int u)
 {
 	memset(utf_buffer, 0, 7);
-	if (u < 0x80) utf_buffer[0] = (unsigned char)u;
+	if (u < 0) ;
+	else if (u < 0x80) utf_buffer[0] = (unsigned char)u;
 	else if (u < 0x800)
 		utf_buffer[0] = 0xc0 | ((u >> 6) & 0x1f),
 		utf_buffer[1] = 0x80 | (u & 0x3f);
@@ -197,9 +200,13 @@ static struct conv_table *get_translation_table_to_utf_8(int from)
 	if (from == -1) return NULL;
 	if (from == lfr) return utf_table;
 	lfr = from;
-	if (utf_table_init) memset(utf_table, 0, sizeof(struct conv_table) * 256), utf_table_init = 0;
-	else free_utf_table();
-	for (i = 0; i < 128; i++) utf_table[i].u.str = cast_uchar strings[i];
+	if (utf_table_init) {
+		memset(utf_table, 0, sizeof(struct conv_table) * 256);
+		for (i = 0; i < 128; i++) utf_table[i].u.str = cast_uchar strings[i];
+		utf_table_init = 0;
+	} else {
+		free_utf_table();
+	}
 	if (from == utf8_table) {
 		for (i = 128; i < 256; i++) utf_table[i].u.str = stracpy(strings[i]);
 		return utf_table;
@@ -214,41 +221,6 @@ static struct conv_table *get_translation_table_to_utf_8(int from)
 		if (!utf_table[i].u.str) utf_table[i].u.str = stracpy(no_str);
 	return utf_table;
 }
-
-unsigned short int utf8_2_uni_table[0x200] = {
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 128,	0, 0, 0, 192,	0,
-	0, 0, 256,	0, 0, 0, 320,	0, 0, 0, 384,	0, 0, 0, 448,	0,
-	0, 0, 512,	0, 0, 0, 576,	0, 0, 0, 640,	0, 0, 0, 704,	0,
-	0, 0, 768,	0, 0, 0, 832,	0, 0, 0, 896,	0, 0, 0, 960,	0,
-	0, 0, 1024,	0, 0, 0, 1088,	0, 0, 0, 1152,	0, 0, 0, 1216,	0,
-	0, 0, 1280,	0, 0, 0, 1344,	0, 0, 0, 1408,	0, 0, 0, 1472,	0,
-	0, 0, 1536,	0, 0, 0, 1600,	0, 0, 0, 1664,	0, 0, 0, 1728,	0,
-	0, 0, 1792,	0, 0, 0, 1856,	0, 0, 0, 1920,	0, 0, 0, 1984,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-	0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0, 0, 0, 0,	0,
-};
 
 unsigned char utf_8_1[256] = {
 	6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
@@ -269,7 +241,7 @@ unsigned char utf_8_1[256] = {
 	3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 6, 6,
 };
 
-static_const unsigned min_utf_8[9] = {
+static_const unsigned min_utf_8[8] = {
 	0, 0x4000000, 0x200000, 0x10000, 0x800, 0x80, 0x100, 0x1,
 };
 
@@ -483,10 +455,7 @@ need_table:
 
 int get_cp_index(unsigned char *n)
 {
-#ifdef __DECC_VER
-	volatile
-#endif
-	int i, a, p, q, sl, ii = -1, ll = 0;
+	decc_volatile int i, a, p, q, sl, ii = -1, ll = 0;
 	for (i = 0; codepages[i].name; i++) {
 		for (a = 0; codepages[i].aliases[a]; a++) {
 			for (p = 0; n[p]; p++) {
@@ -520,8 +489,19 @@ unsigned char *get_cp_mime_name(int index)
 	return cast_uchar codepages[index].aliases[0];
 }
 
-#define UP_EQUAL(a, b) unicode_upcase[a].lo == (b)
-#define UP_ABOVE(a, b) unicode_upcase[a].lo > (b)
+#define LO_EQUAL(a, b) unicode_locase[a].o == (b)
+#define LO_ABOVE(a, b) unicode_locase[a].o > (b)
+
+unsigned uni_locase(unsigned ch)
+{
+	int res;
+	BIN_SEARCH(array_elements(unicode_locase), LO_EQUAL, LO_ABOVE, ch, res);
+	if (res == -1) return ch;
+	return unicode_locase[res].n;
+}
+
+#define UP_EQUAL(a, b) unicode_upcase[a].o == (b)
+#define UP_ABOVE(a, b) unicode_upcase[a].o > (b)
 
 unsigned charset_upcase(unsigned ch, int cp)
 {
@@ -530,10 +510,10 @@ unsigned charset_upcase(unsigned ch, int cp)
 	unsigned char *str;
 	if (ch < 0x80) return upcase(ch);
 	u = cp2u(ch, cp);
-	BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, u, res);
+	BIN_SEARCH(array_elements(unicode_upcase), UP_EQUAL, UP_ABOVE, u, res);
 	if (res == -1) return ch;
-	if (cp == utf8_table) return unicode_upcase[res].up;
-	str = u2cp(unicode_upcase[res].up, cp, 0);
+	if (cp == utf8_table) return unicode_upcase[res].n;
+	str = u2cp(unicode_upcase[res].n, cp, 0);
 	if (!str || !str[0] || str[1]) return ch;
 	return str[0];
 }
@@ -565,8 +545,8 @@ unsigned char *unicode_upcase_string(unsigned char *ch)
 		int res;
 		GET_UTF_8(ch, c);
 		if (!c) break;
-		BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, c, res);
-		if (res != -1) c = unicode_upcase[res].up;
+		BIN_SEARCH(array_elements(unicode_upcase), UP_EQUAL, UP_ABOVE, c, res);
+		if (res != -1) c = unicode_upcase[res].n;
 		add_to_str(&r, &rl, encode_utf_8(c));
 	}
 	return r;
@@ -591,8 +571,8 @@ int compare_case_utf8(unsigned char *u1, unsigned char *u2)
 		if (!c2) return (int)(u1 - uu1);
 		skip_discr:
 		GET_UTF_8(u1, c1);
-		BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, c1, cc1);
-		if (cc1 != -1) c1 = unicode_upcase[cc1].up;
+		BIN_SEARCH(array_elements(unicode_upcase), UP_EQUAL, UP_ABOVE, c1, cc1);
+		if (cc1 != -1) c1 = unicode_upcase[cc1].n;
 		if (c1 == 0xad) goto skip_discr;
 		if (c1 != c2) return 0;
 		if (c1 == ' ') {
@@ -600,8 +580,8 @@ int compare_case_utf8(unsigned char *u1, unsigned char *u2)
 			do {
 				x1 = u1;
 				GET_UTF_8(u1, c1);
-				BIN_SEARCH(sizeof(unicode_upcase) / sizeof(*unicode_upcase), UP_EQUAL, UP_ABOVE, c1, cc1);
-				if (cc1 != -1) c1 = unicode_upcase[cc1].up;
+				BIN_SEARCH(array_elements(unicode_upcase), UP_EQUAL, UP_ABOVE, c1, cc1);
+				if (cc1 != -1) c1 = unicode_upcase[cc1].n;
 			} while (c1 == ' ');
 			u1 = x1;
 		}

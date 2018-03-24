@@ -6,10 +6,10 @@
 #include "links.h"
 
 struct cache_upcall {
-	struct cache_upcall *next;
-	struct cache_upcall *prev;
+	list_entry_1st
 	int (*upcall)(int);
 	unsigned char flags;
+	list_entry_last
 	unsigned char name[1];
 };
 
@@ -28,8 +28,9 @@ void heap_trim(void)
 int shrink_memory(int type, int flags)
 {
 	struct cache_upcall *c;
+	struct list_head *lc;
 	int a = 0;
-	foreach(c, cache_upcalls) {
+	foreach(struct cache_upcall, c, lc, cache_upcalls) {
 		if (flags && !(c->flags & flags)) continue;
 		a |= c->upcall(type);
 	}
@@ -70,11 +71,12 @@ void register_cache_upcall(int (*upcall)(int), int flags, unsigned char *name)
 void free_all_caches(void)
 {
 	struct cache_upcall *c;
+	struct list_head *lc;
 	int a, b;
 	do {
 		a = 0;
 		b = ~0;
-		foreach(c, cache_upcalls) {
+		foreach(struct cache_upcall, c, lc, cache_upcalls) {
 			int x = c->upcall(SH_FREE_ALL);
 			a |= x;
 			b &= x;
@@ -83,14 +85,14 @@ void free_all_caches(void)
 	if (!(b & ST_CACHE_EMPTY)) {
 		unsigned char *m = init_str();
 		int l = 0;
-		foreach(c, cache_upcalls) if (!(c->upcall(SH_FREE_ALL) & ST_CACHE_EMPTY)) {
+		foreach(struct cache_upcall, c, lc, cache_upcalls) if (!(c->upcall(SH_FREE_ALL) & ST_CACHE_EMPTY)) {
 			if (l) add_to_str(&m, &l, cast_uchar ", ");
 			add_to_str(&m, &l, c->name);
 		}
 		internal("could not release entries from caches: %s", m);
 		mem_free(m);
 	}
-	free_list(cache_upcalls);
+	free_list(struct cache_upcall, cache_upcalls);
 }
 
 int malloc_try_hard = 0;
@@ -129,7 +131,11 @@ retry:
 	}
 #endif
 	fprintf(stderr, "Formatted document cache: %lu documents, %lu locked\n", formatted_info(CI_FILES), formatted_info(CI_LOCKED));
-	fprintf(stderr, "DNS cache: %lu servers\n", dns_info(CI_FILES));
+	fprintf(stderr, "DNS cache: %lu servers", dns_info(CI_FILES));
+#ifdef SSL_SESSION_RESUME
+	fprintf(stderr, ", TLS session cache: %lu servers", session_info(CI_FILES));
+#endif
+	fprintf(stderr, "\n");
 
 	if (file) fatal_exit("ERROR: out of memory (%s(%lu) at %s:%d returned NULL)", msg, (unsigned long)size, file, line);
 	else fatal_exit("ERROR: out of memory (%s(%lu) returned NULL)", msg, (unsigned long)size);
@@ -139,14 +145,14 @@ retry:
 #ifdef DEBUG_TEST_FREE
 
 struct debug_test_free_slot {
-	struct debug_test_free_slot *next;
-	struct debug_test_free_slot *prev;
+	list_entry_1st
 	unsigned char *file;
 	int line;
 	unsigned long count;
+	list_entry_last
 };
 
-static struct list_head debug_test_free_slots = {&debug_test_free_slots, &debug_test_free_slots};
+static struct list_head debug_test_free_slots = { &debug_test_free_slots, &debug_test_free_slots };
 
 #define DEBUG_TEST_FREE_DEFAULT_PROB	1024
 #define DEBUG_TEST_FREE_INIT_COUNT	16
@@ -154,12 +160,13 @@ static struct list_head debug_test_free_slots = {&debug_test_free_slots, &debug_
 void debug_test_free(unsigned char *file, int line)
 {
 	struct debug_test_free_slot *sl = NULL;
+	struct list_head *lsl;
 	unsigned long prob;
 	if (!file) {
 		prob = DEBUG_TEST_FREE_DEFAULT_PROB;
 		goto fixed_prob;
 	}
-	foreach(sl, debug_test_free_slots) {
+	foreach(struct debug_test_free_slot, sl, lsl, debug_test_free_slots) {
 		if (sl->line == line && (sl->file == file || !strcmp(cast_const_char sl->file, cast_const_char file))) {
 			del_from_list(sl);
 			goto have_it;
@@ -183,7 +190,7 @@ void debug_test_free(unsigned char *file, int line)
 	fixed_prob:
 	if (!prob) prob = 1;
 	if (!(random() % prob)) {
-		if (shrink_memory(SH_FREE_SOMETHING) & ST_SOMETHING_FREED) {
+		if (shrink_memory(SH_FREE_SOMETHING, 0) & ST_SOMETHING_FREED) {
 			/*if (sl) sl->count++;*/
 		}
 	}

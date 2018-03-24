@@ -215,11 +215,29 @@ static unsigned char *get_url_val(unsigned char *e, unsigned char *name)
 
 static unsigned char *get_url_val(unsigned char *e, unsigned char *name)
 {
-	unsigned char *a;
+	unsigned char *a, *p, *c;
+	int l;
 	get_attr_val_nl = 1;
 	a = get_attr_val(e, name);
 	get_attr_val_nl = 0;
+	if (!a)
+		return NULL;
+	if (d_opt->real_cp != utf8_table) {
+		if (url_non_ascii(a))
+			goto need_convert;
+	}
 	return a;
+
+	need_convert:
+	c = init_str();
+	l = 0;
+	for (p = a; *p; p++) {
+		int u = cp2u(*p, d_opt->real_cp);
+		unsigned char *us = encode_utf_8(u);
+		add_to_str(&c, &l, us);
+	}
+	mem_free(a);
+	return c;
 }
 
 static unsigned char *get_exact_attr_val(unsigned char *e, unsigned char *name)
@@ -531,17 +549,15 @@ void kill_html_stack_item(struct html_element *e)
 	free_js_event_spec(e->attr.js_event);
 	del_from_list(e);
 	mem_free(e);
-	/*if ((void *)(html_stack.next) == &html_stack || !html_stack.next) {
-		debug("killing last element");
-	}*/
 }
 
 #if defined(DEBUG) && 0
 void debug_stack(void)
 {
 	struct html_element *e;
+	struct list_head *le;
 	printf("HTML stack debug: \n");
-	foreachback(e, html_stack) {
+	foreachback(struct html_element, e, le, html_stack) {
 		int i;
 		printf("\"");
 		for (i = 0; i < e->namelen; i++) printf("%c", e->name[i]);
@@ -558,10 +574,7 @@ void html_stack_dup(void)
 	struct html_element *e;
 	struct html_element *ep;
 	html_format_changed = 1;
-	if ((void *)(ep = html_stack.next) == &html_stack || !html_stack.next) {
-		internal("html stack empty");
-		return;
-	}
+	ep = &html_top;
 	e = mem_alloc(sizeof(struct html_element));
 	memcpy(e, ep, sizeof(struct html_element));
 	e->attr.fontface = stracpy(ep->attr.fontface);
@@ -768,9 +781,10 @@ static void put_chrs(unsigned char *start, int len)
 static void kill_until(int ls, ...)
 {
 	int l;
-	struct html_element *e = &html_top;
+	struct list_head *e = &html_top.list_entry;
 	if (ls) e = e->next;
-	while ((void *)e != &html_stack) {
+	while (e != &html_stack) {
+		struct html_element *he = list_struct(e, struct html_element);
 		int sk = 0;
 		va_list arg;
 		va_start(arg, ls);
@@ -778,9 +792,9 @@ static void kill_until(int ls, ...)
 			unsigned char *s = va_arg(arg, unsigned char *);
 			if (!s) break;
 			if (!*s) sk++;
-			else if ((size_t)e->namelen == strlen(cast_const_char s) && !casecmp(e->name, s, strlen(cast_const_char s))) {
+			else if ((size_t)he->namelen == strlen(cast_const_char s) && !casecmp(he->name, s, strlen(cast_const_char s))) {
 				if (!sk) {
-					if (e->dontkill) break;
+					if (he->dontkill) break;
 					va_end(arg);
 					goto killll;
 				}
@@ -791,8 +805,8 @@ static void kill_until(int ls, ...)
 			}
 		}
 		va_end(arg);
-		if (e->dontkill || (e->namelen == 5 && !casecmp(e->name, cast_uchar "TABLE", 5))) break;
-		if (e->namelen == 2 && upcase(e->name[0]) == 'T' && (upcase(e->name[1]) == 'D' || upcase(e->name[1]) == 'H' || upcase(e->name[1]) == 'R')) break;
+		if (he->dontkill || (he->namelen == 5 && !casecmp(he->name, cast_uchar "TABLE", 5))) break;
+		if (he->namelen == 2 && upcase(he->name[0]) == 'T' && (upcase(he->name[1]) == 'D' || upcase(he->name[1]) == 'H' || upcase(he->name[1]) == 'R')) break;
 		e = e->next;
 	}
 	return;
@@ -800,18 +814,19 @@ static void kill_until(int ls, ...)
 	e = e->prev;
 	killll:
 	l = 0;
-	while ((void *)e != &html_stack) {
+	while (e != &html_stack) {
+		struct html_element *he = list_struct(e, struct html_element);
 		if (ls && e == html_stack.next) break;
-		if (e->linebreak > l) l = e->linebreak;
+		if (he->linebreak > l) l = he->linebreak;
 		e = e->prev;
-		kill_html_stack_item(e->next);
+		kill_html_stack_item(he);
 	}
 	ln_break(l);
 }
 
 static inline unsigned char *top_href_base(void)
 {
-	return ((struct html_element *)html_stack.prev)->attr.href_base;
+	return list_struct(html_stack.prev, struct html_element)->attr.href_base;
 }
 
 int get_num(unsigned char *a, unsigned char *n)
@@ -901,6 +916,8 @@ static inline void set_link_attr(void)
 
 static void put_link_line(unsigned char *prefix, unsigned char *linkname, unsigned char *link, unsigned char *target)
 {
+	if (!casecmp(link, cast_uchar "android-app:", 12))
+		return;
 	html_stack_dup();
 	ln_break(1);
 	if (format_.link) mem_free(format_.link), format_.link = NULL;
@@ -1056,7 +1073,7 @@ static void html_img(unsigned char *a)
 	int ismap, usemap = 0;
 	/*put_chrs(cast_uchar " ", 1);*/
 	get_js_events(a);
-	if ((!F || !d_opt->display_images) && ((al = get_attr_val(a, cast_uchar "usemap")))) {
+	if ((!F || !d_opt->display_images) && ((al = get_url_val(a, cast_uchar "usemap")))) {
 		unsigned char *u;
 		usemap = 1;
 		html_stack_dup();
@@ -1073,13 +1090,18 @@ static void html_img(unsigned char *a)
 	ismap = format_.link && (F || !has_attr(a, cast_uchar "usemap")) && has_attr(a, cast_uchar "ismap");
 	if (format_.image) mem_free(format_.image), format_.image = NULL;
 	if (
+		(s = get_url_val(a, cast_uchar "data-full")) ||
+		(s = get_url_val(a, cast_uchar "data-normal")) ||
 		(s = get_url_val(a, cast_uchar "data-src")) ||
 		(s = get_url_val(a, cast_uchar "data-defer-src")) ||
 		(s = get_url_val(a, cast_uchar "data-li-src")) ||
 		(s = get_url_val(a, cast_uchar "data-original")) ||
+		(s = get_url_val(a, cast_uchar "data-small")) ||
+		(s = get_url_val(a, cast_uchar "data-lazy")) ||
 		(s = get_url_val(a, cast_uchar "src")) ||
-		(s = get_attr_val(a, cast_uchar "dynsrc")) ||
-		(s = get_attr_val(a, cast_uchar "data"))
+		(s = get_url_val(a, cast_uchar "dynsrc")) ||
+		(s = get_url_val(a, cast_uchar "data")) ||
+		(s = get_url_val(a, cast_uchar "content"))
 	    ) {
 		 if (!format_.link && d_opt->braille) goto skip_img;
 		 format_.image = join_urls(format_.href_base, s);
@@ -1179,7 +1201,7 @@ static void html_img(unsigned char *a)
 		if (!i.alt) i.alt = get_attr_val(a, cast_uchar "alt");
 		i.insert_flag = !(format_.form);
 		i.ismap = ismap;
-		if ((u = get_attr_val(a, cast_uchar "usemap"))) {
+		if ((u = get_url_val(a, cast_uchar "usemap"))) {
 			i.usemap = join_urls(*u == '#' ? top_href_base() : format_.href_base, u);
 			mem_free(u);
 		}
@@ -1212,19 +1234,24 @@ static void html_obj(unsigned char *a, int obj)
 	unsigned char *url;
 	unsigned char *type = get_attr_val(a, cast_uchar "type");
 	unsigned char *base;
-	if ((base = get_attr_val(a, cast_uchar "codebase"))) format_.href_base = join_urls(format_.href_base, base);
+	if ((base = get_url_val(a, cast_uchar "codebase"))) format_.href_base = join_urls(format_.href_base, base);
 	if (!type) {
-		url = get_attr_val(a, cast_uchar "src");
-		if (!url) url = get_attr_val(a, cast_uchar "data");
-		if (url) type = get_content_type(NULL, url), mem_free(url);
+		url = get_url_val(a, cast_uchar "src");
+		if (!url) url = get_url_val(a, cast_uchar "data");
+		if (url) {
+			unsigned char *ju = join_urls(format_.href_base, url);
+			type = get_content_type(NULL, ju);
+			mem_free(url);
+			mem_free(ju);
+		}
 	}
 	if (type && known_image_type(type)) {
 		html_img(a);
 		if (obj == 1) html_top.invisible = INVISIBLE;
 		goto ret;
 	}
-	url = get_attr_val(a, cast_uchar "src");
-	if (!url) url = get_attr_val(a, cast_uchar "data");
+	url = get_url_val(a, cast_uchar "src");
+	if (!url) url = get_url_val(a, cast_uchar "data");
 	if (url) put_link_line(cast_uchar "", !obj ? cast_uchar "[EMBED]" : cast_uchar "[OBJ]", url, cast_uchar ""), mem_free(url);
 	ret:
 	if (base) mem_free(format_.href_base), format_.href_base = old_base, mem_free(base);
@@ -1273,7 +1300,7 @@ int should_skip_script(unsigned char *a)
 static void html_script(unsigned char *a)
 {
 	unsigned char *s;
-	s = get_attr_val(a, cast_uchar "src");
+	s = get_url_val(a, cast_uchar "src");
 	special_f(ff, SP_SCRIPT, s);
 	if (s) mem_free(s);
 	if (should_skip_script(a)) {
@@ -1350,7 +1377,9 @@ static void html_blockquote(unsigned char *a)
 
 static void html_h(int h, unsigned char *a)
 {
+#if defined(__GNUC__) && defined(__arm__)
 	do_not_optimize_here(&h);
+#endif
 #ifdef G
 	if (F) {
 		html_linebrk(a);
@@ -1411,7 +1440,6 @@ static void html_div(unsigned char *a)
 		if (!strcmp(cast_const_char al, "commit-msg") ||
 		    !strcmp(cast_const_char al, "pre") /* sourceware hack */ ||
 		    (!strncmp(cast_const_char al, "diff", 4) && casestrcmp(al, cast_uchar "diff-view") && strncmp(cast_const_char al, "diffbar", 7)) /* gitweb hack, github counter-hacks */ ||
-		    strstr(cast_const_char al, "source") /* mercurial hack */ ||
 		    0) {
 			format_.attr |= AT_FIXED;
 			par_format.align = AL_NO;
@@ -1587,7 +1615,7 @@ static void html_li(unsigned char *a)
 		put_chrs(cast_uchar ".&nbsp;", 7);
 		if (!F) par_format.leftmargin += (int)strlen(cast_const_char n) + c + 2;
 		par_format.align = AL_LEFT;
-		html_top.next->parattr.list_number = par_format.list_number + 1;
+		list_struct(html_top.list_entry.next, struct html_element)->parattr.list_number = par_format.list_number + 1;
 		par_format.list_number = 0;
 		putsp = -1;
 	}
@@ -2401,13 +2429,13 @@ static void html_frame(unsigned char *a)
 		url = join_urls(format_.href_base, u2);
 		mem_free(u2);
 	}
-	if (!url) return;
-	name = get_attr_val (a, cast_uchar "name");
-	if (!name)
-		name = stracpy(url);
-	else if (!name[0]) { /* When name doesn't have a value */
-		mem_free(name);
-		name = stracpy(url);
+	name = get_attr_val(a, cast_uchar "name");
+	if (name && !name[0])
+		mem_free(name), name = NULL;
+	if (!name) {
+		name = get_attr_val(a, cast_uchar "src");
+		if (!name)
+			name = stracpy(cast_uchar "Frame");
 	}
 	if (!d_opt->frames || !html_top.frameset) put_link_line(cast_uchar "Frame: ", name, url, cast_uchar "");
 	else {
@@ -2469,7 +2497,11 @@ static void parse_frame_widths(unsigned char *a, int ww, int www, int **op, int 
 		qq = q;
 		for (i = 0; i < ol; i++) {
 			q -= o[i] - o[i] * (d - qq) / (d ? d : 1);
+#ifdef __GNUC__
+#if __GNUC__ == 2
 			do_not_optimize_here(&d);
+#endif
+#endif
 				/* SIGH! gcc 2.7.2.* has an optimizer bug! */
 			o[i] = o[i] * (d - qq) / (d ? d : 1);
 		}
@@ -2591,6 +2623,22 @@ static void html_frameset(unsigned char *a)
 	mem_free(c);
 }*/
 
+static void html_meta(unsigned char *a)
+{
+	unsigned char *prop;
+	if ((prop = get_attr_val(a, cast_uchar "property"))) {
+		if (!strcmp(cast_const_char prop, "og:image")) {
+			unsigned char *host = get_host_name(format_.href_base);
+			if (host) {
+				if (strstr(cast_const_char host, "instagram."))
+					html_img(a);
+				mem_free(host);
+			}
+		}
+		mem_free(prop);
+	}
+}
+
 static void html_link(unsigned char *a)
 {
 	unsigned char *name, *url, *title;
@@ -2613,27 +2661,32 @@ static void html_link(unsigned char *a)
 			mem_free(lang);
 		}
 	}
-	if (!name)
-		name = stracpy(url);
+	if (!name) {
+		if (has_attr(a, cast_uchar "title"))
+			name = stracpy(cast_uchar "");
+		else {
+			name = get_attr_val(a, cast_uchar "href");
+			if (!name)
+				name = stracpy(cast_uchar "Link");
+		}
+	}
 	if (
-	    !casecmp(name, cast_uchar "apple-touch-icon", 16) ||
 	    !casecmp(name, cast_uchar "schema", 6) ||
 	    !casestrcmp(name, cast_uchar "Edit-Time-Data") ||
 	    !casestrcmp(name, cast_uchar "File-List") ||
 	    !casestrcmp(name, cast_uchar "alternate stylesheet") ||
 	    !casestrcmp(name, cast_uchar "generator-home") ||
+	    !casestrcmp(name, cast_uchar "https://api.w.org/") ||
 	    !casestrcmp(name, cast_uchar "https://github.com/WP-API/WP-API") ||
-	    !casestrcmp(name, cast_uchar "icon") ||
 	    !casestrcmp(name, cast_uchar "made") ||
+	    !casestrcmp(name, cast_uchar "manifest") ||
 	    !casestrcmp(name, cast_uchar "meta") ||
 	    !casestrcmp(name, cast_uchar "pingback") ||
 	    !casestrcmp(name, cast_uchar "preconnect") ||
-	    !casestrcmp(name, cast_uchar "shortcut icon") ||
 	    !casestrcmp(name, cast_uchar "stylesheet") ||
-	    !casestrcmp(name, cast_uchar "https://api.w.org/") ||
+	    casestrstr(name, cast_uchar "icon") ||
 	    0) goto skip;
 	if (!casestrcmp(name, cast_uchar "prefetch") ||
-	    !casestrcmp(name, cast_uchar "dns-prefetch") ||
 	    !casestrcmp(name, cast_uchar "prerender") ||
 	    !casestrcmp(name, cast_uchar "preload")) {
 		unsigned char *pre_url = join_urls(format_.href_base, url);
@@ -2641,8 +2694,17 @@ static void html_link(unsigned char *a)
 		mem_free(pre_url);
 		goto skip;
 	}
+	if (!casestrcmp(name, cast_uchar "dns-prefetch")) {
+		unsigned char *pre_url, *host;
+		pre_url = join_urls(format_.href_base, url);
+		host = get_host_name(pre_url);
+		mem_free(pre_url);
+		if (!dmp) dns_prefetch(host);
+		mem_free(host);
+		goto skip;
+	}
 	if ((title = get_attr_val(a, cast_uchar "title"))) {
-		add_to_strn(&name, cast_uchar ": ");
+		if (*name) add_to_strn(&name, cast_uchar ": ");
 		add_to_strn(&name, title);
 		mem_free(title);
 	}
@@ -2736,6 +2798,7 @@ static struct element_info elements[] = {
 	{"OPTION",	html_option,	1, 1},
 	{"BUTTON",	html_button,	0, 0},
 
+	{"META",	html_meta,	0, 1},
 	{"LINK",	html_link,	1, 1},
 	{"IFRAME",	html_iframe,	1, 1},
 	{"FRAME",	html_frame,	1, 1},
@@ -3011,19 +3074,20 @@ do {					\
 						goto set_lt;
 					}
 					if (ei->nopair == 2 || ei->nopair == 3) {
-						struct html_element *e;
+						struct html_element *e = NULL;	/* against warning */
+						struct list_head *le;
 						if (ei->nopair == 2) {
-							foreach(e, html_stack) {
+							foreach(struct html_element, e, le, html_stack) {
 								if (e->dontkill) break;
 								if (e->linebreak || !ei->linebreak) break;
 							}
-						} else foreach(e, html_stack) {
+						} else foreach(struct html_element, e, le, html_stack) {
 							if (e->linebreak && !ei->linebreak) break;
 							if (e->dontkill) break;
 							if (e->namelen == namelen && !casecmp(e->name, name, e->namelen)) break;
 						}
 						if (e->namelen == namelen && !casecmp(e->name, name, e->namelen)) {
-							while (e->prev != (void *)&html_stack) kill_html_stack_item(e->prev);
+							while (e->list_entry.prev != &html_stack) kill_html_stack_item(list_struct(e->list_entry.prev, struct html_element));
 							if (e->dontkill != 2) kill_html_stack_item(e);
 						}
 					}
@@ -3050,12 +3114,13 @@ do {					\
 				}
 			} else {
 				struct html_element *e, *fx;
+				struct list_head *le, *lfx;
 				int lnb = 0;
 				int xxx = 0;
 				was_br = 0;
 				if (ei->nopair == 1 || ei->nopair == 3) break;
 				/*debug_stack();*/
-				foreach(e, html_stack) {
+				foreach(struct html_element, e, le, html_stack) {
 					if (e->linebreak && !ei->linebreak) xxx = 1;
 					if (e->namelen != namelen || casecmp(e->name, name, e->namelen)) {
 						if (e->dontkill) break;
@@ -3065,11 +3130,11 @@ do {					\
 						kill_html_stack_item(e);
 						break;
 					}
-					for (fx = e; fx != (void *)&html_stack; fx = fx->prev)
+					foreachbackfrom(struct html_element, fx, lfx, html_stack, le)
 						if (fx->linebreak > lnb) lnb = fx->linebreak;
-					format_.fontsize = e->next->attr.fontsize;
+					format_.fontsize = list_struct(e->list_entry.next, struct html_element)->attr.fontsize;
 					ln_break(lnb);
-					while (e->prev != (void *)&html_stack) kill_html_stack_item(e->prev);
+					while (e->list_entry.prev != &html_stack) kill_html_stack_item(list_struct(e->list_entry.prev, struct html_element));
 					kill_html_stack_item(e);
 					break;
 				}
@@ -3202,14 +3267,10 @@ int get_image_map(unsigned char *head, unsigned char *s, unsigned char *eof, uns
 	if (!(target = get_target(attr)) && !(target = stracpy(target_base)))
 		target = stracpy(cast_uchar "");
 	ld = mem_calloc(sizeof(struct link_def));
-	if (href) if (!(ld->link = join_urls(href_base, href))) {
+	if (href) {
+		ld->link = join_urls(href_base, href);
 		mem_free(href);
-		mem_free(target);
-		mem_free(ld);
-		if (label) mem_free(label);
-		goto se2;
 	}
-	if (href) mem_free(href);
 	ld->target = target;
 
 	add_to_ml(ml, ld, ld->target, NULL);

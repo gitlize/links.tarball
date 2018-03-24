@@ -305,7 +305,7 @@ static void fb_mouse_move(int dx, int dy)
 	ev.y = mouse_y;
 	ev.b = B_MOVE;
 	if (((last_mouse_buttons & BM_ACT) == B_DOWN || (last_mouse_buttons & BM_ACT) == B_DRAG) &&
-	    (last_mouse_buttons & BM_BUTT) < B_WHEELUP) {
+	    !BM_IS_WHEEL(last_mouse_buttons)) {
 		ev.b = (last_mouse_buttons & BM_BUTT) | B_DRAG;
 	}
 	if (!current_virtual_device) return;
@@ -313,7 +313,7 @@ static void fb_mouse_move(int dx, int dy)
 	redraw_mouse();
 }
 
-static void fb_key_in(void *p, unsigned char *ev_, int size)
+static void fb_key_in(struct itrm *p, unsigned char *ev_, int size)
 {
 	struct links_event *ev = (struct links_event *)(void *)ev_;
 	if (size != sizeof(struct links_event)) return;
@@ -934,7 +934,7 @@ static void fb_shutdown_palette(void)
 	}
 }
 
-static void fb_ctrl_c(struct itrm *i)
+static void fb_ctrl_c(void *i_)
 {
 	kbd_ctrl_c();
 }
@@ -946,10 +946,13 @@ static void fb_gpm_in(void *nic)
 	struct links_event ev;
 	Gpm_Event gev;
 	again:
+	set_handlers(fb_hgpm, (void (*)(void *))NULL, (void (*)(void *))NULL, NULL);
 	if (Gpm_GetEvent(&gev) <= 0) {
+		fb_hgpm = -1;
 		unhandle_fb_mouse();
 		return;
 	}
+	set_handlers(fb_hgpm, fb_gpm_in, (void (*)(void *))NULL, NULL);
 	/*fprintf(stderr, "%x %x %d %d %d %d\n", gev.type, gev.buttons, gev.dx, gev.dy, gev.wdx, gev.wdy);*/
 	if (gev.dx || gev.dy) {
 		if (!((int)gev.type & gpm_smooth)) {
@@ -1043,13 +1046,13 @@ static int handle_fb_mouse(void)
 	}
 	set_handlers(fb_hgpm, fb_gpm_in, (void (*)(void *))NULL, NULL);
 #ifdef SIGTSTP
-	install_signal_handler(SIGTSTP, (void (*)(void *))sig_tstp, NULL, 0);
+	install_signal_handler(SIGTSTP, sig_tstp, NULL, 0);
 #endif
 #ifdef SIGCONT
-	install_signal_handler(SIGCONT, (void (*)(void *))sig_cont, NULL, 0);
+	install_signal_handler(SIGCONT, sig_cont, NULL, 0);
 #endif
 #ifdef SIGTTIN
-	install_signal_handler(SIGTTIN, (void (*)(void *))sig_tstp, NULL, 0);
+	install_signal_handler(SIGTTIN, sig_tstp, NULL, 0);
 #endif
 
 	return 0;
@@ -1060,20 +1063,20 @@ static void unhandle_fb_mouse(void)
 	if (fb_hgpm >= 0) set_handlers(fb_hgpm, (void (*)(void *))NULL, (void (*)(void *))NULL, NULL);
 	Gpm_Close();
 #ifdef SIGTSTP
-	install_signal_handler(SIGTSTP, (void (*)(void *))sig_tstp, NULL, 0);
+	install_signal_handler(SIGTSTP, sig_tstp, NULL, 0);
 #endif
 #ifdef SIGCONT
-	install_signal_handler(SIGCONT, (void (*)(void *))sig_cont, NULL, 0);
+	install_signal_handler(SIGCONT, sig_cont, NULL, 0);
 #endif
 #ifdef SIGTTIN
-	install_signal_handler(SIGTTIN, (void (*)(void *))sig_tstp, NULL, 0);
+	install_signal_handler(SIGTTIN, sig_tstp, NULL, 0);
 #endif
 }
 
-static unsigned char seq_hide_cursor[] = "\033[10000B\033[10000C\033[?25l";
-static unsigned char seq_show_cursor[] = "\033[10000D\033[?25h";
+static const unsigned char seq_hide_cursor[] = "\033[10000B\033[10000C\033[?25l";
+static const unsigned char seq_show_cursor[] = "\033[10000D\033[?25h";
 
-static void fb_print(unsigned char *str)
+static void fb_print(const unsigned char *str)
 {
 	int wr;
 	EINTRLOOP(wr, (int)write(TTY, str, strlen(cast_const_char str)));
@@ -1212,6 +1215,28 @@ static unsigned char *fb_init_driver(unsigned char *param, unsigned char *ignore
 		fb_show_cursor();
 		return stracpy(cast_uchar "Cannot get FB FSCREENINFO.\n");
 	}
+
+#if 0
+	{
+	unsigned i, j, l;
+	fprintf(stderr, "\n");
+	for (i = 0; i < sizeof(fi); i += 16) {
+		l = sizeof(fi)- i;
+		if (l > 16) l = 16;
+		fprintf(stderr, "fi(%02x):", i);
+		for (j = 0; j < l; j++) fprintf(stderr, " %02x", ((unsigned char *)&fi)[i + j]);
+		fprintf(stderr, "\n");
+	}
+	fprintf(stderr, "\n");
+	for (i = 0; i < sizeof(vi); i += 16) {
+		l = sizeof(vi)- i;
+		if (l > 16) l = 16;
+		fprintf(stderr, "vi(%02x):",i);
+		for (j = 0; j < l; j++) fprintf(stderr, " %02x", ((unsigned char *)&vi)[i + j]);
+		fprintf(stderr, "\n");
+	}
+	}
+#endif
 
 	fb_xsize=vi.xres;
 	fb_ysize=vi.yres;
@@ -1372,6 +1397,13 @@ retry2:
 	fb_vmem = fb_mem + border_left * fb_pixelsize + border_top * fb_linesize;
 	fb_driver.depth=fb_pixelsize&7;
 	fb_driver.depth|=(fb_bits_pp&31)<<3;
+#if 0
+	fprintf(stderr, "\nfb: bytes %u, bits %u\n", fb_pixelsize, fb_bits_pp);
+	fprintf(stderr, "r: %x %x %x\n", vi.red.offset, vi.red.length, vi.red.msb_right);
+	fprintf(stderr, "g: %x %x %x\n", vi.green.offset, vi.green.length, vi.green.msb_right);
+	fprintf(stderr, "b: %x %x %x\n", vi.blue.offset, vi.blue.length, vi.blue.msb_right);
+	fprintf(stderr, "t: %x %x %x\n", vi.transp.offset, vi.transp.length, vi.transp.msb_right);
+#endif
 	if (htonl(0x12345678) == 0x12345678) {
 		/* Big endian */
 		if (fb_driver.depth == 130 || fb_driver.depth == 122) fb_driver.depth |= 1 << 8;
@@ -1390,7 +1422,7 @@ retry2:
 		fb_show_cursor();
 		return stracpy(cast_uchar "Unknown bit format.\n");
 	}
-	install_signal_handler(SIGINT, (void (*)(void *))fb_ctrl_c, fb_kbd, 0);
+	install_signal_handler(SIGINT, fb_ctrl_c, fb_kbd, 0);
 
 	/* mouse */
 	mouse_buffer=mem_alloc(fb_pixelsize*arrow_area);
@@ -1910,6 +1942,7 @@ struct graphics_driver fb_driver={
 	fb_hscroll,
 	fb_vscroll,
 	generic_set_clip_area,
+	NULL,
 	fb_block,
 	fb_unblock,
 	(void (*)(struct graphics_device *, unsigned char *))NULL, /* set_title */

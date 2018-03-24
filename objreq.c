@@ -7,7 +7,7 @@
 #include "links.h"
 
 static void objreq_end(struct status *, void *);
-static void object_timer(struct object_request *);
+static void object_timer(void *);
 
 
 static struct list_head requests = {&requests, &requests};
@@ -29,7 +29,8 @@ struct auth_dialog {
 static inline struct object_request *find_rq(tcount c)
 {
 	struct object_request *rq;
-	foreach(rq, requests) if (rq->count == c) return rq;
+	struct list_head *lrq;
+	foreach(struct object_request, rq, lrq, requests) if (rq->count == c) return rq;
 	return NULL;
 }
 
@@ -83,7 +84,7 @@ static int auth_cancel(struct dialog_data *dlg, struct dialog_item_data *item)
 		rq->hold = 0;
 		rq->state = O_OK;
 		if (rq->timer != NULL) kill_timer(rq->timer);
-		rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
+		rq->timer = install_timer(0, object_timer, rq);
 		if (!rq->ce) (rq->ce = rq->ce_internal)->refcount++;
 	}
 	cancel_dialog(dlg, item);
@@ -99,7 +100,7 @@ static int auth_ok(struct dialog_data *dlg, struct dialog_item_data *item)
 		int net_cp;
 		unsigned char *uid, *passwd;
 		get_dialog_data(dlg);
-		ses = ((struct window *)dlg->win->term->windows.prev)->data;
+		ses = list_struct(dlg->win->term->windows.prev, struct window)->data;
 		get_convert_table(rq->ce_internal->head, term_charset(dlg->win->term), ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
 		uid = convert(term_charset(dlg->win->term), net_cp, a->uid, NULL);
 		passwd = convert(term_charset(dlg->win->term), net_cp, a->passwd, NULL);
@@ -124,15 +125,19 @@ static int auth_window(struct object_request *rq, unsigned char *realm)
 	struct session *ses;
 	int net_cp;
 	if (!(term = find_terminal(rq->term))) return -1;
-	ses = ((struct window *)term->windows.prev)->data;
+	ses = list_struct(term->windows.prev, struct window)->data;
 	get_convert_table(rq->ce_internal->head, term_charset(term), ses->ds.assume_cp, &net_cp, NULL, ses->ds.hard_assume);
 	if (rq->ce_internal->http_code == 407) {
-		host = get_proxy_string(rq->url);
-		if (!host) host = cast_uchar "";
+		unsigned char *h = get_proxy_string(rq->url);
+		if (!h) h = cast_uchar "";
+		host = display_host(term, h);
+		mem_free(h);
 		host = stracpy(host);
 	} else {
-		host = get_host_name(rq->url);
-		if (!host) return -1;
+		unsigned char *h = get_host_name(rq->url);
+		if (!h) return -1;
+		host = display_host(term, h);
+		mem_free(h);
 		if ((port = get_port_str(rq->url))) {
 			add_to_strn(&host, cast_uchar ":");
 			add_to_strn(&host, port);
@@ -201,15 +206,16 @@ static void cert_action(struct object_request *rq, int yes)
 		rq->dont_print_error = 1;
 		rq->state = O_FAILED;
 		if (rq->timer != NULL) kill_timer(rq->timer);
-		rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
+		rq->timer = install_timer(0, object_timer, rq);
 	}
 }
 
 static void cert_forall(struct cert_dialog *cs, int yes)
 {
 	struct object_request *rq;
+	struct list_head *lrq;
 	if (yes) add_blacklist_entry(cs->host, cs->bl);
-	foreach(rq, requests) if (rq->term == cs->term && rq->hold == HOLD_CERT && rq->stat.state == cs->state) {
+	foreach(struct object_request, rq, lrq, requests) if (rq->term == cs->term && rq->hold == HOLD_CERT && rq->stat.state == cs->state) {
 		unsigned char *host = get_host_name(rq->url);
 		if (!strcmp(cast_const_char host, cast_const_char cs->host)) cert_action(rq, yes);
 		mem_free(host);
@@ -236,14 +242,14 @@ static int cert_compare(void *data1, void *data2)
 static int cert_window(struct object_request *rq)
 {
 	struct terminal *term;
-	unsigned char *host, *title, *text;
+	unsigned char *h, *host, *title, *text;
 	struct cert_dialog *cs;
 	struct memory_list *ml;
 	if (!(term = find_terminal(rq->term))) return -1;
-	host = get_host_name(rq->url);
+	h = get_host_name(rq->url);
 	cs = mem_alloc(sizeof(struct cert_dialog));
 	cs->term = rq->term;
-	cs->host = host;
+	cs->host = h;
 	cs->state = rq->stat.state;
 	if (rq->stat.state == S_INVALID_CERTIFICATE) {
 		title = TEXT_(T_INVALID_CERTIFICATE);
@@ -258,7 +264,8 @@ static int cert_window(struct object_request *rq)
 		text = TEXT_(T_USES_INSECURE_CIPHER);
 		cs->bl = BL_IGNORE_CIPHER;
 	}
-	ml = getml(cs, host, NULL);
+	host = display_host(term, h);
+	ml = getml(cs, h, host, NULL);
 	if (find_msg_box(term, title, cert_compare, cs)) {
 		freeml(ml);
 		return 0;
@@ -291,8 +298,7 @@ void request_object(struct terminal *term, unsigned char *url, unsigned char *pr
 	rq->upcall = upcall;
 	rq->data = data;
 	rq->timer = NULL;
-	rq->z = (uttime)get_time() - STAT_UPDATE_MAX;
-	rq->last_update = rq->z;
+	rq->last_update = get_time() - STAT_UPDATE_MAX;
 	if (rq->prev_url) mem_free(rq->prev_url);
 	rq->prev_url = stracpy(prev_url);
 	if (rqp) *rqp = rq;
@@ -338,7 +344,6 @@ static void objreq_end(struct status *stat, void *data)
 				unsigned char *u, *p, *pos;
 				change_connection(stat, NULL, PRI_CANCEL);
 				u = join_urls(rq->url, stat->ce->redirect);
-				u = translate_hashbang(u);
 				if ((pos = extract_position(u))) {
 					if (rq->goto_position) mem_free(rq->goto_position);
 					rq->goto_position = pos;
@@ -394,18 +399,20 @@ static void objreq_end(struct status *stat, void *data)
 	}
 	tm:
 	if (rq->timer != NULL) kill_timer(rq->timer);
-	rq->timer = install_timer(0, (void (*)(void *))object_timer, rq);
+	rq->timer = install_timer(0, object_timer, rq);
 }
 
-static void object_timer(struct object_request *rq)
+static void object_timer(void *rq_)
 {
+	struct object_request *rq = (struct object_request *)rq_;
 	off_t last;
+
+	rq->timer = NULL;
 
 	set_ce_internal(rq);
 
 	last = rq->last_bytes;
 	if (rq->ce) rq->last_bytes = rq->ce->length;
-	rq->timer = NULL;
 	if (rq->stat.state < 0 && !rq->hold && (!rq->ce_internal || !rq->ce_internal->redirect || rq->stat.state == S_CYCLIC_REDIRECT)) {
 		if (rq->ce_internal && rq->stat.state != S_CYCLIC_REDIRECT) {
 			rq->state = rq->stat.state != S__OK ? O_INCOMPLETE : O_OK;
@@ -413,13 +420,13 @@ static void object_timer(struct object_request *rq)
 	}
 	if (rq->stat.state != S_TRANS) {
 		if (rq->stat.state >= 0)
-			rq->timer = install_timer(STAT_UPDATE_MAX, (void (*)(void *))object_timer, rq);
-		rq->last_update = rq->z;
+			rq->timer = install_timer(STAT_UPDATE_MAX, object_timer, rq);
+		rq->last_update = get_time() - STAT_UPDATE_MAX;
 		if (rq->upcall) rq->upcall(rq, rq->data);
 	} else {
-		ttime ct = get_time();
-		ttime t = (uttime)ct - (uttime)rq->last_update;
-		rq->timer = install_timer(STAT_UPDATE_MIN, (void (*)(void *))object_timer, rq);
+		uttime ct = get_time();
+		uttime t = ct - rq->last_update;
+		rq->timer = install_timer(STAT_UPDATE_MIN, object_timer, rq);
 		if (t >= STAT_UPDATE_MAX || (t >= STAT_UPDATE_MIN && rq->ce && rq->last_bytes > last)) {
 			rq->last_update = ct;
 			if (rq->upcall) rq->upcall(rq, rq->data);
@@ -456,7 +463,9 @@ void detach_object_connection(struct object_request *rq, off_t pos)
 		internal("detach_object_connection: no data received");
 		return;
 	}
-	if (rq->refcount == 1) detach_connection(&rq->stat, pos);
+	if (rq->refcount == 1) {
+		detach_connection(&rq->stat, pos, 0, 1);
+	}
 }
 
 void clone_object(struct object_request *rq, struct object_request **rqq)

@@ -23,6 +23,7 @@ for i in $DLLS; do
 	cp "$DLLPATH\\$i" .
 done
 cp BRAILLE_HOWTO BRAILLE
+cp certs\\links.crt links.crt
 
 rm -f links.wpi
 cmd /c set BEGINLIBPATH="$WARPIN" \& "$WARPIN\wic.exe" -a links.wpi 1 $FILES $DLLS -s links.wis

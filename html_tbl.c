@@ -221,8 +221,8 @@ static void free_table(struct table *t)
 		struct table_cell *c = CELL(t, i, j);
 		if (c->tag) mem_free(c->tag);
 #ifdef G
-		if (c->root) c->root->destruct(c->root);
-		if (c->tag_object) c->tag_object->destruct((struct g_object *)c->tag_object);
+		if (c->root) c->root->go.destruct(&c->root->go);
+		if (c->tag_object) c->tag_object->go.destruct(&c->tag_object->go);
 		if (c->brd) mem_free(c->brd);
 #endif
 	}
@@ -1404,7 +1404,11 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 	if (!F && !border) cellsp = 0;
 	else if (!F && !cellsp) cellsp = 1;
 	/* Sparc gcc-2.7.2.1 miscompiles this */
+#ifdef __GNUC__
+#if __GNUC__ == 2
 	do_not_optimize_here(&cellsp);
+#endif
+#endif
 	if (!F && border > 2) border = 2;
 	if (!F && cellsp > 2) cellsp = 2;
 #ifdef G
@@ -1548,7 +1552,7 @@ void format_table(unsigned char *attr, unsigned char *html, unsigned char *eof, 
 		goto ret2;
 	}
 
-	n = p->data->nodes.next;
+	n = list_struct(p->data->nodes.next, struct node);
 	n->yw = p->yp - n->y + p->cy;
 	display_complicated_table(t, x, p->cy, &cye);
 	display_table_frames(t, x, p->cy);
@@ -1622,13 +1626,14 @@ static void add_to_cell_sets(struct table_cell ****s, int **nn, int *n, struct r
 	}
 }
 
-static void table_mouse_event(struct f_data_c *fd, struct g_object_table *o, int x, int y, int b)
+static void table_mouse_event(struct f_data_c *fd, struct g_object *o_, int x, int y, int b)
 {
+	struct g_object_table *o = get_struct(o_, struct g_object_table, go);
 	struct table *t = o->t;
 	int i, j;
 	for (j = 0; j < t->y; j++) for (i = 0; i < t->x; i++) {
 		struct table_cell *c = CELL(t, i, j);
-		if (c->root) if (!g_forward_mouse(fd, (struct g_object *)c->root, x, y, b)) return;
+		if (c->root) if (!g_forward_mouse(fd, &c->root->go, x, y, b)) return;
 	}
 }
 
@@ -1650,8 +1655,9 @@ static void draw_rect_sets(struct graphics_device *dev, struct background *bg, s
 	}
 }
 
-static void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int y)
+static void table_draw(struct f_data_c *fd, struct g_object *o_, int x, int y)
 {
+	struct g_object_table *o = get_struct(o_, struct g_object_table, go);
 	static tcount dgen = 0;
 	tcount my_dgen = ++dgen;
 	int i, j;
@@ -1677,8 +1683,8 @@ static void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int
 			clip.y2 = clip.y2 + y;
 			if (!do_rects_intersect(&clip, &dev->clip)) continue;
 			draw_rect_set(dev, c->root->bg, c->brd, x, y);
-			restrict_clip_area(dev, &clip, x + c->root->x, y + c->root->y, x + c->root->x + c->root->xw /*c->g_width*/, y + c->root->y + c->root->yw);
-			c->root->draw(fd, c->root, x + c->root->x, y + c->root->y);
+			restrict_clip_area(dev, &clip, x + c->root->go.x, y + c->root->go.y, x + c->root->go.x + c->root->go.xw /*c->g_width*/, y + c->root->go.y + c->root->go.yw);
+			c->root->go.draw(fd, &c->root->go, x + c->root->go.x, y + c->root->go.y);
 			drv->set_clip_area(dev, &clip);
 		}
 	}
@@ -1686,22 +1692,24 @@ static void table_draw(struct f_data_c *fd, struct g_object_table *o, int x, int
 	draw_rect_sets(dev, t->frame_bg, t->r_frame, t->nr_frame, x, y);
 }
 
-static void table_destruct(struct g_object_table *o)
+static void table_destruct(struct g_object *o_)
 {
+	struct g_object_table *o = get_struct(o_, struct g_object_table, go);
 	free_table(o->t);
 	mem_free(o);
 }
 
-static void table_get_list(struct g_object_table *o, void (*fn)(struct g_object *parent, struct g_object *child))
+static void table_get_list(struct g_object *o_, void (*fn)(struct g_object *parent, struct g_object *child))
 {
+	struct g_object_table *o = get_struct(o_, struct g_object_table, go);
 	struct table *t = o->t;
 	int i, j;
 	for (j = 0; j < t->y; j++) for (i = 0; i < t->x; i++) {
 		struct table_cell *c = CELL(t, i, j);
 		if (c->tag_object)
-			fn((struct g_object *)o, (struct g_object *)c->tag_object);
+			fn(&o->go, &c->tag_object->go);
 		if (c->root)
-			fn((struct g_object *)o, (struct g_object *)c->root);
+			fn(&o->go, &c->root->go);
 	}
 }
 
@@ -1746,15 +1754,15 @@ static void process_g_table(struct g_part *gp, struct table *t)
 						yw = safe_add(yw, er);
 					}
 				}
-				c->root->x = x, c->root->y = y;
-				c->root->y = safe_add(c->root->y, c->valign != VAL_MIDDLE && c->valign != VAL_BOTTOM ? 0 : (yw - c->root->yw) / (c->valign == VAL_MIDDLE ? 2 : 1));
+				c->root->go.x = x, c->root->go.y = y;
+				c->root->go.y = safe_add(c->root->go.y, c->valign != VAL_MIDDLE && c->valign != VAL_BOTTOM ? 0 : (yw - c->root->go.yw) / (c->valign == VAL_MIDDLE ? 2 : 1));
 			}
 			x = safe_add(x, t->w_c[i]);
 		}
 		y = safe_add(y, t->r_heights[j]);
 	}
 
-	if (html_top.next != (struct html_element *)(void *)&html_stack) ta = &html_top.next->attr;
+	if (html_top.list_entry.next != &html_stack) ta = &list_struct(html_top.list_entry.next, struct html_element)->attr;
 	else ta = &format_;
 
 	if (t->bordercolor && !decode_color(t->bordercolor, &dummy)) {
@@ -1849,14 +1857,12 @@ static void process_g_table(struct g_part *gp, struct table *t)
 			add_to_cell_sets(&t->r_cells, &t->w_cells, &t->nr_cells, &r, c);
 			memcpy(&c->rect, &r, sizeof(struct rect));
 			c->brd = init_rect_set();
-			/*debug("%d,%d %d,%d", r.x1, r.y1, r.x2, r.y2);*/
 			add_to_rect_set(&c->brd, &r);
-			r.x1 = c->root->x;
-			r.y1 = c->root->y;
-			r.x2 = safe_add(c->root->x, c->root->xw);
-			r.y2 = safe_add(c->root->y, c->root->yw);
+			r.x1 = c->root->go.x;
+			r.y1 = c->root->go.y;
+			r.x2 = safe_add(c->root->go.x, c->root->go.xw);
+			r.y2 = safe_add(c->root->go.y, c->root->go.yw);
 			exclude_rect_from_set(&c->brd, &r);
-			/*debug("%d,%d %d,%d", r.x1, r.y1, r.x2, r.y2);*/
 		}
 	}
 
@@ -1864,19 +1870,19 @@ static void process_g_table(struct g_part *gp, struct table *t)
 	mem_free(fv);
 
 	o = mem_calloc(sizeof(struct g_object_table));
-	o->mouse_event = table_mouse_event;
-	o->draw = table_draw;
-	o->destruct = table_destruct;
-	o->get_list = table_get_list;
-	o->xw = t->rw;
-	o->yw = t->rh;
+	o->go.mouse_event = table_mouse_event;
+	o->go.draw = table_draw;
+	o->go.destruct = table_destruct;
+	o->go.get_list = table_get_list;
+	o->go.xw = t->rw;
+	o->go.yw = t->rh;
 	o->t = t;
 	t->bg = gp->root->bg;
 	flush_pending_text_to_line(gp);
 	flush_pending_line_to_obj(gp, 0);
 	gp->cx = -1;
 	gp->cx_w = 0;
-	add_object_to_line(gp, &gp->line, (struct g_object *)o);
+	add_object_to_line(gp, &gp->line, &o->go);
 	flush_pending_text_to_line(gp);
 	par_format.align = t->align;
 	flush_pending_line_to_obj(gp, 0);
@@ -1889,12 +1895,12 @@ static void process_g_table(struct g_part *gp, struct table *t)
 			c = CELL(t, i, j);
 			if (c->root && c->tag) {
 				struct g_object_tag *tag = mem_calloc(sizeof(struct g_object_tag) + strlen(cast_const_char c->tag));
-				tag->mouse_event = g_dummy_mouse;
-				tag->draw = g_dummy_draw;
-				tag->destruct = g_tag_destruct;
+				tag->go.mouse_event = g_dummy_mouse;
+				tag->go.draw = g_dummy_draw;
+				tag->go.destruct = g_tag_destruct;
 				strcpy(cast_char tag->name, cast_const_char c->tag);
-				tag->x = c->root->x;
-				tag->y = c->root->y + o->yw;
+				tag->go.x = c->root->go.x;
+				tag->go.y = c->root->go.y + o->go.yw;
 				c->tag_object = tag;
 			}
 		}
@@ -1905,8 +1911,7 @@ static void process_g_table(struct g_part *gp, struct table *t)
 #endif
 
 struct table_cache_entry {
-	struct table_cache_entry *next;
-	struct table_cache_entry *prev;
+	list_entry_1st
 	struct table_cache_entry *hash_next;
 	unsigned char *start;
 	unsigned char *end;
@@ -1915,6 +1920,7 @@ struct table_cache_entry {
 	int width;
 	int xs;
 	int link_num;
+	list_entry_last
 	union {
 		struct part p;
 #ifdef G
@@ -1980,9 +1986,10 @@ void add_table_cache_entry(unsigned char *start, unsigned char *end, int align, 
 static void free_table_cache(void)
 {
 	struct table_cache_entry *tce;
-	foreach(tce, table_cache) {
+	struct list_head *ltce;
+	foreach(struct table_cache_entry, tce, ltce, table_cache) {
 		int hash = make_hash(tce->start, tce->xs);
 		table_cache_hash[hash] = NULL;
 	}
-	free_list(table_cache);
+	free_list(struct table_cache_entry, table_cache);
 }

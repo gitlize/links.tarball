@@ -71,7 +71,7 @@ static DFBSurfaceDescription *directfb_get_arrow_desc(void)
 	static DFBSurfaceDescription arrow_desc;
 
   arrow_desc.flags        = (DFBSurfaceDescriptionFlags)(
-  			    DSDESC_WIDTH | DSDESC_HEIGHT | DSDESC_PIXELFORMAT |
+			    DSDESC_WIDTH | DSDESC_HEIGHT | DSDESC_PIXELFORMAT |
                             DSDESC_PREALLOCATED),
   arrow_desc.width        = 18,
   arrow_desc.height       = 25,

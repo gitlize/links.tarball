@@ -622,6 +622,12 @@ void ath_set_clip_area(struct graphics_device *dev, struct rect *r)
 	unlock_dev(dev);
 }
 
+void ath_flush(struct graphics_device *dev)
+{
+	unregister_bottom_half(do_flush, dev);
+	do_flush(dev);
+}
+
 struct graphics_driver atheos_driver = {
 	(unsigned char *)"atheos",
 	ath_init_driver,
@@ -649,6 +655,7 @@ struct graphics_driver atheos_driver = {
 	ath_hscroll,
 	ath_vscroll,
 	ath_set_clip_area,
+	ath_flush,
 	dummy_block,
 	dummy_unblock,
 	ath_set_title,

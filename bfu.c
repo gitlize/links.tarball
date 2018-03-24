@@ -135,17 +135,6 @@ void shutdown_bfu(void) {}
 
 #endif
 
-void iinit_bfu(void)
-{
-#if 0
-	G_BFU_FG_COLOR=G_DEFAULT_BFU_FG_COLOR;
-	G_BFU_BG_COLOR=G_DEFAULT_BFU_BG_COLOR;
-	G_SCROLL_BAR_AREA_COLOR=G_DEFAULT_SCROLL_BAR_AREA_COLOR;
-	G_SCROLL_BAR_BAR_COLOR=G_DEFAULT_SCROLL_BAR_BAR_COLOR;
-	G_SCROLL_BAR_FRAME_COLOR=G_DEFAULT_SCROLL_BAR_FRAME_COLOR;
-#endif
-}
-
 unsigned char m_bar = 0;
 
 static unsigned select_hotkey(struct terminal *term, unsigned char *text, unsigned char *hotkey, unsigned *hotkeys, int n)
@@ -234,9 +223,14 @@ static void select_menu(struct terminal *term, struct menu *menu)
 	data2 = menu->data;
 	if (it->hotkey == M_BAR) return;
 	if (!it->in_m) {
-		struct window *win, *win1;
-		for (win = term->windows.next; (void *)win != &term->windows && (win->handler == menu_func || win->handler == mainmenu_func); win1 = win->next, delete_window(win), win = win1)
-			;
+		struct window *win;
+		struct list_head *lwin;
+		foreach(struct window, win, lwin, term->windows) {
+			if (win->handler != menu_func && win->handler != mainmenu_func)
+				break;
+			lwin = lwin->prev;
+			delete_window(win);
+		}
 	}
 	func(term, data1, data2);
 }
@@ -312,8 +306,9 @@ static void scroll_menu(struct menu *menu, int d)
 	if (menu->view < 0) menu->view = 0;
 }
 
-static void display_menu_txt(struct terminal *term, struct menu *menu)
+static void display_menu_txt(struct terminal *term, void *menu_)
 {
+	struct menu *menu = (struct menu *)menu_;
 	int p, s;
 	int setc = 0;
 	fill_area(term, menu->x+1, menu->y+1, menu->xw-2, menu->yw-2, ' ', COLOR_MENU_TEXT);
@@ -433,8 +428,9 @@ static void display_menu_item_gfx(struct terminal *term, struct menu *menu, int 
 	}
 }
 
-static void display_menu_gfx(struct terminal *term, struct menu *menu)
+static void display_menu_gfx(struct terminal *term, void *menu_)
 {
+	struct menu *menu = (struct menu *)menu_;
 	int p;
 	struct graphics_device *dev = term->dev;
 	if (menu_oldview == menu->view) {
@@ -469,7 +465,6 @@ static void menu_func(struct window *win, struct links_event *ev, int fwd)
 	int s = 0;
 	int xp, yp;
 	struct menu *menu = win->data;
-	struct window *w1;
 	menu->win = win;
 	switch ((int)ev->ev) {
 		case EV_INIT:
@@ -487,13 +482,15 @@ static void menu_func(struct window *win, struct links_event *ev, int fwd)
 			xxx:
 			menu->selected--;
 			scroll_menu(menu, 1);
-			draw_to_window(win, (void (*)(struct terminal *, void *))gf_val(display_menu_txt, display_menu_gfx), menu);
+			draw_to_window(win, gf_val(display_menu_txt, display_menu_gfx), menu);
 			break;
 		case EV_MOUSE:
 			if ((ev->b & BM_ACT) == B_MOVE) break;
 			if (ev->x < menu->x || ev->x >= menu->x+menu->xw || ev->y < menu->y || ev->y >= menu->y+menu->yw) {
 				int f = 1;
-				for (w1 = win; (void *)w1 != &win->term->windows; w1 = w1->next) {
+				struct window *w1;
+				struct list_head *w1l;
+				foreachfrom(struct window, w1, w1l, win->term->windows, &win->list_entry) {
 					struct menu *m1;
 					if (w1->handler == mainmenu_func) {
 #ifdef G
@@ -524,7 +521,7 @@ static void menu_func(struct window *win, struct links_event *ev, int fwd)
 						menu_oldsel = menu->selected;
 						menu->selected = s;
 						scroll_menu(menu, 0);
-						draw_to_window(win, (void (*)(struct terminal *, void *))gf_val(display_menu_txt, display_menu_gfx), menu);
+						draw_to_window(win, gf_val(display_menu_txt, display_menu_gfx), menu);
 						menu_oldview = menu_oldsel = -1;
 						if ((ev->b & BM_ACT) == B_UP /*|| menu->items[s].in_m*/) select_menu(win->term, menu);
 					}
@@ -533,11 +530,10 @@ static void menu_func(struct window *win, struct links_event *ev, int fwd)
 			break;
 		case EV_KBD:
 			if (ev->x == KBD_LEFT || ev->x == KBD_RIGHT) {
-				if ((void *)win->next != &win->term->windows && win->next->handler == mainmenu_func) goto mm;
-				/*for (w1 = win; (void *)w1 != &win->term->windows; w1 = w1->next) {
-					if (w1->handler == mainmenu_func) goto mm;
-					if (w1->handler != menu_func) break;
-				}*/
+				if (win->list_entry.next == &win->term->windows)
+					goto mm;
+				if (list_struct(win->list_entry.next, struct window)->handler == mainmenu_func)
+					goto mm;
 				if (ev->x == KBD_RIGHT) goto enter;
 				delete_window(win);
 				break;
@@ -548,7 +544,11 @@ static void menu_func(struct window *win, struct links_event *ev, int fwd)
 				break;
 			}
 			if (ev->x == KBD_ESC) {
-				delete_window_ev(win, (void *)win->next != &win->term->windows && win->next->handler == mainmenu_func ? ev : NULL);
+				if (win->list_entry.next == &win->term->windows)
+					ev = NULL;
+				else if (list_struct(win->list_entry.next, struct window)->handler != mainmenu_func)
+					ev = NULL;
+				delete_window_ev(win, ev);
 				break;
 			}
 			menu_oldview = menu->view;
@@ -577,7 +577,7 @@ static void menu_func(struct window *win, struct links_event *ev, int fwd)
 					}
 				}
 			}
-			draw_to_window(win, (void (*)(struct terminal *, void *))gf_val(display_menu_txt, display_menu_gfx), menu);
+			draw_to_window(win, gf_val(display_menu_txt, display_menu_gfx), menu);
 			if (s || ev->x == KBD_ENTER || ev->x == ' ') {
 				enter:
 				menu_oldview = menu_oldsel = -1;
@@ -604,6 +604,7 @@ static void menu_func(struct window *win, struct links_event *ev, int fwd)
 				for (i = 0; i < menu->ni; i++) {
 					if (menu->items[i].free_i & 2) mem_free(menu->items[i].text);
 					if (menu->items[i].free_i & 4) mem_free(menu->items[i].rtext);
+					if (menu->items[i].free_i & 8) mem_free(menu->items[i].hotkey);
 				}
 				mem_free(menu->items);
 			}
@@ -627,16 +628,17 @@ void do_mainmenu(struct terminal *term, struct menu_item *items, void *data, int
 		menu->hotkeys[i] = select_hotkey(term, NULL, items[i].hotkey, menu->hotkeys, i);
 	add_window(term, mainmenu_func, menu);
 	if (sel != -1) {
-		/* volatile is workaround for some weird bug in icc or linker,
+		/* icc_volatile is workaround for some weird bug in icc or linker,
 		   it results in unaligned sse load */
-		volatile struct links_event ev = {EV_KBD, KBD_ENTER, 0, 0};
-		struct window *win = term->windows.next;
+		icc_volatile struct links_event ev = {EV_KBD, KBD_ENTER, 0, 0};
+		struct window *win = list_struct(term->windows.next, struct window);
 		win->handler(win, (struct links_event *)&ev, 0);
 	}
 }
 
-static void display_mainmenu(struct terminal *term, struct mainmenu *menu)
+static void display_mainmenu(struct terminal *term, void *menu_)
 {
+	struct mainmenu *menu = (struct mainmenu *)menu_;
 	if (!F) {
 		int i;
 		int p = 2;
@@ -702,9 +704,14 @@ static void select_mainmenu(struct terminal *term, struct mainmenu *menu)
 	it = &menu->items[menu->selected];
 	if (it->hotkey == M_BAR) return;
 	if (!it->in_m) {
-		struct window *win, *win1;
-		for (win = term->windows.next; (void *)win != &term->windows && (win->handler == menu_func || win->handler == mainmenu_func); win1 = win->next, delete_window(win), win = win1)
-			;
+		struct window *win;
+		struct list_head *lwin;
+		foreach(struct window, win, lwin, term->windows) {
+			if (win->handler != menu_func && win->handler != mainmenu_func)
+				break;
+			lwin = lwin->prev;
+			delete_window(win);
+		}
 	}
 	it->func(term, it->data, menu->data);
 }
@@ -721,8 +728,9 @@ static void mainmenu_func(struct window *win, struct links_event *ev, int fwd)
 #ifdef G
 			if (F) set_window_pos(win, 0, 0, win->term->x, G_BFU_FONT_SIZE);
 #endif
+			/*-fallthrough*/
 		case EV_REDRAW:
-			draw_to_window(win, (void (*)(struct terminal *, void *))display_mainmenu, menu);
+			draw_to_window(win, display_mainmenu, menu);
 			break;
 		case EV_MOUSE:
 			in_menu = ev->x >= 0 && ev->x < win->term->x && ev->y >= 0 && ev->y < gf_val(1, G_BFU_FONT_SIZE);
@@ -737,7 +745,7 @@ static void mainmenu_func(struct window *win, struct links_event *ev, int fwd)
 					p += txtlen(win->term, tmptext) + gf_val(4, 2 * G_MAINMENU_BORDER);
 					if (ev->x >= o && ev->x < p) {
 						menu->selected = i;
-						draw_to_window(win, (void (*)(struct terminal *, void *))display_mainmenu, menu);
+						draw_to_window(win, display_mainmenu, menu);
 						if ((ev->b & BM_ACT) == B_UP || (menu->items[s].in_m && !win->term->spec->braille)) select_mainmenu(win->term, menu);
 						break;
 					}
@@ -776,7 +784,7 @@ static void mainmenu_func(struct window *win, struct links_event *ev, int fwd)
 				delete_window_ev(win, (ev->x >= KBD_F1 && ev->x <= KBD_F12) || ev->y & KBD_ALT ? ev : NULL);
 				break;
 			}
-			draw_to_window(win, (void (*)(struct terminal *, void *))display_mainmenu, menu);
+			draw_to_window(win, display_mainmenu, menu);
 			if (s == 2) select_mainmenu(win->term, menu);
 			break;
 		case EV_ABORT:
@@ -935,7 +943,7 @@ void display_dlg_item(struct dialog_data *dlg, struct dialog_item_data *di, int 
 				break;
 			case D_FIELD:
 			case D_FIELD_PASS:
-				if (!(text = memacpy(di->cdata, di->cpos))) break;
+				text = memacpy(di->cdata, di->cpos);
 				if (*(text2 = text3 = di->cdata + di->cpos)) {
 					GET_UTF_8(text3, p);
 					text2 = memacpy(text2, text3 - text2);
@@ -1053,16 +1061,38 @@ static void dlg_select_item(struct dialog_data *dlg, struct dialog_item_data *di
 	else if (di->item->type == D_BUTTON) di->item->fn(dlg, di);
 }
 
-static void dlg_set_history(struct dialog_item_data *di)
+static unsigned char *dlg_get_history_string(struct terminal *term, struct history_item *hi, int l)
 {
-	unsigned char *s = cast_uchar "";
-	int l;
-	if ((void *)di->cur_hist != &di->history) s = di->cur_hist->d;
-	if ((l = (int)strlen(cast_const_char s)) >= di->item->dlen || l < 0) l = di->item->dlen - 1;
-	memcpy(di->cdata, s, l);
-	di->cdata[l] = 0;
-	di->cpos = (int)l;
+	unsigned char *s;
+	int ch = term_charset(term);
+	s = convert(utf8_table, ch, hi->str, NULL);
+	if (strlen(cast_const_char s) >= (size_t)l)
+		s[l - 1] = 0;
+	if (ch == utf8_table) {
+		int r = (int)strlen(cast_const_char s);
+		unsigned char *p = s;
+		while (r) {
+			int chl = utf8chrlen(*p);
+			if (chl > r) {
+				*p = 0;
+				break;
+			}
+			p += chl;
+			r -= chl;
+		}
+	}
+	return s;
+}
+
+static void dlg_set_history(struct terminal *term, struct dialog_item_data *di)
+{
+	unsigned char *s;
+	if (di->cur_hist == &di->history) s = stracpy(cast_uchar "");
+	else s = dlg_get_history_string(term, list_struct(di->cur_hist, struct history_item), di->item->dlen);
+	strcpy(cast_char di->cdata, cast_const_char s);
+	di->cpos = (int)strlen(cast_const_char s);
 	di->vpos = 0;
+	mem_free(s);
 }
 
 static int dlg_mouse(struct dialog_data *dlg, struct dialog_item_data *di, struct links_event *ev)
@@ -1117,8 +1147,9 @@ static int dlg_mouse(struct dialog_data *dlg, struct dialog_item_data *di, struc
 	return 0;
 }
 
-static void redraw_dialog_items(struct terminal *term, struct dialog_data *dlg)
+static void redraw_dialog_items(struct terminal *term, void *dlg_)
 {
+	struct dialog_data *dlg = (struct dialog_data *)dlg_;
 	int i;
 	for (i = 0; i < dlg->n; i++) display_dlg_item(dlg, &dlg->items[i], i == dlg->selected);
 }
@@ -1128,8 +1159,9 @@ static int dlg_is_braille_moving(struct dialog_data *dlg)
 	return dlg->win->term->spec->braille && (dlg->dlg->fn == msg_box_fn || dlg->dlg->fn == download_window_function);
 }
 
-static void redraw_dialog(struct terminal *term, struct dialog_data *dlg)
+static void redraw_dialog(struct terminal *term, void *dlg_)
 {
+	struct dialog_data *dlg = (struct dialog_data *)dlg_;
 #ifdef G
 	int i;
 #endif
@@ -1150,16 +1182,17 @@ static void redraw_dialog(struct terminal *term, struct dialog_data *dlg)
 #endif
 }
 
-static void tab_compl(struct terminal *term, unsigned char *item, struct window *win)
+static void tab_compl(struct terminal *term, void *hi_, void *win_)
 {
+	struct history_item *hi = (struct history_item *)hi_;
+	struct window *win = (struct window *)win_;
 	struct links_event ev = {EV_REDRAW, 0, 0, 0};
 	struct dialog_item_data *di = &((struct dialog_data*)win->data)->items[((struct dialog_data*)win->data)->selected];
-	int l = (int)strlen(cast_const_char item);
-	if (l >= di->item->dlen || l < 0) l = di->item->dlen - 1;
-	memcpy(di->cdata, item, l);
-	di->cdata[l] = 0;
-	di->cpos = l;
+	unsigned char *s = dlg_get_history_string(term, hi, di->item->dlen);
+	strcpy(cast_char di->cdata, cast_const_char s);
+	di->cpos = (int)strlen(cast_const_char s);
 	di->vpos = 0;
+	mem_free(s);
 	ev.x = term->x;
 	ev.y = term->y;
 	dialog_func(win, &ev, 0);
@@ -1170,25 +1203,32 @@ static void do_tab_compl(struct terminal *term, struct list_head *history, struc
 	unsigned char *cdata = ((struct dialog_data*)win->data)->items[((struct dialog_data*)win->data)->selected].cdata;
 	int l = (int)strlen(cast_const_char cdata), n = 0;
 	struct history_item *hi;
+	struct list_head *lhi;
 	struct menu_item *items = DUMMY;
-	foreach(hi, *history) if (!strncmp(cast_const_char cdata, cast_const_char hi->d, l)) {
-		if (!(n & (ALLOC_GR - 1))) {
-			if ((unsigned)n > MAXINT / sizeof(struct menu_item) - ALLOC_GR - 1) overalloc();
-			items = mem_realloc(items, (n + ALLOC_GR + 1) * sizeof(struct menu_item));
+	foreach(struct history_item, hi, lhi, *history) {
+		unsigned char *s = dlg_get_history_string(term, hi, MAXINT);
+		if (!strncmp(cast_const_char cdata, cast_const_char s, l)) {
+			if (!(n & (ALLOC_GR - 1))) {
+				if ((unsigned)n > MAXINT / sizeof(struct menu_item) - ALLOC_GR - 1) overalloc();
+				items = mem_realloc(items, (n + ALLOC_GR + 1) * sizeof(struct menu_item));
+			}
+			items[n].text = s;
+			items[n].rtext = cast_uchar "";
+			items[n].hotkey = cast_uchar "";
+			items[n].func = tab_compl;
+			items[n].rtext = cast_uchar "";
+			items[n].data = hi;
+			items[n].in_m = 0;
+			items[n].free_i = 3;
+			if (n == MAXINT) overalloc();
+			n++;
+		} else {
+			mem_free(s);
 		}
-		items[n].text = hi->d;
-		items[n].rtext = cast_uchar "";
-		items[n].hotkey = cast_uchar "";
-		items[n].func = (void(*)(struct terminal *, void *, void *))tab_compl;
-		items[n].rtext = cast_uchar "";
-		items[n].data = hi->d;
-		items[n].in_m = 0;
-		items[n].free_i = 1;
-		if (n == MAXINT) overalloc();
-		n++;
 	}
 	if (n == 1) {
 		tab_compl(term, items->data, win);
+		mem_free(items->text);
 		mem_free(items);
 		return;
 	}
@@ -1208,15 +1248,15 @@ void dialog_func(struct window *win, struct links_event *ev, int fwd)
 	dlg->win = win;
 
 	/* Use nonstandard event handlers */
-	if (dlg->dlg->handle_event && ((dlg->dlg->handle_event)(dlg, ev) == EVENT_PROCESSED) ) {
+	if (dlg->dlg->handle_event && dlg->dlg->handle_event(dlg, ev) == EVENT_PROCESSED) {
 		return;
 	}
 
 	switch ((int)ev->ev) {
 		case EV_INIT:
 			for (i = 0; i < dlg->n; i++) {
-				/* volatile because of a compiler bug */
-				struct dialog_item_data * volatile di = &dlg->items[i];
+				/* highc_volatile because of a compiler bug */
+				struct dialog_item_data * highc_volatile di = &dlg->items[i];
 				memset(di, 0, sizeof(struct dialog_item_data));
 				di->item = &dlg->dlg->items[i];
 				di->cdata = mem_alloc(di->item->dlen);
@@ -1228,14 +1268,15 @@ void dialog_func(struct window *win, struct links_event *ev, int fwd)
 					} else if (*(int *)di->cdata) di->checked = 1;
 				}
 				init_list(di->history);
-				di->cur_hist = (struct history_item *)(void *)&di->history;
+				di->cur_hist = &di->history;
 				if (di->item->type == D_FIELD || di->item->type == D_FIELD_PASS) {
 					if (di->item->history) {
 						struct history_item *j;
-						foreach(j, di->item->history->items) {
+						struct list_head *lj;
+						foreach(struct history_item, j, lj, di->item->history->items) {
 							struct history_item *hi;
-							hi = mem_alloc(sizeof(struct history_item) + strlen(cast_const_char j->d) + 1);
-							strcpy(cast_char hi->d, cast_const_char j->d);
+							hi = mem_alloc(sizeof(struct history_item) + strlen(cast_const_char j->str));
+							strcpy(cast_char hi->str, cast_const_char j->str);
 							add_to_list(di->history, hi);
 						}
 					}
@@ -1243,12 +1284,14 @@ void dialog_func(struct window *win, struct links_event *ev, int fwd)
 				}
 			}
 			dlg->selected = 0;
+			/*-fallthrough*/
 		case EV_RESIZE:
 				/* this must be really called twice !!! */
-			draw_to_window(dlg->win, (void (*)(struct terminal *, void *))redraw_dialog, dlg);
+			draw_to_window(dlg->win, redraw_dialog, dlg);
+			/*-fallthrough*/
 		case EV_REDRAW:
 			redraw:
-			draw_to_window(dlg->win, (void (*)(struct terminal *, void *))redraw_dialog, dlg);
+			draw_to_window(dlg->win, redraw_dialog, dlg);
 			break;
 		case EV_MOUSE:
 			if ((ev->b & BM_ACT) == B_MOVE) break;
@@ -1281,14 +1324,14 @@ void dialog_func(struct window *win, struct links_event *ev, int fwd)
 			}
 			di = &dlg->items[dlg->selected];
 			if (di->item->type == D_FIELD || di->item->type == D_FIELD_PASS) {
-				if (ev->x == KBD_UP && (void *)di->cur_hist->prev != &di->history) {
+				if (ev->x == KBD_UP && di->cur_hist->prev != &di->history) {
 					di->cur_hist = di->cur_hist->prev;
-					dlg_set_history(di);
+					dlg_set_history(term, di);
 					goto dsp_f;
 				}
-				if (ev->x == KBD_DOWN && (void *)di->cur_hist != &di->history) {
+				if (ev->x == KBD_DOWN && di->cur_hist != &di->history) {
 					di->cur_hist = di->cur_hist->next;
-					dlg_set_history(di);
+					dlg_set_history(term, di);
 					goto dsp_f;
 				}
 				if (ev->x == KBD_RIGHT) {
@@ -1468,7 +1511,7 @@ clipbd_paste:
 			for (i = 0; i < dlg->n; i++) {
 				struct dialog_item_data *di = &dlg->items[i];
 				if (di->cdata) mem_free(di->cdata);
-				free_list(di->history);
+				free_list(struct history_item, di->history);
 			}
 			freeml(dlg->ml);
 	}
@@ -1600,7 +1643,7 @@ int check_dialog(struct dialog_data *dlg)
 		if (dlg->dlg->items[i].type == D_CHECKBOX || dlg->dlg->items[i].type == D_FIELD || dlg->dlg->items[i].type == D_FIELD_PASS)
 			if (dlg->dlg->items[i].fn && dlg->dlg->items[i].fn(dlg, &dlg->items[i])) {
 				dlg->selected = i;
-				draw_to_window(dlg->win, (void (*)(struct terminal *, void *))redraw_dialog_items, dlg);
+				draw_to_window(dlg->win, redraw_dialog_items, dlg);
 				return 1;
 			}
 	return 0;
@@ -1610,10 +1653,10 @@ void get_dialog_data(struct dialog_data *dlg)
 {
 	int i;
 	for (i = 0; i < dlg->n; i++) {
-		/* volatile because of a compiler bug */
-		void * volatile p1 = dlg->dlg->items[i].data;
-		void * volatile p2 = dlg->items[i].cdata;
-		volatile int l = dlg->dlg->items[i].dlen;
+		/* highc_volatile because of a compiler bug */
+		void * highc_volatile p1 = dlg->dlg->items[i].data;
+		void * highc_volatile p2 = dlg->items[i].cdata;
+		highc_volatile int l = dlg->dlg->items[i].dlen;
 		if (l)
 			memcpy(p1, p2, l);
 	}
@@ -2230,31 +2273,40 @@ void msg_box(struct terminal *term, struct memory_list *ml, unsigned char *title
 	do_dialog(term, dlg, ml);
 }
 
-void add_to_history(struct history *h, unsigned char *t, int check_duplicates)
+void add_to_history(struct terminal *term, struct history *h, unsigned char *t)
 {
+	unsigned char *s;
 	struct history_item *hi, *hs;
+	struct list_head *lhs;
 	size_t l;
 	if (!h || !t || !*t) return;
-	l = strlen(cast_const_char t);
+	if (term) {
+		s = convert(term_charset(term), utf8_table, t, NULL);
+	} else {
+		s = t;
+	}
+	l = strlen(cast_const_char s);
 	if (l > MAXINT - sizeof(struct history_item)) overalloc();
 	hi = mem_alloc(sizeof(struct history_item) + l);
-	memcpy(hi->d, t, l + 1);
-	if (check_duplicates) foreach(hs, h->items) if (!strcmp(cast_const_char hs->d, cast_const_char t)) {
-		struct history_item *hd = hs;
-		hs = hs->prev;
-		del_from_list(hd);
-		mem_free(hd);
+	memcpy(hi->str, s, l + 1);
+	if (term)
+		mem_free(s);
+	if (term) foreach(struct history_item, hs, lhs, h->items) if (!strcmp(cast_const_char hs->str, cast_const_char hi->str)) {
+		lhs = lhs->prev;
+		del_from_list(hs);
+		mem_free(hs);
 		h->n--;
 	}
 	add_to_list(h->items, hi);
 	h->n++;
 	while (h->n > MAX_HISTORY_ITEMS) {
-		struct history_item *hd = h->items.prev;
-		if ((void *)hd == &h->items) {
+		struct history_item *hd;
+		if (list_empty(h->items)) {
 			internal("history is empty");
 			h->n = 0;
 			return;
 		}
+		hd = list_struct(h->items.prev, struct history_item);
 		del_from_list(hd);
 		mem_free(hd);
 		h->n--;
@@ -2270,37 +2322,19 @@ static int input_field_cancel(struct dialog_data *dlg, struct dialog_item_data *
 	return 0;
 }
 
+typedef void (*input_field_t)(void *, unsigned char *);
+
 static int input_field_ok(struct dialog_data *dlg, struct dialog_item_data *di)
 {
-	void (*fn)(void *, unsigned char *) = (void (*)(void *, unsigned char *))di->item->udata;
+	input_field_t fn = (input_field_t)di->item->udata;
 	void *data = dlg->dlg->udata2;
 	unsigned char *text = dlg->items->cdata;
 	if (check_dialog(dlg)) return 1;
-	add_to_history(dlg->dlg->items->history, text, 1);
+	add_to_history(dlg->win->term, dlg->dlg->items->history, text);
 	if (fn) fn(data, text);
 	ok_dialog(dlg, di);
 	return 0;
 }
-
-/*
-static int input_field_ok_defered(struct dialog_data *dlg, struct dialog_item_data *di)
-{
-	void (*fn)(void *, unsigned char *) = (void (*)(void *, unsigned char *))di->item->udata;
-	void *data = dlg->dlg->udata2;
-	unsigned char *text;
-	struct memory_list *ml;
-	if (check_dialog(dlg)) return 1;
-	text = stracpy(dlg->items->cdata);
-	add_to_history(dlg->dlg->items->history, text, 1);
-	ml = dlg->ml;
-	dlg->ml = NULL;
-	ok_dialog(dlg, di);
-	if (fn) fn(data, text);
-	mem_free(text);
-	freeml(ml);
-	return 0;
-}
-*/
 
 void input_field_fn(struct dialog_data *dlg)
 {
@@ -2332,8 +2366,6 @@ void input_field_fn(struct dialog_data *dlg)
 	y += LL;
 	dlg_format_buttons(dlg, term, dlg->items + 1, dlg->n - 1, dlg->x + DIALOG_LB, &y, w, NULL, AL_CENTER);
 }
-
-typedef void (*input_field_t)(void *, unsigned char *);
 
 void input_field(struct terminal *term, struct memory_list *ml, unsigned char *title, unsigned char *text, void *data, struct history *history, int l, unsigned char *def, int min, int max, int (*check)(struct dialog_data *, struct dialog_item_data *), ...)
 {
@@ -2387,7 +2419,8 @@ void input_field(struct terminal *term, struct memory_list *ml, unsigned char *t
 int find_msg_box(struct terminal *term, unsigned char *title, int (*sel)(void *, void *), void *data)
 {
 	struct window *win;
-	foreach(win, term->windows) if (win->handler == dialog_func) {
+	struct list_head *lwin;
+	foreach(struct window, win, lwin, term->windows) if (win->handler == dialog_func) {
 		struct dialog_data *dd = win->data;
 		struct dialog *d = dd->dlg;
 		if (d->fn != msg_box_fn)

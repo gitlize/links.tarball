@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 LC_ALL=C
 export LC_ALL
 echo
@@ -12,7 +13,7 @@ for i in $codepages; do
 	echo -n $i' ' 1>&2
 	echo
 	echo 'static_const struct table_entry table_'$i' [] = {'
-	tail -n +3 $i.cp | sed 's/#.*$//' | grep '^0x[89a-fA-F]' | sed 's/[ 	][ 	]*/ /g' | sed 's/[ 	]*$/ },/' | sed 's/ /, /' | sed 's/^[ 	]*/	{ /' | grep '.*, .*,' | grep -v ', 0x0*[89][0-9a-fA-F] '
+	tail -n +3 $i.cp | sed 's/#.*$//' | grep '^0x[89a-fA-F]' | sed 's/[ 	][ 	]*/ /g' | sed 's/[ 	]*$/ },/' | sed 's/ /, /' | sed 's/^[ 	]*/	{ /' | grep '.*, .*,' | grep -v ', 0x0*[89][0-9a-fA-F] ' || true
 	echo '	{ 0, 0 }'
 	echo '};'
 	echo
@@ -26,7 +27,12 @@ for i in $codepages; do
 done
 echo '	{ NULL, NULL, NULL }'
 echo '};'
-echo '#define N_CODEPAGES '$n | sed 's///g' > ../codepage.h
+echo '#define N_CODEPAGES '$n | sed 's///g' > codepage.h
+if cmp -s ../codepage.h codepage.h; then
+	rm -f codepage.h
+else
+	mv codepage.h ../codepage.h
+fi
 ) | sed 's///g' > ../codepage.inc
 echo
 echo Done.
